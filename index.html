@@ -257,13 +257,12 @@ body {
 	color: #1a3d2a !important;
 }
 
-/* Dropdown content - fixed position, opaque, same font size */
+/* Dropdown content - base styles */
 .nav_dropdown-content,
 .w-dropdown-list {
 	position: absolute !important;
 	top: 100% !important;
 	left: 0 !important;
-	right: auto !important;
 	background: rgba(255, 255, 255, 0.98) !important;
 	backdrop-filter: blur(20px) saturate(180%) !important;
 	-webkit-backdrop-filter: blur(20px) saturate(180%) !important;
@@ -276,22 +275,12 @@ body {
 	box-sizing: border-box !important;
 	z-index: 10000 !important;
 	margin-top: 4px !important;
-	margin-left: 0 !important;
-	margin-right: 0 !important;
-	opacity: 0 !important;
-	visibility: hidden !important;
-	transform: translateY(-10px) !important;
 	transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease !important;
-	display: block !important;
 }
 
-/* Force dropdown hidden by default - override any initial state */
+/* Dropdown hidden by default */
 .nav_dropdown .nav_dropdown-content,
-.w-dropdown .w-dropdown-list,
-.nav_dropdown nav.nav_dropdown-content,
-.nav_dropdown nav.w-dropdown-list,
-.w-dropdown nav.nav_dropdown-content,
-.w-dropdown nav.w-dropdown-list {
+.w-dropdown .w-dropdown-list {
 	opacity: 0 !important;
 	visibility: hidden !important;
 	transform: translateY(-10px) !important;
@@ -299,20 +288,7 @@ body {
 	display: none !important;
 }
 
-/* Only show when w--open is explicitly present */
-.nav_dropdown:not(.w--open) .nav_dropdown-content,
-.w-dropdown:not(.w--open) .w-dropdown-list,
-.nav_dropdown:not(.w--open) nav.nav_dropdown-content,
-.nav_dropdown:not(.w--open) nav.w-dropdown-list,
-.w-dropdown:not(.w--open) nav.nav_dropdown-content,
-.w-dropdown:not(.w--open) nav.w-dropdown-list {
-	opacity: 0 !important;
-	visibility: hidden !important;
-	pointer-events: none !important;
-	display: none !important;
-}
-
-/* Dropdown open state - ensure it shows (ONLY when w--open class is present, NO hover) */
+/* Dropdown visible when open */
 .nav_dropdown.w--open .nav_dropdown-content,
 .w-dropdown.w--open .w-dropdown-list {
 	opacity: 1 !important;
@@ -320,22 +296,69 @@ body {
 	transform: translateY(0) !important;
 	display: block !important;
 	pointer-events: auto !important;
-	max-width: 250px !important;
-	width: auto !important;
-	right: auto !important;
-	left: 0 !important;
-	box-sizing: border-box !important;
 }
 
-/* Prevent any width expansion during transitions */
-.nav_dropdown-content,
-.w-dropdown-list,
-.nav_dropdown .nav_dropdown-content,
-.w-dropdown .w-dropdown-list {
-	max-width: 250px !important;
-	width: auto !important;
-	right: auto !important;
-	box-sizing: border-box !important;
+/* Desktop: Ensure dropdown is visible and fix font sizes */
+@media (min-width: 992px) {
+	/* Fixed font sizes to prevent scaling */
+	.nav_link,
+	.nav_dropdown-toggle,
+	.nav_dropdown-toggle div {
+		font-size: 20.8px !important;
+		line-height: 1.2 !important;
+	}
+	
+	.nav_dropdown-link {
+		font-size: 20.8px !important;
+	}
+	
+	.button.is-nav {
+		font-size: 19.2px !important;
+	}
+	
+	/* Ensure dropdown is not clipped */
+	.container-large.is-nav,
+	.nav_menu.w-nav-menu,
+	.navbar_wrapper,
+	.navbar_menu,
+	.navbar,
+	.nav_dropdown {
+		overflow: visible !important;
+	}
+	
+	.nav_dropdown-content,
+	.w-dropdown-list {
+		z-index: 10001 !important;
+	}
+	
+	/* Fixed icon sizes - ensure About dropdown icon matches other icons */
+	.nav_icon,
+	.nav_icon.w-embed,
+	.nav_dropdown-icon,
+	.nav_dropdown-icon.w-embed,
+	.nav_dropdown-toggle .nav_dropdown-icon,
+	.nav_dropdown-toggle .nav_dropdown-icon.w-embed,
+	.nav_dropdown-toggle div .nav_dropdown-icon,
+	.nav_dropdown-toggle div .nav_dropdown-icon.w-embed,
+	.nav_menu .nav_dropdown-icon,
+	.nav_menu .nav_dropdown-icon.w-embed,
+	.nav_menu .nav_dropdown-toggle .nav_dropdown-icon,
+	.nav_menu .nav_dropdown-toggle .nav_dropdown-icon.w-embed {
+		width: 20px !important;
+		height: 20px !important;
+		flex-shrink: 0 !important;
+		max-width: 20px !important;
+		max-height: 20px !important;
+		min-width: 20px !important;
+		min-height: 20px !important;
+	}
+	
+	.nav_link .nav_icon,
+	.nav_dropdown-toggle .nav_dropdown-icon,
+	.nav_menu .nav_dropdown-toggle .nav_dropdown-icon {
+		width: 20px !important;
+		height: 20px !important;
+	}
 }
 
 /* Dropdown links - same font size as header */
@@ -563,7 +586,6 @@ body {
 	.nav_menu .nav_dropdown.w--open > .w-dropdown-list,
 	.nav_menu .nav_dropdown.w-dropdown.w--open > .nav_dropdown-content,
 	.nav_menu .nav_dropdown.w-dropdown.w--open > .w-dropdown-list,
-	/* REMOVED: This was forcing dropdown visible without w--open class */
 	/* Only show when w--open is present */
 	.nav_menu .nav_dropdown.w--open nav.nav_dropdown-content.w-dropdown-list,
 	.nav_menu .nav_dropdown.w--open nav.w-dropdown-list,
@@ -1146,8 +1168,26 @@ html {
     }
     
     .nav_link,
-    .nav_dropdown-toggle {
-        font-size: 1.1rem !important;
+    .nav_dropdown-toggle,
+    .nav_dropdown-toggle div {
+        font-size: 20.8px !important;
+    }
+    
+    /* Fixed icon sizes in this media query */
+    .nav_dropdown-icon,
+    .nav_dropdown-icon.w-embed,
+    .nav_dropdown-toggle .nav_dropdown-icon,
+    .nav_dropdown-toggle .nav_dropdown-icon.w-embed,
+    .nav_menu .nav_dropdown-icon,
+    .nav_menu .nav_dropdown-icon.w-embed,
+    .nav_menu .nav_dropdown-toggle .nav_dropdown-icon,
+    .nav_menu .nav_dropdown-toggle .nav_dropdown-icon.w-embed {
+        width: 20px !important;
+        height: 20px !important;
+        max-width: 20px !important;
+        max-height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
     }
 }
 
@@ -1173,9 +1213,27 @@ html {
     }
     
     .nav_link,
-    .nav_dropdown-toggle {
-        font-size: 1.05rem !important;
+    .nav_dropdown-toggle,
+    .nav_dropdown-toggle div {
+        font-size: 20.8px !important;
         padding: 0.5rem 0.8rem !important;
+    }
+    
+    /* Fixed icon sizes in this media query */
+    .nav_dropdown-icon,
+    .nav_dropdown-icon.w-embed,
+    .nav_dropdown-toggle .nav_dropdown-icon,
+    .nav_dropdown-toggle .nav_dropdown-icon.w-embed,
+    .nav_menu .nav_dropdown-icon,
+    .nav_menu .nav_dropdown-icon.w-embed,
+    .nav_menu .nav_dropdown-toggle .nav_dropdown-icon,
+    .nav_menu .nav_dropdown-toggle .nav_dropdown-icon.w-embed {
+        width: 20px !important;
+        height: 20px !important;
+        max-width: 20px !important;
+        max-height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
     }
     
     .button.is-nav {
@@ -2169,166 +2227,68 @@ $(document).ready(function() {
     
     var dropdowns = document.querySelectorAll('.nav_dropdown, .w-dropdown');
     dropdowns.forEach(function(dropdown) {
-      // Remove w--open class
       dropdown.classList.remove('w--open');
-      
-      // Remove data-hover to prevent Webflow hover behavior
       if (dropdown.hasAttribute('data-hover')) {
         dropdown.removeAttribute('data-hover');
-      }
-      
-      // Force hide the content and set width constraints
-      var content = dropdown.querySelector('.nav_dropdown-content, .w-dropdown-list');
-      if (content) {
-        content.style.setProperty('opacity', '0', 'important');
-        content.style.setProperty('visibility', 'hidden', 'important');
-        content.style.setProperty('pointer-events', 'none', 'important');
-        content.style.setProperty('transform', 'translateY(-10px)', 'important');
-        content.style.setProperty('max-width', '250px', 'important');
-        content.style.setProperty('width', 'auto', 'important');
-        content.style.setProperty('right', 'auto', 'important');
-        content.style.setProperty('box-sizing', 'border-box', 'important');
       }
     });
   }
   
-  // Completely override dropdown toggle behavior
+  // Simple dropdown toggle
   function setupDropdownHandlers() {
     if (!isDesktop()) return;
     
     var dropdowns = document.querySelectorAll('.nav_dropdown, .w-dropdown');
     
     dropdowns.forEach(function(dropdown) {
+      // Disable Webflow hover behavior
+      if (dropdown.hasAttribute('data-hover')) {
+        dropdown.removeAttribute('data-hover');
+      }
+      
       var toggle = dropdown.querySelector('.nav_dropdown-toggle, .w-dropdown-toggle');
-      var content = dropdown.querySelector('.nav_dropdown-content, .w-dropdown-list');
+      if (!toggle) return;
       
-      if (!toggle || !content) return;
-      
-      // Remove any existing event listeners by cloning
+      // Clone to remove Webflow listeners
       var newToggle = toggle.cloneNode(true);
       toggle.parentNode.replaceChild(newToggle, toggle);
       
-      // Add our own click handler
+      // Add click handler
       newToggle.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation();
         
         var isOpen = dropdown.classList.contains('w--open');
-        
-        // Mark that we're toggling this dropdown
-        dropdown.dataset.ourToggle = 'true';
         
         // Close all other dropdowns
         document.querySelectorAll('.nav_dropdown.w--open, .w-dropdown.w--open').forEach(function(d) {
           if (d !== dropdown) {
             d.classList.remove('w--open');
-            var otherContent = d.querySelector('.nav_dropdown-content, .w-dropdown-list');
-            if (otherContent) {
-              otherContent.style.setProperty('opacity', '0', 'important');
-              otherContent.style.setProperty('visibility', 'hidden', 'important');
-              otherContent.style.setProperty('pointer-events', 'none', 'important');
-              otherContent.style.setProperty('transform', 'translateY(-10px)', 'important');
-              otherContent.style.setProperty('max-width', '250px', 'important');
-              otherContent.style.setProperty('width', 'auto', 'important');
-            }
           }
         });
         
         // Toggle this dropdown
         if (isOpen) {
           dropdown.classList.remove('w--open');
-          content.style.setProperty('opacity', '0', 'important');
-          content.style.setProperty('visibility', 'hidden', 'important');
-          content.style.setProperty('pointer-events', 'none', 'important');
-          content.style.setProperty('transform', 'translateY(-10px)', 'important');
         } else {
-          // Set width constraints FIRST before opening to prevent expansion
-          content.style.setProperty('max-width', '250px', 'important');
-          content.style.setProperty('width', 'auto', 'important');
-          content.style.setProperty('right', 'auto', 'important');
-          content.style.setProperty('left', '0', 'important');
-          content.style.setProperty('box-sizing', 'border-box', 'important');
-          
           dropdown.classList.add('w--open');
-          content.style.setProperty('opacity', '1', 'important');
-          content.style.setProperty('visibility', 'visible', 'important');
-          content.style.setProperty('pointer-events', 'auto', 'important');
-          content.style.setProperty('transform', 'translateY(0)', 'important');
         }
-        
-        // Clear flag after a short delay
-        setTimeout(function() {
-          delete dropdown.dataset.ourToggle;
-        }, 50);
-      }, true); // Use capture phase to intercept before Webflow
+      }, true);
     });
-  }
-  
-  // Close dropdown when clicking outside
-  document.addEventListener('click', function(e) {
-    if (!isDesktop()) return;
     
-    var dropdown = e.target.closest('.nav_dropdown, .w-dropdown');
-    var toggle = e.target.closest('.nav_dropdown-toggle, .w-dropdown-toggle');
-    var link = e.target.closest('.nav_dropdown-link');
-    
-    // If clicking outside any dropdown, close all dropdowns
-    if (!dropdown && !toggle && !link) {
-      document.querySelectorAll('.nav_dropdown.w--open, .w-dropdown.w--open').forEach(function(d) {
-        d.classList.remove('w--open');
-        var content = d.querySelector('.nav_dropdown-content, .w-dropdown-list');
-        if (content) {
-          content.style.setProperty('opacity', '0', 'important');
-          content.style.setProperty('visibility', 'hidden', 'important');
-          content.style.setProperty('pointer-events', 'none', 'important');
-          content.style.setProperty('transform', 'translateY(-10px)', 'important');
-          content.style.setProperty('max-width', '250px', 'important');
-          content.style.setProperty('width', 'auto', 'important');
-        }
-      });
-    }
-  });
-  
-  // Watch for Webflow trying to add w--open class and remove it
-  function watchForWebflowOpen() {
-    if (!isDesktop()) return;
-    
-    var dropdowns = document.querySelectorAll('.nav_dropdown, .w-dropdown');
-    dropdowns.forEach(function(dropdown) {
-      var observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-          if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            // If w--open was added but not by our handler, remove it
-            if (dropdown.classList.contains('w--open')) {
-              // Check if this was from our handler (we'll set a flag)
-              if (!dropdown.dataset.ourToggle) {
-                // Webflow added it, remove it
-                setTimeout(function() {
-                  dropdown.classList.remove('w--open');
-                  var content = dropdown.querySelector('.nav_dropdown-content, .w-dropdown-list');
-                  if (content) {
-                    content.style.setProperty('opacity', '0', 'important');
-                    content.style.setProperty('visibility', 'hidden', 'important');
-                    content.style.setProperty('pointer-events', 'none', 'important');
-                    content.style.setProperty('transform', 'translateY(-10px)', 'important');
-                    content.style.setProperty('max-width', '250px', 'important');
-                    content.style.setProperty('width', 'auto', 'important');
-                  }
-                }, 0);
-              } else {
-                // Clear the flag
-                delete dropdown.dataset.ourToggle;
-              }
-            }
-          }
-        });
-      });
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!isDesktop()) return;
       
-      observer.observe(dropdown, {
-        attributes: true,
-        attributeFilter: ['class']
-      });
+      var dropdown = e.target.closest('.nav_dropdown, .w-dropdown');
+      var toggle = e.target.closest('.nav_dropdown-toggle, .w-dropdown-toggle');
+      var link = e.target.closest('.nav_dropdown-link');
+      
+      if (!dropdown && !toggle && !link) {
+        document.querySelectorAll('.nav_dropdown.w--open, .w-dropdown.w--open').forEach(function(d) {
+          d.classList.remove('w--open');
+        });
+      }
     });
   }
   
@@ -2336,7 +2296,6 @@ $(document).ready(function() {
   function init() {
     ensureDropdownsClosed();
     setupDropdownHandlers();
-    watchForWebflowOpen();
   }
   
   // Run on load
@@ -2344,21 +2303,6 @@ $(document).ready(function() {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
-  }
-  
-  // Also run after delays to catch Webflow initialization
-  setTimeout(init, 50);
-  setTimeout(init, 100);
-  setTimeout(init, 300);
-  setTimeout(init, 500);
-  setTimeout(init, 1000);
-  
-  // Watch for Webflow initialization
-  if (window.Webflow) {
-    window.Webflow.push(function() {
-      setTimeout(init, 100);
-      setTimeout(init, 500);
-    });
   }
   
   // Re-run on resize
