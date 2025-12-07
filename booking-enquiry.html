@@ -2066,6 +2066,7 @@ section.story-hero {
 })();
 
 // Set minimum date for check-in (today's date) and check-out (check-in + 1 day)
+// Enhanced for iOS Chrome compatibility
 (function() {
     function addDays(date, days) {
         const result = new Date(date);
@@ -2080,6 +2081,12 @@ section.story-hero {
         return `${year}-${month}-${day}`;
     }
     
+    function isValidDate(dateStr) {
+        if (!dateStr) return false;
+        const date = new Date(dateStr);
+        return date instanceof Date && !isNaN(date);
+    }
+    
     function setMinDate() {
         const checkinInput = document.getElementById('checkin');
         const checkoutInput = document.getElementById('checkout');
@@ -2089,42 +2096,126 @@ section.story-hero {
             const today = new Date();
             const todayStr = formatDate(today);
             
-            // Set min attribute to today's date for check-in
+            // Set min attribute to today's date for check-in (multiple ways for iOS Chrome)
             checkinInput.setAttribute('min', todayStr);
+            checkinInput.min = todayStr;
+            
+            // Add input event listener to validate in real-time (iOS Chrome fix)
+            checkinInput.addEventListener('input', function() {
+                const selectedDate = checkinInput.value;
+                if (selectedDate && isValidDate(selectedDate)) {
+                    const selected = new Date(selectedDate);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    selected.setHours(0, 0, 0, 0);
+                    
+                    // If selected date is in the past, reset to today
+                    if (selected < today) {
+                        checkinInput.value = todayStr;
+                        alert('Check-in date cannot be in the past. Please select today or a future date.');
+                    }
+                }
+            });
+            
+            // Also validate on blur
+            checkinInput.addEventListener('blur', function() {
+                const selectedDate = checkinInput.value;
+                if (selectedDate && isValidDate(selectedDate)) {
+                    const selected = new Date(selectedDate);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    selected.setHours(0, 0, 0, 0);
+                    
+                    if (selected < today) {
+                        checkinInput.value = todayStr;
+                        alert('Check-in date cannot be in the past. Please select today or a future date.');
+                    }
+                }
+            });
             
             // Also set min for checkout to be at least check-in date + 1 day
             if (checkoutInput) {
+                // Set initial min for checkout (today + 1 day)
+                const tomorrow = addDays(today, 1);
+                const tomorrowStr = formatDate(tomorrow);
+                checkoutInput.setAttribute('min', tomorrowStr);
+                checkoutInput.min = tomorrowStr;
+                
                 // When check-in date changes, update check-out min date
                 checkinInput.addEventListener('change', function() {
                     const checkinDate = checkinInput.value;
-                    if (checkinDate) {
+                    if (checkinDate && isValidDate(checkinDate)) {
                         // Parse check-in date and add 1 day
                         const checkinDateObj = new Date(checkinDate);
                         const minCheckoutDate = addDays(checkinDateObj, 1);
                         const minCheckoutStr = formatDate(minCheckoutDate);
                         checkoutInput.setAttribute('min', minCheckoutStr);
+                        checkoutInput.min = minCheckoutStr;
                         
                         // If current checkout date is invalid, clear it
-                        if (checkoutInput.value && checkoutInput.value <= checkinDate) {
-                            checkoutInput.value = '';
+                        if (checkoutInput.value) {
+                            const checkoutDate = new Date(checkoutInput.value);
+                            if (checkoutDate <= checkinDateObj) {
+                                checkoutInput.value = '';
+                            }
                         }
                     }
                 });
                 
-                // Set initial min for checkout (today + 1 day)
-                const tomorrow = addDays(today, 1);
-                const tomorrowStr = formatDate(tomorrow);
-                checkoutInput.setAttribute('min', tomorrowStr);
+                // Validate checkout date on input (iOS Chrome fix)
+                checkoutInput.addEventListener('input', function() {
+                    const checkoutDate = checkoutInput.value;
+                    const checkinDate = checkinInput.value;
+                    
+                    if (checkoutDate && checkinDate && isValidDate(checkoutDate) && isValidDate(checkinDate)) {
+                        const checkout = new Date(checkoutDate);
+                        const checkin = new Date(checkinDate);
+                        checkout.setHours(0, 0, 0, 0);
+                        checkin.setHours(0, 0, 0, 0);
+                        
+                        // If checkout is same day or before check-in, clear it
+                        if (checkout <= checkin) {
+                            checkoutInput.value = '';
+                            alert('Check-out date must be at least 1 day after check-in date.');
+                        }
+                    }
+                });
+                
+                // Also validate on blur
+                checkoutInput.addEventListener('blur', function() {
+                    const checkoutDate = checkoutInput.value;
+                    const checkinDate = checkinInput.value;
+                    
+                    if (checkoutDate && checkinDate && isValidDate(checkoutDate) && isValidDate(checkinDate)) {
+                        const checkout = new Date(checkoutDate);
+                        const checkin = new Date(checkinDate);
+                        checkout.setHours(0, 0, 0, 0);
+                        checkin.setHours(0, 0, 0, 0);
+                        
+                        if (checkout <= checkin) {
+                            checkoutInput.value = '';
+                            alert('Check-out date must be at least 1 day after check-in date.');
+                        }
+                    }
+                });
             }
         }
     }
     
-    // Run on page load
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', setMinDate);
-    } else {
+    // Run on page load and also after a short delay for iOS Chrome
+    function initializeDates() {
         setMinDate();
     }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeDates);
+    } else {
+        initializeDates();
+    }
+    
+    // Also run after a short delay for iOS Chrome compatibility
+    setTimeout(initializeDates, 100);
+    setTimeout(initializeDates, 500);
 })();
 
 // Custom Dropdown Handler for Room Type
@@ -2212,15 +2303,38 @@ section.story-hero {
             const arrivalTime = document.getElementById('arrivalTime').value || 'Not specified';
             const specialRequests = document.getElementById('specialRequests').value || 'None';
             
-            // Validate that checkout is at least 1 day after check-in
+            // Enhanced date validation (iOS Chrome fix)
             if (checkin && checkout) {
                 const checkinDate = new Date(checkin);
                 const checkoutDate = new Date(checkout);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                checkinDate.setHours(0, 0, 0, 0);
+                checkoutDate.setHours(0, 0, 0, 0);
+                
+                // Check if check-in is in the past
+                if (checkinDate < today) {
+                    alert('Check-in date cannot be in the past. Please select today or a future date.');
+                    document.getElementById('checkin').focus();
+                    return;
+                }
                 
                 // Check if checkout is same day or before check-in
                 if (checkoutDate <= checkinDate) {
                     alert('Check-out date must be at least 1 day after check-in date. Please select a valid check-out date.');
                     document.getElementById('checkout').focus();
+                    return;
+                }
+            } else if (checkin) {
+                // Validate check-in even if checkout is not selected
+                const checkinDate = new Date(checkin);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                checkinDate.setHours(0, 0, 0, 0);
+                
+                if (checkinDate < today) {
+                    alert('Check-in date cannot be in the past. Please select today or a future date.');
+                    document.getElementById('checkin').focus();
                     return;
                 }
             }
