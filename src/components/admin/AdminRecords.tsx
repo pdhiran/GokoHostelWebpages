@@ -24,6 +24,15 @@ const TEXT_FIELDS = [
   { index: 11, label: "ID Type", type: "select", options: ["aadhaar", "driving_licence", "passport"] },
 ];
 
+function getDefaults(): string[] {
+  const arr = Array(15).fill("");
+  const now = new Date();
+  arr[1] = now.toISOString().split("T")[0];
+  arr[2] = now.toTimeString().slice(0, 5);
+  arr[8] = "India";
+  return arr;
+}
+
 function extractDriveFileId(url: string): string | null {
   const match = url.match(/\/d\/([^/]+)\//);
   return match ? match[1] : null;
@@ -36,7 +45,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [currentTab, setCurrentTab] = useState("");
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newEntry, setNewEntry] = useState<string[]>(Array(15).fill(""));
+  const [newEntry, setNewEntry] = useState<string[]>(getDefaults());
   const [newIdFiles, setNewIdFiles] = useState<File[]>([]);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editEntry, setEditEntry] = useState<string[]>(Array(15).fill(""));
@@ -172,7 +181,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
       }
 
       const res = await apiCall({ action: "add", entry });
-      if (res.ok) { setShowAddForm(false); setNewEntry(Array(15).fill("")); setNewIdFiles([]); refresh(); }
+      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewIdFiles([]); refresh(); }
     } finally { setLoading(false); }
   };
 
@@ -306,12 +315,34 @@ export function AdminRecords({ password, username, role }: { password: string; u
                 )}
               </div>
             ))}
-            <div>
+            <div className="sm:col-span-2 md:col-span-3">
               <Label className="text-xs">ID Card photos</Label>
-              <label className="mt-1 flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-brand-sand/50">
-                <UploadIcon className="h-4 w-4 text-brand-green" /> {newIdFiles.length > 0 ? `${newIdFiles.length} file(s) selected` : "Choose files"}
-                <input type="file" accept="image/*,.pdf" multiple className="hidden" onChange={(e) => { if (e.target.files) setNewIdFiles(Array.from(e.target.files)); }} />
+              {newIdFiles.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {newIdFiles.map((file, i) => (
+                    <div key={i} className="relative">
+                      {file.type === "application/pdf" ? (
+                        <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-brand-mist bg-brand-sand/30 text-xs font-medium text-brand-green-dark/60">PDF</div>
+                      ) : (
+                        <img src={URL.createObjectURL(file)} alt={`ID ${i + 1}`} className="h-20 w-20 rounded-lg border border-brand-mist object-cover" />
+                      )}
+                      <button type="button" onClick={() => setNewIdFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600">
+                        <XIcon className="h-3 w-3" />
+                      </button>
+                      <p className="mt-1 max-w-[80px] truncate text-center text-[10px] text-brand-green-dark/50">{i === 0 ? "Front" : i === 1 ? "Back" : `Page ${i + 1}`}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-brand-sand/50">
+                <UploadIcon className="h-4 w-4 text-brand-green" />
+                {newIdFiles.length === 0 ? "Choose files" : "Add more photos"}
+                <input type="file" accept="image/*,.pdf" multiple className="hidden" onChange={(e) => { if (e.target.files) setNewIdFiles((prev) => [...prev, ...Array.from(e.target.files!)]); }} />
               </label>
+              {newIdFiles.length > 0 && (
+                <p className="mt-1 text-[10px] text-brand-green-dark/50">{newIdFiles.length} file(s) — upload front & back of ID</p>
+              )}
             </div>
           </div>
           <div className="mt-4 flex gap-2">

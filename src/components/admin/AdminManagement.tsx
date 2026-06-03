@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
 import { ManagementAudit } from "./ManagementAudit";
 import { ManagementLogs } from "./ManagementLogs";
+import { ManagementHealth } from "./ManagementHealth";
 import type { Role, ManagementTab } from "./types";
 
 const TABS: { id: ManagementTab; label: string; icon: React.ReactNode }[] = [
@@ -16,6 +17,7 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode }[] = [
   { id: "backup", label: "Backup", icon: <DatabaseIcon className="h-3.5 w-3.5" /> },
   { id: "audit", label: "Audit", icon: <ShieldCheckIcon className="h-3.5 w-3.5" /> },
   { id: "logs", label: "Logs", icon: <FileTextIcon className="h-3.5 w-3.5" /> },
+  { id: "health", label: "Health", icon: <HeartPulseIcon className="h-3.5 w-3.5" /> },
 ];
 
 export function AdminManagement({ password, username, role }: { password: string; username?: string; role: Role }) {
@@ -54,6 +56,7 @@ export function AdminManagement({ password, username, role }: { password: string
         {tab === "backup" && <ManagementBackup password={password} role={role} />}
         {tab === "audit" && <ManagementAudit password={password} role={role} />}
         {tab === "logs" && <ManagementLogs password={password} role={role} />}
+        {tab === "health" && <ManagementHealth password={password} role={role} />}
       </div>
     </div>
   );

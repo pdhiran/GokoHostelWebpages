@@ -43,7 +43,7 @@ if (!CLIENT_ID || !CLIENT_SECRET) {
 const oauth2Client = new google.auth.OAuth2(
   CLIENT_ID,
   CLIENT_SECRET,
-  "urn:ietf:wg:oauth:2.0:oob"
+  "http://localhost:3333"
 );
 
 const authUrl = oauth2Client.generateAuthUrl({
@@ -56,21 +56,44 @@ const authUrl = oauth2Client.generateAuthUrl({
 });
 
 console.log("\n=== Google OAuth Setup (Drive + Gmail) ===\n");
-console.log("1. Open this URL in your browser:\n");
+console.log("1. Opening browser for authorization...\n");
+console.log("If the browser doesn't open, visit this URL:\n");
 console.log(authUrl);
 console.log("\n2. Sign in with: thegokosocial@gmail.com");
 console.log("3. Grant permission for Drive AND Gmail access");
-console.log("4. Copy the authorization code and paste it below:\n");
+console.log("4. You'll be redirected back automatically.\n");
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-rl.question("Authorization code: ", async (code) => {
-  try {
-    const { tokens } = await oauth2Client.getToken(code.trim());
-    console.log("\n✓ Success! Add this to your .env.local:\n");
-    console.log(`GOOGLE_OAUTH_REFRESH_TOKEN=${tokens.refresh_token}\n`);
-    console.log("Then restart the dev server.\n");
-  } catch (err) {
-    console.error("\nERROR:", err.message);
+// Start a local server to catch the OAuth redirect
+const http = require("http");
+const url = require("url");
+
+const server = http.createServer(async (req, res) => {
+  const query = url.parse(req.url, true).query;
+  if (query.code) {
+    try {
+      const { tokens } = await oauth2Client.getToken(query.code);
+      console.log("\n✓ Success! Add this to your .env.local:\n");
+      console.log(`GOOGLE_OAUTH_REFRESH_TOKEN=${tokens.refresh_token}\n`);
+      console.log("Then update the same in Cloudflare env vars.\n");
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end("<h2>Success! Token generated.</h2><p>You can close this tab and go back to the terminal.</p>");
+    } catch (err) {
+      console.error("\nERROR:", err.message);
+      res.writeHead(400, { "Content-Type": "text/html" });
+      res.end(`<h2>Error</h2><p>${err.message}</p>`);
+    }
+    setTimeout(() => { server.close(); process.exit(0); }, 1000);
+  } else if (query.error) {
+    console.error("\nOAuth error:", query.error);
+    res.writeHead(400, { "Content-Type": "text/html" });
+    res.end(`<h2>Error</h2><p>${query.error}</p>`);
+    setTimeout(() => { server.close(); process.exit(1); }, 1000);
   }
-  rl.close();
+});
+
+server.listen(3333, () => {
+  console.log("Waiting for OAuth redirect on http://localhost:3333 ...\n");
+  // Try to open browser
+  const { exec } = require("child_process");
+  exec(`open "${authUrl}"`, () => {});
 });

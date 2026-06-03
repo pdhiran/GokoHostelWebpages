@@ -88,10 +88,11 @@ async function getServiceAccountToken(scopes: string[]): Promise<string> {
   return data.access_token;
 }
 
-let _oauthTokenCache: { token: string; expiry: number } | null = null;
+let _oauthTokenCache: { token: string; expiry: number; key: string } | null = null;
 
 async function getOAuthToken(): Promise<string | null> {
-  if (_oauthTokenCache && Date.now() < _oauthTokenCache.expiry) {
+  const cacheKey = "env";
+  if (_oauthTokenCache && _oauthTokenCache.key === cacheKey && Date.now() < _oauthTokenCache.expiry) {
     return _oauthTokenCache.token;
   }
 
@@ -109,8 +110,82 @@ async function getOAuthToken(): Promise<string | null> {
   if (!res.ok) return null;
   const data = await res.json();
   if (!data.access_token) return null;
-  _oauthTokenCache = { token: data.access_token, expiry: Date.now() + 50 * 60 * 1000 };
+  _oauthTokenCache = { token: data.access_token, expiry: Date.now() + 50 * 60 * 1000, key: cacheKey };
   return data.access_token;
+}
+
+async function getOAuthTokenWithCredentials(refreshToken: string, clientId: string, clientSecret: string): Promise<string | null> {
+  const cacheKey = `db:${clientId}`;
+  if (_oauthTokenCache && _oauthTokenCache.key === cacheKey && Date.now() < _oauthTokenCache.expiry) {
+    return _oauthTokenCache.token;
+  }
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&refresh_token=${encodeURIComponent(refreshToken)}&grant_type=refresh_token`,
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.access_token) return null;
+  _oauthTokenCache = { token: data.access_token, expiry: Date.now() + 50 * 60 * 1000, key: cacheKey };
+  return data.access_token;
+}
+
+export async function getOAuthTokenWithDb(): Promise<string | null> {
+  try {
+    const { getSetting } = await import("@/db/queries");
+    const dbRefreshToken = await getSetting("google_oauth_refresh_token");
+    if (dbRefreshToken) {
+      const dbClientId = await getSetting("google_oauth_web_client_id");
+      const dbClientSecret = await getSetting("google_oauth_web_client_secret");
+      if (dbClientId && dbClientSecret) {
+        const token = await getOAuthTokenWithCredentials(dbRefreshToken, dbClientId, dbClientSecret);
+        if (token) return token;
+      }
+    }
+  } catch {
+    // D1 unavailable — fall through to env var token
+  }
+  return getOAuthToken();
+}
+
+export async function checkOAuthHealth(): Promise<{ status: "ok" | "error"; message?: string }> {
+  try {
+    const token = await getOAuthTokenWithDb();
+    if (!token) return { status: "error", message: "No valid OAuth token — reconnect required" };
+    const res = await fetch("https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { status: "error", message: res.status === 401 ? "OAuth token expired — reconnect required" : `Drive API returned ${res.status}` };
+    return { status: "ok" };
+  } catch (e: any) {
+    return { status: "error", message: e.message || "Unknown error" };
+  }
+}
+
+export async function checkVisionHealth(): Promise<{ status: "ok" | "error"; message?: string }> {
+  try {
+    await getServiceAccountToken(["https://www.googleapis.com/auth/cloud-vision"]);
+    return { status: "ok" };
+  } catch (e: any) {
+    return { status: "error", message: e.message || "Unknown error" };
+  }
+}
+
+export async function checkGmailHealth(): Promise<{ status: "ok" | "error"; message?: string }> {
+  try {
+    const token = await getOAuthTokenWithDb();
+    if (!token) return { status: "error", message: "No valid OAuth token — reconnect required" };
+    const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { status: "error", message: res.status === 401 ? "OAuth token expired — reconnect required" : `Gmail API returned ${res.status}` };
+    return { status: "ok" };
+  } catch (e: any) {
+    return { status: "error", message: e.message || "Unknown error" };
+  }
 }
 
 // --- Google Drive ---
@@ -131,7 +206,7 @@ export async function driveUploadFile(
   fileBuffer: ArrayBuffer,
   parentFolderId?: string
 ): Promise<string> {
-  const token = await getOAuthToken();
+  const token = await getOAuthTokenWithDb();
   if (!token) throw new Error("OAuth token not available for Drive upload");
 
   const metadata = JSON.stringify({
@@ -176,7 +251,7 @@ export async function driveUploadFile(
 }
 
 export async function driveDeleteFile(fileId: string): Promise<void> {
-  const token = await getOAuthToken();
+  const token = await getOAuthTokenWithDb();
   if (!token) throw new Error("OAuth token not available for Drive delete");
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
     method: "DELETE",
@@ -188,7 +263,7 @@ export async function driveDeleteFile(fileId: string): Promise<void> {
 }
 
 export async function driveGetOrCreateFolder(parentId: string, folderName: string): Promise<string> {
-  const token = await getOAuthToken();
+  const token = await getOAuthTokenWithDb();
   if (!token) return parentId;
 
   const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
@@ -291,7 +366,7 @@ export type GmailMessage = {
 };
 
 export async function gmailListMessages(query: string, maxResults = 20): Promise<{ id: string; threadId: string }[]> {
-  const token = await getOAuthToken();
+  const token = await getOAuthTokenWithDb();
   if (!token) return [];
 
   const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
@@ -302,7 +377,7 @@ export async function gmailListMessages(query: string, maxResults = 20): Promise
 }
 
 export async function gmailGetMessage(messageId: string): Promise<GmailMessage | null> {
-  const token = await getOAuthToken();
+  const token = await getOAuthTokenWithDb();
   if (!token) return null;
 
   const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`;

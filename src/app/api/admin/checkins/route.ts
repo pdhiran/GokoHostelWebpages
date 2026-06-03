@@ -14,7 +14,7 @@ import {
   addSystemLog, getSystemLogs,
 } from "@/db/queries";
 import { beds, checkins } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 type UserRole = "admin" | "manager" | "staff";
 
@@ -166,6 +166,30 @@ export async function POST(req: NextRequest) {
       await updateCheckin(rowId, { verified: verified ? "yes" : "no" });
       await addAuditEntry({ username: actingUser, action: "verify_id", target: String(rowId) });
       return NextResponse.json({ success: true });
+    }
+
+    // --- Health Check ---
+
+    if (action === "healthCheck") {
+      if (role !== "admin") return NextResponse.json({ error: "Only admin can run health checks" }, { status: 403 });
+      const { checkOAuthHealth, checkVisionHealth, checkGmailHealth } = await import("@/lib/googleApiFetch");
+
+      const [drive, vision, gmail, d1] = await Promise.all([
+        checkOAuthHealth(),
+        checkVisionHealth(),
+        checkGmailHealth(),
+        (async () => {
+          try {
+            const db = getDb();
+            await db.run(sql`SELECT 1`);
+            return { status: "ok" as const };
+          } catch (e: any) {
+            return { status: "error" as const, message: e.message || "D1 connection failed" };
+          }
+        })(),
+      ]);
+
+      return NextResponse.json({ results: { d1, drive, vision, gmail } });
     }
 
     // --- Stats & Settings ---
