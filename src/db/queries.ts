@@ -188,10 +188,10 @@ export async function getAllStats() {
 // --- Helpers ---
 
 export function getMonthKey(date?: Date): string {
-  const d = date || new Date();
+  const d = date && !isNaN(date.getTime()) ? date : new Date();
   const months = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
     "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
-  return `${months[d.getMonth()]}-${d.getFullYear()}`;
+  return `${months[d.getUTCMonth()]}-${d.getUTCFullYear()}`;
 }
 
 // --- Users ---

@@ -123,6 +123,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "addPast") {
+      if (role !== "admin") return NextResponse.json({ error: "Only admin can add past records" }, { status: 403 });
+      const { entry, checkoutDate } = rest;
+      if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
+
+      const e = Array.isArray(entry) ? entry : [];
+      const arrivalDate = e[1] || "";
+      const monthKey = arrivalDate ? getMonthKey(new Date(arrivalDate)) : getMonthKey();
+
+      const db = getDb();
+      await db.insert(checkins).values({
+        submittedAt: e[0] || new Date().toISOString(),
+        arrivalDate, arrivalTime: e[2] || "", name: e[3] || "",
+        persons: e[4] || "1", contact: e[5] || "", stayingDays: e[6] || "1",
+        comingFrom: e[7] || "", nationality: e[8] || "", emergencyName: e[9] || "",
+        emergencyPhone: e[10] || "", idType: e[11] || "", idCardLink: e[12] || "",
+        visaLink: e[13] || "", verified: e[14] || "pending",
+        status: "checked_out",
+        checkedOutAt: checkoutDate || "",
+        createdMonth: monthKey,
+      });
+      await addAuditEntry({ username: actingUser, action: "past_checkin_add", target: e[3] || "unknown" });
+      return NextResponse.json({ success: true });
+    }
+
     if (action === "update") {
       if (role !== "admin") return NextResponse.json({ error: "Only admin can modify entries" }, { status: 403 });
       const { rowId, entry } = rest;

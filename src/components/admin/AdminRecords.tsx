@@ -47,6 +47,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [showAddForm, setShowAddForm] = useState(false);
   const [newEntry, setNewEntry] = useState<string[]>(getDefaults());
   const [newIdFiles, setNewIdFiles] = useState<File[]>([]);
+  const [showPastForm, setShowPastForm] = useState(false);
+  const [pastEntry, setPastEntry] = useState<string[]>(getDefaults());
+  const [pastIdFiles, setPastIdFiles] = useState<File[]>([]);
+  const [pastCheckoutDate, setPastCheckoutDate] = useState("");
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editEntry, setEditEntry] = useState<string[]>(Array(15).fill(""));
   const [editIdFiles, setEditIdFiles] = useState<File[]>([]);
@@ -185,6 +189,41 @@ export function AdminRecords({ password, username, role }: { password: string; u
     } finally { setLoading(false); }
   };
 
+  const addPastEntry = async () => {
+    if (!pastEntry[3]) { alert("Name is required"); return; }
+    if (!pastEntry[1]) { alert("Arrival date is required for past records"); return; }
+    if (pastCheckoutDate && pastCheckoutDate < pastEntry[1]) { alert("Checkout date must be on or after arrival date"); return; }
+    setLoading(true);
+    try {
+      const entry = [...pastEntry]; entry[0] = new Date().toISOString();
+
+      if (pastIdFiles.length > 0) {
+        const links: string[] = [];
+        for (const file of pastIdFiles) {
+          const fd = new FormData();
+          fd.append("file", file); fd.append("name", entry[3] || "Guest"); fd.append("type", "id"); fd.append("password", password);
+          try {
+            const uploadRes = await fetch("/api/admin/upload", { method: "POST", body: fd });
+            if (uploadRes.ok) {
+              const data = await uploadRes.json();
+              if (data.link) links.push(data.link);
+            } else {
+              const errText = await uploadRes.text();
+              alert(`File upload failed: ${errText}. Entry will be saved without ID document.`);
+            }
+          } catch (err: any) {
+            alert(`File upload error: ${err?.message || "Network error"}. Entry will be saved without ID document.`);
+          }
+        }
+        if (links.length > 0) entry[12] = links.join(" | ");
+      }
+
+      const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate });
+      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastIdFiles([]); setPastCheckoutDate(""); refresh(); }
+      else { const errData = await res.json().catch(() => ({})); alert(errData.error || "Failed to save past record"); }
+    } finally { setLoading(false); }
+  };
+
   const undoCheckout = async (origIdx: number) => {
     if (!confirm("Re-activate this guest? They will appear in the 'unassigned beds' list.")) return;
     setLoading(true);
@@ -259,8 +298,11 @@ export function AdminRecords({ password, username, role }: { password: string; u
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Check-in Records</h2>
         <div className="flex gap-2">
-          <Button type="button" variant="ctaOutline" onClick={() => setShowAddForm(true)} disabled={loading}>
+          <Button type="button" variant="ctaOutline" onClick={() => { setShowAddForm(true); setShowPastForm(false); }} disabled={loading}>
             <PlusIcon className="mr-1 h-4 w-4" /> Add
+          </Button>
+          <Button type="button" variant="ctaOutline" onClick={() => { setShowPastForm(true); setShowAddForm(false); }} disabled={loading}>
+            <PlusIcon className="mr-1 h-4 w-4" /> Past
           </Button>
           <Button type="button" variant="ctaOutline" onClick={refresh} disabled={loading}>
             {loading ? "..." : "Refresh"}
@@ -348,6 +390,66 @@ export function AdminRecords({ password, username, role }: { password: string; u
           <div className="mt-4 flex gap-2">
             <Button type="button" variant="cta" onClick={addEntry} disabled={loading}>{loading ? "Saving..." : "Save"}</Button>
             <Button type="button" variant="ghost" onClick={() => setShowAddForm(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Past check-in form */}
+      {showPastForm && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/30 p-6 shadow-card">
+          <h3 className="font-display text-lg font-bold text-amber-800">Add past check-in record</h3>
+          <p className="mt-1 text-xs text-amber-700">This record is for archival purposes only — no bed assignment needed.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {TEXT_FIELDS.map((field) => (
+              <div key={field.index}>
+                <Label className="text-xs">{field.label}</Label>
+                {field.type === "select" ? (
+                  <select value={pastEntry[field.index]} onChange={(e) => { const u = [...pastEntry]; u[field.index] = e.target.value; setPastEntry(u); }} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="">Select...</option>
+                    {field.options!.map((opt) => <option key={opt} value={opt}>{opt.replace("_", " ")}</option>)}
+                  </select>
+                ) : (
+                  <Input type={field.type} value={pastEntry[field.index]} onChange={(e) => { const u = [...pastEntry]; u[field.index] = e.target.value; setPastEntry(u); }} placeholder={field.label} className="mt-1" />
+                )}
+              </div>
+            ))}
+            <div>
+              <Label className="text-xs">Checkout Date</Label>
+              <Input type="date" value={pastCheckoutDate} onChange={(e) => setPastCheckoutDate(e.target.value)} className="mt-1" />
+            </div>
+            <div className="sm:col-span-2 md:col-span-3">
+              <Label className="text-xs">ID Card photos</Label>
+              {pastIdFiles.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {pastIdFiles.map((file, i) => (
+                    <div key={i} className="relative">
+                      {file.type === "application/pdf" ? (
+                        <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-brand-mist bg-brand-sand/30 text-xs font-medium text-brand-green-dark/60">PDF</div>
+                      ) : (
+                        <img src={URL.createObjectURL(file)} alt={`ID ${i + 1}`} className="h-20 w-20 rounded-lg border border-brand-mist object-cover" />
+                      )}
+                      <button type="button" onClick={() => setPastIdFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600">
+                        <XIcon className="h-3 w-3" />
+                      </button>
+                      <p className="mt-1 max-w-[80px] truncate text-center text-[10px] text-brand-green-dark/50">{i === 0 ? "Front" : i === 1 ? "Back" : `Page ${i + 1}`}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-brand-sand/50">
+                <UploadIcon className="h-4 w-4 text-amber-700" />
+                {pastIdFiles.length === 0 ? "Choose files" : "Add more photos"}
+                <input type="file" accept="image/*,.pdf" multiple className="hidden" onChange={(e) => { if (e.target.files) setPastIdFiles((prev) => [...prev, ...Array.from(e.target.files!)]); }} />
+              </label>
+              {pastIdFiles.length > 0 && (
+                <p className="mt-1 text-[10px] text-brand-green-dark/50">{pastIdFiles.length} file(s) — upload front & back of ID</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button type="button" variant="cta" onClick={addPastEntry} disabled={loading}>{loading ? "Saving..." : "Save Past Record"}</Button>
+            <Button type="button" variant="ghost" onClick={() => setShowPastForm(false)}>Cancel</Button>
           </div>
         </div>
       )}
