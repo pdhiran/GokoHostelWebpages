@@ -26,7 +26,7 @@ let loggedIn = false;
 let lastResult: { success: boolean; applicationId?: string; error?: string } | null = null;
 
 const FRRO_LOGIN_URL = "https://indianfrro.gov.in/frro/FormC/login.jsp";
-const FRRO_FORM_URL = "https://indianfrro.gov.in/frro/FormC/formc.jsp";
+const FRRO_MENU_URL = "https://indianfrro.gov.in/frro/FormC/";
 
 app.get("/status", (_req, res) => {
   res.json({ running: true, loggedIn, hasBrowser: !!browser, lastResult });
@@ -88,7 +88,8 @@ app.post("/fill-form-c", async (req, res) => {
         return;
       }
 
-      await page.goto(FRRO_FORM_URL, { waitUntil: "domcontentloaded" });
+      await navigateToFormC(page);
+      await page.waitForTimeout(2000);
       await fillFormC(page, formData);
       await clickTemporarySave(page);
       lastResult = { success: true, applicationId: "Submitted - check FRRO site" };
@@ -97,7 +98,8 @@ app.post("/fill-form-c", async (req, res) => {
     }
 
     // Already logged in
-    await page.goto(FRRO_FORM_URL, { waitUntil: "domcontentloaded" });
+    await navigateToFormC(page);
+    await page.waitForTimeout(2000);
     await fillFormC(page, formData);
     await clickTemporarySave(page);
 
@@ -108,6 +110,31 @@ app.post("/fill-form-c", async (req, res) => {
     res.json({ success: false, error: error.message });
   }
 });
+
+async function navigateToFormC(page: Page) {
+  try {
+    // Click "Form C (Add/Edit/Individual Print)" link on the menu page
+    const formCLink = await page.$('a:has-text("Form C"), a[href*="formc"]');
+    if (formCLink) {
+      await formCLink.click();
+      await page.waitForLoadState("domcontentloaded");
+      console.log("Navigated to Form C page via menu link");
+    } else {
+      // Fallback: try direct navigation with current session
+      const currentUrl = page.url();
+      const sessionMatch = currentUrl.match(/[?&]t4g=([^&]+)/);
+      if (sessionMatch) {
+        await page.goto(`https://indianfrro.gov.in/frro/FormC/formc.jsp?t4g=${sessionMatch[1]}`, { waitUntil: "domcontentloaded" });
+      } else {
+        await page.goto("https://indianfrro.gov.in/frro/FormC/formc.jsp", { waitUntil: "domcontentloaded" });
+      }
+      console.log("Navigated to Form C page via direct URL");
+    }
+    await page.waitForTimeout(1000);
+  } catch (e: any) {
+    console.error("Navigation to Form C failed:", e.message);
+  }
+}
 
 async function clickTemporarySave(page: Page) {
   try {
@@ -135,34 +162,54 @@ async function fillFormC(page: Page, d: any) {
   async function fillByLabel(label: string, value: string) {
     if (!value) return;
     try {
-      const td = await page.$(`td:has-text("${label}"), th:has-text("${label}")`);
-      if (td) {
-        const row = await td.$("xpath=ancestor::tr");
-        if (row) {
-          const input = await row.$("input:not([type=radio]):not([type=hidden]), select, textarea");
+      // Strategy 1: find TD containing exact label text, then find input in same row
+      const rows = await page.$$("tr");
+      for (const row of rows) {
+        const text = await row.textContent().catch(() => "");
+        if (text && text.toLowerCase().includes(label.toLowerCase())) {
+          const input = await row.$("input:not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]), select, textarea");
           if (input) {
             const tag = await input.evaluate((el) => el.tagName);
+            const type = await input.getAttribute("type");
             if (tag === "SELECT") {
-              await input.selectOption({ label: value }).catch(() => 
-                input.selectOption({ value }).catch(() => {})
-              );
+              const options = await input.$$("option");
+              for (const opt of options) {
+                const optText = await opt.textContent() || "";
+                if (optText.toUpperCase().includes(value.toUpperCase())) {
+                  const optVal = await opt.getAttribute("value") || "";
+                  await input.selectOption(optVal);
+                  await input.dispatchEvent("change");
+                  console.log(`  Filled SELECT "${label}" = "${optText.trim()}"`);
+                  return;
+                }
+              }
+              // Try by value directly
+              await input.selectOption(value).catch(() => {});
+              console.log(`  Filled SELECT "${label}" (by value)`);
+            } else if (type === "radio") {
+              // Handle radio buttons
+              const radios = await row.$$("input[type=radio]");
+              for (const radio of radios) {
+                const radioVal = await radio.getAttribute("value") || "";
+                const nextText = await radio.evaluate((el) => el.nextSibling?.textContent?.trim() || "");
+                if (radioVal.toLowerCase() === value.toLowerCase() || nextText.toLowerCase().includes(value.toLowerCase())) {
+                  await radio.check();
+                  console.log(`  Filled RADIO "${label}" = "${value}"`);
+                  return;
+                }
+              }
             } else {
               await input.fill(value);
+              console.log(`  Filled INPUT "${label}" = "${value}"`);
             }
-          } else {
-            const radios = await row.$$("input[type=radio]");
-            for (const radio of radios) {
-              const radioVal = await radio.getAttribute("value");
-              const radioLabel = await radio.evaluate((el) => el.nextSibling?.textContent?.trim() || "");
-              if (radioVal?.toLowerCase() === value.toLowerCase() || radioLabel.toLowerCase() === value.toLowerCase()) {
-                await radio.check();
-                break;
-              }
-            }
+            return;
           }
         }
       }
-    } catch {}
+      console.log(`  NOT FOUND: "${label}"`);
+    } catch (e: any) {
+      console.log(`  ERROR filling "${label}": ${e.message}`);
+    }
   }
 
   // Fill personal details
