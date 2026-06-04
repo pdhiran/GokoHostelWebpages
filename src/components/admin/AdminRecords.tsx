@@ -1129,37 +1129,11 @@ export function AdminRecords({ password, username, role }: { password: string; u
               {frroStatus && (
                 <p className={cn("text-center text-xs font-medium", frroStatus.includes("Success") ? "text-emerald-600" : frroStatus.includes("Failed") || frroStatus.includes("not running") ? "text-red-600" : "text-amber-600")}>{frroStatus}</p>
               )}
-              <p className="text-center text-[10px] text-brand-green-dark/50">
-                Desktop: runs local Playwright server (auto-fills FRRO, you solve CAPTCHA only). Mobile: paste script in browser console on FRRO page.
-              </p>
-
-              <details className="rounded-lg border border-brand-mist bg-brand-sand/20 p-3">
-                <summary className="cursor-pointer text-xs font-medium text-brand-green-dark/60 hover:text-brand-green-dark">Desktop Setup Guide (one-time)</summary>
-                <div className="mt-2 space-y-2 text-[11px] text-brand-green-dark/70">
-                  <p className="font-semibold">Prerequisites: Install Node.js from <a href="https://nodejs.org" target="_blank" rel="noopener" className="text-brand-green underline">nodejs.org</a> (v18+)</p>
-                  <p className="font-semibold">Then run these commands in Terminal:</p>
-                  <pre className="overflow-x-auto rounded bg-brand-green-dark/5 p-2 text-[10px] leading-relaxed">{`# 1. Clone project (skip if already done)
-git clone https://github.com/thegokosocial/GokoHostelWebpages.git ~/Downloads/GokoWeb
-
-# 2. Install dependencies
-cd ~/Downloads/GokoWeb/scripts
-npm init -y && npm install playwright express cors
-
-# 3. Install browser (one-time)
-npx playwright install chromium
-
-# 4. Add shortcut (macOS/Linux)
-echo 'alias frro="cd ~/Downloads/GokoWeb && npx tsx scripts/frro-server.ts"' >> ~/.zshrc
-source ~/.zshrc
-
-# Windows PowerShell alternative:
-# echo 'function frro { cd C:\\GokoWeb; npx tsx scripts/frro-server.ts }' >> $PROFILE
-
-# 5. Start server (run whenever needed)
-frro`}</pre>
-                  <p>After setup, just type <code className="rounded bg-brand-green-dark/10 px-1">frro</code> in terminal to start the server.</p>
-                </div>
-              </details>
+              <div className="flex items-center justify-center gap-3 text-[10px] text-brand-green-dark/50">
+                <span>Mobile: paste script in browser console on FRRO page</span>
+                <span>·</span>
+                <a href="/frro-setup-guide.txt" download className="font-medium text-brand-green underline hover:text-brand-green-dark">Download Desktop Setup Guide</a>
+              </div>
 
               <button type="button" onClick={() => setFrroSettingsOpen(!frroSettingsOpen)} className="w-full text-left text-xs font-medium text-brand-green-dark/60 hover:text-brand-green-dark">
                 {frroSettingsOpen ? "▼" : "▶"} FRRO Login Credentials

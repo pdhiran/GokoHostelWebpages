@@ -212,24 +212,25 @@ async function fillFormC(page: Page, d: any) {
     }
   }
 
-  // Fill personal details
+  console.log("\nFilling Form C fields...\n");
+
+  // Personal details
   await fillByLabel("Surname", surname);
   await fillByLabel("Given Name", givenName);
   await fillByLabel("Sex", passport.sex === "Male" ? "Male" : passport.sex === "Female" ? "Female" : "");
-  await fillByLabel("Date of Birth", passport.dateOfBirth || "");
   await fillByLabel("Nationality", d.nationality || "");
+  await fillByLabel("Special Category", "Others");
 
   // Home address
-  await fillByLabel("Address in country", d.homeAddress || "");
+  await fillByLabel("Address in country where residing permanently", d.homeAddress || "");
+  await fillByLabel("City", d.homeCity || "");
 
   // Passport
   await fillByLabel("Passport No", passport.passportNumber || "");
-  await fillByLabel("Date of issue", passport.dateOfIssue || "");
-  await fillByLabel("Valid till", passport.expiryDate || "");
 
   // Visa
   await fillByLabel("Visa No", visa.visaNumber || "");
-  await fillByLabel("Type of visa", visa.type || "");
+  await fillByLabel("Type of visa", visa.type || "Tourist");
 
   // Arrival info
   await fillByLabel("Arrived from Country", d.arrivedFromCountry || "");
@@ -238,15 +239,88 @@ async function fillFormC(page: Page, d: any) {
   await fillByLabel("Date of Arrival in India", d.dateOfArrivalInIndia || "");
   await fillByLabel("Date of Arrival in Hotel", d.arrivalDate || "");
   await fillByLabel("Time of Arrival in Hotel", d.arrivalTime || "");
-  await fillByLabel("duration of stay", d.stayingDays || "");
+  await fillByLabel("Intended duration of stay", d.stayingDays || "");
 
   // Other
+  await fillByLabel("Whether employed in India", d.employedInIndia || "No");
   await fillByLabel("Purpose of Visit", d.purposeOfVisit || "Tourism");
   await fillByLabel("Contact Phone No (In India", d.contact || "");
   await fillByLabel("Mobile No (In India", d.contact || "");
   await fillByLabel("Mobile No (Permanently", d.homeCountryPhone || "");
+  await fillByLabel("Contact Phone No (Permanently", d.homeCountryPhone || "");
 
-  console.log("Form C fields filled!");
+  // Try direct input filling as fallback (by input name attributes)
+  console.log("\nTrying direct name-based filling as fallback...\n");
+  await directFill(page, d, passport, visa);
+
+  console.log("\nForm C filling complete!");
+}
+
+async function directFill(page: Page, d: any, passport: any, visa: any) {
+  const surname = passport.surname || d.guestName?.split(" ").pop() || "";
+  const givenName = passport.givenName || d.guestName?.split(" ").slice(0, -1).join(" ") || "";
+
+  // Try common JSP form field names
+  const fields: [string, string][] = [
+    ["surname", surname],
+    ["givenname", givenName],
+    ["given_name", givenName],
+    ["passno", passport.passportNumber || ""],
+    ["passport_no", passport.passportNumber || ""],
+    ["visano", visa.visaNumber || ""],
+    ["visa_no", visa.visaNumber || ""],
+    ["paddress", d.homeAddress || ""],
+    ["pcity", d.homeCity || ""],
+    ["arrcity", d.arrivedFromCity || ""],
+    ["arrplace", d.arrivedFromPlace || ""],
+    ["staydays", d.stayingDays || ""],
+    ["stay_days", d.stayingDays || ""],
+    ["hotarrtime", d.arrivalTime || ""],
+    ["arr_time", d.arrivalTime || ""],
+    ["mobile_india", d.contact || ""],
+    ["phone_india", d.contact || ""],
+    ["mobile_perm", d.homeCountryPhone || ""],
+    ["phone_perm", d.homeCountryPhone || ""],
+  ];
+
+  for (const [name, value] of fields) {
+    if (!value) continue;
+    const el = await page.$(`input[name="${name}"], textarea[name="${name}"]`);
+    if (el) {
+      await el.fill(value);
+      console.log(`  Direct fill [name="${name}"] = "${value}"`);
+    }
+  }
+
+  // Try select dropdowns
+  const selects: [string, string][] = [
+    ["sex", passport.sex === "Male" ? "M" : passport.sex === "Female" ? "F" : ""],
+    ["nationality", d.nationality || ""],
+    ["arrcountry", d.arrivedFromCountry || ""],
+    ["arr_country", d.arrivedFromCountry || ""],
+    ["purpose", d.purposeOfVisit || "Tourism"],
+    ["visatype", visa.type || "Tourist"],
+    ["visa_type", visa.type || "Tourist"],
+    ["specialcat", "Others"],
+    ["special_category", "Others"],
+  ];
+
+  for (const [name, value] of selects) {
+    if (!value) continue;
+    const el = await page.$(`select[name="${name}"]`);
+    if (el) {
+      const options = await el.$$("option");
+      for (const opt of options) {
+        const text = await opt.textContent() || "";
+        if (text.toUpperCase().includes(value.toUpperCase())) {
+          const val = await opt.getAttribute("value") || "";
+          await el.selectOption(val);
+          console.log(`  Direct select [name="${name}"] = "${text.trim()}"`);
+          break;
+        }
+      }
+    }
+  }
 }
 
 app.post("/close", async (_req, res) => {
