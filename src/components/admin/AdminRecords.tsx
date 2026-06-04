@@ -1067,7 +1067,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                   <div className="mt-2 rounded-lg bg-emerald-100 p-2">
                     <p className="text-[11px] text-emerald-800"><strong>Next steps:</strong> Review the details and submit permanently by logging in here:</p>
                     <a href="https://indianfrro.gov.in/frro/FormC/login.jsp" target="_blank" rel="noopener" className="mt-1 inline-block text-xs font-medium text-emerald-700 underline hover:text-emerald-900">https://indianfrro.gov.in/frro/FormC/login.jsp</a>
-                    <p className="mt-1 text-[10px] text-emerald-700">Enter Application ID: {formCPopup.data.frroApplicationId} → review → click "Save and Continue" to submit permanently.</p>
+                    <p className="mt-1 text-[10px] text-emerald-700">Enter Application ID: {formCPopup.data.frroApplicationId} → review → click &quot;Save and Continue&quot; to submit permanently.</p>
                   </div>
                 </div>
               )}
