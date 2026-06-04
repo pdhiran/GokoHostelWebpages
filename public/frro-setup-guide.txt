@@ -28,7 +28,7 @@ SETUP - macOS
 
 git clone https://github.com/thegokosocial/GokoHostelWebpages.git ~/Downloads/GokoWeb
 cd ~/Downloads/GokoWeb/scripts
-npm init -y && npm install playwright express cors
+npm init -y && npm install playwright express cors sharp
 npx playwright install chromium
 echo 'alias frro="cd ~/Downloads/GokoWeb && npx tsx scripts/frro-server.ts"' >> ~/.zshrc
 source ~/.zshrc
@@ -44,7 +44,7 @@ SETUP - Linux (Ubuntu/Debian)
 
 git clone https://github.com/thegokosocial/GokoHostelWebpages.git ~/GokoWeb
 cd ~/GokoWeb/scripts
-npm init -y && npm install playwright express cors
+npm init -y && npm install playwright express cors sharp
 npx playwright install chromium
 npx playwright install-deps chromium
 echo 'alias frro="cd ~/GokoWeb && npx tsx scripts/frro-server.ts"' >> ~/.bashrc
@@ -61,7 +61,7 @@ SETUP - Windows
 
 git clone https://github.com/thegokosocial/GokoHostelWebpages.git C:\GokoWeb
 cd C:\GokoWeb\scripts
-npm init -y && npm install playwright express cors
+npm init -y && npm install playwright express cors sharp
 npx playwright install chromium
 
 # Add shortcut (paste this into PowerShell):
@@ -86,6 +86,7 @@ HOW TO USE
    - YOU solve the CAPTCHA and click Sign In
 
 5. After login, the script automatically:
+   - Uploads passport photo (resized to <50KB JPG)
    - Navigates to Form C
    - Fills all fields
    - Clicks "Temporary Save and Exit"

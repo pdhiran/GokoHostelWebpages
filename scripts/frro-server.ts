@@ -224,6 +224,53 @@ async function fillFormC(page: Page, d: any) {
     }
   }
 
+  // Upload passport photo (resize to <50KB JPG)
+  try {
+    const idLink = d.idCardLink || "";
+    const driveIdMatch = idLink.split(" | ")[0]?.match(/\/d\/([^/]+)\//);
+    if (driveIdMatch) {
+      const { getOAuthTokenWithDb } = await import("../src/lib/googleApiFetch");
+      const sharp = (await import("sharp")).default;
+      const token = await getOAuthTokenWithDb();
+      if (token) {
+        const imgRes = await fetch(`https://www.googleapis.com/drive/v3/files/${driveIdMatch[1]}?alt=media`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (imgRes.ok) {
+          const buffer = Buffer.from(await imgRes.arrayBuffer());
+          const resized = await sharp(buffer)
+            .resize(300, 400, { fit: "cover" })
+            .jpeg({ quality: 60 })
+            .toBuffer();
+          // Ensure under 50KB
+          let finalPhoto = resized;
+          if (resized.length > 50000) {
+            finalPhoto = await sharp(buffer)
+              .resize(200, 267, { fit: "cover" })
+              .jpeg({ quality: 40 })
+              .toBuffer();
+          }
+          const photoPath = "/tmp/frro_passport_photo.jpg";
+          const fs = await import("fs");
+          fs.writeFileSync(photoPath, finalPhoto);
+          const fileInput = await page.$('input[type="file"]');
+          if (fileInput) {
+            await fileInput.setInputFiles(photoPath);
+            // Click Upload File button if present
+            const uploadBtn = await page.$('input[value*="Upload"], button:has-text("Upload File")');
+            if (uploadBtn) {
+              await uploadBtn.click();
+              await page.waitForTimeout(2000);
+            }
+            console.log(`  Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+          }
+        }
+      }
+    }
+  } catch (e: any) {
+    console.log(`  Photo upload skipped: ${e.message}`);
+  }
+
   console.log("\nFilling Form C fields...\n");
 
   // Personal details
