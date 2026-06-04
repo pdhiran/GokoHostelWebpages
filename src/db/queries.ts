@@ -15,6 +15,7 @@ export async function addCheckin(data: {
   nationality: string; emergencyName: string; emergencyPhone: string;
   idType: string; idCardLink: string; visaLink: string; verified: string;
   formCData?: string; createdMonth: string;
+  bookingPlatform?: string; bookingId?: string;
 }) {
   const db = getDb();
   return db.insert(checkins).values(data);

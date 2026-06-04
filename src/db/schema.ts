@@ -20,6 +20,8 @@ export const checkins = sqliteTable("checkins", {
   status: text("status").notNull().default("active"),
   checkedOutAt: text("checked_out_at").default(""),
   formCData: text("form_c_data").default(""),
+  bookingPlatform: text("booking_platform").default(""),
+  bookingId: text("booking_id").default(""),
   createdMonth: text("created_month").notNull(),
 }, (table) => [
   index("idx_checkins_month").on(table.createdMonth),

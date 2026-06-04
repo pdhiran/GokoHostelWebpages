@@ -10,6 +10,7 @@ import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { CHECKIN_COLUMNS, type Role } from "./types";
 import { countries } from "@/content/countries";
+import { BOOKING_PLATFORMS } from "@/lib/checkinSchema";
 
 const TEXT_FIELDS = [
   { index: 1, label: "Arrival Date", type: "date" },
@@ -69,6 +70,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [pastCheckoutDate, setPastCheckoutDate] = useState("");
   const [newFormCFields, setNewFormCFields] = useState<Record<string, string>>({});
   const [pastFormCFields, setPastFormCFields] = useState<Record<string, string>>({});
+  const [newBookingPlatform, setNewBookingPlatform] = useState("");
+  const [newBookingId, setNewBookingId] = useState("");
+  const [pastBookingPlatform, setPastBookingPlatform] = useState("");
+  const [pastBookingId, setPastBookingId] = useState("");
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editEntry, setEditEntry] = useState<string[]>(Array(15).fill(""));
   const [editIdFiles, setEditIdFiles] = useState<File[]>([]);
@@ -214,8 +219,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       const isForeigner = newEntry[8] && newEntry[8] !== "India";
       const formCData = isForeigner ? JSON.stringify(newFormCFields) : undefined;
-      const res = await apiCall({ action: "add", entry, formCData });
-      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewIdFiles([]); setNewFormCFields({}); refresh(); }
+      const res = await apiCall({ action: "add", entry, formCData, bookingPlatform: newBookingPlatform, bookingId: newBookingId });
+      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewIdFiles([]); setNewFormCFields({}); setNewBookingPlatform(""); setNewBookingId(""); refresh(); }
     } finally { setLoading(false); }
   };
 
@@ -250,8 +255,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       const isForeigner = pastEntry[8] && pastEntry[8] !== "India";
       const formCData = isForeigner ? JSON.stringify(pastFormCFields) : undefined;
-      const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate, formCData });
-      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastIdFiles([]); setPastCheckoutDate(""); setPastFormCFields({}); refresh(); }
+      const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate, formCData, bookingPlatform: pastBookingPlatform, bookingId: pastBookingId });
+      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastIdFiles([]); setPastCheckoutDate(""); setPastFormCFields({}); setPastBookingPlatform(""); setPastBookingId(""); refresh(); }
       else { const errData = await res.json().catch(() => ({})); alert(errData.error || "Failed to save past record"); }
     } finally { setLoading(false); }
   };
@@ -417,6 +422,29 @@ export function AdminRecords({ password, username, role }: { password: string; u
                 )}
               </div>
             ))}
+            <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-brand-mist bg-brand-sand/20 p-3">
+              <p className="mb-2 text-xs font-semibold text-brand-green-dark">Booking details</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs">Booking Platform</Label>
+                  <select value={newBookingPlatform} onChange={(e) => { setNewBookingPlatform(e.target.value); if (e.target.value === "Offline booking" || e.target.value === "Walk-in") setNewBookingId(""); }} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="">Select...</option>
+                    {BOOKING_PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                {newBookingPlatform && newBookingPlatform !== "Offline booking" && newBookingPlatform !== "Walk-in" && (
+                  <div>
+                    <Label className="text-xs">Booking ID</Label>
+                    <Input value={newBookingId} onChange={(e) => setNewBookingId(e.target.value)} placeholder="e.g. 4829173650" className="mt-1" />
+                  </div>
+                )}
+                {(newBookingPlatform === "Offline booking" || newBookingPlatform === "Walk-in") && (
+                  <div className="flex items-end">
+                    <p className="pb-2 text-xs text-brand-green-dark/50">Booking ID will be auto-generated</p>
+                  </div>
+                )}
+              </div>
+            </div>
             {newEntry[8] && newEntry[8] !== "India" && (
               <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 bg-blue-50/30 p-3">
                 <p className="mb-2 text-xs font-semibold text-blue-800">Form C fields (foreign guest)</p>
@@ -505,6 +533,29 @@ export function AdminRecords({ password, username, role }: { password: string; u
             <div>
               <Label className="text-xs">Checkout Date</Label>
               <Input type="date" value={pastCheckoutDate} onChange={(e) => setPastCheckoutDate(e.target.value)} className="mt-1" />
+            </div>
+            <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-brand-mist bg-brand-sand/20 p-3">
+              <p className="mb-2 text-xs font-semibold text-brand-green-dark">Booking details</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs">Booking Platform</Label>
+                  <select value={pastBookingPlatform} onChange={(e) => { setPastBookingPlatform(e.target.value); if (e.target.value === "Offline booking" || e.target.value === "Walk-in") setPastBookingId(""); }} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="">Select...</option>
+                    {BOOKING_PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                {pastBookingPlatform && pastBookingPlatform !== "Offline booking" && pastBookingPlatform !== "Walk-in" && (
+                  <div>
+                    <Label className="text-xs">Booking ID</Label>
+                    <Input value={pastBookingId} onChange={(e) => setPastBookingId(e.target.value)} placeholder="e.g. 4829173650" className="mt-1" />
+                  </div>
+                )}
+                {(pastBookingPlatform === "Offline booking" || pastBookingPlatform === "Walk-in") && (
+                  <div className="flex items-end">
+                    <p className="pb-2 text-xs text-brand-green-dark/50">Booking ID will be auto-generated</p>
+                  </div>
+                )}
+              </div>
             </div>
             {pastEntry[8] && pastEntry[8] !== "India" && (
               <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 bg-blue-50/30 p-3">

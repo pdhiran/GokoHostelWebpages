@@ -5,8 +5,18 @@ const placeChars = /^[A-Za-z\s'.,\u00C0-\u024F-]+$/;
 const numbersOnly = /^\d+$/;
 const phoneRegex = /^\+?[\d\s\-]{10,18}$/;
 
+export const BOOKING_PLATFORMS = [
+  "Booking.com", "Agoda", "MakeMyTrip", "Hostelworld", "Airbnb", "Offline booking", "Walk-in",
+] as const;
+
+export type BookingPlatform = (typeof BOOKING_PLATFORMS)[number];
+
 export const checkinSchema = z
   .object({
+    bookingPlatform: z.enum(BOOKING_PLATFORMS, {
+      required_error: "Please select a booking platform",
+    }),
+    bookingId: z.string().optional(),
     arrivalDate: z.string().min(1, "Arrival date is required"),
     arrivalTime: z.string().min(1, "Arrival time is required"),
     name: z
@@ -132,6 +142,22 @@ export const checkinSchema = z
     {
       message: "Emergency contact must be different from your personal number",
       path: ["emergencyPhone"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (
+        data.bookingPlatform &&
+        data.bookingPlatform !== "Offline booking" &&
+        data.bookingPlatform !== "Walk-in"
+      ) {
+        return !!data.bookingId && data.bookingId.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Booking ID is required for this platform",
+      path: ["bookingId"],
     }
   );
 

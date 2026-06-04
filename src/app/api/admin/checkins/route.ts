@@ -78,6 +78,17 @@ function isValidId(val: any): val is number {
   return typeof val === "number" && Number.isInteger(val) && val >= 0;
 }
 
+function generateBookingId(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let random = "";
+  for (let i = 0; i < 6; i++) random += chars[Math.floor(Math.random() * chars.length)];
+  return `GOKO${yyyy}${mm}${dd}${random}`;
+}
+
 export async function POST(req: NextRequest) {
   let role: UserRole | null = null;
 
@@ -107,10 +118,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "add") {
-      const { entry, formCData } = rest;
+      const { entry, formCData, bookingPlatform, bookingId: rawBookingId } = rest;
       if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
 
       const e = Array.isArray(entry) ? entry : [];
+      const finalBookingId = (bookingPlatform === "Offline booking" || bookingPlatform === "Walk-in")
+        ? generateBookingId()
+        : (rawBookingId || "");
+
       await addCheckin({
         submittedAt: e[0] || new Date().toISOString(),
         arrivalDate: e[1] || "", arrivalTime: e[2] || "", name: e[3] || "",
@@ -119,6 +134,8 @@ export async function POST(req: NextRequest) {
         emergencyPhone: e[10] || "", idType: e[11] || "", idCardLink: e[12] || "",
         visaLink: e[13] || "", verified: e[14] || "pending",
         formCData: formCData || "", createdMonth: getMonthKey(),
+        bookingPlatform: bookingPlatform || "",
+        bookingId: finalBookingId,
       });
       await addAuditEntry({ username: actingUser, action: "checkin_add", target: e[3] || "unknown" });
       addSystemLog({ level: "info", source: "admin-api", message: `Check-in added: ${e[3] || "unknown"} by ${actingUser}` }).catch(() => {});
@@ -127,12 +144,15 @@ export async function POST(req: NextRequest) {
 
     if (action === "addPast") {
       if (role !== "admin") return NextResponse.json({ error: "Only admin can add past records" }, { status: 403 });
-      const { entry, checkoutDate, formCData } = rest;
+      const { entry, checkoutDate, formCData, bookingPlatform, bookingId: rawBookingId } = rest;
       if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
 
       const e = Array.isArray(entry) ? entry : [];
       const arrivalDate = e[1] || "";
       const monthKey = arrivalDate ? getMonthKey(new Date(arrivalDate)) : getMonthKey();
+      const finalBookingId = (bookingPlatform === "Offline booking" || bookingPlatform === "Walk-in")
+        ? generateBookingId()
+        : (rawBookingId || "");
 
       const db = getDb();
       await db.insert(checkins).values({
@@ -145,6 +165,8 @@ export async function POST(req: NextRequest) {
         status: "checked_out",
         checkedOutAt: checkoutDate || "",
         formCData: formCData || "",
+        bookingPlatform: bookingPlatform || "",
+        bookingId: finalBookingId,
         createdMonth: monthKey,
       });
       await addAuditEntry({ username: actingUser, action: "past_checkin_add", target: e[3] || "unknown" });

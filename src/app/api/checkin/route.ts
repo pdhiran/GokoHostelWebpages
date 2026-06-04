@@ -3,6 +3,17 @@ import { validateIdDocument } from "@/lib/validateIdDocument";
 import { driveUploadFile, driveGetOrCreateFolder } from "@/lib/googleApiFetch";
 import { addCheckin, incrementStat, getSetting, getMonthKey, addAuditEntry, addSystemLog } from "@/db/queries";
 
+function generateBookingId(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let random = "";
+  for (let i = 0; i < 6; i++) random += chars[Math.floor(Math.random() * chars.length)];
+  return `GOKO${yyyy}${mm}${dd}${random}`;
+}
+
 async function uploadToDrive(file: File, guestName: string, fileType: string): Promise<string> {
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
@@ -42,6 +53,9 @@ export async function POST(req: NextRequest) {
     const idImages = idImagesRaw.filter((f) => f.size > 0);
     const visaImagesRaw = formData.getAll("visaImages") as File[];
     const visaImages = visaImagesRaw.filter((f) => f.size > 0);
+
+    const bookingPlatform = formData.get("bookingPlatform") as string || "";
+    const rawBookingId = formData.get("bookingId") as string || "";
 
     const prevIdCardLink = formData.get("prevIdCardLink") as string || "";
     const prevVisaLink = formData.get("prevVisaLink") as string || "";
@@ -186,6 +200,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const finalBookingId = (bookingPlatform === "Offline booking" || bookingPlatform === "Walk-in")
+      ? generateBookingId()
+      : rawBookingId;
+
     await addCheckin({
       submittedAt,
       arrivalDate,
@@ -204,6 +222,8 @@ export async function POST(req: NextRequest) {
       verified,
       formCData,
       createdMonth: getMonthKey(),
+      bookingPlatform,
+      bookingId: finalBookingId,
     });
 
     const newUploads = (reusingPrevId ? 0 : idImages.length) + (reusingPrevVisa ? 0 : visaImages.length);

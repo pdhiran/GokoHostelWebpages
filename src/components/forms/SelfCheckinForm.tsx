@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, useRef, useEffect } from "react";
-import { checkinSchema, type CheckinFormData } from "@/lib/checkinSchema";
+import { checkinSchema, type CheckinFormData, BOOKING_PLATFORMS } from "@/lib/checkinSchema";
 import { countries } from "@/content/countries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -316,6 +316,8 @@ export function SelfCheckinForm() {
   } = useForm<CheckinFormData>({
     resolver: zodResolver(checkinSchema),
     defaultValues: {
+      bookingPlatform: undefined,
+      bookingId: "",
       arrivalDate: date,
       arrivalTime: time,
       name: "",
@@ -331,6 +333,8 @@ export function SelfCheckinForm() {
   });
 
   const nationality = watch("nationality");
+  const bookingPlatform = watch("bookingPlatform");
+  const needsBookingId = bookingPlatform && bookingPlatform !== "Offline booking" && bookingPlatform !== "Walk-in";
 
   const handlePhoneLookup = async () => {
     const cleaned = phoneInput.replace(/[\s\-]/g, "");
@@ -561,6 +565,8 @@ export function SelfCheckinForm() {
     setSubmitting(true);
     try {
       const formData = new FormData();
+      formData.append("bookingPlatform", data.bookingPlatform);
+      if (data.bookingId) formData.append("bookingId", data.bookingId);
       formData.append("arrivalDate", data.arrivalDate);
       formData.append("arrivalTime", data.arrivalTime);
       formData.append("name", data.name);
@@ -825,6 +831,43 @@ export function SelfCheckinForm() {
               <p className="mt-1 text-xs text-red-500">{errors.arrivalTime.message}</p>
             )}
           </div>
+        </div>
+
+        {/* Booking Platform & Booking ID */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="bookingPlatform">Booking platform <span className="text-brand-red">*</span></Label>
+            <select
+              id="bookingPlatform"
+              {...register("bookingPlatform")}
+              className={cn(
+                "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring",
+                errors.bookingPlatform && "border-red-400"
+              )}
+            >
+              <option value="">Select platform...</option>
+              {BOOKING_PLATFORMS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            {errors.bookingPlatform && (
+              <p className="mt-1 text-xs text-red-500">{errors.bookingPlatform.message}</p>
+            )}
+          </div>
+          {needsBookingId && (
+            <div>
+              <Label htmlFor="bookingId">Booking ID <span className="text-brand-red">*</span></Label>
+              <Input
+                id="bookingId"
+                placeholder="e.g. 4829173650"
+                {...register("bookingId")}
+                className={cn(errors.bookingId && "border-red-400")}
+              />
+              {errors.bookingId && (
+                <p className="mt-1 text-xs text-red-500">{errors.bookingId.message}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Name */}
