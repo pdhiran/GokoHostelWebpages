@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "add") {
-      const { entry } = rest;
+      const { entry, formCData } = rest;
       if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
 
       const e = Array.isArray(entry) ? entry : [];
@@ -117,7 +117,8 @@ export async function POST(req: NextRequest) {
         persons: e[4] || "1", contact: e[5] || "", stayingDays: e[6] || "1",
         comingFrom: e[7] || "", nationality: e[8] || "", emergencyName: e[9] || "",
         emergencyPhone: e[10] || "", idType: e[11] || "", idCardLink: e[12] || "",
-        visaLink: e[13] || "", verified: e[14] || "pending", createdMonth: getMonthKey(),
+        visaLink: e[13] || "", verified: e[14] || "pending",
+        formCData: formCData || "", createdMonth: getMonthKey(),
       });
       await addAuditEntry({ username: actingUser, action: "checkin_add", target: e[3] || "unknown" });
       addSystemLog({ level: "info", source: "admin-api", message: `Check-in added: ${e[3] || "unknown"} by ${actingUser}` }).catch(() => {});
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "addPast") {
       if (role !== "admin") return NextResponse.json({ error: "Only admin can add past records" }, { status: 403 });
-      const { entry, checkoutDate } = rest;
+      const { entry, checkoutDate, formCData } = rest;
       if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
 
       const e = Array.isArray(entry) ? entry : [];
@@ -143,6 +144,7 @@ export async function POST(req: NextRequest) {
         visaLink: e[13] || "", verified: e[14] || "pending",
         status: "checked_out",
         checkedOutAt: checkoutDate || "",
+        formCData: formCData || "",
         createdMonth: monthKey,
       });
       await addAuditEntry({ username: actingUser, action: "past_checkin_add", target: e[3] || "unknown" });

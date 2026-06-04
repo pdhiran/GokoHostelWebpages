@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { CHECKIN_COLUMNS, type Role } from "./types";
+import { countries } from "@/content/countries";
 
 const TEXT_FIELDS = [
   { index: 1, label: "Arrival Date", type: "date" },
@@ -18,10 +19,25 @@ const TEXT_FIELDS = [
   { index: 5, label: "Contact", type: "tel" },
   { index: 6, label: "Days", type: "text" },
   { index: 7, label: "Coming From", type: "text" },
-  { index: 8, label: "Nationality", type: "text" },
+  { index: 8, label: "Nationality", type: "country" },
   { index: 9, label: "Emergency Contact", type: "text" },
   { index: 10, label: "Emergency Phone", type: "tel" },
   { index: 11, label: "ID Type", type: "select", options: ["aadhaar", "driving_licence", "passport"] },
+];
+
+const FORM_C_FIELDS = [
+  { key: "arrivedFromCountry", label: "Arrived from Country", type: "country" },
+  { key: "arrivedFromCity", label: "Arrived from City", type: "text" },
+  { key: "arrivedFromPlace", label: "Arrived from Place", type: "text" },
+  { key: "dateOfArrivalInIndia", label: "Date of Arrival in India", type: "date" },
+  { key: "purposeOfVisit", label: "Purpose of Visit", type: "select", options: ["Tourism", "Business", "Medical", "Education", "Employment", "Conference", "Research", "Transit", "Others"] },
+  { key: "employedInIndia", label: "Employed in India?", type: "select", options: ["No", "Yes"] },
+  { key: "nextDestination", label: "Next Destination", type: "select", options: ["Inside India", "Outside India"] },
+  { key: "nextDestState", label: "Next Dest. State", type: "text" },
+  { key: "nextDestCity", label: "Next Dest. City", type: "text" },
+  { key: "homeAddress", label: "Home Country Address", type: "text" },
+  { key: "homeCity", label: "Home City", type: "text" },
+  { key: "homeCountryPhone", label: "Home Country Phone", type: "tel" },
 ];
 
 function getDefaults(): string[] {
@@ -51,6 +67,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [pastEntry, setPastEntry] = useState<string[]>(getDefaults());
   const [pastIdFiles, setPastIdFiles] = useState<File[]>([]);
   const [pastCheckoutDate, setPastCheckoutDate] = useState("");
+  const [newFormCFields, setNewFormCFields] = useState<Record<string, string>>({});
+  const [pastFormCFields, setPastFormCFields] = useState<Record<string, string>>({});
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editEntry, setEditEntry] = useState<string[]>(Array(15).fill(""));
   const [editIdFiles, setEditIdFiles] = useState<File[]>([]);
@@ -186,8 +204,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
         if (links.length > 0) entry[12] = links.join(" | ");
       }
 
-      const res = await apiCall({ action: "add", entry });
-      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewIdFiles([]); refresh(); }
+      const isForeigner = newEntry[8] && newEntry[8] !== "India";
+      const formCData = isForeigner ? JSON.stringify(newFormCFields) : undefined;
+      const res = await apiCall({ action: "add", entry, formCData });
+      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewIdFiles([]); setNewFormCFields({}); refresh(); }
     } finally { setLoading(false); }
   };
 
@@ -220,8 +240,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
         if (links.length > 0) entry[12] = links.join(" | ");
       }
 
-      const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate });
-      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastIdFiles([]); setPastCheckoutDate(""); refresh(); }
+      const isForeigner = pastEntry[8] && pastEntry[8] !== "India";
+      const formCData = isForeigner ? JSON.stringify(pastFormCFields) : undefined;
+      const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate, formCData });
+      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastIdFiles([]); setPastCheckoutDate(""); setPastFormCFields({}); refresh(); }
       else { const errData = await res.json().catch(() => ({})); alert(errData.error || "Failed to save past record"); }
     } finally { setLoading(false); }
   };
@@ -372,11 +394,40 @@ export function AdminRecords({ password, username, role }: { password: string; u
                     <option value="">Select...</option>
                     {field.options!.map((opt) => <option key={opt} value={opt}>{opt.replace("_", " ")}</option>)}
                   </select>
+                ) : field.type === "country" ? (
+                  <select value={newEntry[field.index]} onChange={(e) => { const u = [...newEntry]; u[field.index] = e.target.value; setNewEntry(u); }} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 ) : (
                   <Input type={field.type} value={newEntry[field.index]} onChange={(e) => { const u = [...newEntry]; u[field.index] = e.target.value; setNewEntry(u); }} placeholder={field.label} className="mt-1" />
                 )}
               </div>
             ))}
+            {newEntry[8] && newEntry[8] !== "India" && (
+              <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 bg-blue-50/30 p-3">
+                <p className="mb-2 text-xs font-semibold text-blue-800">Form C fields (foreign guest)</p>
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  {FORM_C_FIELDS.map((f) => (
+                    <div key={f.key}>
+                      <Label className="text-xs">{f.label}</Label>
+                      {f.type === "select" ? (
+                        <select value={newFormCFields[f.key] || ""} onChange={(e) => setNewFormCFields((p) => ({ ...p, [f.key]: e.target.value }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option value="">Select...</option>
+                          {f.options!.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      ) : f.type === "country" ? (
+                        <select value={newFormCFields[f.key] || ""} onChange={(e) => setNewFormCFields((p) => ({ ...p, [f.key]: e.target.value }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option value="">Select...</option>
+                          {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      ) : (
+                        <Input type={f.type} value={newFormCFields[f.key] || ""} onChange={(e) => setNewFormCFields((p) => ({ ...p, [f.key]: e.target.value }))} placeholder={f.label} className="mt-1" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="sm:col-span-2 md:col-span-3">
               <Label className="text-xs">ID Card photos</Label>
               {newIdFiles.length > 0 && (
@@ -428,6 +479,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
                     <option value="">Select...</option>
                     {field.options!.map((opt) => <option key={opt} value={opt}>{opt.replace("_", " ")}</option>)}
                   </select>
+                ) : field.type === "country" ? (
+                  <select value={pastEntry[field.index]} onChange={(e) => { const u = [...pastEntry]; u[field.index] = e.target.value; setPastEntry(u); }} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 ) : (
                   <Input type={field.type} value={pastEntry[field.index]} onChange={(e) => { const u = [...pastEntry]; u[field.index] = e.target.value; setPastEntry(u); }} placeholder={field.label} className="mt-1" />
                 )}
@@ -437,6 +492,31 @@ export function AdminRecords({ password, username, role }: { password: string; u
               <Label className="text-xs">Checkout Date</Label>
               <Input type="date" value={pastCheckoutDate} onChange={(e) => setPastCheckoutDate(e.target.value)} className="mt-1" />
             </div>
+            {pastEntry[8] && pastEntry[8] !== "India" && (
+              <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 bg-blue-50/30 p-3">
+                <p className="mb-2 text-xs font-semibold text-blue-800">Form C fields (foreign guest)</p>
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  {FORM_C_FIELDS.map((f) => (
+                    <div key={f.key}>
+                      <Label className="text-xs">{f.label}</Label>
+                      {f.type === "select" ? (
+                        <select value={pastFormCFields[f.key] || ""} onChange={(e) => setPastFormCFields((p) => ({ ...p, [f.key]: e.target.value }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option value="">Select...</option>
+                          {f.options!.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      ) : f.type === "country" ? (
+                        <select value={pastFormCFields[f.key] || ""} onChange={(e) => setPastFormCFields((p) => ({ ...p, [f.key]: e.target.value }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option value="">Select...</option>
+                          {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      ) : (
+                        <Input type={f.type} value={pastFormCFields[f.key] || ""} onChange={(e) => setPastFormCFields((p) => ({ ...p, [f.key]: e.target.value }))} placeholder={f.label} className="mt-1" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="sm:col-span-2 md:col-span-3">
               <Label className="text-xs">ID Card photos</Label>
               {pastIdFiles.length > 0 && (
