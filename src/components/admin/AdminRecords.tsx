@@ -1057,6 +1057,20 @@ export function AdminRecords({ password, username, role }: { password: string; u
             )}
 
             <div className="mt-6 space-y-3">
+              {formCPopup.data.frroApplicationId && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-semibold text-emerald-800">Form C submitted to FRRO</p>
+                  <p className="mt-1 text-xs text-emerald-700">Application ID: <span className="font-bold">{formCPopup.data.frroApplicationId}</span></p>
+                  {formCPopup.data.frroSubmittedAt && (
+                    <p className="mt-0.5 text-[10px] text-emerald-600">Submitted: {new Date(formCPopup.data.frroSubmittedAt).toLocaleString()}</p>
+                  )}
+                  <div className="mt-2 rounded-lg bg-emerald-100 p-2">
+                    <p className="text-[11px] text-emerald-800"><strong>Next steps:</strong> Review the details and submit permanently by logging in here:</p>
+                    <a href="https://indianfrro.gov.in/frro/FormC/login.jsp" target="_blank" rel="noopener" className="mt-1 inline-block text-xs font-medium text-emerald-700 underline hover:text-emerald-900">https://indianfrro.gov.in/frro/FormC/login.jsp</a>
+                    <p className="mt-1 text-[10px] text-emerald-700">Enter Application ID: {formCPopup.data.frroApplicationId} → review → click "Save and Continue" to submit permanently.</p>
+                  </div>
+                </div>
+              )}
               <div className="grid gap-2 sm:grid-cols-2">
                 <button
                   type="button"
@@ -1079,8 +1093,14 @@ export function AdminRecords({ password, username, role }: { password: string; u
                       }).catch(() => null);
                       if (!res) { setFrroStatus("Local server not running. Start with: frro (in terminal)"); return; }
                       const data = await res.json();
-                      if (data.success) { setFrroStatus(`Success! Application ID: ${data.applicationId || "saved"}`); }
-                      else if (data.waitingForCaptcha) {
+                      if (data.success) {
+                        const appId = data.applicationId || "saved";
+                        setFrroStatus(`Success! Application ID: ${appId}`);
+                        const rowId = parseInt(formCPopup.row[15] || "0", 10);
+                        const updatedData = { ...formCPopup.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
+                        await apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
+                        setFormCPopup({ ...formCPopup, data: updatedData });
+                      } else if (data.waitingForCaptcha) {
                         setFrroStatus("Solve CAPTCHA in browser window... (polling for result)");
                         const poll = setInterval(async () => {
                           try {
@@ -1088,8 +1108,14 @@ export function AdminRecords({ password, username, role }: { password: string; u
                             const statusData = await statusRes.json();
                             if (statusData.lastResult) {
                               clearInterval(poll);
-                              if (statusData.lastResult.success) setFrroStatus(`Success! ${statusData.lastResult.applicationId || "Form C saved"}`);
-                              else setFrroStatus(statusData.lastResult.error || "Failed");
+                              if (statusData.lastResult.success) {
+                                const appId = statusData.lastResult.applicationId || "Form C saved";
+                                setFrroStatus(`Success! Application ID: ${appId}`);
+                                const rowId = parseInt(formCPopup!.row[15] || "0", 10);
+                                const updatedData = { ...formCPopup!.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
+                                apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
+                                setFormCPopup({ ...formCPopup!, data: updatedData });
+                              } else { setFrroStatus(statusData.lastResult.error || "Failed"); }
                               setFrroSubmitting(false);
                             }
                           } catch { clearInterval(poll); }
