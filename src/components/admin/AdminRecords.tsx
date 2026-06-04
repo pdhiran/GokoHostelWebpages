@@ -830,6 +830,23 @@ export function AdminRecords({ password, username, role }: { password: string; u
               <h3 className="font-display text-lg font-bold text-indigo-800">Form C Data — {formCPopup.row[3]}</h3>
               <div className="flex items-center gap-2">
                 {!formCEditing && (
+                  <button type="button" onClick={async () => {
+                    if (!confirm("Re-read passport/visa images and extract data again?")) return;
+                    setFormCLoading(true);
+                    try {
+                      const rowId = parseInt(formCPopup.row[15] || "0", 10);
+                      const res = await apiCall({ action: "reExtractFormC", rowId });
+                      if (res.ok) {
+                        const d = await res.json();
+                        setFormCPopup({ ...formCPopup, data: d.formCData ? JSON.parse(d.formCData) : formCPopup.data });
+                        alert("Data re-extracted from images!");
+                      } else { alert("Re-extraction failed"); }
+                    } finally { setFormCLoading(false); }
+                  }} className="rounded-lg bg-purple-100 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-200">
+                    Re-extract
+                  </button>
+                )}
+                {!formCEditing && (
                   <button type="button" onClick={() => {
                     setFormCEditing(true);
                     setFormCEditData({

@@ -206,6 +206,70 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ formCData: rows[0]?.formCData || "" });
     }
 
+    if (action === "reExtractFormC") {
+      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      const { rowId } = rest;
+      if (!isValidId(rowId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+
+      const db = getDb();
+      const rows = await db.select().from(checkins).where(eq(checkins.id, rowId));
+      const row = rows[0];
+      if (!row) return NextResponse.json({ error: "Record not found" }, { status: 404 });
+
+      const { visionAnalyze } = await import("@/lib/googleApiFetch");
+      const { parsePassportMRZ, parseVisaFromText } = await import("@/lib/parsePassportData");
+
+      let extractedPassport = {};
+      let extractedVisa = {};
+
+      // Re-OCR passport image (from ID card link)
+      if (row.idCardLink && row.idType === "passport") {
+        const links = row.idCardLink.split(" | ").filter((l) => l.startsWith("http"));
+        if (links.length > 0) {
+          try {
+            const imgRes = await fetch(links[0].replace("/view", "/uc?export=download"));
+            if (imgRes.ok) {
+              const buffer = await imgRes.arrayBuffer();
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+              const analysis = await visionAnalyze(base64, "image/jpeg");
+              extractedPassport = parsePassportMRZ(analysis.text);
+              incrementStat("vision", 1).catch(() => {});
+            }
+          } catch (e: any) {
+            console.error("Passport re-OCR failed:", e?.message);
+          }
+        }
+      }
+
+      // Re-OCR visa image
+      if (row.visaLink) {
+        const links = row.visaLink.split(" | ").filter((l) => l.startsWith("http"));
+        if (links.length > 0) {
+          try {
+            const imgRes = await fetch(links[0].replace("/view", "/uc?export=download"));
+            if (imgRes.ok) {
+              const buffer = await imgRes.arrayBuffer();
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+              const analysis = await visionAnalyze(base64, "image/jpeg");
+              extractedVisa = parseVisaFromText(analysis.text);
+              incrementStat("vision", 1).catch(() => {});
+            }
+          } catch (e: any) {
+            console.error("Visa re-OCR failed:", e?.message);
+          }
+        }
+      }
+
+      // Merge with existing formCData (keep user-entered fields, update extracted)
+      let existingData: Record<string, any> = {};
+      if (row.formCData) { try { existingData = JSON.parse(row.formCData); } catch {} }
+
+      const updatedData = { ...existingData, extractedPassport, extractedVisa };
+      await db.update(checkins).set({ formCData: JSON.stringify(updatedData) }).where(eq(checkins.id, rowId));
+
+      return NextResponse.json({ success: true, formCData: JSON.stringify(updatedData) });
+    }
+
     if (action === "updateFormCData") {
       if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { rowId, formCData } = rest;
