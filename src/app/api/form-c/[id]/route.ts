@@ -77,4 +77,3 @@ export async function OPTIONS() {
   return res;
 }
 
-export { generateToken };
