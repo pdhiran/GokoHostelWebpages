@@ -206,6 +206,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ formCData: rows[0]?.formCData || "" });
     }
 
+    if (action === "updateFormCData") {
+      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      const { rowId, formCData } = rest;
+      if (!isValidId(rowId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+      const db = getDb();
+      await db.update(checkins).set({ formCData: formCData || "" }).where(eq(checkins.id, rowId));
+      await addAuditEntry({ username: actingUser, action: "formc_updated", target: String(rowId) });
+      return NextResponse.json({ success: true });
+    }
+
     // --- Health Check ---
 
     if (action === "healthCheck") {

@@ -30,6 +30,31 @@ export type FormCExtractedData = {
   visa?: Partial<VisaData>;
 };
 
+const COUNTRY_CODES: Record<string, string> = {
+  D: "GERMANY", DEU: "GERMANY", DEUTSCH: "GERMANY", DEUTSCHE: "GERMANY",
+  GBR: "UNITED KINGDOM", GB: "UNITED KINGDOM", BRITISH: "UNITED KINGDOM",
+  USA: "UNITED STATES", US: "UNITED STATES", FRA: "FRANCE", F: "FRANCE",
+  ITA: "ITALY", I: "ITALY", ESP: "SPAIN", E: "SPAIN", NLD: "NETHERLANDS",
+  NL: "NETHERLANDS", BEL: "BELGIUM", AUT: "AUSTRIA", CHE: "SWITZERLAND",
+  CH: "SWITZERLAND", SWE: "SWEDEN", NOR: "NORWAY", DNK: "DENMARK",
+  FIN: "FINLAND", PRT: "PORTUGAL", IRL: "IRELAND", POL: "POLAND",
+  CZE: "CZECH REPUBLIC", ROU: "ROMANIA", HUN: "HUNGARY", GRC: "GREECE",
+  AUS: "AUSTRALIA", NZL: "NEW ZEALAND", CAN: "CANADA", JPN: "JAPAN",
+  KOR: "SOUTH KOREA", CHN: "CHINA", IND: "INDIA", BRA: "BRAZIL",
+  MEX: "MEXICO", ARG: "ARGENTINA", ZAF: "SOUTH AFRICA", RUS: "RUSSIA",
+  TUR: "TURKEY", ISR: "ISRAEL", THA: "THAILAND", MYS: "MALAYSIA",
+  SGP: "SINGAPORE", IDN: "INDONESIA", PHL: "PHILIPPINES", VNM: "VIETNAM",
+  COL: "COLOMBIA", PER: "PERU", CHL: "CHILE", ARE: "UNITED ARAB EMIRATES",
+  SAU: "SAUDI ARABIA", EGY: "EGYPT", NPL: "NEPAL", LKA: "SRI LANKA",
+  BGD: "BANGLADESH", PAK: "PAKISTAN", UKR: "UKRAINE", ISL: "ICELAND",
+};
+
+function resolveCountryCode(code: string): string {
+  if (!code) return "";
+  const upper = code.toUpperCase().trim();
+  return COUNTRY_CODES[upper] || upper;
+}
+
 const MRZ_LINE_REGEX = /^[A-Z0-9<]{30,44}$/;
 
 function parseMRZDate(raw: string): string {
@@ -66,7 +91,8 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
   const givenName = cleanMRZName(nameParts.slice(1).join(" ") || "");
 
   const passportNumber = line2.slice(0, 9).replace(/</g, "");
-  const nationality = line1.slice(2, 5).replace(/</g, "");
+  const rawNationality = line1.slice(2, 5).replace(/</g, "");
+  const nationality = resolveCountryCode(rawNationality);
   const dob = parseMRZDate(line2.slice(13, 19));
   const sex = line2[20] === "F" ? "Female" : line2[20] === "M" ? "Male" : "";
   const expiry = parseMRZDate(line2.slice(21, 27));
@@ -121,7 +147,10 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
   if (placeMatch) result.placeOfIssue = placeMatch[1].trim();
 
   const nationalityMatch = text.match(/(?:nationality|citizen|staatsangehörigkeit)[\s/:]*([A-Za-z\s]+?)(?:\n|$)/i);
-  if (nationalityMatch) result.nationality = nationalityMatch[1].trim();
+  if (nationalityMatch) {
+    const raw = nationalityMatch[1].trim();
+    result.nationality = resolveCountryCode(raw) || raw;
+  }
 
   return result;
 }

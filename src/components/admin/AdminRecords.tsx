@@ -84,6 +84,9 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [uploading, setUploading] = useState(false);
   const [formCPopup, setFormCPopup] = useState<{ origIdx: number; row: string[]; data: any } | null>(null);
   const [formCLoading, setFormCLoading] = useState(false);
+  const [formCEditing, setFormCEditing] = useState(false);
+  const [formCEditData, setFormCEditData] = useState<Record<string, any>>({});
+  const [formCSaving, setFormCSaving] = useState(false);
 
   const filteredRows = (() => {
     let result = [...rows].map((row, origIdx) => ({ row, origIdx }));
@@ -810,65 +813,162 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       {/* Form C preview modal */}
       {formCPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setFormCPopup(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { if (!formCEditing) setFormCPopup(null); }}>
           <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-indigo-800">Form C Data — {formCPopup.row[3]}</h3>
-              <button type="button" onClick={() => setFormCPopup(null)} className="rounded-lg p-1 hover:bg-brand-sand">
-                <XIcon className="h-5 w-5 text-brand-green-dark/50" />
-              </button>
+              <div className="flex items-center gap-2">
+                {!formCEditing && (
+                  <button type="button" onClick={() => {
+                    setFormCEditing(true);
+                    setFormCEditData({
+                      surname: formCPopup.data.extractedPassport?.surname || "",
+                      givenName: formCPopup.data.extractedPassport?.givenName || "",
+                      passportNumber: formCPopup.data.extractedPassport?.passportNumber || "",
+                      dateOfBirth: formCPopup.data.extractedPassport?.dateOfBirth || "",
+                      sex: formCPopup.data.extractedPassport?.sex || "",
+                      expiryDate: formCPopup.data.extractedPassport?.expiryDate || "",
+                      placeOfIssue: formCPopup.data.extractedPassport?.placeOfIssue || "",
+                      passportNationality: formCPopup.data.extractedPassport?.nationality || "",
+                      visaNumber: formCPopup.data.extractedVisa?.visaNumber || "",
+                      visaType: formCPopup.data.extractedVisa?.type || "",
+                      visaDateOfIssue: formCPopup.data.extractedVisa?.dateOfIssue || "",
+                      visaValidTill: formCPopup.data.extractedVisa?.validTill || "",
+                      visaPlaceOfIssue: formCPopup.data.extractedVisa?.placeOfIssue || "",
+                      arrivedFromCountry: formCPopup.data.arrivedFromCountry || "",
+                      arrivedFromCity: formCPopup.data.arrivedFromCity || "",
+                      arrivedFromPlace: formCPopup.data.arrivedFromPlace || "",
+                      dateOfArrivalInIndia: formCPopup.data.dateOfArrivalInIndia || "",
+                      purposeOfVisit: formCPopup.data.purposeOfVisit || "",
+                      employedInIndia: formCPopup.data.employedInIndia || "",
+                      nextDestination: formCPopup.data.nextDestination || "",
+                      nextDestState: formCPopup.data.nextDestState || "",
+                      nextDestCity: formCPopup.data.nextDestCity || "",
+                      homeAddress: formCPopup.data.homeAddress || "",
+                      homeCity: formCPopup.data.homeCity || "",
+                      homeCountryPhone: formCPopup.data.homeCountryPhone || "",
+                    });
+                  }} className="rounded-lg bg-brand-green/10 px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/20">
+                    <PencilIcon className="mr-1 inline h-3 w-3" /> Edit
+                  </button>
+                )}
+                <button type="button" onClick={() => { setFormCPopup(null); setFormCEditing(false); }} className="rounded-lg p-1 hover:bg-brand-sand">
+                  <XIcon className="h-5 w-5 text-brand-green-dark/50" />
+                </button>
+              </div>
             </div>
-            <p className="mt-1 text-xs text-brand-green-dark/60">FRRO Form C data extracted from passport, visa, and check-in form</p>
+            <p className="mt-1 text-xs text-brand-green-dark/60">
+              {formCEditing ? "Edit Form C data — changes will be saved to the record" : "FRRO Form C data extracted from passport, visa, and check-in form"}
+            </p>
 
-            <div className="mt-4 space-y-4">
-              <FormCSection title="Guest Details" items={[
-                { label: "Name", value: formCPopup.row[3] },
-                { label: "Nationality", value: formCPopup.row[8] },
-                { label: "Contact (India)", value: formCPopup.row[5] },
-                { label: "Arrival Date", value: formCPopup.row[1] },
-                { label: "Arrival Time", value: formCPopup.row[2] },
-                { label: "Staying Days", value: formCPopup.row[6] },
-                { label: "Coming From", value: formCPopup.row[7] },
-              ]} />
-
-              {formCPopup.data.extractedPassport && Object.keys(formCPopup.data.extractedPassport).length > 0 && (
-                <FormCSection title="Passport Details (OCR extracted)" items={[
-                  { label: "Surname", value: formCPopup.data.extractedPassport.surname },
-                  { label: "Given Name", value: formCPopup.data.extractedPassport.givenName },
-                  { label: "Passport No", value: formCPopup.data.extractedPassport.passportNumber },
-                  { label: "Date of Birth", value: formCPopup.data.extractedPassport.dateOfBirth },
-                  { label: "Sex", value: formCPopup.data.extractedPassport.sex },
-                  { label: "Expiry Date", value: formCPopup.data.extractedPassport.expiryDate },
-                  { label: "Place of Issue", value: formCPopup.data.extractedPassport.placeOfIssue },
-                  { label: "Nationality", value: formCPopup.data.extractedPassport.nationality },
+            {formCEditing ? (
+              <div className="mt-4 space-y-4">
+                <FormCEditSection title="Passport Details" fields={[
+                  { key: "surname", label: "Surname" },
+                  { key: "givenName", label: "Given Name" },
+                  { key: "passportNumber", label: "Passport No" },
+                  { key: "dateOfBirth", label: "Date of Birth" },
+                  { key: "sex", label: "Sex" },
+                  { key: "expiryDate", label: "Expiry Date" },
+                  { key: "placeOfIssue", label: "Place of Issue" },
+                  { key: "passportNationality", label: "Nationality" },
+                ]} data={formCEditData} onChange={setFormCEditData} />
+                <FormCEditSection title="Visa Details" fields={[
+                  { key: "visaNumber", label: "Visa No" },
+                  { key: "visaType", label: "Type" },
+                  { key: "visaDateOfIssue", label: "Date of Issue" },
+                  { key: "visaValidTill", label: "Valid Till" },
+                  { key: "visaPlaceOfIssue", label: "Place of Issue" },
+                ]} data={formCEditData} onChange={setFormCEditData} />
+                <FormCEditSection title="Arrival & Other" fields={[
+                  { key: "arrivedFromCountry", label: "Arrived from Country" },
+                  { key: "arrivedFromCity", label: "Arrived from City" },
+                  { key: "arrivedFromPlace", label: "Arrived from Place" },
+                  { key: "dateOfArrivalInIndia", label: "Date of Arrival in India" },
+                  { key: "purposeOfVisit", label: "Purpose of Visit" },
+                  { key: "employedInIndia", label: "Employed in India" },
+                  { key: "nextDestination", label: "Next Destination" },
+                  { key: "nextDestState", label: "Next Dest. State" },
+                  { key: "nextDestCity", label: "Next Dest. City" },
+                  { key: "homeAddress", label: "Home Address" },
+                  { key: "homeCity", label: "Home City" },
+                  { key: "homeCountryPhone", label: "Home Country Phone" },
+                ]} data={formCEditData} onChange={setFormCEditData} />
+                <div className="flex gap-2">
+                  <Button type="button" variant="cta" disabled={formCSaving} onClick={async () => {
+                    setFormCSaving(true);
+                    try {
+                      const updatedData = {
+                        ...formCPopup.data,
+                        extractedPassport: { surname: formCEditData.surname, givenName: formCEditData.givenName, passportNumber: formCEditData.passportNumber, dateOfBirth: formCEditData.dateOfBirth, sex: formCEditData.sex, expiryDate: formCEditData.expiryDate, placeOfIssue: formCEditData.placeOfIssue, nationality: formCEditData.passportNationality },
+                        extractedVisa: { visaNumber: formCEditData.visaNumber, type: formCEditData.visaType, dateOfIssue: formCEditData.visaDateOfIssue, validTill: formCEditData.visaValidTill, placeOfIssue: formCEditData.visaPlaceOfIssue },
+                        arrivedFromCountry: formCEditData.arrivedFromCountry, arrivedFromCity: formCEditData.arrivedFromCity, arrivedFromPlace: formCEditData.arrivedFromPlace,
+                        dateOfArrivalInIndia: formCEditData.dateOfArrivalInIndia, purposeOfVisit: formCEditData.purposeOfVisit, employedInIndia: formCEditData.employedInIndia,
+                        nextDestination: formCEditData.nextDestination, nextDestState: formCEditData.nextDestState, nextDestCity: formCEditData.nextDestCity,
+                        homeAddress: formCEditData.homeAddress, homeCity: formCEditData.homeCity, homeCountryPhone: formCEditData.homeCountryPhone,
+                      };
+                      const rowId = parseInt(formCPopup.row[15] || "0", 10);
+                      const res = await apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
+                      if (res.ok) {
+                        setFormCPopup({ ...formCPopup, data: updatedData });
+                        setFormCEditing(false);
+                      } else { alert("Failed to save"); }
+                    } finally { setFormCSaving(false); }
+                  }}>{formCSaving ? "Saving..." : "Save Changes"}</Button>
+                  <Button type="button" variant="ghost" onClick={() => setFormCEditing(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <FormCSection title="Guest Details" items={[
+                  { label: "Name", value: formCPopup.row[3] },
+                  { label: "Nationality", value: formCPopup.row[8] },
+                  { label: "Contact (India)", value: formCPopup.row[5] },
+                  { label: "Arrival Date", value: formCPopup.row[1] },
+                  { label: "Arrival Time", value: formCPopup.row[2] },
+                  { label: "Staying Days", value: formCPopup.row[6] },
+                  { label: "Coming From", value: formCPopup.row[7] },
                 ]} />
-              )}
 
-              {formCPopup.data.extractedVisa && Object.keys(formCPopup.data.extractedVisa).length > 0 && (
-                <FormCSection title="Visa Details (OCR extracted)" items={[
-                  { label: "Visa No", value: formCPopup.data.extractedVisa.visaNumber },
-                  { label: "Type", value: formCPopup.data.extractedVisa.type },
-                  { label: "Date of Issue", value: formCPopup.data.extractedVisa.dateOfIssue },
-                  { label: "Valid Till", value: formCPopup.data.extractedVisa.validTill },
-                  { label: "Place of Issue", value: formCPopup.data.extractedVisa.placeOfIssue },
+                {formCPopup.data.extractedPassport && Object.keys(formCPopup.data.extractedPassport).length > 0 && (
+                  <FormCSection title="Passport Details (OCR extracted)" items={[
+                    { label: "Surname", value: formCPopup.data.extractedPassport.surname },
+                    { label: "Given Name", value: formCPopup.data.extractedPassport.givenName },
+                    { label: "Passport No", value: formCPopup.data.extractedPassport.passportNumber },
+                    { label: "Date of Birth", value: formCPopup.data.extractedPassport.dateOfBirth },
+                    { label: "Sex", value: formCPopup.data.extractedPassport.sex },
+                    { label: "Expiry Date", value: formCPopup.data.extractedPassport.expiryDate },
+                    { label: "Place of Issue", value: formCPopup.data.extractedPassport.placeOfIssue },
+                    { label: "Nationality", value: formCPopup.data.extractedPassport.nationality },
+                  ]} />
+                )}
+
+                {formCPopup.data.extractedVisa && Object.keys(formCPopup.data.extractedVisa).length > 0 && (
+                  <FormCSection title="Visa Details (OCR extracted)" items={[
+                    { label: "Visa No", value: formCPopup.data.extractedVisa.visaNumber },
+                    { label: "Type", value: formCPopup.data.extractedVisa.type },
+                    { label: "Date of Issue", value: formCPopup.data.extractedVisa.dateOfIssue },
+                    { label: "Valid Till", value: formCPopup.data.extractedVisa.validTill },
+                    { label: "Place of Issue", value: formCPopup.data.extractedVisa.placeOfIssue },
+                  ]} />
+                )}
+
+                <FormCSection title="Arrival Information" items={[
+                  { label: "Arrived from Country", value: formCPopup.data.arrivedFromCountry },
+                  { label: "Arrived from City", value: formCPopup.data.arrivedFromCity },
+                  { label: "Arrived from Place", value: formCPopup.data.arrivedFromPlace },
+                  { label: "Date of Arrival in India", value: formCPopup.data.dateOfArrivalInIndia },
                 ]} />
-              )}
 
-              <FormCSection title="Arrival Information" items={[
-                { label: "Arrived from Country", value: formCPopup.data.arrivedFromCountry },
-                { label: "Arrived from City", value: formCPopup.data.arrivedFromCity },
-                { label: "Arrived from Place", value: formCPopup.data.arrivedFromPlace },
-                { label: "Date of Arrival in India", value: formCPopup.data.dateOfArrivalInIndia },
-              ]} />
-
-              <FormCSection title="Other Details" items={[
-                { label: "Purpose of Visit", value: formCPopup.data.purposeOfVisit },
-                { label: "Employed in India", value: formCPopup.data.employedInIndia },
-                { label: "Next Destination", value: [formCPopup.data.nextDestination, formCPopup.data.nextDestState, formCPopup.data.nextDestCity, formCPopup.data.nextDestPlace].filter(Boolean).join(", ") },
-                { label: "Home Address", value: [formCPopup.data.homeAddress, formCPopup.data.homeCity].filter(Boolean).join(", ") },
-                { label: "Home Country Phone", value: formCPopup.data.homeCountryPhone },
-              ]} />
-            </div>
+                <FormCSection title="Other Details" items={[
+                  { label: "Purpose of Visit", value: formCPopup.data.purposeOfVisit },
+                  { label: "Employed in India", value: formCPopup.data.employedInIndia },
+                  { label: "Next Destination", value: [formCPopup.data.nextDestination, formCPopup.data.nextDestState, formCPopup.data.nextDestCity, formCPopup.data.nextDestPlace].filter(Boolean).join(", ") },
+                  { label: "Home Address", value: [formCPopup.data.homeAddress, formCPopup.data.homeCity].filter(Boolean).join(", ") },
+                  { label: "Home Country Phone", value: formCPopup.data.homeCountryPhone },
+                ]} />
+              </div>
+            )}
 
             <div className="mt-6 space-y-3">
               <button
@@ -914,6 +1014,33 @@ function FormCSection({ title, items }: { title: string; items: { label: string;
           <div key={item.label}>
             <span className="text-[10px] text-brand-green-dark/50">{item.label}</span>
             <p className="text-sm font-medium text-brand-green-dark">{item.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FormCEditSection({ title, fields, data, onChange }: {
+  title: string;
+  fields: { key: string; label: string }[];
+  data: Record<string, any>;
+  onChange: (d: Record<string, any>) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50/20 p-4">
+      <h4 className="mb-3 text-xs font-bold uppercase tracking-wide text-indigo-600/70">{title}</h4>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {fields.map((f) => (
+          <div key={f.key}>
+            <label className="text-[10px] text-brand-green-dark/50">{f.label}</label>
+            <input
+              type="text"
+              value={data[f.key] || ""}
+              onChange={(e) => onChange({ ...data, [f.key]: e.target.value })}
+              className="mt-0.5 w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm"
+              placeholder={f.label}
+            />
           </div>
         ))}
       </div>
