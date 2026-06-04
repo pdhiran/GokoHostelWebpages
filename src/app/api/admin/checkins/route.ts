@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
       const row = rows[0];
       if (!row) return NextResponse.json({ error: "Record not found" }, { status: 404 });
 
-      const { visionAnalyze } = await import("@/lib/googleApiFetch");
+      const { visionAnalyze, getOAuthTokenWithDb } = await import("@/lib/googleApiFetch");
       const { parsePassportMRZ, parseVisaFromText } = await import("@/lib/parsePassportData");
 
       function extractDriveId(url: string): string | null {
@@ -233,6 +233,16 @@ export async function POST(req: NextRequest) {
         return btoa(chunks.join(""));
       }
 
+      async function downloadDriveFile(fileId: string): Promise<ArrayBuffer | null> {
+        const token = await getOAuthTokenWithDb();
+        if (!token) return null;
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return null;
+        return res.arrayBuffer();
+      }
+
       let extractedPassport: Record<string, any> | null = null;
       let extractedVisa: Record<string, any> | null = null;
 
@@ -242,10 +252,8 @@ export async function POST(req: NextRequest) {
           const fileId = extractDriveId(links[0]);
           if (fileId) {
             try {
-              const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-              const imgRes = await fetch(downloadUrl);
-              if (imgRes.ok) {
-                const buffer = await imgRes.arrayBuffer();
+              const buffer = await downloadDriveFile(fileId);
+              if (buffer) {
                 const base64 = arrayBufferToBase64(buffer);
                 const analysis = await visionAnalyze(base64, "image/jpeg");
                 const parsed = parsePassportMRZ(analysis.text);
@@ -265,10 +273,8 @@ export async function POST(req: NextRequest) {
           const fileId = extractDriveId(links[0]);
           if (fileId) {
             try {
-              const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-              const imgRes = await fetch(downloadUrl);
-              if (imgRes.ok) {
-                const buffer = await imgRes.arrayBuffer();
+              const buffer = await downloadDriveFile(fileId);
+              if (buffer) {
                 const base64 = arrayBufferToBase64(buffer);
                 const analysis = await visionAnalyze(base64, "image/jpeg");
                 const parsed = parseVisaFromText(analysis.text);

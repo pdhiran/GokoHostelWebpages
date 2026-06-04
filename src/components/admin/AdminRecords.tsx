@@ -1082,7 +1082,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                 <div className="grid gap-2 rounded-lg border border-brand-mist bg-brand-sand/30 p-3 sm:grid-cols-2">
                   <div>
                     <label className="text-[10px] text-brand-green-dark/50">FRRO Username</label>
-                    <input type="text" value={frroUsername} onChange={(e) => setFrroUsername(e.target.value)} placeholder="e.g. Gokarnastops19" className="mt-0.5 w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm" />
+                    <input type="text" value={frroUsername} onChange={(e) => setFrroUsername(e.target.value)} placeholder="Username" className="mt-0.5 w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm" />
                   </div>
                   <div>
                     <label className="text-[10px] text-brand-green-dark/50">FRRO Password</label>
