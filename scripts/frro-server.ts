@@ -162,15 +162,27 @@ async function fillFormC(page: Page, d: any) {
   async function fillByLabel(label: string, value: string) {
     if (!value) return;
     try {
-      // Strategy 1: find TD containing exact label text, then find input in same row
+      // Strategy: find TR containing label text, get the actual form input (skip file inputs)
       const rows = await page.$$("tr");
       for (const row of rows) {
-        const text = await row.textContent().catch(() => "");
-        if (text && text.toLowerCase().includes(label.toLowerCase())) {
-          const input = await row.$("input:not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]), select, textarea");
-          if (input) {
-            const tag = await input.evaluate((el) => el.tagName);
-            const type = await input.getAttribute("type");
+        const tds = await row.$$("td");
+        // Check if any TD starts with or closely matches the label
+        let labelFound = false;
+        for (const td of tds) {
+          const tdText = (await td.textContent().catch(() => "")) || "";
+          const trimmed = tdText.trim();
+          if (trimmed.toLowerCase().startsWith(label.toLowerCase()) || 
+              (trimmed.length < label.length * 3 && trimmed.toLowerCase().includes(label.toLowerCase()))) {
+            labelFound = true;
+            break;
+          }
+        }
+        if (!labelFound) continue;
+
+        const input = await row.$("input:not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=file]), select, textarea");
+        if (input) {
+          const tag = await input.evaluate((el) => el.tagName);
+          const type = await input.getAttribute("type");
             if (tag === "SELECT") {
               const options = await input.$$("option");
               for (const opt of options) {
