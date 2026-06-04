@@ -948,53 +948,78 @@ export function AdminRecords({ password, username, role }: { password: string; u
               </div>
             ) : (
               <div className="mt-4 space-y-4">
-                <FormCSection title="Guest Details" items={[
-                  { label: "Name", value: formCPopup.row[3] },
-                  { label: "Nationality", value: formCPopup.row[8] },
-                  { label: "Contact (India)", value: formCPopup.row[5] },
-                  { label: "Arrival Date", value: formCPopup.row[1] },
-                  { label: "Arrival Time", value: formCPopup.row[2] },
-                  { label: "Staying Days", value: formCPopup.row[6] },
-                  { label: "Coming From", value: formCPopup.row[7] },
-                ]} />
+                {(() => {
+                  const p = formCPopup.data.extractedPassport || {};
+                  const v = formCPopup.data.extractedVisa || {};
+                  const dob = p.dateOfBirth || "";
+                  let age = "";
+                  if (dob) {
+                    const parts = dob.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                    if (parts) { age = String(new Date().getFullYear() - parseInt(parts[3])); }
+                  }
+                  return (
+                    <>
+                      <FormCSection title="Personal Details" items={[
+                        { label: "Surname", value: p.surname },
+                        { label: "Given Name", value: p.givenName || formCPopup.row[3] },
+                        { label: "Sex", value: p.sex },
+                        { label: "Date of Birth", value: dob },
+                        { label: "Age", value: age },
+                        { label: "Special Category", value: "Others" },
+                        { label: "Nationality", value: formCPopup.row[8] },
+                      ]} />
 
-                {formCPopup.data.extractedPassport && Object.keys(formCPopup.data.extractedPassport).length > 0 && (
-                  <FormCSection title="Passport Details (OCR extracted)" items={[
-                    { label: "Surname", value: formCPopup.data.extractedPassport.surname },
-                    { label: "Given Name", value: formCPopup.data.extractedPassport.givenName },
-                    { label: "Passport No", value: formCPopup.data.extractedPassport.passportNumber },
-                    { label: "Date of Birth", value: formCPopup.data.extractedPassport.dateOfBirth },
-                    { label: "Sex", value: formCPopup.data.extractedPassport.sex },
-                    { label: "Expiry Date", value: formCPopup.data.extractedPassport.expiryDate },
-                    { label: "Place of Issue", value: formCPopup.data.extractedPassport.placeOfIssue },
-                    { label: "Nationality", value: formCPopup.data.extractedPassport.nationality },
-                  ]} />
-                )}
+                      <FormCSection title="Home Address" items={[
+                        { label: "Address", value: formCPopup.data.homeAddress },
+                        { label: "City", value: formCPopup.data.homeCity },
+                        { label: "Country", value: formCPopup.row[8] },
+                      ]} />
 
-                {formCPopup.data.extractedVisa && Object.keys(formCPopup.data.extractedVisa).length > 0 && (
-                  <FormCSection title="Visa Details (OCR extracted)" items={[
-                    { label: "Visa No", value: formCPopup.data.extractedVisa.visaNumber },
-                    { label: "Type", value: formCPopup.data.extractedVisa.type },
-                    { label: "Date of Issue", value: formCPopup.data.extractedVisa.dateOfIssue },
-                    { label: "Valid Till", value: formCPopup.data.extractedVisa.validTill },
-                    { label: "Place of Issue", value: formCPopup.data.extractedVisa.placeOfIssue },
-                  ]} />
-                )}
+                      <FormCSection title="Address in India (Hotel)" items={[
+                        { label: "Address", value: "Near Hema Shree, Gokarna Main Beach" },
+                        { label: "State", value: "KARNATAKA" },
+                        { label: "City/District", value: "UTTARA KANNADA" },
+                        { label: "Pin Code", value: "581421" },
+                      ]} />
 
-                <FormCSection title="Arrival Information" items={[
-                  { label: "Arrived from Country", value: formCPopup.data.arrivedFromCountry },
-                  { label: "Arrived from City", value: formCPopup.data.arrivedFromCity },
-                  { label: "Arrived from Place", value: formCPopup.data.arrivedFromPlace },
-                  { label: "Date of Arrival in India", value: formCPopup.data.dateOfArrivalInIndia },
-                ]} />
+                      <FormCSection title="Passport Details" items={[
+                        { label: "Passport No", value: p.passportNumber },
+                        { label: "Place of Issue (City)", value: p.placeOfIssue },
+                        { label: "Place of Issue (Country)", value: p.nationality || formCPopup.row[8] },
+                        { label: "Date of Issue", value: p.dateOfIssue },
+                        { label: "Valid Till", value: p.expiryDate },
+                      ]} />
 
-                <FormCSection title="Other Details" items={[
-                  { label: "Purpose of Visit", value: formCPopup.data.purposeOfVisit },
-                  { label: "Employed in India", value: formCPopup.data.employedInIndia },
-                  { label: "Next Destination", value: [formCPopup.data.nextDestination, formCPopup.data.nextDestState, formCPopup.data.nextDestCity, formCPopup.data.nextDestPlace].filter(Boolean).join(", ") },
-                  { label: "Home Address", value: [formCPopup.data.homeAddress, formCPopup.data.homeCity].filter(Boolean).join(", ") },
-                  { label: "Home Country Phone", value: formCPopup.data.homeCountryPhone },
-                ]} />
+                      <FormCSection title="Visa Details" items={[
+                        { label: "Visa No", value: v.visaNumber, unreliable: true },
+                        { label: "Place of Issue (City)", value: v.placeOfIssue, unreliable: true },
+                        { label: "Place of Issue (Country)", value: "INDIA" },
+                        { label: "Date of Issue", value: v.dateOfIssue, unreliable: true },
+                        { label: "Valid Till", value: v.validTill, unreliable: true },
+                        { label: "Type of Visa", value: v.type, unreliable: true },
+                      ]} />
+
+                      <FormCSection title="Arrival Information" items={[
+                        { label: "Arrived from Country", value: formCPopup.data.arrivedFromCountry },
+                        { label: "Arrived from City", value: formCPopup.data.arrivedFromCity },
+                        { label: "Arrived from Place", value: formCPopup.data.arrivedFromPlace },
+                        { label: "Date of Arrival in India", value: formCPopup.data.dateOfArrivalInIndia },
+                        { label: "Date of Arrival in Hotel", value: formCPopup.row[1] },
+                        { label: "Time of Arrival in Hotel", value: formCPopup.row[2] },
+                        { label: "Duration of Stay (days)", value: formCPopup.row[6] },
+                      ]} />
+
+                      <FormCSection title="Other Details" items={[
+                        { label: "Employed in India", value: formCPopup.data.employedInIndia || "No" },
+                        { label: "Purpose of Visit", value: formCPopup.data.purposeOfVisit },
+                        { label: "Next Destination", value: [formCPopup.data.nextDestination, formCPopup.data.nextDestState, formCPopup.data.nextDestCity].filter(Boolean).join(", ") },
+                        { label: "Contact Phone (India)", value: formCPopup.row[5] },
+                        { label: "Mobile (India)", value: formCPopup.row[5] },
+                        { label: "Phone (Home Country)", value: formCPopup.data.homeCountryPhone },
+                      ]} />
+                    </>
+                  );
+                })()}
               </div>
             )}
 
@@ -1105,17 +1130,21 @@ export function AdminRecords({ password, username, role }: { password: string; u
   );
 }
 
-function FormCSection({ title, items }: { title: string; items: { label: string; value?: string }[] }) {
+function FormCSection({ title, items }: { title: string; items: { label: string; value?: string; unreliable?: boolean }[] }) {
   const filledItems = items.filter((i) => i.value);
   if (filledItems.length === 0) return null;
+  const hasUnreliable = filledItems.some((i) => i.unreliable);
   return (
-    <div className="rounded-xl border border-brand-mist p-4">
-      <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-green-dark/50">{title}</h4>
+    <div className={cn("rounded-xl border p-4", hasUnreliable ? "border-amber-200 bg-amber-50/20" : "border-brand-mist")}>
+      <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-green-dark/50">
+        {title}
+        {hasUnreliable && <span className="ml-2 text-[9px] font-normal normal-case text-amber-600">⚠ verify handwritten fields</span>}
+      </h4>
       <div className="grid gap-2 sm:grid-cols-2">
         {filledItems.map((item) => (
           <div key={item.label}>
-            <span className="text-[10px] text-brand-green-dark/50">{item.label}</span>
-            <p className="text-sm font-medium text-brand-green-dark">{item.value}</p>
+            <span className={cn("text-[10px]", item.unreliable ? "text-amber-600 font-medium" : "text-brand-green-dark/50")}>{item.label}{item.unreliable ? " ⚠" : ""}</span>
+            <p className={cn("text-sm font-medium", item.unreliable ? "text-amber-800" : "text-brand-green-dark")}>{item.value}</p>
           </div>
         ))}
       </div>
