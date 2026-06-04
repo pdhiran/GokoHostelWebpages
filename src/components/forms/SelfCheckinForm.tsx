@@ -852,8 +852,14 @@ export function SelfCheckinForm() {
               inputMode="numeric"
               placeholder="e.g. 2"
               {...register("numberOfPersons")}
-              className={cn(errors.numberOfPersons && "border-red-400")}
+              className={cn(
+                errors.numberOfPersons && "border-red-400",
+                returnGuest && "border-amber-400 ring-2 ring-amber-100"
+              )}
             />
+            {returnGuest && !errors.numberOfPersons && (
+              <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
+            )}
             {errors.numberOfPersons && (
               <p className="mt-1 text-xs text-red-500">
                 {errors.numberOfPersons.message}
@@ -868,8 +874,14 @@ export function SelfCheckinForm() {
               inputMode="numeric"
               placeholder="e.g. 3"
               {...register("stayingDays")}
-              className={cn(errors.stayingDays && "border-red-400")}
+              className={cn(
+                errors.stayingDays && "border-red-400",
+                returnGuest && "border-amber-400 ring-2 ring-amber-100"
+              )}
             />
+            {returnGuest && !errors.stayingDays && (
+              <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
+            )}
             {errors.stayingDays && (
               <p className="mt-1 text-xs text-red-500">{errors.stayingDays.message}</p>
             )}
