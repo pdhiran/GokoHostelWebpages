@@ -91,9 +91,9 @@ app.post("/fill-form-c", async (req, res) => {
       await navigateToFormC(page);
       await page.waitForTimeout(2000);
       await fillFormC(page, formData);
-      await clickTemporarySave(page);
-      lastResult = { success: true, applicationId: "Submitted - check FRRO site" };
-      console.log("Form C submitted successfully!");
+      // await clickTemporarySave(page);
+      lastResult = { success: true, applicationId: "Form filled - review and save manually" };
+      console.log("Form C filled - review in browser and save manually");
       return;
     }
 
@@ -101,10 +101,10 @@ app.post("/fill-form-c", async (req, res) => {
     await navigateToFormC(page);
     await page.waitForTimeout(2000);
     await fillFormC(page, formData);
-    await clickTemporarySave(page);
+    // await clickTemporarySave(page);
 
-    lastResult = { success: true, applicationId: "Submitted - check FRRO site" };
-    res.json({ success: true, applicationId: "Submitted - check FRRO site" });
+    lastResult = { success: true, applicationId: "Form filled - review and save manually" };
+    res.json({ success: true, applicationId: "Form filled - review and save manually" });
   } catch (error: any) {
     console.error("Error:", error.message);
     res.json({ success: false, error: error.message });
