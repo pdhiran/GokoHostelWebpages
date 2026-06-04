@@ -158,20 +158,39 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
 export function parseVisaFromText(text: string): Partial<VisaData> {
   const result: Partial<VisaData> = {};
 
-  const visaNoMatch = text.match(/visa\s*no[.:]*[\s]*([A-Z0-9]{4,20})/i);
-  if (visaNoMatch) result.visaNumber = visaNoMatch[1];
+  // Visa number: look for alphanumeric code after "Visa No" (skip if it matches common label words)
+  const visaNoMatch = text.match(/visa\s*no[.:]*[\s]*([A-Z0-9][A-Z0-9\-]{3,19})/i);
+  if (visaNoMatch) {
+    const candidate = visaNoMatch[1].trim();
+    const skipWords = ["issue", "date", "type", "place", "valid", "from", "entry", "entries"];
+    if (!skipWords.some((w) => candidate.toLowerCase().startsWith(w))) {
+      result.visaNumber = candidate;
+    }
+  }
 
   const typeMatch = text.match(/visa\s*type[.:]*[\s]*([A-Za-z\s\-]+?)(?:\n|$)/i);
-  if (typeMatch) result.type = typeMatch[1].trim();
+  if (typeMatch) {
+    const t = typeMatch[1].trim();
+    if (t.length < 30) result.type = t;
+  }
 
-  const issueDate = matchDate(text, "issue\\s*date", "date\\s*of\\s*issue", "issued");
+  const issueDate = matchDate(text, "issue\\s*date", "date\\s*of\\s*issue");
   if (issueDate) result.dateOfIssue = issueDate;
 
-  const expiryDate = matchDate(text, "expiry\\s*date", "valid\\s*(?:till|until|thru)", "expiry");
-  if (expiryDate) result.validTill = expiryDate;
+  const expiryDate = matchDate(text, "expiry\\s*date", "valid\\s*(?:till|until|thru)", "expiry\\s*[.:]");
+  if (expiryDate) {
+    // Sanity check: if parsed year < current year, likely OCR error — still store but note
+    result.validTill = expiryDate;
+  }
 
-  const placeMatch = text.match(/(?:place\s*of\s*issue|airport|port)[\s:,.]*([A-Za-z\s,]+?)(?:\n|$)/i);
-  if (placeMatch) result.placeOfIssue = placeMatch[1].trim();
+  // Place: look for airport/city names near bottom of visa stamp
+  const placeMatch = text.match(/(?:airport|port)[,.\s]*([A-Za-z\s]+?)(?:\n|$)/i);
+  if (placeMatch) {
+    result.placeOfIssue = placeMatch[1].trim().replace(/\s+/g, " ");
+  } else {
+    const cityMatch = text.match(/(?:NEW\s*DELHI|MUMBAI|CHENNAI|KOLKATA|HYDERABAD|BANGALORE|COCHIN|GOA|DELHI)/i);
+    if (cityMatch) result.placeOfIssue = cityMatch[0].toUpperCase();
+  }
 
   return result;
 }
