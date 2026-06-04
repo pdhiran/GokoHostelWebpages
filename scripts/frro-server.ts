@@ -158,41 +158,47 @@ async function clickTemporarySave(page: Page) {
 async function captureApplicationId(page: Page): Promise<string> {
   try {
     await page.waitForTimeout(2000);
+
+    // Check for validation errors (alert dialogs or error messages on page)
     const pageText = await page.textContent("body") || "";
+    const hasError = pageText.includes("Please upload") || pageText.includes("mandatory") || 
+                     pageText.includes("required field") || pageText.includes("Photo is required");
     
-    // Look for Application ID pattern in the page
-    const idMatch = pageText.match(/Application\s*ID\s*[:\s]*([A-Z0-9\-]+)/i);
-    if (idMatch) {
-      console.log(`  Captured Application ID: ${idMatch[1]}`);
-      return idMatch[1];
+    // Check if we're still on the form page (save failed)
+    const url = page.url();
+    if (url.includes("formc.jsp") && hasError) {
+      console.log("  ⚠ Save may have failed — validation error detected on page");
+      return "FAILED - check browser for validation errors (photo/dates may be required)";
     }
 
-    // Try finding it in an input field
-    const idInput = await page.$('input[name*="appli"], input[name*="Filer"], input[id*="appli"]');
-    if (idInput) {
-      const val = await idInput.inputValue();
-      if (val) {
-        console.log(`  Captured Application ID from input: ${val}`);
-        return val;
-      }
-    }
-
-    // Check the Filerfno field (seen in form fields earlier)
+    // Check the Filerfno field first (the Application ID input at top of form)
     const filerfno = await page.$('input[name="Filerfno"]');
     if (filerfno) {
       const val = await filerfno.inputValue();
-      if (val) {
+      if (val && val.length > 3) {
         console.log(`  Captured Application ID (Filerfno): ${val}`);
         return val;
       }
     }
 
+    // Look for Application ID in a pattern like "Application ID : XXXXX" (numeric/alphanumeric, 5+ chars)
+    const idMatch = pageText.match(/Application\s*ID\s*[:\s]+([A-Z0-9\-]{5,})/i);
+    if (idMatch) {
+      console.log(`  Captured Application ID: ${idMatch[1]}`);
+      return idMatch[1];
+    }
+
     // Check URL for any ID parameter
-    const url = page.url();
     const urlIdMatch = url.match(/[?&](?:id|appId|applicationId)=([^&]+)/i);
     if (urlIdMatch) {
       console.log(`  Captured Application ID from URL: ${urlIdMatch[1]}`);
       return urlIdMatch[1];
+    }
+
+    // If still on formc.jsp, save likely failed
+    if (url.includes("formc.jsp")) {
+      console.log("  ⚠ Still on form page — save may have failed (missing required fields?)");
+      return "FAILED - missing required fields (upload photo and fill dates manually, then save)";
     }
 
     console.log("  Could not capture Application ID from page");

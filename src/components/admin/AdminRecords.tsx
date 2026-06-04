@@ -1095,11 +1095,15 @@ export function AdminRecords({ password, username, role }: { password: string; u
                       const data = await res.json();
                       if (data.success) {
                         const appId = data.applicationId || "saved";
-                        setFrroStatus(`Success! Application ID: ${appId}`);
-                        const rowId = parseInt(formCPopup.row[15] || "0", 10);
-                        const updatedData = { ...formCPopup.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
-                        await apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
-                        setFormCPopup({ ...formCPopup, data: updatedData });
+                        if (appId.startsWith("FAILED")) {
+                          setFrroStatus(appId);
+                        } else {
+                          setFrroStatus(`Success! Application ID: ${appId}`);
+                          const rowId = parseInt(formCPopup.row[15] || "0", 10);
+                          const updatedData = { ...formCPopup.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
+                          await apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
+                          setFormCPopup({ ...formCPopup, data: updatedData });
+                        }
                       } else if (data.waitingForCaptcha) {
                         setFrroStatus("Solve CAPTCHA in browser window... (polling for result)");
                         const poll = setInterval(async () => {
@@ -1110,11 +1114,15 @@ export function AdminRecords({ password, username, role }: { password: string; u
                               clearInterval(poll);
                               if (statusData.lastResult.success) {
                                 const appId = statusData.lastResult.applicationId || "Form C saved";
-                                setFrroStatus(`Success! Application ID: ${appId}`);
-                                const rowId = parseInt(formCPopup!.row[15] || "0", 10);
-                                const updatedData = { ...formCPopup!.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
-                                apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
-                                setFormCPopup({ ...formCPopup!, data: updatedData });
+                                if (appId.startsWith("FAILED")) {
+                                  setFrroStatus(appId);
+                                } else {
+                                  setFrroStatus(`Success! Application ID: ${appId}`);
+                                  const rowId = parseInt(formCPopup!.row[15] || "0", 10);
+                                  const updatedData = { ...formCPopup!.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
+                                  apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
+                                  setFormCPopup({ ...formCPopup!, data: updatedData });
+                                }
                               } else { setFrroStatus(statusData.lastResult.error || "Failed"); }
                               setFrroSubmitting(false);
                             }
