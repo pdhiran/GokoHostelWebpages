@@ -113,17 +113,33 @@ function checkSafeSearch(safeSearch: VisionAnalysis["safeSearch"]): { safe: bool
   return { safe: true, reason: "" };
 }
 
+const GUARDIAN_PATTERN = /\b[SDWC]\/O\b/i;
+
 function checkNameMatch(text: string, guestName?: string): boolean {
   if (!guestName || guestName.trim().length < 2) return true;
   const textLower = text.toLowerCase();
   const parts = guestName.trim().split(/\s+/);
 
   const firstName = parts[0]?.toLowerCase();
-  if (firstName && firstName.length >= 2 && textLower.includes(firstName)) return true;
+  const lastName = parts.length > 1 ? parts[parts.length - 1]?.toLowerCase() : null;
 
-  if (parts.length > 1) {
-    const lastName = parts[parts.length - 1]?.toLowerCase();
-    if (lastName && lastName.length >= 2 && textLower.includes(lastName)) return true;
+  const firstFound = firstName && firstName.length >= 2 && textLower.includes(firstName);
+  const lastFound = lastName && lastName.length >= 2 && textLower.includes(lastName);
+
+  if (!firstFound && !lastFound) return false;
+
+  const lines = text.split(/\n/);
+  const nonGuardianText = lines
+    .filter((line) => !GUARDIAN_PATTERN.test(line))
+    .join("\n")
+    .toLowerCase();
+
+  if (firstFound) {
+    return nonGuardianText.includes(firstName!);
+  }
+
+  if (lastFound) {
+    return nonGuardianText.includes(lastName!);
   }
 
   return false;
