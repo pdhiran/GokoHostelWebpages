@@ -93,9 +93,10 @@ app.post("/fill-form-c", async (req, res) => {
       await navigateToFormC(page);
       await page.waitForTimeout(2000);
       await fillFormC(page, formData);
-      // await clickTemporarySave(page);
-      lastResult = { success: true, applicationId: "Form filled - review and save manually" };
-      console.log("Form C filled - review in browser and save manually");
+      await clickTemporarySave(page);
+      const appId2 = await captureApplicationId(page);
+      lastResult = { success: true, applicationId: appId2 };
+      console.log(`Form C submitted! Application ID: ${appId2}`);
       return;
     }
 
@@ -103,10 +104,11 @@ app.post("/fill-form-c", async (req, res) => {
     await navigateToFormC(page);
     await page.waitForTimeout(2000);
     await fillFormC(page, formData);
-    // await clickTemporarySave(page);
+    await clickTemporarySave(page);
+    const appId = await captureApplicationId(page);
 
-    lastResult = { success: true, applicationId: "Form filled - review and save manually" };
-    res.json({ success: true, applicationId: "Form filled - review and save manually" });
+    lastResult = { success: true, applicationId: appId };
+    res.json({ success: true, applicationId: appId });
   } catch (error: any) {
     console.error("Error:", error.message);
     res.json({ success: false, error: error.message });
@@ -150,6 +152,54 @@ async function clickTemporarySave(page: Page) {
     }
   } catch (e: any) {
     console.error("Save click failed:", e.message);
+  }
+}
+
+async function captureApplicationId(page: Page): Promise<string> {
+  try {
+    await page.waitForTimeout(2000);
+    const pageText = await page.textContent("body") || "";
+    
+    // Look for Application ID pattern in the page
+    const idMatch = pageText.match(/Application\s*ID\s*[:\s]*([A-Z0-9\-]+)/i);
+    if (idMatch) {
+      console.log(`  Captured Application ID: ${idMatch[1]}`);
+      return idMatch[1];
+    }
+
+    // Try finding it in an input field
+    const idInput = await page.$('input[name*="appli"], input[name*="Filer"], input[id*="appli"]');
+    if (idInput) {
+      const val = await idInput.inputValue();
+      if (val) {
+        console.log(`  Captured Application ID from input: ${val}`);
+        return val;
+      }
+    }
+
+    // Check the Filerfno field (seen in form fields earlier)
+    const filerfno = await page.$('input[name="Filerfno"]');
+    if (filerfno) {
+      const val = await filerfno.inputValue();
+      if (val) {
+        console.log(`  Captured Application ID (Filerfno): ${val}`);
+        return val;
+      }
+    }
+
+    // Check URL for any ID parameter
+    const url = page.url();
+    const urlIdMatch = url.match(/[?&](?:id|appId|applicationId)=([^&]+)/i);
+    if (urlIdMatch) {
+      console.log(`  Captured Application ID from URL: ${urlIdMatch[1]}`);
+      return urlIdMatch[1];
+    }
+
+    console.log("  Could not capture Application ID from page");
+    return "Saved - check FRRO site for ID";
+  } catch (e: any) {
+    console.log(`  Error capturing Application ID: ${e.message}`);
+    return "Saved - check FRRO site for ID";
   }
 }
 
