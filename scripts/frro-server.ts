@@ -139,7 +139,7 @@ async function fillFormC(page: Page, d: any) {
       if (td) {
         const row = await td.$("xpath=ancestor::tr");
         if (row) {
-          const input = await row.$("input, select, textarea");
+          const input = await row.$("input:not([type=radio]):not([type=hidden]), select, textarea");
           if (input) {
             const tag = await input.evaluate((el) => el.tagName);
             if (tag === "SELECT") {
@@ -148,6 +148,16 @@ async function fillFormC(page: Page, d: any) {
               );
             } else {
               await input.fill(value);
+            }
+          } else {
+            const radios = await row.$$("input[type=radio]");
+            for (const radio of radios) {
+              const radioVal = await radio.getAttribute("value");
+              const radioLabel = await radio.evaluate((el) => el.nextSibling?.textContent?.trim() || "");
+              if (radioVal?.toLowerCase() === value.toLowerCase() || radioLabel.toLowerCase() === value.toLowerCase()) {
+                await radio.check();
+                break;
+              }
             }
           }
         }
