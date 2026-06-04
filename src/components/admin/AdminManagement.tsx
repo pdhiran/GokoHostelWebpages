@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, BarChart3Icon, HistoryIcon, IndianRupeeIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
 import { ManagementAudit } from "./ManagementAudit";
 import { ManagementLogs } from "./ManagementLogs";
 import { ManagementHealth } from "./ManagementHealth";
+import { AdminStats } from "./AdminStats";
+import { AdminBedHistory } from "./AdminBedHistory";
+import { AdminCheckRates } from "./AdminCheckRates";
 import type { Role, ManagementTab } from "./types";
 
 const TABS: { id: ManagementTab; label: string; icon: React.ReactNode }[] = [
@@ -18,6 +21,9 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode }[] = [
   { id: "audit", label: "Audit", icon: <ShieldCheckIcon className="h-3.5 w-3.5" /> },
   { id: "logs", label: "Logs", icon: <FileTextIcon className="h-3.5 w-3.5" /> },
   { id: "health", label: "Health", icon: <HeartPulseIcon className="h-3.5 w-3.5" /> },
+  { id: "stats", label: "Stats", icon: <BarChart3Icon className="h-3.5 w-3.5" /> },
+  { id: "history", label: "History", icon: <HistoryIcon className="h-3.5 w-3.5" /> },
+  { id: "rates", label: "Rates", icon: <IndianRupeeIcon className="h-3.5 w-3.5" /> },
 ];
 
 export function AdminManagement({ password, username, role }: { password: string; username?: string; role: Role }) {
@@ -57,6 +63,9 @@ export function AdminManagement({ password, username, role }: { password: string
         {tab === "audit" && <ManagementAudit password={password} role={role} />}
         {tab === "logs" && <ManagementLogs password={password} role={role} />}
         {tab === "health" && <ManagementHealth password={password} role={role} />}
+        {tab === "stats" && <AdminStats password={password} username={username} />}
+        {tab === "history" && <AdminBedHistory password={password} username={username} role={role} />}
+        {tab === "rates" && <AdminCheckRates password={password} username={username} role={role} />}
       </div>
     </div>
   );
