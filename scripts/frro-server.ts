@@ -183,39 +183,36 @@ async function fillFormC(page: Page, d: any) {
         if (input) {
           const tag = await input.evaluate((el) => el.tagName);
           const type = await input.getAttribute("type");
-            if (tag === "SELECT") {
-              const options = await input.$$("option");
-              for (const opt of options) {
-                const optText = await opt.textContent() || "";
-                if (optText.toUpperCase().includes(value.toUpperCase())) {
-                  const optVal = await opt.getAttribute("value") || "";
-                  await input.selectOption(optVal);
-                  await input.dispatchEvent("change");
-                  console.log(`  Filled SELECT "${label}" = "${optText.trim()}"`);
-                  return;
-                }
+          if (tag === "SELECT") {
+            const options = await input.$$("option");
+            for (const opt of options) {
+              const optText = await opt.textContent() || "";
+              if (optText.toUpperCase().includes(value.toUpperCase())) {
+                const optVal = await opt.getAttribute("value") || "";
+                await input.selectOption(optVal);
+                await input.dispatchEvent("change");
+                console.log(`  Filled SELECT "${label}" = "${optText.trim()}"`);
+                return;
               }
-              // Try by value directly
-              await input.selectOption(value).catch(() => {});
-              console.log(`  Filled SELECT "${label}" (by value)`);
-            } else if (type === "radio") {
-              // Handle radio buttons
-              const radios = await row.$$("input[type=radio]");
-              for (const radio of radios) {
-                const radioVal = await radio.getAttribute("value") || "";
-                const nextText = await radio.evaluate((el) => el.nextSibling?.textContent?.trim() || "");
-                if (radioVal.toLowerCase() === value.toLowerCase() || nextText.toLowerCase().includes(value.toLowerCase())) {
-                  await radio.check();
-                  console.log(`  Filled RADIO "${label}" = "${value}"`);
-                  return;
-                }
-              }
-            } else {
-              await input.fill(value);
-              console.log(`  Filled INPUT "${label}" = "${value}"`);
             }
-            return;
+            await input.selectOption(value).catch(() => {});
+            console.log(`  Filled SELECT "${label}" (by value)`);
+          } else if (type === "radio") {
+            const radios = await row.$$("input[type=radio]");
+            for (const radio of radios) {
+              const radioVal = await radio.getAttribute("value") || "";
+              const nextText = await radio.evaluate((el) => el.nextSibling?.textContent?.trim() || "");
+              if (radioVal.toLowerCase() === value.toLowerCase() || nextText.toLowerCase().includes(value.toLowerCase())) {
+                await radio.check();
+                console.log(`  Filled RADIO "${label}" = "${value}"`);
+                return;
+              }
+            }
+          } else {
+            await input.fill(value);
+            console.log(`  Filled INPUT "${label}" = "${value}"`);
           }
+          return;
         }
       }
       console.log(`  NOT FOUND: "${label}"`);
@@ -227,43 +224,40 @@ async function fillFormC(page: Page, d: any) {
   // Upload passport photo (resize to <50KB JPG)
   try {
     const idLink = d.idCardLink || "";
-    const driveIdMatch = idLink.split(" | ")[0]?.match(/\/d\/([^/]+)\//);
-    if (driveIdMatch) {
-      const { getOAuthTokenWithDb } = await import("../src/lib/googleApiFetch");
+    const driveLink = idLink.split(" | ")[0];
+    if (driveLink && driveLink.startsWith("http")) {
       const sharp = (await import("sharp")).default;
-      const token = await getOAuthTokenWithDb();
-      if (token) {
-        const imgRes = await fetch(`https://www.googleapis.com/drive/v3/files/${driveIdMatch[1]}?alt=media`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (imgRes.ok) {
+      const fs = await import("fs");
+      // Try direct download (public link)
+      const imgRes = await fetch(driveLink.replace("/view", "/uc?export=download&confirm=t"));
+      if (imgRes.ok) {
+        const contentType = imgRes.headers.get("content-type") || "";
+        if (contentType.includes("image") || contentType.includes("octet")) {
           const buffer = Buffer.from(await imgRes.arrayBuffer());
-          const resized = await sharp(buffer)
+          let finalPhoto = await sharp(buffer)
             .resize(300, 400, { fit: "cover" })
             .jpeg({ quality: 60 })
             .toBuffer();
-          // Ensure under 50KB
-          let finalPhoto = resized;
-          if (resized.length > 50000) {
+          if (finalPhoto.length > 50000) {
             finalPhoto = await sharp(buffer)
               .resize(200, 267, { fit: "cover" })
               .jpeg({ quality: 40 })
               .toBuffer();
           }
           const photoPath = "/tmp/frro_passport_photo.jpg";
-          const fs = await import("fs");
           fs.writeFileSync(photoPath, finalPhoto);
           const fileInput = await page.$('input[type="file"]');
           if (fileInput) {
             await fileInput.setInputFiles(photoPath);
-            // Click Upload File button if present
-            const uploadBtn = await page.$('input[value*="Upload"], button:has-text("Upload File")');
+            const uploadBtn = await page.$('input[value*="Upload"], button:has-text("Upload")');
             if (uploadBtn) {
               await uploadBtn.click();
               await page.waitForTimeout(2000);
             }
             console.log(`  Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
           }
+        } else {
+          console.log("  Photo download returned non-image content (likely login page)");
         }
       }
     }
