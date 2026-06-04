@@ -13,19 +13,21 @@ import { AdminBedHistory } from "./AdminBedHistory";
 import { AdminCheckRates } from "./AdminCheckRates";
 import type { Role, ManagementTab } from "./types";
 
-const TABS: { id: ManagementTab; label: string; icon: React.ReactNode }[] = [
-  { id: "dorms", label: "Dorms", icon: <BedDoubleIcon className="h-3.5 w-3.5" /> },
-  { id: "users", label: "Users", icon: <UsersIcon className="h-3.5 w-3.5" /> },
-  { id: "backup", label: "Backup", icon: <DatabaseIcon className="h-3.5 w-3.5" /> },
-  { id: "audit", label: "Audit", icon: <ShieldCheckIcon className="h-3.5 w-3.5" /> },
-  { id: "logs", label: "Logs", icon: <FileTextIcon className="h-3.5 w-3.5" /> },
-  { id: "health", label: "Health & Stats", icon: <HeartPulseIcon className="h-3.5 w-3.5" /> },
+const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+  { id: "dorms", label: "Dorms", icon: <BedDoubleIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "users", label: "Users", icon: <UsersIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "backup", label: "Backup", icon: <DatabaseIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "audit", label: "Audit", icon: <ShieldCheckIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "logs", label: "Logs", icon: <FileTextIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "health", label: "Health & Stats", icon: <HeartPulseIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "history", label: "History", icon: <HistoryIcon className="h-3.5 w-3.5" /> },
   { id: "rates", label: "Rates", icon: <IndianRupeeIcon className="h-3.5 w-3.5" /> },
 ];
 
 export function AdminManagement({ password, username, role }: { password: string; username?: string; role: Role }) {
-  const [tab, setTab] = useState<ManagementTab>("dorms");
+  const visibleTabs = TABS.filter((t) => !t.adminOnly || role === "admin");
+  const defaultTab = visibleTabs[0]?.id || "history";
+  const [tab, setTab] = useState<ManagementTab>(defaultTab);
 
   return (
     <div>
@@ -35,7 +37,7 @@ export function AdminManagement({ password, username, role }: { password: string
 
       {/* Sub-tab navigation */}
       <div className="mt-4 flex flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             type="button"

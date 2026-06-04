@@ -116,7 +116,8 @@ export function AdminSetup({ password, username }: { password: string; username?
           for (const item of dormBeds) {
             if (item.bed.type === "Single") { singleBeds.push(item); continue; }
             const numMatch = item.bed.bedId.match(/\d+/);
-            const groupKey = numMatch?.[0] || item.bed.bedId;
+            const num = parseInt(numMatch?.[0] || "0");
+            const groupKey = String(Math.ceil(num / 2));
             if (!groupMap.has(groupKey)) groupMap.set(groupKey, { lowers: [], singles: [] });
             const group = groupMap.get(groupKey)!;
             if (item.bed.position === "Upper") group.upper = item;

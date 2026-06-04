@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { driveUploadFile, driveGetOrCreateFolder } from "@/lib/googleApiFetch";
-import { getMonthKey } from "@/db/queries";
+import { getMonthKey, incrementStat, addSystemLog } from "@/db/queries";
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,10 +35,13 @@ export async function POST(req: NextRequest) {
     }
 
     const link = await driveUploadFile(fileName, file.type || "image/jpeg", buffer, targetFolderId);
+    incrementStat("drive", 1).catch(() => {});
+    addSystemLog({ level: "info", source: "admin-upload", message: `File uploaded for ${name} (${type})` }).catch(() => {});
 
     return NextResponse.json({ link });
   } catch (error: any) {
     console.error("Admin upload error:", error?.message);
+    addSystemLog({ level: "error", source: "admin-upload", message: error?.message || "Upload failed" }).catch(() => {});
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }

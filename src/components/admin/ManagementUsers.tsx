@@ -26,8 +26,6 @@ const PERMISSION_OPTIONS = [
   { key: "canMarkClean", label: "Mark beds clean" },
   { key: "canEditRecords", label: "Edit records" },
   { key: "canDeleteRecords", label: "Delete records" },
-  { key: "canManageDorms", label: "Manage dorms" },
-  { key: "canViewStats", label: "View stats" },
 ];
 
 export function ManagementUsers({ password, username, role }: { password: string; username?: string; role: Role }) {

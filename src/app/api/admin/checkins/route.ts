@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
         visaLink: e[13] || "", verified: e[14] || "pending", createdMonth: getMonthKey(),
       });
       await addAuditEntry({ username: actingUser, action: "checkin_add", target: e[3] || "unknown" });
+      addSystemLog({ level: "info", source: "admin-api", message: `Check-in added: ${e[3] || "unknown"} by ${actingUser}` }).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -334,6 +335,7 @@ export async function POST(req: NextRequest) {
       await updateBedStatus(bedId, { status: "occupied", guestName, guestContact: guestContact || "", checkinDate: checkin, expectedCheckout: checkoutDate, stayingDays: String(days) });
       await logBedHistoryEntry({ bedIdLabel: bed.bedId, dormName: bed.dormName, action: "assign", guestName, guestContact: guestContact || "" });
       await addAuditEntry({ username: actingUser, action: "bed_assign", target: `${bed.bedId} ${guestName}` });
+      addSystemLog({ level: "info", source: "admin-api", message: `Bed assigned: ${bed.bedId} → ${guestName} by ${actingUser}` }).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -358,6 +360,7 @@ export async function POST(req: NextRequest) {
       }
 
       await addAuditEntry({ username: actingUser, action: "bed_checkout", target: `${bed.bedId} ${bed.guestName || ""}` });
+      addSystemLog({ level: "info", source: "admin-api", message: `Checkout: ${bed.bedId} (${bed.guestName || "unknown"}) by ${actingUser}` }).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -427,14 +430,18 @@ export async function POST(req: NextRequest) {
 
       for (let i = 1; i <= count; i++) {
         if (bedType === "Bunk2L1U") {
-          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-U${i}`, position: "Upper", type: "Bunk2L1U" });
-          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-LA${i}`, position: "Lower", type: "Bunk2L1U" });
-          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-LB${i}`, position: "Lower", type: "Bunk2L1U" });
+          const upperNum = (i - 1) * 2 + 1;
+          const lowerNum = upperNum + 1;
+          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${upperNum}`, position: "Upper", type: "Bunk2L1U" });
+          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${lowerNum}a`, position: "Lower", type: "Bunk2L1U" });
+          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${lowerNum}b`, position: "Lower", type: "Bunk2L1U" });
         } else if (bedType === "Single") {
-          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-S${i}`, position: "Single", type: "Single" });
+          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${i}`, position: "Single", type: "Single" });
         } else {
-          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-U${i}`, position: "Upper", type: "Bunk" });
-          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-L${i}`, position: "Lower", type: "Bunk" });
+          const upperNum = (i - 1) * 2 + 1;
+          const lowerNum = upperNum + 1;
+          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${upperNum}`, position: "Upper", type: "Bunk" });
+          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${lowerNum}`, position: "Lower", type: "Bunk" });
         }
       }
       await addAuditEntry({ username: actingUser, action: "dorm_created", target: dormName.trim() });

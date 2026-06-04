@@ -130,7 +130,7 @@ export default function AdminPage() {
     { id: "beds", label: "Beds", icon: <BedDoubleIcon className="h-4 w-4" /> },
     { id: "timeline", label: "Timeline", icon: <CalendarDaysIcon className="h-4 w-4" /> },
     { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" /> },
-    { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" />, adminOnly: true },
+    { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" /> },
   ];
 
   return (
@@ -179,7 +179,7 @@ export default function AdminPage() {
         {section === "beds" && <AdminBeds password={password} username={username} role={role} />}
         {section === "timeline" && <AdminTimeline password={password} username={username} role={role} />}
         {section === "records" && <AdminRecords password={password} username={username} role={role} />}
-        {section === "management" && role === "admin" && <AdminManagement password={password} username={username} role={role} />}
+        {section === "management" && <AdminManagement password={password} username={username} role={role} />}
       </div>
     </section>
   );

@@ -256,7 +256,9 @@ export function AdminBeds({ password, username, role }: { password: string; user
     for (const item of dormBedsWithIdx) {
       if (item.bed.type === "Single") { singles.push(item); continue; }
       const numMatch = item.bed.bedId.match(/\d+/);
-      const groupKey = `${item.bed.dormName}-${numMatch?.[0] || item.bed.bedId}`;
+      const num = parseInt(numMatch?.[0] || "0");
+      const bunkNum = Math.ceil(num / 2);
+      const groupKey = `${item.bed.dormName}-bunk-${bunkNum}`;
 
       if (!groupMap.has(groupKey)) groupMap.set(groupKey, { lowers: [] });
       const group = groupMap.get(groupKey)!;
@@ -413,7 +415,8 @@ export function AdminBeds({ password, username, role }: { password: string; user
           {/* Bunk bed groups */}
           <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {bunkGroups.map((group, gi) => {
-              const groupLabel = group.upper?.bed.bedId.match(/\d+/)?.[0] || `${gi + 1}`;
+              const upperNum = parseInt(group.upper?.bed.bedId.match(/\d+/)?.[0] || "0");
+              const groupLabel = upperNum > 0 ? String(Math.ceil(upperNum / 2)) : `${gi + 1}`;
               return (
                 <div key={gi} className="relative overflow-hidden rounded-2xl border border-brand-mist bg-white shadow-card">
                   <div className="border-b border-brand-mist bg-brand-sand/30 px-3 py-1.5">

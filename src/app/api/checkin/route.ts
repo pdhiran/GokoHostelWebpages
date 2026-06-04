@@ -146,6 +146,7 @@ export async function POST(req: NextRequest) {
     if (driveCount > 0) incrementStat("drive", driveCount).catch(() => {});
 
     addAuditEntry({ username: "guest", action: "self_checkin", target: name }).catch(() => {});
+    addSystemLog({ level: "info", source: "checkin", message: `Self check-in: ${name}` }).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

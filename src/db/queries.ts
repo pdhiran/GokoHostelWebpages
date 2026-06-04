@@ -267,7 +267,7 @@ export async function addSystemLog(data: {
   level: string; source: string; message: string; details?: string; requestId?: string;
 }) {
   try {
-    const configuredLevel = await getSetting("log_level") || "error";
+    const configuredLevel = await getSetting("log_level") || "info";
     const configuredPriority = LOG_LEVELS[configuredLevel] ?? 3;
     const messagePriority = LOG_LEVELS[data.level] ?? 0;
 
