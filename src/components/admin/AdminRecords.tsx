@@ -870,10 +870,30 @@ export function AdminRecords({ password, username, role }: { password: string; u
               ]} />
             </div>
 
-            <div className="mt-6 rounded-xl bg-indigo-50 p-4">
-              <p className="text-xs text-indigo-700">
-                <strong>Note:</strong> This data will be used to fill Form C on indianfrro.gov.in.
-                Browser automation for FRRO submission is planned for a future update.
+            <div className="mt-6 space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const checkinId = formCPopup.row[15];
+                  const secret = password;
+                  const expiry = Date.now() + 60 * 60 * 1000;
+                  const payload = `${checkinId}:${expiry}`;
+                  const hash = btoa(payload + ":" + secret).replace(/=/g, "");
+                  const token = `${btoa(payload).replace(/=/g, "")}.${hash}`;
+                  const apiUrl = `${window.location.origin}/api/form-c/${checkinId}?token=${token}`;
+                  const script = `javascript:void((async()=>{try{const r=await fetch('${apiUrl}');if(!r.ok){alert('Failed: '+r.status);return;}const d=await r.json();const S=(label,v)=>{if(!v)return;const tds=[...document.querySelectorAll('td,th,label')];const td=tds.find(t=>t.textContent.trim().toLowerCase().includes(label.toLowerCase()));if(td){const row=td.closest('tr')||td.parentElement;if(row){const inputs=row.querySelectorAll('input,select,textarea');if(inputs.length){const el=inputs[0];if(el.tagName==='SELECT'){const opts=[...el.options];const match=opts.find(o=>o.text.toUpperCase().includes(v.toUpperCase())||o.value.toUpperCase().includes(v.toUpperCase()));if(match){el.value=match.value;el.dispatchEvent(new Event('change',{bubbles:true}));}else el.value=v;}else if(el.type==='radio'){const radios=row.querySelectorAll('input[type=radio]');radios.forEach(r=>{if(r.value.toLowerCase()===v.toLowerCase()||r.nextSibling?.textContent?.trim().toLowerCase()===v.toLowerCase())r.checked=true;});}else{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}}}}};const n=d.extractedPassport||{};const v=d.extractedVisa||{};const surname=n.surname||d.guestName?.split(' ').pop()||'';const givenName=n.givenName||d.guestName?.split(' ').slice(0,-1).join(' ')||'';S('Surname',surname);S('Given Name',givenName);S('Sex',n.sex||'');S('Date of Birth',n.dateOfBirth||'');S('Nationality',d.nationality||'');S('Address in country',d.homeAddress||'');S('Passport No',n.passportNumber||'');S('Visa No',v.visaNumber||'');S('Type of visa',v.type||'');S('Arrived from Country',d.arrivedFromCountry||'');S('Arrived from City',d.arrivedFromCity||'');S('Arrived from Place',d.arrivedFromPlace||'');S('Date of Arrival in India',d.dateOfArrivalInIndia||'');S('Date of Arrival in Hotel',d.arrivalDate||'');S('Time of Arrival in Hotel',d.arrivalTime||'');S('duration of stay',d.stayingDays||'');S('employed in India',d.employedInIndia||'No');S('Purpose of Visit',d.purposeOfVisit||'Tourism');S('Contact Phone No (In India',d.contact||'');S('Mobile No (In India',d.contact||'');S('Mobile No (Permanently',d.homeCountryPhone||'');const msg=document.createElement('div');msg.style.cssText='position:fixed;top:20px;right:20px;background:#4CAF50;color:white;padding:16px 24px;border-radius:8px;z-index:99999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3)';msg.textContent='Form C fields filled! Review and click Temporary Save.';document.body.appendChild(msg);setTimeout(()=>msg.remove(),8000);}catch(e){alert('Auto-fill error: '+e.message);}})())`;
+                  navigator.clipboard.writeText(script).then(() => {
+                    alert("Auto-fill script copied! Open FRRO Form C page, tap the address bar, paste, and press Go.");
+                  }).catch(() => {
+                    prompt("Copy this script, paste in FRRO page address bar:", script);
+                  });
+                }}
+                className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+              >
+                Copy FRRO Auto-Fill Script
+              </button>
+              <p className="text-center text-[10px] text-indigo-600/70">
+                Login to FRRO → open Form C → paste this script in address bar → all fields fill automatically
               </p>
             </div>
           </div>
