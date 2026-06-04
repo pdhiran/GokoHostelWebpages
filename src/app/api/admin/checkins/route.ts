@@ -219,52 +219,75 @@ export async function POST(req: NextRequest) {
       const { visionAnalyze } = await import("@/lib/googleApiFetch");
       const { parsePassportMRZ, parseVisaFromText } = await import("@/lib/parsePassportData");
 
-      let extractedPassport = {};
-      let extractedVisa = {};
+      function extractDriveId(url: string): string | null {
+        const match = url.match(/\/d\/([^/]+)\//);
+        return match ? match[1] : null;
+      }
 
-      // Re-OCR passport image (from ID card link)
+      function arrayBufferToBase64(buffer: ArrayBuffer): string {
+        const bytes = new Uint8Array(buffer);
+        const chunks: string[] = [];
+        for (let i = 0; i < bytes.length; i += 8192) {
+          chunks.push(String.fromCharCode(...bytes.slice(i, i + 8192)));
+        }
+        return btoa(chunks.join(""));
+      }
+
+      let extractedPassport: Record<string, any> | null = null;
+      let extractedVisa: Record<string, any> | null = null;
+
       if (row.idCardLink && row.idType === "passport") {
         const links = row.idCardLink.split(" | ").filter((l) => l.startsWith("http"));
         if (links.length > 0) {
-          try {
-            const imgRes = await fetch(links[0].replace("/view", "/uc?export=download"));
-            if (imgRes.ok) {
-              const buffer = await imgRes.arrayBuffer();
-              const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-              const analysis = await visionAnalyze(base64, "image/jpeg");
-              extractedPassport = parsePassportMRZ(analysis.text);
-              incrementStat("vision", 1).catch(() => {});
+          const fileId = extractDriveId(links[0]);
+          if (fileId) {
+            try {
+              const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+              const imgRes = await fetch(downloadUrl);
+              if (imgRes.ok) {
+                const buffer = await imgRes.arrayBuffer();
+                const base64 = arrayBufferToBase64(buffer);
+                const analysis = await visionAnalyze(base64, "image/jpeg");
+                const parsed = parsePassportMRZ(analysis.text);
+                if (Object.keys(parsed).length > 0) extractedPassport = parsed;
+                incrementStat("vision", 1).catch(() => {});
+              }
+            } catch (e: any) {
+              console.error("Passport re-OCR failed:", e?.message);
             }
-          } catch (e: any) {
-            console.error("Passport re-OCR failed:", e?.message);
           }
         }
       }
 
-      // Re-OCR visa image
       if (row.visaLink) {
         const links = row.visaLink.split(" | ").filter((l) => l.startsWith("http"));
         if (links.length > 0) {
-          try {
-            const imgRes = await fetch(links[0].replace("/view", "/uc?export=download"));
-            if (imgRes.ok) {
-              const buffer = await imgRes.arrayBuffer();
-              const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-              const analysis = await visionAnalyze(base64, "image/jpeg");
-              extractedVisa = parseVisaFromText(analysis.text);
-              incrementStat("vision", 1).catch(() => {});
+          const fileId = extractDriveId(links[0]);
+          if (fileId) {
+            try {
+              const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+              const imgRes = await fetch(downloadUrl);
+              if (imgRes.ok) {
+                const buffer = await imgRes.arrayBuffer();
+                const base64 = arrayBufferToBase64(buffer);
+                const analysis = await visionAnalyze(base64, "image/jpeg");
+                const parsed = parseVisaFromText(analysis.text);
+                if (Object.keys(parsed).length > 0) extractedVisa = parsed;
+                incrementStat("vision", 1).catch(() => {});
+              }
+            } catch (e: any) {
+              console.error("Visa re-OCR failed:", e?.message);
             }
-          } catch (e: any) {
-            console.error("Visa re-OCR failed:", e?.message);
           }
         }
       }
 
-      // Merge with existing formCData (keep user-entered fields, update extracted)
       let existingData: Record<string, any> = {};
       if (row.formCData) { try { existingData = JSON.parse(row.formCData); } catch {} }
 
-      const updatedData = { ...existingData, extractedPassport, extractedVisa };
+      const updatedData = { ...existingData };
+      if (extractedPassport) updatedData.extractedPassport = extractedPassport;
+      if (extractedVisa) updatedData.extractedVisa = extractedVisa;
       await db.update(checkins).set({ formCData: JSON.stringify(updatedData) }).where(eq(checkins.id, rowId));
 
       return NextResponse.json({ success: true, formCData: JSON.stringify(updatedData) });

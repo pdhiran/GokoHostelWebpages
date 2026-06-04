@@ -23,12 +23,13 @@ app.use(express.json());
 let browser: Browser | null = null;
 let page: Page | null = null;
 let loggedIn = false;
+let lastResult: { success: boolean; applicationId?: string; error?: string } | null = null;
 
 const FRRO_LOGIN_URL = "https://indianfrro.gov.in/frro/FormC/login.jsp";
 const FRRO_FORM_URL = "https://indianfrro.gov.in/frro/FormC/formc.jsp";
 
 app.get("/status", (_req, res) => {
-  res.json({ running: true, loggedIn, hasBrowser: !!browser });
+  res.json({ running: true, loggedIn, hasBrowser: !!browser, lastResult });
 });
 
 app.post("/fill-form-c", async (req, res) => {
@@ -59,11 +60,12 @@ app.post("/fill-form-c", async (req, res) => {
       loggedIn = false;
     }
 
+    lastResult = null;
+
     // Login if needed
     if (!loggedIn) {
       await page.goto(FRRO_LOGIN_URL, { waitUntil: "domcontentloaded" });
 
-      // Fill username and password
       if (frroUsername) {
         const userInput = await page.$('input[name="userid"], input[name="userName"], input[type="text"]');
         if (userInput) await userInput.fill(frroUsername);
@@ -73,42 +75,54 @@ app.post("/fill-form-c", async (req, res) => {
         if (passInput) await passInput.fill(frroPassword);
       }
 
-      // Wait for admin to solve CAPTCHA and click login (page navigates away)
       console.log("Waiting for admin to solve CAPTCHA and login...");
-      res.json({ success: false, waitingForCaptcha: true, message: "Solve CAPTCHA in the browser window and click Sign In" });
+      res.json({ success: false, waitingForCaptcha: true, message: "Solve CAPTCHA in the browser window and click Sign In. Check /status for result." });
 
       try {
-        await page.waitForURL("**/FormC/Login**", { timeout: 120000 });
+        await page.waitForURL((url) => !url.href.includes("login"), { timeout: 120000 });
         loggedIn = true;
         console.log("Login successful!");
       } catch {
         console.log("Login timeout or failed");
+        lastResult = { success: false, error: "Login timed out" };
         return;
       }
 
-      // Navigate to Form C
       await page.goto(FRRO_FORM_URL, { waitUntil: "domcontentloaded" });
       await fillFormC(page, formData);
+      await clickTemporarySave(page);
+      lastResult = { success: true, applicationId: "Submitted - check FRRO site" };
+      console.log("Form C submitted successfully!");
       return;
     }
 
-    // Already logged in — go straight to Form C
+    // Already logged in
     await page.goto(FRRO_FORM_URL, { waitUntil: "domcontentloaded" });
     await fillFormC(page, formData);
+    await clickTemporarySave(page);
 
-    // Click Temporary Save and Exit
-    const saveBtn = await page.$('input[value*="Temporary"], button:has-text("Temporary Save")');
-    if (saveBtn) {
-      await saveBtn.click();
-      await page.waitForTimeout(2000);
-    }
-
+    lastResult = { success: true, applicationId: "Submitted - check FRRO site" };
     res.json({ success: true, applicationId: "Submitted - check FRRO site" });
   } catch (error: any) {
     console.error("Error:", error.message);
     res.json({ success: false, error: error.message });
   }
 });
+
+async function clickTemporarySave(page: Page) {
+  try {
+    const saveBtn = await page.$('input[value*="Temporary"], button:has-text("Temporary Save")');
+    if (saveBtn) {
+      await saveBtn.click();
+      await page.waitForTimeout(3000);
+      console.log("Clicked Temporary Save and Exit");
+    } else {
+      console.log("Could not find Temporary Save button");
+    }
+  } catch (e: any) {
+    console.error("Save click failed:", e.message);
+  }
+}
 
 async function fillFormC(page: Page, d: any) {
   const passport = d.extractedPassport || {};

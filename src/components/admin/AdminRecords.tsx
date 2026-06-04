@@ -1019,10 +1019,25 @@ export function AdminRecords({ password, username, role }: { password: string; u
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ apiUrl, frroUsername, frroPassword }),
                       }).catch(() => null);
-                      if (!res) { setFrroStatus("Local server not running. Start it with: npx tsx scripts/frro-server.ts"); return; }
+                      if (!res) { setFrroStatus("Local server not running. Start with: frro (in terminal)"); return; }
                       const data = await res.json();
                       if (data.success) { setFrroStatus(`Success! Application ID: ${data.applicationId || "saved"}`); }
-                      else if (data.waitingForCaptcha) { setFrroStatus("Waiting for you to solve CAPTCHA in the browser window..."); }
+                      else if (data.waitingForCaptcha) {
+                        setFrroStatus("Solve CAPTCHA in browser window... (polling for result)");
+                        const poll = setInterval(async () => {
+                          try {
+                            const statusRes = await fetch("http://localhost:3456/status");
+                            const statusData = await statusRes.json();
+                            if (statusData.lastResult) {
+                              clearInterval(poll);
+                              if (statusData.lastResult.success) setFrroStatus(`Success! ${statusData.lastResult.applicationId || "Form C saved"}`);
+                              else setFrroStatus(statusData.lastResult.error || "Failed");
+                              setFrroSubmitting(false);
+                            }
+                          } catch { clearInterval(poll); }
+                        }, 3000);
+                        return;
+                      }
                       else { setFrroStatus(data.error || "Failed"); }
                     } catch (e: any) { setFrroStatus(e.message || "Connection failed"); }
                     finally { setFrroSubmitting(false); }
