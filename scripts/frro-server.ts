@@ -14,6 +14,8 @@
 
 import express from "express";
 import cors from "cors";
+import fs from "fs";
+import os from "os";
 import { chromium, type Browser, type Page } from "playwright";
 
 const app = express();
@@ -158,68 +160,6 @@ async function fillFormC(page: Page, d: any) {
   const surname = passport.surname || d.guestName?.split(" ").pop() || "";
   const givenName = passport.givenName || d.guestName?.split(" ").slice(0, -1).join(" ") || "";
 
-  // Helper: fill by label proximity (searches TDs for label text, fills adjacent input)
-  async function fillByLabel(label: string, value: string) {
-    if (!value) return;
-    try {
-      // Strategy: find TR containing label text, get the actual form input (skip file inputs)
-      const rows = await page.$$("tr");
-      for (const row of rows) {
-        const tds = await row.$$("td");
-        // Check if any TD starts with or closely matches the label
-        let labelFound = false;
-        for (const td of tds) {
-          const tdText = (await td.textContent().catch(() => "")) || "";
-          const trimmed = tdText.trim();
-          if (trimmed.toLowerCase().startsWith(label.toLowerCase()) || 
-              (trimmed.length < label.length * 3 && trimmed.toLowerCase().includes(label.toLowerCase()))) {
-            labelFound = true;
-            break;
-          }
-        }
-        if (!labelFound) continue;
-
-        const input = await row.$("input:not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=file]), select, textarea");
-        if (input) {
-          const tag = await input.evaluate((el) => el.tagName);
-          const type = await input.getAttribute("type");
-          if (tag === "SELECT") {
-            const options = await input.$$("option");
-            for (const opt of options) {
-              const optText = await opt.textContent() || "";
-              if (optText.toUpperCase().includes(value.toUpperCase())) {
-                const optVal = await opt.getAttribute("value") || "";
-                await input.selectOption(optVal);
-                await input.dispatchEvent("change");
-                console.log(`  Filled SELECT "${label}" = "${optText.trim()}"`);
-                return;
-              }
-            }
-            await input.selectOption(value).catch(() => {});
-            console.log(`  Filled SELECT "${label}" (by value)`);
-          } else if (type === "radio") {
-            const radios = await row.$$("input[type=radio]");
-            for (const radio of radios) {
-              const radioVal = await radio.getAttribute("value") || "";
-              const nextText = await radio.evaluate((el) => el.nextSibling?.textContent?.trim() || "");
-              if (radioVal.toLowerCase() === value.toLowerCase() || nextText.toLowerCase().includes(value.toLowerCase())) {
-                await radio.check();
-                console.log(`  Filled RADIO "${label}" = "${value}"`);
-                return;
-              }
-            }
-          } else {
-            await input.fill(value);
-            console.log(`  Filled INPUT "${label}" = "${value}"`);
-          }
-          return;
-        }
-      }
-      console.log(`  NOT FOUND: "${label}"`);
-    } catch (e: any) {
-      console.log(`  ERROR filling "${label}": ${e.message}`);
-    }
-  }
 
   // Upload passport photo (resize to <50KB JPG)
   try {
@@ -265,116 +205,195 @@ async function fillFormC(page: Page, d: any) {
     console.log(`  Photo upload skipped: ${e.message}`);
   }
 
-  console.log("\nFilling Form C fields...\n");
 
-  // Personal details
-  await fillByLabel("Surname", surname);
-  await fillByLabel("Given Name", givenName);
-  await fillByLabel("Sex", passport.sex === "Male" ? "Male" : passport.sex === "Female" ? "Female" : "");
-  await fillByLabel("Nationality", d.nationality || "");
-  await fillByLabel("Special Category", "Others");
+  console.log("\nFilling Form C fields by exact FRRO field names...\n");
 
-  // Home address
-  await fillByLabel("Address in country where residing permanently", d.homeAddress || "");
-  await fillByLabel("City", d.homeCity || "");
+  // Helper: fill text input by name (uses evaluate for stubborn fields)
+  async function fillInput(name: string, value: string) {
+    if (!value) return;
+    const el = await page.$(`input[name="${name}"], textarea[name="${name}"]`);
+    if (el) {
+      try {
+        await el.fill(value);
+      } catch {
+        // Fallback: force set via JavaScript (for readonly/date-picker fields)
+        await page.evaluate(({ n, v }) => {
+          const input = document.querySelector(`input[name="${n}"], textarea[name="${n}"]`) as HTMLInputElement;
+          if (input) {
+            input.removeAttribute("readonly");
+            input.value = v;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        }, { n: name, v: value });
+      }
+      console.log(`  ✓ ${name} = "${value}"`);
+    } else {
+      console.log(`  ✗ ${name} not found`);
+    }
+  }
+
+  // Helper: select dropdown option by text match (prefers exact match)
+  async function fillSelect(name: string, value: string) {
+    if (!value) return;
+    // ^VALUE$ syntax forces exact-only matching
+    const forceExact = value.startsWith("^") && value.endsWith("$");
+    const searchValue = forceExact ? value.slice(1, -1) : value;
+
+    const el = await page.$(`select[name="${name}"]`);
+    if (el) {
+      const options = await el.$$("option");
+      // First try exact match
+      for (const opt of options) {
+        const text = (await opt.textContent() || "").trim();
+        if (text.toUpperCase() === searchValue.toUpperCase()) {
+          const val = await opt.getAttribute("value") || "";
+          await el.selectOption(val);
+          await el.dispatchEvent("change");
+          console.log(`  ✓ ${name} = "${text}" (exact)`);
+          return;
+        }
+      }
+      if (forceExact) { console.log(`  ⚠ ${name}: no exact option matching "${searchValue}"`); return; }
+      // Then try starts-with match
+      for (const opt of options) {
+        const text = (await opt.textContent() || "").trim();
+        if (text.toUpperCase().startsWith(searchValue.toUpperCase())) {
+          const val = await opt.getAttribute("value") || "";
+          await el.selectOption(val);
+          await el.dispatchEvent("change");
+          console.log(`  ✓ ${name} = "${text}" (starts-with)`);
+          return;
+        }
+      }
+      // Finally try contains (but skip if value is too short/common)
+      if (searchValue.length > 3) {
+        for (const opt of options) {
+          const text = (await opt.textContent() || "").trim();
+          if (text.toUpperCase().includes(searchValue.toUpperCase())) {
+            const val = await opt.getAttribute("value") || "";
+            await el.selectOption(val);
+            await el.dispatchEvent("change");
+            console.log(`  ✓ ${name} = "${text}" (contains)`);
+            return;
+          }
+        }
+      }
+      console.log(`  ⚠ ${name}: no option matching "${searchValue}"`);
+    } else {
+      console.log(`  ✗ ${name} not found`);
+    }
+  }
+
+  // Helper: convert date from YYYY-MM-DD to DD/MM/YYYY
+  function formatDate(dateStr: string): string {
+    if (!dateStr) return "";
+    // Already in DD/MM/YYYY or DD.MM.YYYY format
+    if (/^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4}$/.test(dateStr)) return dateStr.replace(/[.-]/g, "/");
+    // Convert from YYYY-MM-DD
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+    return dateStr;
+  }
+
+  // Helper: check radio by name + value
+  async function fillRadio(name: string, value: string) {
+    if (!value) return;
+    const radio = await page.$(`input[name="${name}"][value="${value}"]`);
+    if (radio) {
+      await radio.check();
+      console.log(`  ✓ ${name} = "${value}"`);
+    } else {
+      console.log(`  ✗ ${name}[value="${value}"] not found`);
+    }
+  }
+
+  // Personal Details
+  await fillInput("applicant_surname", surname);
+  await fillInput("applicant_givenname", givenName);
+  await fillSelect("applicant_sex", passport.sex === "Male" ? "Male" : passport.sex === "Female" ? "Female" : "");
+  await fillSelect("dobformat", "DD/MM/YYYY");
+  await fillInput("applicant_dob", passport.dateOfBirth || "");
+  await fillSelect("applicant_special_category", "Others");
+  await fillSelect("applicant_nationality", d.nationality || "");
+
+  // Home Address
+  await fillInput("applicant_permaddr", [d.homeAddress, d.homeCity].filter(Boolean).join(", ") || "");
+  await fillInput("applicant_permcity", d.homeCity || "");
+  await fillSelect("applicant_permcountry", d.nationality || "");
+
+  // India Address (hotel)
+  await fillInput("applicant_refaddr", "Near Hema Shree, Gokarna Main Beach");
+  await fillSelect("applicant_refstate", "KARNATAKA");
+  await page.waitForTimeout(500);
+  await fillSelect("applicant_refstatedistr", "UTTARA KANNADA");
+  await fillInput("applicant_refpincode", "581421");
 
   // Passport
-  await fillByLabel("Passport No", passport.passportNumber || "");
+  await fillInput("applicant_passpno", passport.passportNumber || "");
+  await fillInput("applicant_passplcofissue", passport.placeOfIssue || "");
+  await fillSelect("passport_issue_country", d.nationality || "");
+  await fillInput("applicant_passpdoissue", formatDate(passport.dateOfIssue || ""));
+  await fillInput("applicant_passpvalidtill", formatDate(passport.expiryDate || ""));
 
   // Visa
-  await fillByLabel("Visa No", visa.visaNumber || "");
-  await fillByLabel("Type of visa", visa.type || "Tourist");
+  await fillInput("applicant_visano", visa.visaNumber || "");
+  await fillInput("applicant_visaplcoissue", visa.placeOfIssue || "");
+  await fillSelect("visa_issue_country", "^INDIA$");
+  await fillInput("applicant_visadoissue", formatDate(visa.dateOfIssue || ""));
+  await fillInput("applicant_visavalidtill", formatDate(visa.validTill || ""));
+  await fillSelect("applicant_visatype", visa.type || "Tourist");
 
-  // Arrival info
-  await fillByLabel("Arrived from Country", d.arrivedFromCountry || "");
-  await fillByLabel("Arrived from City", d.arrivedFromCity || "");
-  await fillByLabel("Arrived from Place", d.arrivedFromPlace || "");
-  await fillByLabel("Date of Arrival in India", d.dateOfArrivalInIndia || "");
-  await fillByLabel("Date of Arrival in Hotel", d.arrivalDate || "");
-  await fillByLabel("Time of Arrival in Hotel", d.arrivalTime || "");
-  await fillByLabel("Intended duration of stay", d.stayingDays || "");
+  // Arrival (arrivedFromCountry — use starts-with for "INDIA" since exact may have trailing space)
+  const arrCountry = d.arrivedFromCountry || "";
+  if (arrCountry.toLowerCase() === "india") {
+    await fillSelect("applicant_arrivedfromcountry", "INDIA");
+  } else {
+    await fillSelect("applicant_arrivedfromcountry", arrCountry);
+  }
+  await fillInput("applicant_arrivedfromcity", d.arrivedFromCity || "");
+  await fillInput("applicant_arrivedfromplace", d.arrivedFromPlace || "");
+  await fillInput("applicant_doarrivalindia", formatDate(d.dateOfArrivalInIndia || ""));
+  await fillInput("applicant_doarrivalhotel", formatDate(d.arrivalDate || ""));
+  await fillInput("applicant_timeoarrivalhotel", d.arrivalTime || "");
+  await fillInput("applicant_intnddurhotel", d.stayingDays || "");
 
-  // Other
-  await fillByLabel("Whether employed in India", d.employedInIndia || "No");
-  await fillByLabel("Purpose of Visit", d.purposeOfVisit || "Tourism");
-  await fillByLabel("Contact Phone No (In India", d.contact || "");
-  await fillByLabel("Mobile No (In India", d.contact || "");
-  await fillByLabel("Mobile No (Permanently", d.homeCountryPhone || "");
-  await fillByLabel("Contact Phone No (Permanently", d.homeCountryPhone || "");
+  // Other Details
+  await fillRadio("employed", (d.employedInIndia || "No") === "Yes" ? "Y" : "N");
+  await fillSelect("applicant_purpovisit", d.purposeOfVisit || "Tourism");
+  await fillRadio("applicant_next_dest_country_flag_r", (d.nextDestination || "").includes("Outside") ? "O" : "I");
+  await page.waitForTimeout(500);
+  await fillInput("applicant_next_destination_place_IN", d.nextDestCity || d.nextDestState || "");
 
-  // Try direct input filling as fallback (by input name attributes)
-  console.log("\nTrying direct name-based filling as fallback...\n");
-  await directFill(page, d, passport, visa);
+  // Fill phone numbers + duration last (some FRRO JS may clear fields on dropdown change)
+  await page.waitForTimeout(500);
+  await fillInput("applicant_intnddurhotel", d.stayingDays || "");
+  await fillInput("applicant_contactnoinindia", d.contact || "");
+  await fillInput("applicant_mcontactnoinindia", d.contact || "");
+  await fillInput("applicant_contactnoperm", d.homeCountryPhone || "");
+  await fillInput("applicant_mcontactnoperm", d.homeCountryPhone || "");
+
+  // Re-fill date fields at the end (FRRO date pickers may clear them)
+  await page.waitForTimeout(300);
+  await page.evaluate((dates) => {
+    for (const [name, value] of Object.entries(dates)) {
+      if (!value) continue;
+      const el = document.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+      if (el && !el.value) {
+        el.removeAttribute("readonly");
+        el.value = value;
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+  }, {
+    applicant_doarrivalindia: formatDate(d.dateOfArrivalInIndia || ""),
+    applicant_doarrivalhotel: formatDate(d.arrivalDate || ""),
+    applicant_intnddurhotel: d.stayingDays || "",
+  });
 
   console.log("\nForm C filling complete!");
 }
 
-async function directFill(page: Page, d: any, passport: any, visa: any) {
-  const surname = passport.surname || d.guestName?.split(" ").pop() || "";
-  const givenName = passport.givenName || d.guestName?.split(" ").slice(0, -1).join(" ") || "";
-
-  // Try common JSP form field names
-  const fields: [string, string][] = [
-    ["surname", surname],
-    ["givenname", givenName],
-    ["given_name", givenName],
-    ["passno", passport.passportNumber || ""],
-    ["passport_no", passport.passportNumber || ""],
-    ["visano", visa.visaNumber || ""],
-    ["visa_no", visa.visaNumber || ""],
-    ["paddress", d.homeAddress || ""],
-    ["pcity", d.homeCity || ""],
-    ["arrcity", d.arrivedFromCity || ""],
-    ["arrplace", d.arrivedFromPlace || ""],
-    ["staydays", d.stayingDays || ""],
-    ["stay_days", d.stayingDays || ""],
-    ["hotarrtime", d.arrivalTime || ""],
-    ["arr_time", d.arrivalTime || ""],
-    ["mobile_india", d.contact || ""],
-    ["phone_india", d.contact || ""],
-    ["mobile_perm", d.homeCountryPhone || ""],
-    ["phone_perm", d.homeCountryPhone || ""],
-  ];
-
-  for (const [name, value] of fields) {
-    if (!value) continue;
-    const el = await page.$(`input[name="${name}"], textarea[name="${name}"]`);
-    if (el) {
-      await el.fill(value);
-      console.log(`  Direct fill [name="${name}"] = "${value}"`);
-    }
-  }
-
-  // Try select dropdowns
-  const selects: [string, string][] = [
-    ["sex", passport.sex === "Male" ? "M" : passport.sex === "Female" ? "F" : ""],
-    ["nationality", d.nationality || ""],
-    ["arrcountry", d.arrivedFromCountry || ""],
-    ["arr_country", d.arrivedFromCountry || ""],
-    ["purpose", d.purposeOfVisit || "Tourism"],
-    ["visatype", visa.type || "Tourist"],
-    ["visa_type", visa.type || "Tourist"],
-    ["specialcat", "Others"],
-    ["special_category", "Others"],
-  ];
-
-  for (const [name, value] of selects) {
-    if (!value) continue;
-    const el = await page.$(`select[name="${name}"]`);
-    if (el) {
-      const options = await el.$$("option");
-      for (const opt of options) {
-        const text = await opt.textContent() || "";
-        if (text.toUpperCase().includes(value.toUpperCase())) {
-          const val = await opt.getAttribute("value") || "";
-          await el.selectOption(val);
-          console.log(`  Direct select [name="${name}"] = "${text.trim()}"`);
-          break;
-        }
-      }
-    }
-  }
-}
 
 app.post("/close", async (_req, res) => {
   if (browser) {
@@ -387,11 +406,27 @@ app.post("/close", async (_req, res) => {
 });
 
 const PORT = 3456;
-app.listen(PORT, "0.0.0.0", () => {
-  const nets = require("os").networkInterfaces();
+const server = app.listen(PORT, "0.0.0.0", () => {
+  const nets = os.networkInterfaces();
   const lanIp = Object.values(nets).flat().find((n: any) => n?.family === "IPv4" && !n?.internal)?.address || "localhost";
   console.log(`\nFRRO Form C Server running on:`);
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Network: http://${lanIp}:${PORT}`);
   console.log(`\nWaiting for requests from admin panel...\n`);
+});
+
+server.on("error", (e: any) => {
+  if (e.code === "EADDRINUSE") {
+    console.error(`Port ${PORT} already in use. Kill existing process or use a different port.`);
+  } else {
+    console.error("Server error:", e.message);
+  }
+  process.exit(1);
+});
+
+process.on("SIGINT", () => {
+  console.log("\nShutting down...");
+  if (browser) browser.close();
+  server.close();
+  process.exit(0);
 });
