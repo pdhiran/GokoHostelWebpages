@@ -82,34 +82,45 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
   };
 }
 
+const DATE_PATTERN = /(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4}|\d{1,2}\s+[A-Z]{3}\s+\d{4})/i;
+
+function matchDate(text: string, ...prefixes: string[]): string | undefined {
+  for (const prefix of prefixes) {
+    const regex = new RegExp(`${prefix}[\\s:]*${DATE_PATTERN.source}`, "i");
+    const m = text.match(regex);
+    if (m) return m[1];
+  }
+  return undefined;
+}
+
 function parsePassportFromFreeText(text: string): Partial<PassportData> {
   const result: Partial<PassportData> = {};
 
-  const passportNoMatch = text.match(/(?:passport\s*(?:no|number|#)[\s:]*|no[.:]\s*)([A-Z0-9]{6,12})/i);
+  const passportNoMatch = text.match(/(?:passport\s*(?:no|number|#)|pass[\s-]*n[or][\s.:]*|no[.:]\s*)[\s:]*([A-Z0-9]{6,12})/i);
   if (passportNoMatch) result.passportNumber = passportNoMatch[1];
 
-  const nameMatch = text.match(/(?:given\s*name|first\s*name)[\s:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  const nameMatch = text.match(/(?:given\s*names?|first\s*names?|vorname[n]?)[\s:]*([A-Za-z\s]+?)(?:\n|$)/i);
   if (nameMatch) result.givenName = nameMatch[1].trim();
 
-  const surnameMatch = text.match(/(?:surname|family\s*name|last\s*name)[\s:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  const surnameMatch = text.match(/(?:surname|family\s*name|last\s*name|name)[\s/:]*([A-Za-z\s]+?)(?:\n|$)/i);
   if (surnameMatch) result.surname = surnameMatch[1].trim();
 
-  const sexMatch = text.match(/(?:sex|gender)[\s:]*([MF]|Male|Female)/i);
+  const sexMatch = text.match(/(?:sex|gender|geschlecht)[\s/:]*([MF]|Male|Female)/i);
   if (sexMatch) result.sex = sexMatch[1].length === 1 ? (sexMatch[1] === "M" ? "Male" : "Female") : sexMatch[1];
 
-  const dobMatch = text.match(/(?:date\s*of\s*birth|d\.?o\.?b\.?|born)[\s:]*(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4})/i);
-  if (dobMatch) result.dateOfBirth = dobMatch[1];
+  const dob = matchDate(text, "date\\s*of\\s*birth", "d\\.?o\\.?b\\.?", "born", "geburtsdatum", "geburtst");
+  if (dob) result.dateOfBirth = dob;
 
-  const expiryMatch = text.match(/(?:expiry|valid\s*(?:till|until|thru)|date\s*of\s*expiry)[\s:]*(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4})/i);
-  if (expiryMatch) result.expiryDate = expiryMatch[1];
+  const expiry = matchDate(text, "expiry", "valid\\s*(?:till|until|thru)", "date\\s*of\\s*expiry", "gültig\\s*bis");
+  if (expiry) result.expiryDate = expiry;
 
-  const issueMatch = text.match(/(?:date\s*of\s*issue|issued)[\s:]*(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4})/i);
-  if (issueMatch) result.dateOfIssue = issueMatch[1];
+  const issue = matchDate(text, "date\\s*of\\s*issue", "issued", "ausstellungsdatum");
+  if (issue) result.dateOfIssue = issue;
 
-  const placeMatch = text.match(/(?:place\s*of\s*issue)[\s:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  const placeMatch = text.match(/(?:place\s*of\s*issue|authority|behörde)[\s/:]*([A-Za-z\s]+?)(?:\n|$)/i);
   if (placeMatch) result.placeOfIssue = placeMatch[1].trim();
 
-  const nationalityMatch = text.match(/(?:nationality|citizen)[\s:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  const nationalityMatch = text.match(/(?:nationality|citizen|staatsangehörigkeit)[\s/:]*([A-Za-z\s]+?)(?:\n|$)/i);
   if (nationalityMatch) result.nationality = nationalityMatch[1].trim();
 
   return result;
@@ -118,23 +129,20 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
 export function parseVisaFromText(text: string): Partial<VisaData> {
   const result: Partial<VisaData> = {};
 
-  const visaNoMatch = text.match(/(?:visa\s*(?:no|number|#)|no[.:])[\s:]*([A-Z0-9]{4,20})/i);
+  const visaNoMatch = text.match(/visa\s*no[.:]*[\s]*([A-Z0-9]{4,20})/i);
   if (visaNoMatch) result.visaNumber = visaNoMatch[1];
 
-  const typeMatch = text.match(/(?:type|category)[\s:]*([A-Za-z\s\-]+?)(?:\n|$)/i);
+  const typeMatch = text.match(/visa\s*type[.:]*[\s]*([A-Za-z\s\-]+?)(?:\n|$)/i);
   if (typeMatch) result.type = typeMatch[1].trim();
 
-  const issueDateMatch = text.match(/(?:date\s*of\s*issue|issued|from)[\s:]*(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4})/i);
-  if (issueDateMatch) result.dateOfIssue = issueDateMatch[1];
+  const issueDate = matchDate(text, "issue\\s*date", "date\\s*of\\s*issue", "issued");
+  if (issueDate) result.dateOfIssue = issueDate;
 
-  const validTillMatch = text.match(/(?:valid\s*(?:till|until|thru)|expiry|to)[\s:]*(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4})/i);
-  if (validTillMatch) result.validTill = validTillMatch[1];
+  const expiryDate = matchDate(text, "expiry\\s*date", "valid\\s*(?:till|until|thru)", "expiry");
+  if (expiryDate) result.validTill = expiryDate;
 
-  const placeMatch = text.match(/(?:place\s*of\s*issue)[\s:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  const placeMatch = text.match(/(?:place\s*of\s*issue|airport|port)[\s:,.]*([A-Za-z\s,]+?)(?:\n|$)/i);
   if (placeMatch) result.placeOfIssue = placeMatch[1].trim();
-
-  const countryMatch = text.match(/(?:country)[\s:]*([A-Za-z\s]+?)(?:\n|$)/i);
-  if (countryMatch) result.country = countryMatch[1].trim();
 
   return result;
 }
