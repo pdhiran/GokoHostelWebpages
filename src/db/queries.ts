@@ -30,6 +30,15 @@ export async function deleteCheckin(id: number) {
   return db.delete(checkins).where(eq(checkins.id, id));
 }
 
+export async function getLatestCheckinByContact(contact: string) {
+  const db = getDb();
+  const rows = await db.select().from(checkins)
+    .where(eq(checkins.contact, contact))
+    .orderBy(desc(checkins.id))
+    .limit(1);
+  return rows[0] || null;
+}
+
 export async function getCheckinMonths(): Promise<string[]> {
   const db = getDb();
   const rows = await db.selectDistinct({ month: checkins.createdMonth }).from(checkins);

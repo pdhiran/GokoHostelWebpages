@@ -249,8 +249,35 @@ function MultiDocUpload({
   );
 }
 
+function driveThumb(link: string): string | null {
+  const m = link.match(/\/d\/([^/]+)\//);
+  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w200` : null;
+}
+
+type LookupData = {
+  name: string;
+  contactNumber: string;
+  comingFrom: string;
+  nationality: string;
+  emergencyName: string;
+  emergencyPhone: string;
+  idType: string;
+  idCardLink: string;
+  visaLink: string;
+  formCData: string;
+};
+
 export function SelfCheckinForm() {
   const { date, time } = getNow();
+
+  const [step, setStep] = useState<"phone" | "form">("phone");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState("");
+  const [returnGuest, setReturnGuest] = useState<LookupData | null>(null);
+  const [prevIdCardLink, setPrevIdCardLink] = useState("");
+  const [prevVisaLink, setPrevVisaLink] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [idFiles, setIdFiles] = useState<DocFile[]>([]);
@@ -305,7 +332,84 @@ export function SelfCheckinForm() {
 
   const nationality = watch("nationality");
 
+  const handlePhoneLookup = async () => {
+    const cleaned = phoneInput.replace(/[\s\-]/g, "");
+    if (cleaned.length < 7) {
+      setLookupError("Please enter a valid mobile number");
+      return;
+    }
+    setLookingUp(true);
+    setLookupError("");
+    try {
+      const res = await fetch(`/api/checkin/lookup?phone=${encodeURIComponent(cleaned)}`);
+      const json = await res.json();
+      if (json.found && json.data) {
+        const d = json.data as LookupData;
+        setReturnGuest(d);
+        setPrevIdCardLink(d.idCardLink || "");
+        setPrevVisaLink(d.visaLink || "");
+
+        const { date: nowDate, time: nowTime } = getNow();
+        const formCFields: Record<string, string> = {};
+        if (d.formCData) {
+          try {
+            const fc = JSON.parse(d.formCData);
+            for (const key of [
+              "arrivedFromCountry", "arrivedFromCity", "arrivedFromPlace",
+              "dateOfArrivalInIndia", "purposeOfVisit", "employedInIndia",
+              "nextDestination", "nextDestState", "nextDestCity", "nextDestPlace",
+              "homeAddress", "homeCity", "homeCountryPhone",
+            ]) {
+              if (fc[key]) formCFields[key] = fc[key];
+            }
+          } catch { /* ignore parse errors */ }
+        }
+
+        reset({
+          arrivalDate: nowDate,
+          arrivalTime: nowTime,
+          name: d.name,
+          numberOfPersons: "",
+          contactNumber: d.contactNumber,
+          stayingDays: "",
+          comingFrom: d.comingFrom,
+          nationality: d.nationality || "India",
+          emergencyName: d.emergencyName,
+          emergencyPhone: d.emergencyPhone,
+          idType: (["aadhaar", "driving_licence", "passport"].includes(d.idType) ? d.idType : undefined) as any,
+          prevIdCardLink: d.idCardLink || undefined,
+          prevVisaLink: d.visaLink || undefined,
+          ...formCFields,
+        });
+
+        if (d.idCardLink) {
+          setIdValidated(true);
+        }
+      } else {
+        setReturnGuest(null);
+        setPrevIdCardLink("");
+        setPrevVisaLink("");
+      }
+      setStep("form");
+    } catch {
+      setLookupError("Could not look up your number. Please try again.");
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  const skipToForm = () => {
+    setReturnGuest(null);
+    setPrevIdCardLink("");
+    setPrevVisaLink("");
+    setStep("form");
+  };
+
   const addIdFile = (file: File) => {
+    setPrevIdCardLink("");
+    setValue("prevIdCardLink", undefined);
+    setIdValidated(false);
+
     if (file.type === "application/pdf") {
       const newFiles = [...idFiles, { file, preview: "" }];
       setIdFiles(newFiles);
@@ -390,6 +494,9 @@ export function SelfCheckinForm() {
   };
 
   const addVisaFile = (file: File) => {
+    setPrevVisaLink("");
+    setValue("prevVisaLink", undefined);
+
     if (file.type === "application/pdf") {
       const newFiles = [...visaFiles, { file, preview: "" }];
       setVisaFiles(newFiles);
@@ -466,13 +573,21 @@ export function SelfCheckinForm() {
       formData.append("emergencyPhone", data.emergencyPhone);
       formData.append("idType", data.idType);
 
-      idFiles.forEach((doc) => {
-        formData.append("idImages", doc.file);
-      });
+      if (idFiles.length > 0) {
+        idFiles.forEach((doc) => {
+          formData.append("idImages", doc.file);
+        });
+      } else if (prevIdCardLink) {
+        formData.append("prevIdCardLink", prevIdCardLink);
+      }
 
-      visaFiles.forEach((doc) => {
-        formData.append("visaImages", doc.file);
-      });
+      if (visaFiles.length > 0) {
+        visaFiles.forEach((doc) => {
+          formData.append("visaImages", doc.file);
+        });
+      } else if (prevVisaLink) {
+        formData.append("prevVisaLink", prevVisaLink);
+      }
 
       if (data.nationality && data.nationality !== "India") {
         if (data.arrivedFromCountry) formData.append("arrivedFromCountry", data.arrivedFromCountry);
@@ -520,12 +635,73 @@ export function SelfCheckinForm() {
       setIdServerError(false);
       setVisaServerError(false);
       setDetectedIdType(null);
+      setReturnGuest(null);
+      setPrevIdCardLink("");
+      setPrevVisaLink("");
     } catch {
       alert("Something went wrong. Please try again or contact the front desk.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (step === "phone" && !success && !submitting) {
+    return (
+      <div className="mx-auto max-w-lg rounded-3xl border border-brand-mist bg-white p-6 shadow-card md:p-10">
+        <h2 className="font-display text-2xl font-bold text-brand-green md:text-3xl">
+          Guest Self Check-in
+        </h2>
+        <p className="mt-2 text-sm text-brand-green-dark/70">
+          Enter your mobile number to get started. If you&apos;ve stayed with us before, we&apos;ll load your details.
+        </p>
+
+        <div className="mt-8 space-y-4">
+          <div>
+            <Label htmlFor="phoneLookup">Mobile number (without country code)</Label>
+            <Input
+              id="phoneLookup"
+              type="tel"
+              inputMode="tel"
+              placeholder="e.g. 9876543210"
+              value={phoneInput}
+              onChange={(e) => { setPhoneInput(e.target.value); setLookupError(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handlePhoneLookup(); } }}
+              className={cn(lookupError && "border-red-400")}
+              autoFocus
+            />
+            {lookupError && (
+              <p className="mt-1 text-xs text-red-500">{lookupError}</p>
+            )}
+          </div>
+
+          <Button
+            type="button"
+            variant="cta"
+            className="w-full"
+            onClick={handlePhoneLookup}
+            disabled={lookingUp}
+          >
+            {lookingUp ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Looking up...
+              </span>
+            ) : (
+              "Continue"
+            )}
+          </Button>
+
+          <button
+            type="button"
+            onClick={skipToForm}
+            className="block w-full text-center text-sm text-brand-green-dark/60 transition-colors hover:text-brand-green"
+          >
+            Skip, I&apos;m a new guest
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -565,13 +741,13 @@ export function SelfCheckinForm() {
           <Button
             type="button"
             variant="cta"
-            onClick={() => setSuccess(false)}
+            onClick={() => { setSuccess(false); setStep("phone"); setPhoneInput(""); }}
           >
             OK, Got it
           </Button>
           <button
             type="button"
-            onClick={() => setSuccess(false)}
+            onClick={() => { setSuccess(false); setStep("phone"); setPhoneInput(""); }}
             className="text-sm text-brand-green-dark/60 hover:text-brand-green"
           >
             Submit another check-in
@@ -613,6 +789,14 @@ export function SelfCheckinForm() {
       <p className="mt-2 text-sm text-brand-green-dark/70">
         Please fill in your details. Fields marked with <span className="text-brand-red">*</span> are required.
       </p>
+
+      {returnGuest && (
+        <div className="mt-4 rounded-2xl border border-brand-green/20 bg-brand-green/[0.04] p-4">
+          <p className="text-sm font-medium text-brand-green">
+            Welcome back, {returnGuest.name}! We&apos;ve loaded your previous details. Please review and update if needed.
+          </p>
+        </div>
+      )}
 
       <div className="mt-8 space-y-6">
         {/* Date & Time */}
@@ -805,28 +989,88 @@ export function SelfCheckinForm() {
           )}
         </div>
 
+        {/* Previous ID preview for return guests */}
+        {prevIdCardLink && idFiles.length === 0 && (
+          <div>
+            <Label className="mb-2 block text-sm font-medium text-brand-green-dark">
+              ID document (from previous visit)
+            </Label>
+            <div className="mb-2 flex flex-wrap gap-3">
+              {prevIdCardLink.split(" | ").map((link, i) => {
+                const thumb = driveThumb(link);
+                return thumb ? (
+                  <img
+                    key={i}
+                    src={thumb}
+                    alt={`Previous ID ${i + 1}`}
+                    className="h-24 w-24 rounded-xl border border-brand-mist object-cover shadow-soft"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                ) : (
+                  <div key={i} className="flex h-24 w-24 items-center justify-center rounded-xl border border-brand-mist bg-brand-sand/50 shadow-soft">
+                    <span className="text-[10px] text-brand-green-dark/60">ID on file</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-brand-green-dark/50">
+              Your previous ID is on file. Upload new documents below only if you want to replace them.
+            </p>
+          </div>
+        )}
+
         {/* ID Upload (multiple images/PDF) */}
         <MultiDocUpload
-          label="ID document (upload front & back) *"
+          label={prevIdCardLink && idFiles.length === 0 ? "Upload new ID (optional)" : "ID document (upload front & back) *"}
           error={errors.idImages?.message as string | undefined}
           files={idFiles}
           onAdd={addIdFile}
           onRemove={removeIdFile}
-          onValidate={validationEnabled ? validateIdFiles : undefined}
+          onValidate={validationEnabled && !prevIdCardLink ? validateIdFiles : undefined}
           validating={validatingId}
           validationMsg={validationEnabled ? idValidationMsg : null}
           helpText="Upload front and back of your ID. Accepted: JPEG, PNG, WebP, PDF. Max 10 MB per file."
         />
 
+        {/* Previous Visa preview for return guests */}
+        {nationality && nationality !== "India" && prevVisaLink && visaFiles.length === 0 && (
+          <div>
+            <Label className="mb-2 block text-sm font-medium text-brand-green-dark">
+              Visa document (from previous visit)
+            </Label>
+            <div className="mb-2 flex flex-wrap gap-3">
+              {prevVisaLink.split(" | ").map((link, i) => {
+                const thumb = driveThumb(link);
+                return thumb ? (
+                  <img
+                    key={i}
+                    src={thumb}
+                    alt={`Previous Visa ${i + 1}`}
+                    className="h-24 w-24 rounded-xl border border-brand-mist object-cover shadow-soft"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                ) : (
+                  <div key={i} className="flex h-24 w-24 items-center justify-center rounded-xl border border-brand-mist bg-brand-sand/50 shadow-soft">
+                    <span className="text-[10px] text-brand-green-dark/60">Visa on file</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-brand-green-dark/50">
+              Your previous visa is on file. Upload new documents below only if you want to replace them.
+            </p>
+          </div>
+        )}
+
         {/* Visa (conditional, multiple images/PDF) */}
         {nationality && nationality !== "India" && (
           <MultiDocUpload
-            label="Visa document (required for non-Indian nationals)"
+            label={prevVisaLink && visaFiles.length === 0 ? "Upload new visa (optional)" : "Visa document (required for non-Indian nationals)"}
             error={errors.visaImages?.message as string | undefined}
             files={visaFiles}
             onAdd={addVisaFile}
             onRemove={removeVisaFile}
-            onValidate={validationEnabled ? validateVisaFiles : undefined}
+            onValidate={validationEnabled && !prevVisaLink ? validateVisaFiles : undefined}
             validating={validatingVisa}
             validationMsg={validationEnabled ? visaValidationMsg : null}
             helpText="Upload visa pages. Accepted: JPEG, PNG, WebP, PDF. Max 10 MB per file."
@@ -921,7 +1165,7 @@ export function SelfCheckinForm() {
       </div>
 
       <div className="mt-10">
-        {validationLoaded && validationEnabled && !idValidated && !idServerError && idFiles.length > 0 && (
+        {validationLoaded && validationEnabled && !idValidated && !idServerError && idFiles.length > 0 && !prevIdCardLink && (
           <p className="mb-3 text-center text-sm text-brand-red">
             Please click &quot;Verify document&quot; before submitting
           </p>
@@ -930,7 +1174,7 @@ export function SelfCheckinForm() {
           type="submit"
           variant="cta"
           className="w-full"
-          disabled={submitting || !validationLoaded || (validationEnabled && !idValidated && !idServerError)}
+          disabled={submitting || !validationLoaded || (validationEnabled && !idValidated && !idServerError && !prevIdCardLink)}
         >
           {submitting ? "Submitting..." : !validationLoaded ? "Loading..." : "Complete Check-in"}
         </Button>

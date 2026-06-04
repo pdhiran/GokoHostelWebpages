@@ -54,8 +54,11 @@ export const checkinSchema = z
         (files) =>
           !files || Array.from(files as File[]).every((f) => f.size <= 10 * 1024 * 1024),
         "Each file must be less than 10 MB"
-      ),
+      )
+      .optional(),
     visaImages: z.any().optional(),
+    prevIdCardLink: z.string().optional(),
+    prevVisaLink: z.string().optional(),
     arrivedFromCountry: z.string().optional(),
     arrivedFromCity: z.string().optional(),
     arrivedFromPlace: z.string().optional(),
@@ -72,7 +75,18 @@ export const checkinSchema = z
   })
   .refine(
     (data) => {
+      if (data.prevIdCardLink) return true;
+      return data.idImages && data.idImages.length > 0;
+    },
+    {
+      message: "At least one ID image is required",
+      path: ["idImages"],
+    }
+  )
+  .refine(
+    (data) => {
       if (data.nationality && data.nationality !== "India") {
+        if (data.prevVisaLink) return true;
         return data.visaImages && data.visaImages.length > 0;
       }
       return true;

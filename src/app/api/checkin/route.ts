@@ -38,9 +38,13 @@ export async function POST(req: NextRequest) {
     const emergencyName = formData.get("emergencyName") as string;
     const emergencyPhone = formData.get("emergencyPhone") as string;
     const idType = formData.get("idType") as string;
-    const idImages = formData.getAll("idImages") as File[];
+    const idImagesRaw = formData.getAll("idImages") as File[];
+    const idImages = idImagesRaw.filter((f) => f.size > 0);
     const visaImagesRaw = formData.getAll("visaImages") as File[];
     const visaImages = visaImagesRaw.filter((f) => f.size > 0);
+
+    const prevIdCardLink = formData.get("prevIdCardLink") as string || "";
+    const prevVisaLink = formData.get("prevVisaLink") as string || "";
 
     const arrivedFromCountry = formData.get("arrivedFromCountry") as string || "";
     const arrivedFromCity = formData.get("arrivedFromCity") as string || "";
@@ -56,7 +60,8 @@ export async function POST(req: NextRequest) {
     const homeCity = formData.get("homeCity") as string || "";
     const homeCountryPhone = formData.get("homeCountryPhone") as string || "";
 
-    if (!name || !contactNumber || !nationality || !idType || idImages.length === 0 || !arrivalDate || !stayingDays || !comingFrom || !numberOfPersons) {
+    const hasIdImages = idImages.length > 0 || !!prevIdCardLink;
+    if (!name || !contactNumber || !nationality || !idType || !hasIdImages || !arrivalDate || !stayingDays || !comingFrom || !numberOfPersons) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -77,7 +82,10 @@ export async function POST(req: NextRequest) {
     let passportOcrText = "";
     let visaOcrText = "";
 
-    if (validationEnabled) {
+    const reusingPrevId = idImages.length === 0 && !!prevIdCardLink;
+    const reusingPrevVisa = visaImages.length === 0 && !!prevVisaLink;
+
+    if (validationEnabled && !reusingPrevId) {
       async function validateFile(file: File, category: "id" | "visa", idTypeHint?: string, nameToCheck?: string) {
         if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
           return { valid: false, documentType: "unknown" as const, confidence: "high" as const, message: "Only images and PDFs accepted" };
@@ -100,7 +108,7 @@ export async function POST(req: NextRequest) {
         validationFailed = true;
       }
 
-      if (visaImages.length > 0) {
+      if (visaImages.length > 0 && !reusingPrevVisa) {
         try {
           const visaValidation = await validateFile(visaImages[0], "visa");
           serverVisionCalls++;
@@ -119,32 +127,42 @@ export async function POST(req: NextRequest) {
 
     if (serverVisionCalls > 0) incrementStat("vision", serverVisionCalls).catch(() => {});
 
-    const idCardLinks: string[] = [];
-    for (let i = 0; i < idImages.length; i++) {
-      try {
-        const link = await uploadToDrive(idImages[i], name, `id_${i + 1}`);
-        idCardLinks.push(link);
-      } catch (uploadErr: any) {
-        console.error(`ID image ${i + 1} upload failed:`, uploadErr?.message);
-        idCardLinks.push("Upload failed");
+    let idCardLink: string;
+    let visaLink: string;
+
+    if (reusingPrevId) {
+      idCardLink = prevIdCardLink;
+    } else {
+      const idCardLinks: string[] = [];
+      for (let i = 0; i < idImages.length; i++) {
+        try {
+          const link = await uploadToDrive(idImages[i], name, `id_${i + 1}`);
+          idCardLinks.push(link);
+        } catch (uploadErr: any) {
+          console.error(`ID image ${i + 1} upload failed:`, uploadErr?.message);
+          idCardLinks.push("Upload failed");
+        }
       }
+      idCardLink = idCardLinks.join(" | ");
     }
 
-    const visaLinks: string[] = [];
-    for (let i = 0; i < visaImages.length; i++) {
-      try {
-        const link = await uploadToDrive(visaImages[i], name, `visa_${i + 1}`);
-        visaLinks.push(link);
-      } catch (uploadErr: any) {
-        console.error(`Visa image ${i + 1} upload failed:`, uploadErr?.message);
-        visaLinks.push("Upload failed");
+    if (reusingPrevVisa) {
+      visaLink = prevVisaLink;
+    } else {
+      const visaLinks: string[] = [];
+      for (let i = 0; i < visaImages.length; i++) {
+        try {
+          const link = await uploadToDrive(visaImages[i], name, `visa_${i + 1}`);
+          visaLinks.push(link);
+        } catch (uploadErr: any) {
+          console.error(`Visa image ${i + 1} upload failed:`, uploadErr?.message);
+          visaLinks.push("Upload failed");
+        }
       }
+      visaLink = visaLinks.join(" | ");
     }
-
-    const idCardLink = idCardLinks.join(" | ");
-    const visaLink = visaLinks.join(" | ");
     const submittedAt = new Date().toISOString();
-    const verified = !validationEnabled ? "pending" : validationFailed ? "pending" : "yes";
+    const verified = reusingPrevId ? "yes" : !validationEnabled ? "pending" : validationFailed ? "pending" : "yes";
 
     const isForeigner = nationality && nationality !== "India";
     let formCData = "";
@@ -188,8 +206,8 @@ export async function POST(req: NextRequest) {
       createdMonth: getMonthKey(),
     });
 
-    const driveCount = idCardLinks.filter((l) => l !== "Upload failed").length + visaLinks.filter((l) => l !== "Upload failed").length;
-    if (driveCount > 0) incrementStat("drive", driveCount).catch(() => {});
+    const newUploads = (reusingPrevId ? 0 : idImages.length) + (reusingPrevVisa ? 0 : visaImages.length);
+    if (newUploads > 0) incrementStat("drive", newUploads).catch(() => {});
 
     addAuditEntry({ username: "guest", action: "self_checkin", target: name }).catch(() => {});
     addSystemLog({ level: "info", source: "checkin", message: `Self check-in: ${name}` }).catch(() => {});
