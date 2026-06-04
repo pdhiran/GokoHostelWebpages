@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ExternalLinkIcon, Trash2Icon, PlusIcon, UploadIcon, PencilIcon, ShieldCheckIcon, ShieldAlertIcon, Loader2Icon, XIcon } from "lucide-react";
+import { ExternalLinkIcon, Trash2Icon, PlusIcon, UploadIcon, PencilIcon, ShieldCheckIcon, ShieldAlertIcon, Loader2Icon, XIcon, FileTextIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
@@ -64,6 +64,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadIdType, setUploadIdType] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [formCPopup, setFormCPopup] = useState<{ origIdx: number; row: string[]; data: any } | null>(null);
+  const [formCLoading, setFormCLoading] = useState(false);
 
   const filteredRows = (() => {
     let result = [...rows].map((row, origIdx) => ({ row, origIdx }));
@@ -287,6 +289,24 @@ export function AdminRecords({ password, username, role }: { password: string; u
       setUploadIdType("");
       refresh();
     } finally { setUploading(false); }
+  };
+
+  const openFormC = async (origIdx: number, row: string[]) => {
+    setFormCLoading(true);
+    try {
+      const rowId = parseInt(row[15] || "0", 10);
+      const res = await apiCall({ action: "getFormCData", rowId });
+      if (res.ok) {
+        const d = await res.json();
+        setFormCPopup({ origIdx, row, data: d.formCData ? JSON.parse(d.formCData) : {} });
+      } else {
+        setFormCPopup({ origIdx, row, data: {} });
+      }
+    } catch {
+      setFormCPopup({ origIdx, row, data: {} });
+    } finally {
+      setFormCLoading(false);
+    }
   };
 
   if (loading && rows.length === 0) {
@@ -553,6 +573,12 @@ export function AdminRecords({ password, username, role }: { password: string; u
                   {role === "admin" && (
                     <td className="px-3 py-3">
                       <div className="flex gap-1">
+                        {(row[8] || "").toLowerCase() !== "india" && row[8] && (
+                          <button type="button" onClick={() => openFormC(origIdx, row)}
+                            className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 hover:bg-indigo-100">
+                            <FileTextIcon className="h-3 w-3" /> Form C
+                          </button>
+                        )}
                         {row[16] === "checked_out" && row[17] && (Date.now() - new Date(row[17]).getTime() < 24 * 60 * 60 * 1000) && (
                           <button type="button" onClick={() => undoCheckout(origIdx)} className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-100">Reactivate</button>
                         )}
@@ -701,6 +727,96 @@ export function AdminRecords({ password, username, role }: { password: string; u
           </div>
         </div>
       )}
+
+      {/* Form C preview modal */}
+      {formCPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setFormCPopup(null)}>
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-lg font-bold text-indigo-800">Form C Data — {formCPopup.row[3]}</h3>
+              <button type="button" onClick={() => setFormCPopup(null)} className="rounded-lg p-1 hover:bg-brand-sand">
+                <XIcon className="h-5 w-5 text-brand-green-dark/50" />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-brand-green-dark/60">FRRO Form C data extracted from passport, visa, and check-in form</p>
+
+            <div className="mt-4 space-y-4">
+              <FormCSection title="Guest Details" items={[
+                { label: "Name", value: formCPopup.row[3] },
+                { label: "Nationality", value: formCPopup.row[8] },
+                { label: "Contact (India)", value: formCPopup.row[5] },
+                { label: "Arrival Date", value: formCPopup.row[1] },
+                { label: "Arrival Time", value: formCPopup.row[2] },
+                { label: "Staying Days", value: formCPopup.row[6] },
+                { label: "Coming From", value: formCPopup.row[7] },
+              ]} />
+
+              {formCPopup.data.extractedPassport && Object.keys(formCPopup.data.extractedPassport).length > 0 && (
+                <FormCSection title="Passport Details (OCR extracted)" items={[
+                  { label: "Surname", value: formCPopup.data.extractedPassport.surname },
+                  { label: "Given Name", value: formCPopup.data.extractedPassport.givenName },
+                  { label: "Passport No", value: formCPopup.data.extractedPassport.passportNumber },
+                  { label: "Date of Birth", value: formCPopup.data.extractedPassport.dateOfBirth },
+                  { label: "Sex", value: formCPopup.data.extractedPassport.sex },
+                  { label: "Expiry Date", value: formCPopup.data.extractedPassport.expiryDate },
+                  { label: "Place of Issue", value: formCPopup.data.extractedPassport.placeOfIssue },
+                  { label: "Nationality", value: formCPopup.data.extractedPassport.nationality },
+                ]} />
+              )}
+
+              {formCPopup.data.extractedVisa && Object.keys(formCPopup.data.extractedVisa).length > 0 && (
+                <FormCSection title="Visa Details (OCR extracted)" items={[
+                  { label: "Visa No", value: formCPopup.data.extractedVisa.visaNumber },
+                  { label: "Type", value: formCPopup.data.extractedVisa.type },
+                  { label: "Date of Issue", value: formCPopup.data.extractedVisa.dateOfIssue },
+                  { label: "Valid Till", value: formCPopup.data.extractedVisa.validTill },
+                  { label: "Place of Issue", value: formCPopup.data.extractedVisa.placeOfIssue },
+                ]} />
+              )}
+
+              <FormCSection title="Arrival Information" items={[
+                { label: "Arrived from Country", value: formCPopup.data.arrivedFromCountry },
+                { label: "Arrived from City", value: formCPopup.data.arrivedFromCity },
+                { label: "Arrived from Place", value: formCPopup.data.arrivedFromPlace },
+                { label: "Date of Arrival in India", value: formCPopup.data.dateOfArrivalInIndia },
+              ]} />
+
+              <FormCSection title="Other Details" items={[
+                { label: "Purpose of Visit", value: formCPopup.data.purposeOfVisit },
+                { label: "Employed in India", value: formCPopup.data.employedInIndia },
+                { label: "Next Destination", value: [formCPopup.data.nextDestination, formCPopup.data.nextDestState, formCPopup.data.nextDestCity, formCPopup.data.nextDestPlace].filter(Boolean).join(", ") },
+                { label: "Home Address", value: [formCPopup.data.homeAddress, formCPopup.data.homeCity].filter(Boolean).join(", ") },
+                { label: "Home Country Phone", value: formCPopup.data.homeCountryPhone },
+              ]} />
+            </div>
+
+            <div className="mt-6 rounded-xl bg-indigo-50 p-4">
+              <p className="text-xs text-indigo-700">
+                <strong>Note:</strong> This data will be used to fill Form C on indianfrro.gov.in.
+                Browser automation for FRRO submission is planned for a future update.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FormCSection({ title, items }: { title: string; items: { label: string; value?: string }[] }) {
+  const filledItems = items.filter((i) => i.value);
+  if (filledItems.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-brand-mist p-4">
+      <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-green-dark/50">{title}</h4>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {filledItems.map((item) => (
+          <div key={item.label}>
+            <span className="text-[10px] text-brand-green-dark/50">{item.label}</span>
+            <p className="text-sm font-medium text-brand-green-dark">{item.value}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

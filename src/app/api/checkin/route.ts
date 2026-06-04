@@ -42,6 +42,20 @@ export async function POST(req: NextRequest) {
     const visaImagesRaw = formData.getAll("visaImages") as File[];
     const visaImages = visaImagesRaw.filter((f) => f.size > 0);
 
+    const arrivedFromCountry = formData.get("arrivedFromCountry") as string || "";
+    const arrivedFromCity = formData.get("arrivedFromCity") as string || "";
+    const arrivedFromPlace = formData.get("arrivedFromPlace") as string || "";
+    const dateOfArrivalInIndia = formData.get("dateOfArrivalInIndia") as string || "";
+    const purposeOfVisit = formData.get("purposeOfVisit") as string || "";
+    const employedInIndia = formData.get("employedInIndia") as string || "";
+    const nextDestination = formData.get("nextDestination") as string || "";
+    const nextDestState = formData.get("nextDestState") as string || "";
+    const nextDestCity = formData.get("nextDestCity") as string || "";
+    const nextDestPlace = formData.get("nextDestPlace") as string || "";
+    const homeAddress = formData.get("homeAddress") as string || "";
+    const homeCity = formData.get("homeCity") as string || "";
+    const homeCountryPhone = formData.get("homeCountryPhone") as string || "";
+
     if (!name || !contactNumber || !nationality || !idType || idImages.length === 0 || !arrivalDate || !stayingDays || !comingFrom || !numberOfPersons) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
@@ -60,6 +74,9 @@ export async function POST(req: NextRequest) {
 
     let serverVisionCalls = 0;
     let validationFailed = false;
+    let passportOcrText = "";
+    let visaOcrText = "";
+
     if (validationEnabled) {
       async function validateFile(file: File, category: "id" | "visa", idTypeHint?: string, nameToCheck?: string) {
         if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
@@ -72,6 +89,9 @@ export async function POST(req: NextRequest) {
       try {
         const idValidation = await validateFile(idImages[0], "id", idType, name);
         serverVisionCalls++;
+        if (idValidation.ocrText && idType === "passport") {
+          passportOcrText = idValidation.ocrText;
+        }
         if (!idValidation.valid) {
           return NextResponse.json({ error: idValidation.message, field: "idImages" }, { status: 422 });
         }
@@ -84,6 +104,9 @@ export async function POST(req: NextRequest) {
         try {
           const visaValidation = await validateFile(visaImages[0], "visa");
           serverVisionCalls++;
+          if (visaValidation.ocrText) {
+            visaOcrText = visaValidation.ocrText;
+          }
           if (!visaValidation.valid) {
             return NextResponse.json({ error: visaValidation.message, field: "visaImages" }, { status: 422 });
           }
@@ -123,6 +146,28 @@ export async function POST(req: NextRequest) {
     const submittedAt = new Date().toISOString();
     const verified = !validationEnabled ? "pending" : validationFailed ? "pending" : "yes";
 
+    const isForeigner = nationality && nationality !== "India";
+    let formCData = "";
+    if (isForeigner) {
+      let extractedPassport = {};
+      let extractedVisa = {};
+      if (passportOcrText) {
+        const { parsePassportMRZ } = await import("@/lib/parsePassportData");
+        extractedPassport = parsePassportMRZ(passportOcrText);
+      }
+      if (visaOcrText) {
+        const { parseVisaFromText } = await import("@/lib/parsePassportData");
+        extractedVisa = parseVisaFromText(visaOcrText);
+      }
+      formCData = JSON.stringify({
+        arrivedFromCountry, arrivedFromCity, arrivedFromPlace,
+        dateOfArrivalInIndia, purposeOfVisit, employedInIndia,
+        nextDestination, nextDestState, nextDestCity, nextDestPlace,
+        homeAddress, homeCity, homeCountryPhone,
+        extractedPassport, extractedVisa,
+      });
+    }
+
     await addCheckin({
       submittedAt,
       arrivalDate,
@@ -139,6 +184,7 @@ export async function POST(req: NextRequest) {
       idCardLink,
       visaLink,
       verified,
+      formCData,
       createdMonth: getMonthKey(),
     });
 

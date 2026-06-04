@@ -66,6 +66,7 @@ export type ValidationResult = {
   nameMatch?: boolean;
   layers?: string[];
   needsBackSide?: boolean;
+  ocrText?: string;
 };
 
 // --- Layer helpers ---
@@ -280,7 +281,7 @@ export async function validateIdDocument(
       layers.push("safesearch_ok");
     }
 
-    return { ...textResult, layers, message: textResult.message };
+    return { ...textResult, layers, message: textResult.message, ocrText: analysis.text };
   } catch (error) {
     console.error("Vision API error:", error);
     return { valid: true, documentType: "unknown", confidence: "low", message: "Validation service unavailable, document accepted." };

@@ -474,6 +474,22 @@ export function SelfCheckinForm() {
         formData.append("visaImages", doc.file);
       });
 
+      if (data.nationality && data.nationality !== "India") {
+        if (data.arrivedFromCountry) formData.append("arrivedFromCountry", data.arrivedFromCountry);
+        if (data.arrivedFromCity) formData.append("arrivedFromCity", data.arrivedFromCity);
+        if (data.arrivedFromPlace) formData.append("arrivedFromPlace", data.arrivedFromPlace);
+        if (data.dateOfArrivalInIndia) formData.append("dateOfArrivalInIndia", data.dateOfArrivalInIndia);
+        if (data.purposeOfVisit) formData.append("purposeOfVisit", data.purposeOfVisit);
+        if (data.employedInIndia) formData.append("employedInIndia", data.employedInIndia);
+        if (data.nextDestination) formData.append("nextDestination", data.nextDestination);
+        if (data.nextDestState) formData.append("nextDestState", data.nextDestState);
+        if (data.nextDestCity) formData.append("nextDestCity", data.nextDestCity);
+        if (data.nextDestPlace) formData.append("nextDestPlace", data.nextDestPlace);
+        if (data.homeAddress) formData.append("homeAddress", data.homeAddress);
+        if (data.homeCity) formData.append("homeCity", data.homeCity);
+        if (data.homeCountryPhone) formData.append("homeCountryPhone", data.homeCountryPhone);
+      }
+
       const res = await fetch("/api/checkin", {
         method: "POST",
         body: formData,
@@ -815,6 +831,92 @@ export function SelfCheckinForm() {
             validationMsg={validationEnabled ? visaValidationMsg : null}
             helpText="Upload visa pages. Accepted: JPEG, PNG, WebP, PDF. Max 10 MB per file."
           />
+        )}
+
+        {/* Foreign guest Form C fields */}
+        {nationality && nationality !== "India" && (
+          <div className="space-y-5 rounded-2xl border border-blue-100 bg-blue-50/30 p-5">
+            <p className="text-sm font-semibold text-blue-800">Additional details for foreign nationals (required for Form C)</p>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="arrivedFromCountry">Arrived from country <span className="text-brand-red">*</span></Label>
+                <CountrySelect
+                  value={watch("arrivedFromCountry") || ""}
+                  onChange={(val) => setValue("arrivedFromCountry", val, { shouldValidate: true })}
+                  error={errors.arrivedFromCountry?.message}
+                />
+              </div>
+              <div>
+                <Label htmlFor="arrivedFromCity">Arrived from city</Label>
+                <Input placeholder="e.g. London" {...register("arrivedFromCity")} className="mt-1" />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="arrivedFromPlace">Arrived from place</Label>
+                <Input placeholder="e.g. Heathrow Airport" {...register("arrivedFromPlace")} className="mt-1" />
+              </div>
+              <div>
+                <Label htmlFor="dateOfArrivalInIndia">Date of arrival in India</Label>
+                <Input type="date" {...register("dateOfArrivalInIndia")} className="mt-1" />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="purposeOfVisit">Purpose of visit <span className="text-brand-red">*</span></Label>
+                <select {...register("purposeOfVisit")} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <option value="">Select...</option>
+                  <option value="Tourism">Tourism</option>
+                  <option value="Business">Business</option>
+                  <option value="Medical">Medical</option>
+                  <option value="Education">Education</option>
+                  <option value="Employment">Employment</option>
+                  <option value="Conference">Conference</option>
+                  <option value="Research">Research</option>
+                  <option value="Transit">Transit</option>
+                  <option value="Others">Others</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="employedInIndia">Employed in India?</Label>
+                <select {...register("employedInIndia")} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Next destination</Label>
+              <div className="mt-1 grid gap-3 sm:grid-cols-3">
+                <select {...register("nextDestination")} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <option value="Inside India">Inside India</option>
+                  <option value="Outside India">Outside India</option>
+                </select>
+                <Input placeholder="State" {...register("nextDestState")} />
+                <Input placeholder="City/Place" {...register("nextDestCity")} />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="homeAddress">Home country address</Label>
+                <Input placeholder="Street address" {...register("homeAddress")} className="mt-1" />
+              </div>
+              <div>
+                <Label htmlFor="homeCity">Home city</Label>
+                <Input placeholder="City" {...register("homeCity")} className="mt-1" />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="homeCountryPhone">Phone number (home country)</Label>
+              <Input type="tel" placeholder="e.g. +44 7700 900000" {...register("homeCountryPhone")} className="mt-1" />
+            </div>
+          </div>
         )}
       </div>
 

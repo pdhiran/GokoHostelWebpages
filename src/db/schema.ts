@@ -19,6 +19,7 @@ export const checkins = sqliteTable("checkins", {
   verified: text("verified").default("pending"),
   status: text("status").notNull().default("active"),
   checkedOutAt: text("checked_out_at").default(""),
+  formCData: text("form_c_data").default(""),
   createdMonth: text("created_month").notNull(),
 }, (table) => [
   index("idx_checkins_month").on(table.createdMonth),

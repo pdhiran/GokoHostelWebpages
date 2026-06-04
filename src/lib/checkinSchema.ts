@@ -56,6 +56,19 @@ export const checkinSchema = z
         "Each file must be less than 10 MB"
       ),
     visaImages: z.any().optional(),
+    arrivedFromCountry: z.string().optional(),
+    arrivedFromCity: z.string().optional(),
+    arrivedFromPlace: z.string().optional(),
+    dateOfArrivalInIndia: z.string().optional(),
+    purposeOfVisit: z.string().optional(),
+    employedInIndia: z.string().optional(),
+    nextDestination: z.string().optional(),
+    nextDestState: z.string().optional(),
+    nextDestCity: z.string().optional(),
+    nextDestPlace: z.string().optional(),
+    homeAddress: z.string().optional(),
+    homeCity: z.string().optional(),
+    homeCountryPhone: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -67,6 +80,30 @@ export const checkinSchema = z
     {
       message: "Visa document is required for non-Indian nationals",
       path: ["visaImages"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.nationality && data.nationality !== "India") {
+        return !!data.arrivedFromCountry;
+      }
+      return true;
+    },
+    {
+      message: "Arrival country is required for foreign nationals",
+      path: ["arrivedFromCountry"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.nationality && data.nationality !== "India") {
+        return !!data.purposeOfVisit;
+      }
+      return true;
+    },
+    {
+      message: "Purpose of visit is required for foreign nationals",
+      path: ["purposeOfVisit"],
     }
   )
   .refine(

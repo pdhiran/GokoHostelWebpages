@@ -13,7 +13,8 @@ export async function addCheckin(data: {
   submittedAt: string; arrivalDate: string; arrivalTime: string; name: string;
   persons: string; contact: string; stayingDays: string; comingFrom: string;
   nationality: string; emergencyName: string; emergencyPhone: string;
-  idType: string; idCardLink: string; visaLink: string; verified: string; createdMonth: string;
+  idType: string; idCardLink: string; visaLink: string; verified: string;
+  formCData?: string; createdMonth: string;
 }) {
   const db = getDb();
   return db.insert(checkins).values(data);

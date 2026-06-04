@@ -194,6 +194,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // --- Form C Data ---
+
+    if (action === "getFormCData") {
+      const { rowId } = rest;
+      if (!isValidId(rowId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+      const db = getDb();
+      const rows = await db.select({ formCData: checkins.formCData }).from(checkins).where(eq(checkins.id, rowId));
+      return NextResponse.json({ formCData: rows[0]?.formCData || "" });
+    }
+
     // --- Health Check ---
 
     if (action === "healthCheck") {
