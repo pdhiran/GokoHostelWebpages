@@ -381,6 +381,8 @@ export function SelfCheckinForm() {
           emergencyName: d.emergencyName,
           emergencyPhone: d.emergencyPhone,
           idType: (["aadhaar", "driving_licence", "passport"].includes(d.idType) ? d.idType : undefined) as any,
+          bookingPlatform: undefined as any,
+          bookingId: "",
           prevIdCardLink: d.idCardLink || undefined,
           prevVisaLink: d.visaLink || undefined,
           ...formCFields,
@@ -842,7 +844,8 @@ export function SelfCheckinForm() {
               {...register("bookingPlatform")}
               className={cn(
                 "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring",
-                errors.bookingPlatform && "border-red-400"
+                errors.bookingPlatform && "border-red-400",
+                returnGuest && "border-amber-400 ring-2 ring-amber-100"
               )}
             >
               <option value="">Select platform...</option>
@@ -850,6 +853,9 @@ export function SelfCheckinForm() {
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
+            {returnGuest && !errors.bookingPlatform && (
+              <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
+            )}
             {errors.bookingPlatform && (
               <p className="mt-1 text-xs text-red-500">{errors.bookingPlatform.message}</p>
             )}
@@ -861,8 +867,14 @@ export function SelfCheckinForm() {
                 id="bookingId"
                 placeholder="e.g. 4829173650"
                 {...register("bookingId")}
-                className={cn(errors.bookingId && "border-red-400")}
+                className={cn(
+                  errors.bookingId && "border-red-400",
+                  returnGuest && "border-amber-400 ring-2 ring-amber-100"
+                )}
               />
+              {returnGuest && !errors.bookingId && (
+                <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
+              )}
               {errors.bookingId && (
                 <p className="mt-1 text-xs text-red-500">{errors.bookingId.message}</p>
               )}
