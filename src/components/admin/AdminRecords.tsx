@@ -849,32 +849,46 @@ export function AdminRecords({ password, username, role }: { password: string; u
                 {!formCEditing && (
                   <button type="button" onClick={() => {
                     setFormCEditing(true);
+                    const p = formCPopup.data.extractedPassport || {};
+                    const v = formCPopup.data.extractedVisa || {};
+                    const nameParts = (formCPopup.row[3] || "").split(" ");
                     setFormCEditData({
-                      surname: formCPopup.data.extractedPassport?.surname || "",
-                      givenName: formCPopup.data.extractedPassport?.givenName || "",
-                      passportNumber: formCPopup.data.extractedPassport?.passportNumber || "",
-                      dateOfBirth: formCPopup.data.extractedPassport?.dateOfBirth || "",
-                      sex: formCPopup.data.extractedPassport?.sex || "",
-                      expiryDate: formCPopup.data.extractedPassport?.expiryDate || "",
-                      placeOfIssue: formCPopup.data.extractedPassport?.placeOfIssue || "",
-                      passportNationality: formCPopup.data.extractedPassport?.nationality || "",
-                      visaNumber: formCPopup.data.extractedVisa?.visaNumber || "",
-                      visaType: formCPopup.data.extractedVisa?.type || "",
-                      visaDateOfIssue: formCPopup.data.extractedVisa?.dateOfIssue || "",
-                      visaValidTill: formCPopup.data.extractedVisa?.validTill || "",
-                      visaPlaceOfIssue: formCPopup.data.extractedVisa?.placeOfIssue || "",
+                      surname: p.surname || nameParts.slice(-1).join("") || "",
+                      givenName: p.givenName || nameParts.slice(0, -1).join(" ") || "",
+                      passportNumber: p.passportNumber || "",
+                      dateOfBirth: p.dateOfBirth || "",
+                      sex: p.sex || "",
+                      expiryDate: p.expiryDate || "",
+                      placeOfIssue: p.placeOfIssue || "",
+                      passportNationality: p.nationality || formCPopup.row[8] || "",
+                      passportCountry: formCPopup.row[8] || "",
+                      visaNumber: v.visaNumber || "",
+                      visaType: v.type || "Tourist",
+                      visaDateOfIssue: v.dateOfIssue || "",
+                      visaValidTill: v.validTill || "",
+                      visaPlaceOfIssue: v.placeOfIssue || "",
+                      visaCountry: "INDIA",
                       arrivedFromCountry: formCPopup.data.arrivedFromCountry || "",
                       arrivedFromCity: formCPopup.data.arrivedFromCity || "",
                       arrivedFromPlace: formCPopup.data.arrivedFromPlace || "",
                       dateOfArrivalInIndia: formCPopup.data.dateOfArrivalInIndia || "",
-                      purposeOfVisit: formCPopup.data.purposeOfVisit || "",
-                      employedInIndia: formCPopup.data.employedInIndia || "",
+                      dateOfArrivalInHotel: formCPopup.row[1] || "",
+                      timeOfArrivalInHotel: formCPopup.row[2] || "",
+                      durationOfStay: formCPopup.row[6] || "",
+                      purposeOfVisit: formCPopup.data.purposeOfVisit || "Tourism",
+                      employedInIndia: formCPopup.data.employedInIndia || "No",
                       nextDestination: formCPopup.data.nextDestination || "",
                       nextDestState: formCPopup.data.nextDestState || "",
                       nextDestCity: formCPopup.data.nextDestCity || "",
                       homeAddress: formCPopup.data.homeAddress || "",
                       homeCity: formCPopup.data.homeCity || "",
+                      homeCountry: formCPopup.row[8] || "",
                       homeCountryPhone: formCPopup.data.homeCountryPhone || "",
+                      contactIndia: formCPopup.row[5] || "",
+                      indiaAddress: "Near Hema Shree, Gokarna Main Beach",
+                      indiaState: "KARNATAKA",
+                      indiaCity: "UTTARA KANNADA",
+                      indiaPinCode: "581421",
                     });
                   }} className="rounded-lg bg-brand-green/10 px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/20">
                     <PencilIcon className="mr-1 inline h-3 w-3" /> Edit
@@ -891,36 +905,55 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
             {formCEditing ? (
               <div className="mt-4 space-y-4">
-                <FormCEditSection title="Passport Details" fields={[
+                <FormCEditSection title="Personal Details" fields={[
                   { key: "surname", label: "Surname" },
                   { key: "givenName", label: "Given Name" },
-                  { key: "passportNumber", label: "Passport No" },
-                  { key: "dateOfBirth", label: "Date of Birth" },
                   { key: "sex", label: "Sex" },
-                  { key: "expiryDate", label: "Expiry Date" },
-                  { key: "placeOfIssue", label: "Place of Issue" },
+                  { key: "dateOfBirth", label: "Date of Birth (DD/MM/YYYY)" },
                   { key: "passportNationality", label: "Nationality" },
+                ]} data={formCEditData} onChange={setFormCEditData} />
+                <FormCEditSection title="Home Address" fields={[
+                  { key: "homeAddress", label: "Address" },
+                  { key: "homeCity", label: "City" },
+                  { key: "homeCountry", label: "Country" },
+                ]} data={formCEditData} onChange={setFormCEditData} />
+                <FormCEditSection title="India Address (Hotel)" fields={[
+                  { key: "indiaAddress", label: "Address" },
+                  { key: "indiaState", label: "State" },
+                  { key: "indiaCity", label: "City/District" },
+                  { key: "indiaPinCode", label: "Pin Code" },
+                ]} data={formCEditData} onChange={setFormCEditData} />
+                <FormCEditSection title="Passport Details" fields={[
+                  { key: "passportNumber", label: "Passport No" },
+                  { key: "placeOfIssue", label: "Place of Issue (City)" },
+                  { key: "passportCountry", label: "Place of Issue (Country)" },
+                  { key: "expiryDate", label: "Valid Till (DD/MM/YYYY)" },
                 ]} data={formCEditData} onChange={setFormCEditData} />
                 <FormCEditSection title="Visa Details" fields={[
                   { key: "visaNumber", label: "Visa No" },
-                  { key: "visaType", label: "Type" },
-                  { key: "visaDateOfIssue", label: "Date of Issue" },
-                  { key: "visaValidTill", label: "Valid Till" },
-                  { key: "visaPlaceOfIssue", label: "Place of Issue" },
+                  { key: "visaType", label: "Type of Visa" },
+                  { key: "visaDateOfIssue", label: "Date of Issue (DD/MM/YYYY)" },
+                  { key: "visaValidTill", label: "Valid Till (DD/MM/YYYY)" },
+                  { key: "visaPlaceOfIssue", label: "Place of Issue (City)" },
+                  { key: "visaCountry", label: "Place of Issue (Country)" },
                 ]} data={formCEditData} onChange={setFormCEditData} />
-                <FormCEditSection title="Arrival & Other" fields={[
+                <FormCEditSection title="Arrival Information" fields={[
                   { key: "arrivedFromCountry", label: "Arrived from Country" },
                   { key: "arrivedFromCity", label: "Arrived from City" },
                   { key: "arrivedFromPlace", label: "Arrived from Place" },
                   { key: "dateOfArrivalInIndia", label: "Date of Arrival in India" },
-                  { key: "purposeOfVisit", label: "Purpose of Visit" },
+                  { key: "dateOfArrivalInHotel", label: "Date of Arrival in Hotel" },
+                  { key: "timeOfArrivalInHotel", label: "Time of Arrival in Hotel" },
+                  { key: "durationOfStay", label: "Duration of Stay (days)" },
+                ]} data={formCEditData} onChange={setFormCEditData} />
+                <FormCEditSection title="Other Details" fields={[
                   { key: "employedInIndia", label: "Employed in India" },
+                  { key: "purposeOfVisit", label: "Purpose of Visit" },
                   { key: "nextDestination", label: "Next Destination" },
-                  { key: "nextDestState", label: "Next Dest. State" },
-                  { key: "nextDestCity", label: "Next Dest. City" },
-                  { key: "homeAddress", label: "Home Address" },
-                  { key: "homeCity", label: "Home City" },
-                  { key: "homeCountryPhone", label: "Home Country Phone" },
+                  { key: "nextDestState", label: "State" },
+                  { key: "nextDestCity", label: "City" },
+                  { key: "contactIndia", label: "Contact Phone (India)" },
+                  { key: "homeCountryPhone", label: "Phone (Home Country)" },
                 ]} data={formCEditData} onChange={setFormCEditData} />
                 <div className="flex gap-2">
                   <Button type="button" variant="cta" disabled={formCSaving} onClick={async () => {
