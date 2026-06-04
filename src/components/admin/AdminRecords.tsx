@@ -87,6 +87,11 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [formCEditing, setFormCEditing] = useState(false);
   const [formCEditData, setFormCEditData] = useState<Record<string, any>>({});
   const [formCSaving, setFormCSaving] = useState(false);
+  const [frroUsername, setFrroUsername] = useState("");
+  const [frroPassword, setFrroPassword] = useState("");
+  const [frroSettingsOpen, setFrroSettingsOpen] = useState(false);
+  const [frroSubmitting, setFrroSubmitting] = useState(false);
+  const [frroStatus, setFrroStatus] = useState("");
 
   const filteredRows = (() => {
     let result = [...rows].map((row, origIdx) => ({ row, origIdx }));
@@ -318,6 +323,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
   const openFormC = async (origIdx: number, row: string[]) => {
     setFormCLoading(true);
+    setFrroStatus("");
+    setFormCEditing(false);
     try {
       const rowId = parseInt(row[15] || "0", 10);
       const res = await apiCall({ action: "getFormCData", rowId });
@@ -327,6 +334,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
       } else {
         setFormCPopup({ origIdx, row, data: {} });
       }
+      const userRes = await apiCall({ action: "getSetting", key: "frro_username" });
+      if (userRes.ok) { const ud = await userRes.json(); setFrroUsername(ud.value || ""); }
+      const passRes = await apiCall({ action: "getSetting", key: "frro_password" });
+      if (passRes.ok) { const pd = await passRes.json(); setFrroPassword(pd.value || ""); }
     } catch {
       setFormCPopup({ origIdx, row, data: {} });
     } finally {
@@ -971,30 +982,89 @@ export function AdminRecords({ password, username, role }: { password: string; u
             )}
 
             <div className="mt-6 space-y-3">
-              <button
-                type="button"
-                onClick={() => {
-                  const checkinId = formCPopup.row[15];
-                  const secret = password;
-                  const expiry = Date.now() + 60 * 60 * 1000;
-                  const payload = `${checkinId}:${expiry}`;
-                  const hash = btoa(payload + ":" + secret).replace(/=/g, "");
-                  const token = `${btoa(payload).replace(/=/g, "")}.${hash}`;
-                  const apiUrl = `${window.location.origin}/api/form-c/${checkinId}?token=${token}`;
-                  const script = `javascript:void((async()=>{try{const r=await fetch('${apiUrl}');if(!r.ok){alert('Failed: '+r.status);return;}const d=await r.json();const S=(label,v)=>{if(!v)return;const tds=[...document.querySelectorAll('td,th,label')];const td=tds.find(t=>t.textContent.trim().toLowerCase().includes(label.toLowerCase()));if(td){const row=td.closest('tr')||td.parentElement;if(row){const inputs=row.querySelectorAll('input,select,textarea');if(inputs.length){const el=inputs[0];if(el.tagName==='SELECT'){const opts=[...el.options];const match=opts.find(o=>o.text.toUpperCase().includes(v.toUpperCase())||o.value.toUpperCase().includes(v.toUpperCase()));if(match){el.value=match.value;el.dispatchEvent(new Event('change',{bubbles:true}));}else el.value=v;}else if(el.type==='radio'){const radios=row.querySelectorAll('input[type=radio]');radios.forEach(r=>{if(r.value.toLowerCase()===v.toLowerCase()||r.nextSibling?.textContent?.trim().toLowerCase()===v.toLowerCase())r.checked=true;});}else{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}}}}};const n=d.extractedPassport||{};const v=d.extractedVisa||{};const surname=n.surname||d.guestName?.split(' ').pop()||'';const givenName=n.givenName||d.guestName?.split(' ').slice(0,-1).join(' ')||'';S('Surname',surname);S('Given Name',givenName);S('Sex',n.sex||'');S('Date of Birth',n.dateOfBirth||'');S('Nationality',d.nationality||'');S('Address in country',d.homeAddress||'');S('Passport No',n.passportNumber||'');S('Visa No',v.visaNumber||'');S('Type of visa',v.type||'');S('Arrived from Country',d.arrivedFromCountry||'');S('Arrived from City',d.arrivedFromCity||'');S('Arrived from Place',d.arrivedFromPlace||'');S('Date of Arrival in India',d.dateOfArrivalInIndia||'');S('Date of Arrival in Hotel',d.arrivalDate||'');S('Time of Arrival in Hotel',d.arrivalTime||'');S('duration of stay',d.stayingDays||'');S('employed in India',d.employedInIndia||'No');S('Purpose of Visit',d.purposeOfVisit||'Tourism');S('Contact Phone No (In India',d.contact||'');S('Mobile No (In India',d.contact||'');S('Mobile No (Permanently',d.homeCountryPhone||'');const msg=document.createElement('div');msg.style.cssText='position:fixed;top:20px;right:20px;background:#4CAF50;color:white;padding:16px 24px;border-radius:8px;z-index:99999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3)';msg.textContent='Form C fields filled! Review and click Temporary Save.';document.body.appendChild(msg);setTimeout(()=>msg.remove(),8000);}catch(e){alert('Auto-fill error: '+e.message);}})())`;
-                  navigator.clipboard.writeText(script).then(() => {
-                    alert("Auto-fill script copied! Open FRRO Form C page, tap the address bar, paste, and press Go.");
-                  }).catch(() => {
-                    prompt("Copy this script, paste in FRRO page address bar:", script);
-                  });
-                }}
-                className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
-              >
-                Copy FRRO Auto-Fill Script
-              </button>
-              <p className="text-center text-[10px] text-indigo-600/70">
-                Login to FRRO → open Form C → paste this script in address bar → all fields fill automatically
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={frroSubmitting}
+                  onClick={async () => {
+                    setFrroSubmitting(true);
+                    setFrroStatus("Connecting to local server...");
+                    try {
+                      const checkinId = formCPopup.row[15];
+                      const secret = password;
+                      const expiry = Date.now() + 60 * 60 * 1000;
+                      const payload = `${checkinId}:${expiry}`;
+                      const hash = btoa(payload + ":" + secret).replace(/=/g, "");
+                      const token = `${btoa(payload).replace(/=/g, "")}.${hash}`;
+                      const apiUrl = `${window.location.origin}/api/form-c/${checkinId}?token=${token}`;
+                      const res = await fetch("http://localhost:3456/fill-form-c", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ apiUrl, frroUsername, frroPassword }),
+                      }).catch(() => null);
+                      if (!res) { setFrroStatus("Local server not running. Start it with: npx tsx scripts/frro-server.ts"); return; }
+                      const data = await res.json();
+                      if (data.success) { setFrroStatus(`Success! Application ID: ${data.applicationId || "saved"}`); }
+                      else if (data.waitingForCaptcha) { setFrroStatus("Waiting for you to solve CAPTCHA in the browser window..."); }
+                      else { setFrroStatus(data.error || "Failed"); }
+                    } catch (e: any) { setFrroStatus(e.message || "Connection failed"); }
+                    finally { setFrroSubmitting(false); }
+                  }}
+                  className="rounded-xl bg-brand-green px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-green-dark disabled:opacity-50"
+                >
+                  {frroSubmitting ? "Submitting..." : "Desktop: Auto-Submit"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const checkinId = formCPopup.row[15];
+                    const secret = password;
+                    const expiry = Date.now() + 60 * 60 * 1000;
+                    const payload = `${checkinId}:${expiry}`;
+                    const hash = btoa(payload + ":" + secret).replace(/=/g, "");
+                    const token = `${btoa(payload).replace(/=/g, "")}.${hash}`;
+                    const apiUrl = `${window.location.origin}/api/form-c/${checkinId}?token=${token}`;
+                    const script = `fetch('${apiUrl}').then(r=>r.json()).then(d=>{const S=(label,v)=>{if(!v)return;const tds=[...document.querySelectorAll('td,th,label')];const td=tds.find(t=>t.textContent.trim().toLowerCase().includes(label.toLowerCase()));if(td){const row=td.closest('tr')||td.parentElement;if(row){const inputs=row.querySelectorAll('input,select,textarea');if(inputs.length){const el=inputs[0];if(el.tagName==='SELECT'){const opts=[...el.options];const match=opts.find(o=>o.text.toUpperCase().includes(v.toUpperCase())||o.value.toUpperCase().includes(v.toUpperCase()));if(match){el.value=match.value;el.dispatchEvent(new Event('change',{bubbles:true}));}else el.value=v;}else if(el.type==='radio'){const radios=row.querySelectorAll('input[type=radio]');radios.forEach(r=>{if(r.value.toLowerCase()===v.toLowerCase()||r.nextSibling?.textContent?.trim().toLowerCase()===v.toLowerCase())r.checked=true;});}else{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}}}}};const n=d.extractedPassport||{};const v2=d.extractedVisa||{};S('Surname',n.surname||d.guestName?.split(' ').pop()||'');S('Given Name',n.givenName||d.guestName?.split(' ').slice(0,-1).join(' ')||'');S('Sex',n.sex||'');S('Date of Birth',n.dateOfBirth||'');S('Nationality',d.nationality||'');S('Address in country',d.homeAddress||'');S('Passport No',n.passportNumber||'');S('Visa No',v2.visaNumber||'');S('Type of visa',v2.type||'');S('Arrived from Country',d.arrivedFromCountry||'');S('Arrived from City',d.arrivedFromCity||'');S('Arrived from Place',d.arrivedFromPlace||'');S('Date of Arrival in India',d.dateOfArrivalInIndia||'');S('Date of Arrival in Hotel',d.arrivalDate||'');S('Time of Arrival in Hotel',d.arrivalTime||'');S('duration of stay',d.stayingDays||'');S('employed in India',d.employedInIndia||'No');S('Purpose of Visit',d.purposeOfVisit||'Tourism');S('Contact Phone No (In India',d.contact||'');S('Mobile No (In India',d.contact||'');S('Mobile No (Permanently',d.homeCountryPhone||'');alert('Form C fields filled! Review and click Temporary Save.');}).catch(e=>alert('Error: '+e.message))`;
+                    navigator.clipboard.writeText(script).then(() => {
+                      alert("Copied! On FRRO Form C page, open browser console (F12) and paste.");
+                    }).catch(() => {
+                      prompt("Copy this, paste in FRRO page console (F12):", script);
+                    });
+                  }}
+                  className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+                >
+                  Mobile: Copy Script
+                </button>
+              </div>
+              {frroStatus && (
+                <p className={cn("text-center text-xs font-medium", frroStatus.includes("Success") ? "text-emerald-600" : frroStatus.includes("Failed") || frroStatus.includes("not running") ? "text-red-600" : "text-amber-600")}>{frroStatus}</p>
+              )}
+              <p className="text-center text-[10px] text-brand-green-dark/50">
+                Desktop: runs local Playwright server (auto-fills FRRO, you solve CAPTCHA only). Mobile: paste script in browser console on FRRO page.
               </p>
+
+              <button type="button" onClick={() => setFrroSettingsOpen(!frroSettingsOpen)} className="w-full text-left text-xs font-medium text-brand-green-dark/60 hover:text-brand-green-dark">
+                {frroSettingsOpen ? "▼" : "▶"} FRRO Login Credentials
+              </button>
+              {frroSettingsOpen && (
+                <div className="grid gap-2 rounded-lg border border-brand-mist bg-brand-sand/30 p-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-[10px] text-brand-green-dark/50">FRRO Username</label>
+                    <input type="text" value={frroUsername} onChange={(e) => setFrroUsername(e.target.value)} placeholder="e.g. Gokarnastops19" className="mt-0.5 w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-brand-green-dark/50">FRRO Password</label>
+                    <input type="password" value={frroPassword} onChange={(e) => setFrroPassword(e.target.value)} placeholder="••••••" className="mt-0.5 w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm" />
+                  </div>
+                  <button type="button" onClick={async () => {
+                    await apiCall({ action: "setSetting", key: "frro_username", value: frroUsername });
+                    await apiCall({ action: "setSetting", key: "frro_password", value: frroPassword });
+                    alert("FRRO credentials saved");
+                  }} className="sm:col-span-2 rounded-md bg-brand-green/10 px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/20">
+                    Save Credentials
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
