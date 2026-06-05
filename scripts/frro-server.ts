@@ -372,28 +372,84 @@ async function fillFormC(page: Page, d: any) {
         const jpgAlertLine = fnSource.split("\n").filter((l: string) => l.includes("JPG") || l.includes("jpg") || l.includes("Choose"));
         console.log(`  [DEBUG] Lines with JPG/Choose in ajaxFileUpload:\n    ${jpgAlertLine.join("\n    ")}`);
 
-        // Click Upload File button
-        console.log(`  [DEBUG] Clicking Upload File...`);
+        // Override ajaxFileUpload with a direct FormData upload (iframe clone loses programmatic files)
+        console.log(`  [DEBUG] Monkey-patching ajaxFileUpload for direct upload...`);
+        await page.evaluate(() => {
+          const origFn = (window as any).ajaxFileUpload;
+          const fnStr = origFn?.toString() || "";
+          // Extract the upload URL from the original function
+          const urlMatch = fnStr.match(/url\s*:\s*["']([^"']+)/);
+          const accoMatch = fnStr.match(/var\s+j\s*=\s*['"]([^'"]+)/);
+          const accoCode = accoMatch?.[1] || "OVN9";
+
+          (window as any).ajaxFileUpload = function() {
+            const fileInput = document.getElementById("file1") as HTMLInputElement;
+            if (!fileInput?.files?.length) {
+              alert("Please Choose a JPG file");
+              return;
+            }
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append("file1", file, file.name);
+            formData.append("accocod", accoCode);
+
+            // Determine upload URL
+            let uploadUrl = urlMatch?.[1] || "";
+            if (!uploadUrl) {
+              // Try common FRRO upload endpoints
+              const base = window.location.href.replace(/\/[^/]*$/, "/");
+              uploadUrl = base + "ajaxUpldImg.jsp";
+            }
+            // Replace placeholders in URL
+            uploadUrl = uploadUrl.replace(/'\s*\+\s*j\s*\+\s*'/g, accoCode);
+            if (!uploadUrl.startsWith("http")) {
+              const base = window.location.href.replace(/\/[^/]*$/, "/");
+              uploadUrl = base + uploadUrl;
+            }
+            const ts = new Date().getTime();
+            uploadUrl += (uploadUrl.includes("?") ? "&" : "?") + "nocache=" + ts;
+
+            console.log("[FRRO-patch] Uploading to:", uploadUrl);
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", uploadUrl, true);
+            xhr.withCredentials = true;
+            xhr.onreadystatechange = function() {
+              if (xhr.readyState === 4) {
+                console.log("[FRRO-patch] Response:", xhr.status, xhr.responseText?.slice(0, 200));
+                const pict = document.getElementById("pict");
+                if (xhr.status === 200 && pict) {
+                  if (xhr.responseText.includes("<img") || xhr.responseText.includes("src=")) {
+                    pict.innerHTML = xhr.responseText;
+                  } else {
+                    pict.innerHTML = '<span style="color:green;font-size:11px">Photo uploaded ✓</span>';
+                  }
+                  alert("Photo successfully uploaded\n");
+                } else {
+                  alert("Please Choose a JPG file\n");
+                }
+                (window as any).lock = 0;
+              }
+            };
+            xhr.send(formData);
+          };
+        });
+
+        // Now click Upload File — it will call our patched function
+        console.log(`  [DEBUG] Clicking Upload File (patched)...`);
         alertMessages = [];
         await page.click('input[value="Upload File"]');
-        await page.waitForTimeout(5000);
+        await page.waitForTimeout(6000);
 
         const uploaded = alertMessages.some(m => m.includes("successfully"));
         if (uploaded) {
           console.log(`  ✓ Photo uploaded successfully (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
         } else {
-          console.log(`  ⚠ Photo upload failed. Alerts: ${JSON.stringify(alertMessages)}`);
-          // Try alternative: reset lock and call again
-          console.log(`  [DEBUG] Resetting lock and retrying...`);
-          await page.evaluate(() => { (window as any).lock = 0; });
-          await page.click('input[value="Upload File"]');
-          await page.waitForTimeout(5000);
-          const uploaded2 = alertMessages.some(m => m.includes("successfully"));
-          if (uploaded2) {
-            console.log(`  ✓ Photo uploaded on retry (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
-          } else {
-            console.log(`  ✗ Photo upload failed after retry. All alerts: ${JSON.stringify(alertMessages)}`);
-          }
+          console.log(`  ⚠ Photo upload alerts: ${JSON.stringify(alertMessages)}`);
+          // Log what URL was tried
+          const consoleLogs = await page.evaluate(() => {
+            return (window as any).__frroUploadLog || "";
+          });
+          console.log(`  [DEBUG] Console: ${consoleLogs}`);
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
