@@ -278,25 +278,75 @@ async function fillFormC(page: Page, d: any) {
       fs.writeFileSync(photoPath, finalPhoto);
 
       // FRRO has a file input for photo — find it and upload
+      // DEBUG: enumerate all file inputs and buttons on the page
+      const debugInfo = await page.evaluate(() => {
+        const fileInputs = [...document.querySelectorAll('input[type="file"]')].map(el => ({
+          name: (el as HTMLInputElement).name,
+          accept: (el as HTMLInputElement).accept,
+          id: el.id,
+          disabled: (el as HTMLInputElement).disabled,
+        }));
+        const buttons = [...document.querySelectorAll('input[type="button"], input[type="submit"], button')]
+          .filter(el => {
+            const val = (el as HTMLInputElement).value || el.textContent || "";
+            return val.toLowerCase().includes("upload");
+          })
+          .map(el => ({
+            tag: el.tagName,
+            type: (el as HTMLInputElement).type,
+            value: (el as HTMLInputElement).value || el.textContent || "",
+            disabled: (el as HTMLInputElement).disabled,
+            onclick: (el as HTMLElement).getAttribute("onclick") || "",
+            name: (el as HTMLInputElement).name,
+          }));
+        return { fileInputs, buttons };
+      });
+      console.log(`  [DEBUG] File inputs found: ${JSON.stringify(debugInfo.fileInputs)}`);
+      console.log(`  [DEBUG] Upload buttons found: ${JSON.stringify(debugInfo.buttons)}`);
+
       const fileInput = await page.$('input[type="file"][name*="photo"], input[type="file"][name*="Photo"], input[type="file"][accept*="image"]');
       const fallbackInput = fileInput || await page.$('input[type="file"]');
       if (fallbackInput) {
+        const inputName = await fallbackInput.getAttribute("name") || "unknown";
+        console.log(`  [DEBUG] Using file input: name="${inputName}"`);
         await fallbackInput.setInputFiles(photoPath);
+        console.log(`  [DEBUG] setInputFiles done, waiting 2s...`);
         await page.waitForTimeout(2000);
+
+        // Check if button is now enabled
+        const btnState = await page.evaluate(() => {
+          const btns = [...document.querySelectorAll('input[type="button"], input[type="submit"], button')]
+            .filter(el => ((el as HTMLInputElement).value || el.textContent || "").toLowerCase().includes("upload"));
+          return btns.map(b => ({ value: (b as HTMLInputElement).value, disabled: (b as HTMLInputElement).disabled, className: b.className }));
+        });
+        console.log(`  [DEBUG] Upload button state after file select: ${JSON.stringify(btnState)}`);
+
         // Click "Upload File" button
         const uploadBtn = await page.$('input[value*="Upload"]')
           || await page.$('button:has-text("Upload")')
           || await page.$('input[type="button"][onclick*="upload"]')
           || await page.$('input[type="submit"][value*="Upload"]');
         if (uploadBtn) {
+          const isDisabled = await uploadBtn.isDisabled();
+          console.log(`  [DEBUG] Found upload button, disabled=${isDisabled}`);
+          if (isDisabled) {
+            // Force enable and click
+            await page.evaluate(() => {
+              const btn = document.querySelector('input[value*="Upload"]') as HTMLInputElement;
+              if (btn) { btn.disabled = false; btn.removeAttribute("disabled"); }
+            });
+            console.log(`  [DEBUG] Force-enabled upload button`);
+          }
           await uploadBtn.click();
+          console.log(`  [DEBUG] Clicked upload button, waiting 4s...`);
           await page.waitForTimeout(4000);
         } else {
-          // Try clicking by evaluating JS (FRRO button might be dynamically enabled)
+          console.log(`  [DEBUG] No upload button found via selectors, trying JS click...`);
           await page.evaluate(() => {
             const btns = document.querySelectorAll("input[type='button'], input[type='submit'], button");
             for (const btn of btns) {
               if ((btn as HTMLInputElement).value?.includes("Upload") || btn.textContent?.includes("Upload")) {
+                (btn as HTMLInputElement).disabled = false;
                 (btn as HTMLElement).click();
                 break;
               }
@@ -304,15 +354,26 @@ async function fillFormC(page: Page, d: any) {
           });
           await page.waitForTimeout(4000);
         }
-        // Verify upload succeeded (check for image preview or success indicator)
-        const photoVisible = await page.$('img[src*="photo"], img[src*="Photo"], img[alt*="photo"], img[alt*="Photo"]');
-        const uploadError = await page.textContent("body").then(t => t?.includes("upload") && t?.includes("error") || t?.includes("failed"));
+
+        // Check page for any alerts or new elements after upload
+        const afterUpload = await page.evaluate(() => {
+          const imgs = document.querySelectorAll('img');
+          const photoImgs = [...imgs].filter(i => i.src && (i.src.includes("photo") || i.src.includes("Photo") || i.width > 50));
+          const alerts = document.querySelectorAll('.alert, .error, .success, [role="alert"]');
+          return {
+            totalImgs: imgs.length,
+            photoImgs: photoImgs.map(i => ({ src: i.src.slice(0, 80), w: i.width, h: i.height })),
+            alerts: [...alerts].map(a => a.textContent?.slice(0, 100)),
+            pageTitle: document.title,
+          };
+        });
+        console.log(`  [DEBUG] After upload: ${JSON.stringify(afterUpload)}`);
+
+        const photoVisible = afterUpload.photoImgs.length > 0;
         if (photoVisible) {
           console.log(`  ✓ Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB) — confirmed visible`);
-        } else if (uploadError) {
-          console.log(`  ⚠ Photo upload may have failed — error detected on page`);
         } else {
-          console.log(`  ✓ Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+          console.log(`  ⚠ Photo upload — no confirmation image visible (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
