@@ -510,21 +510,25 @@ async function fillFormC(page: Page, d: any) {
   await fillDateField("applicant_visavalidtill", visa.validTill || "");
   await fillSelect("applicant_visatype", visa.type || "Tourist");
   await page.waitForTimeout(500);
-  // Visa Sub Type — required field on FRRO. For e-Visas: "e-VISA", otherwise try first available option
-  const visaSubType = d.visaSubType || (visa.type?.toLowerCase().includes("tourist") ? "e-VISA" : "");
-  if (visaSubType) {
-    await fillSelect("applicant_visasubtype", visaSubType);
-  } else {
-    // Select first non-empty option as fallback
-    await page.evaluate(() => {
-      const sel = document.querySelector('select[name="applicant_visasubtype"]') as HTMLSelectElement;
-      if (sel && sel.options.length > 1) {
-        sel.selectedIndex = 1;
-        sel.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-    });
-    console.log(`  ✓ applicant_visasubtype = first available option (fallback)`);
-  }
+  // Visa Sub Type — required on FRRO, options load dynamically after visa type is selected
+  await page.waitForTimeout(1000);
+  const subTypeFilled = await page.evaluate((visaType) => {
+    const sel = document.querySelector('select[name="applicant_visasubtype"], select[name="visa_sub_type"]') as HTMLSelectElement;
+    if (!sel || sel.options.length <= 1) return false;
+    const opts = [...sel.options].filter(o => o.value && o.value !== "Select" && o.value !== "");
+    if (opts.length === 0) return false;
+    // Try to match e-TOURIST, e-VISA, or the visa type
+    const searches = ["e-tourist", "etourist", "e-visa", "evisa", visaType?.toLowerCase() || "tourist"];
+    for (const search of searches) {
+      const match = opts.find(o => o.text.toLowerCase().includes(search) || o.value.toLowerCase().includes(search));
+      if (match) { sel.value = match.value; sel.dispatchEvent(new Event("change", { bubbles: true })); return true; }
+    }
+    // Fallback: select first available option
+    sel.value = opts[0].value;
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }, visa.type || "Tourist");
+  console.log(`  ${subTypeFilled ? "✓" : "⚠"} applicant_visasubtype ${subTypeFilled ? "filled" : "no options available"}`);
 
   // Arrival
   const arrCountry = d.arrivedFromCountry || "";
@@ -545,7 +549,19 @@ async function fillFormC(page: Page, d: any) {
   await fillSelect("applicant_purpovisit", d.purposeOfVisit || "Tourism");
   await fillRadio("applicant_next_dest_country_flag_r", (d.nextDestination || "").includes("Outside") ? "O" : "I");
   await page.waitForTimeout(500);
-  await fillInput("applicant_next_destination_place_IN", d.nextDestCity || d.nextDestState || "");
+  // Next destination inside India: State dropdown → District dropdown → Place text
+  if (!(d.nextDestination || "").includes("Outside")) {
+    if (d.nextDestState) {
+      await fillSelect("applicant_next_destination_state_IN", d.nextDestState);
+      await page.waitForTimeout(500);
+    }
+    if (d.nextDestCity) {
+      await fillSelect("applicant_next_destination_district_IN", d.nextDestCity);
+    }
+    await fillInput("applicant_next_destination_place_IN", d.nextDestCity || d.nextDestState || "");
+  } else {
+    await fillInput("applicant_next_destination_place_IN", d.nextDestCity || d.nextDestState || "");
+  }
 
   // Fill phone numbers + duration last (some FRRO JS may clear fields on dropdown change)
   await page.waitForTimeout(500);
