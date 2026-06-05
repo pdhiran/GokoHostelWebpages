@@ -305,112 +305,48 @@ async function fillFormC(page: Page, d: any) {
       const fileInput = await page.$('input[type="file"][name*="photo"], input[type="file"][name*="Photo"], input[type="file"][accept*="image"]');
       const fallbackInput = fileInput || await page.$('input[type="file"]');
       if (fallbackInput) {
-        const inputName = await fallbackInput.getAttribute("name") || "unknown";
-        console.log(`  [DEBUG] Using file input: name="${inputName}"`);
-
-        // Verify the buffer is valid JPEG (magic bytes: FF D8 FF)
-        const isValidJpeg = finalPhoto[0] === 0xFF && finalPhoto[1] === 0xD8 && finalPhoto[2] === 0xFF;
-        console.log(`  [DEBUG] JPEG magic bytes: ${finalPhoto[0].toString(16)} ${finalPhoto[1].toString(16)} ${finalPhoto[2].toString(16)} — valid=${isValidJpeg}`);
-        console.log(`  [DEBUG] File size: ${finalPhoto.length} bytes (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
-
-        // Write to disk and use file path (more compatible with old JSP upload)
+        // Write photo to disk
         const photoPath = "/tmp/photo.JPG";
         fs.writeFileSync(photoPath, finalPhoto);
-        await fallbackInput.setInputFiles(photoPath);
 
-        // Check what the file input value looks like to the page
-        const inputValue = await page.evaluate(() => {
-          const inp = document.getElementById("file1") as HTMLInputElement;
-          return { value: inp?.value || "", filesLength: inp?.files?.length || 0, fileName: inp?.files?.[0]?.name || "", fileType: inp?.files?.[0]?.type || "", fileSize: inp?.files?.[0]?.size || 0 };
-        });
-        console.log(`  [DEBUG] File input state: ${JSON.stringify(inputValue)}`);
-
-        console.log(`  [DEBUG] setInputFiles done, waiting 1s...`);
-        await page.waitForTimeout(1000);
-
-        // Listen for alerts/dialogs
+        // Use file chooser API for a "trusted" file selection (required for iframe-based uploads)
         let alertMessage = "";
         page.on("dialog", async (dialog) => {
           alertMessage = dialog.message();
-          console.log(`  [DEBUG] ALERT captured: "${alertMessage}"`);
+          console.log(`  [DEBUG] ALERT: "${alertMessage.trim()}"`);
           await dialog.accept();
         });
 
-        // Get full ajaxFileUpload source to find the real upload URL
-        const fullFnSource = await page.evaluate(() => {
-          return typeof (window as any).ajaxFileUpload === "function" ? (window as any).ajaxFileUpload.toString() : "not found";
-        });
-        console.log(`  [DEBUG] ajaxFileUpload full source (${fullFnSource.length} chars):\n${fullFnSource}\n`);
+        console.log(`  Selecting photo via file chooser (${(finalPhoto.length / 1024).toFixed(1)}KB)...`);
+        const [fileChooser] = await Promise.all([
+          page.waitForEvent("filechooser"),
+          fallbackInput.click(),
+        ]);
+        await fileChooser.setFiles(photoPath);
+        await page.waitForTimeout(1000);
 
-        // Override ajaxFileUpload to use our file directly via XMLHttpRequest
-        console.log(`  [DEBUG] Overriding ajaxFileUpload and uploading photo...`);
-        const uploadResult = await page.evaluate(async (photoBase64: string) => {
+        // Click Upload File button
+        console.log(`  Clicking Upload File...`);
+        await page.click('input[value="Upload File"]');
+        await page.waitForTimeout(5000);
+
+        if (alertMessage.includes("successfully")) {
+          console.log(`  ✓ Photo uploaded successfully (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+        } else if (alertMessage.includes("JPG") || alertMessage.includes("special")) {
+          console.log(`  ⚠ Photo upload warning: "${alertMessage.trim()}" — retrying...`);
+          // May need a second click after dismissing alert
           try {
-            // Convert base64 to blob
-            const binaryStr = atob(photoBase64);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-            const blob = new Blob([bytes], { type: "image/jpeg" });
-            const file = new File([blob], "photo.JPG", { type: "image/jpeg" });
-
-            // Extract the URL from the original ajaxFileUpload function
-            const fnStr = (window as any).ajaxFileUpload?.toString() || "";
-            const urlMatch = fnStr.match(/url\s*:\s*["']([^"']+)["']/);
-            const urlMatch2 = fnStr.match(/["'](https?:\/\/[^"']*upload[^"']*|[^"']*\.jsp[^"']*file[^"']*|[^"']*file[^"']*\.jsp[^"']*)/i);
-            const urlMatch3 = fnStr.match(/["']([^"']*(?:upload|photo|image|file)[^"']*\.jsp[^"']*)/i);
-            let uploadUrl = urlMatch?.[1] || urlMatch2?.[1] || urlMatch3?.[1] || "";
-
-            // If relative URL, make absolute
-            if (uploadUrl && !uploadUrl.startsWith("http")) {
-              const base = window.location.href.substring(0, window.location.href.lastIndexOf("/") + 1);
-              uploadUrl = base + uploadUrl;
-            }
-
-            // Also look for form action
-            const form = document.querySelector('form[name="OnlineForm"], form') as HTMLFormElement;
-            const formAction = form?.action || "";
-
-            // Build FormData
-            const formData = new FormData();
-            formData.append("file1", file, "photo.JPG");
-
-            if (!uploadUrl) {
-              return { success: false, status: 0, response: "Could not find upload URL", url: "", formAction, fnSnippet: fnStr.slice(0, 300) };
-            }
-
-            // Add timestamp param like the original function does
-            const d = new Date();
-            const separator = uploadUrl.includes("?") ? "&" : "?";
-            const finalUrl = uploadUrl + separator + "t=" + d.getTime();
-
-            const res = await fetch(finalUrl, {
-              method: "POST",
-              body: formData,
-              credentials: "include",
-            });
-
-            const text = await res.text();
-            // Update the photo display area
-            const pict = document.getElementById("pict");
-            if (pict && res.ok) {
-              if (text.includes("<img") || text.includes("src=")) {
-                pict.innerHTML = text;
-              } else {
-                pict.innerHTML = '<span style="color:green">Photo uploaded</span>';
-              }
-            }
-            return { success: res.ok, status: res.status, response: text.slice(0, 300), url: finalUrl };
-          } catch (e: any) {
-            return { success: false, status: 0, response: e.message, url: "" };
-          }
-        }, finalPhoto.toString("base64"));
-
-        console.log(`  [DEBUG] Upload result: ${JSON.stringify(uploadResult)}`);
-
-        if (uploadResult.success) {
-          console.log(`  ✓ Photo uploaded (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+            const [fc2] = await Promise.all([
+              page.waitForEvent("filechooser", { timeout: 3000 }),
+              fallbackInput.click(),
+            ]);
+            await fc2.setFiles(photoPath);
+            await page.waitForTimeout(1000);
+            await page.click('input[value="Upload File"]');
+            await page.waitForTimeout(5000);
+          } catch {}
         } else {
-          console.log(`  ⚠ Photo upload failed — admin must upload manually`);
+          console.log(`  ⚠ Photo upload status unclear: "${alertMessage.trim()}"`);
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
