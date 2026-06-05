@@ -122,6 +122,12 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
   // dateOfIssue and placeOfIssue are NOT in the MRZ — extract from visual zone text
   const freeTextExtras = parsePassportFromFreeText(ocrText);
 
+  let dateOfIssue = freeTextExtras.dateOfIssue;
+  // Fallback: find date of issue by elimination (remove known DOB and expiry from all dates found)
+  if (!dateOfIssue) {
+    dateOfIssue = findDateOfIssueByElimination(ocrText, dob, expiry);
+  }
+
   return {
     surname,
     givenName,
@@ -130,7 +136,7 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
     dateOfBirth: dob,
     sex,
     expiryDate: expiry,
-    ...(freeTextExtras.dateOfIssue && { dateOfIssue: freeTextExtras.dateOfIssue }),
+    ...(dateOfIssue && { dateOfIssue }),
     ...(freeTextExtras.placeOfIssue && { placeOfIssue: freeTextExtras.placeOfIssue }),
   };
 }
@@ -150,15 +156,15 @@ function matchDate(text: string, ...prefixes: string[]): string | undefined {
   return undefined;
 }
 
-// Try to find a date on the line FOLLOWING a label line (for EU passports where label and value are on separate lines)
+// Try to find a date on the lines FOLLOWING a label line
 function matchDateNextLine(text: string, ...labelPatterns: string[]): string | undefined {
   const lines = text.split("\n");
   for (let i = 0; i < lines.length - 1; i++) {
     const line = lines[i];
     for (const pattern of labelPatterns) {
       if (new RegExp(pattern, "i").test(line)) {
-        // Check the next 1-2 lines for a date
-        for (let j = 1; j <= 2 && i + j < lines.length; j++) {
+        // Check the next 6 lines for a date (OCR may interleave columns)
+        for (let j = 1; j <= 6 && i + j < lines.length; j++) {
           const nextLine = lines[i + j].trim();
           const dateMatch = nextLine.match(DATE_PATTERN);
           if (dateMatch) return dateMatch[1];
@@ -167,6 +173,54 @@ function matchDateNextLine(text: string, ...labelPatterns: string[]): string | u
     }
   }
   return undefined;
+}
+
+// Find ALL dates in text, return as array
+function findAllDates(text: string): string[] {
+  const dates: string[] = [];
+  const globalPattern = new RegExp(DATE_PATTERN.source, "gi");
+  let match;
+  while ((match = globalPattern.exec(text)) !== null) {
+    dates.push(match[1]);
+  }
+  return dates;
+}
+
+// Normalize a date to DD/MM/YYYY for comparison
+function normalizeDate(d: string): string {
+  if (!d) return "";
+  // DD.MM.YYYY or DD/MM/YYYY
+  const numMatch = d.match(/^(\d{1,2})[\s/.-](\d{1,2})[\s/.-](\d{2,4})$/);
+  if (numMatch) {
+    const yr = numMatch[3].length === 2 ? (parseInt(numMatch[3]) > 50 ? `19${numMatch[3]}` : `20${numMatch[3]}`) : numMatch[3];
+    return `${numMatch[1].padStart(2, "0")}/${numMatch[2].padStart(2, "0")}/${yr}`;
+  }
+  // DD MON YYYY
+  const monthMap: Record<string, string> = { JAN: "01", FEB: "02", MAR: "03", APR: "04", MAY: "05", JUN: "06", JUL: "07", AUG: "08", SEP: "09", OCT: "10", NOV: "11", DEC: "12" };
+  const textMatch = d.match(/^(\d{1,2})\s+([A-Z]{3,9})(?:\/[A-Z]{3,9})?\s+(\d{4})$/i);
+  if (textMatch) {
+    const mm = monthMap[textMatch[2].toUpperCase().slice(0, 3)];
+    if (mm) return `${textMatch[1].padStart(2, "0")}/${mm}/${textMatch[3]}`;
+  }
+  return d;
+}
+
+// Find date of issue by elimination: remove known DOB and expiry, return the remaining date
+function findDateOfIssueByElimination(text: string, knownDob: string, knownExpiry: string): string | undefined {
+  const allDates = findAllDates(text);
+  if (allDates.length === 0) return undefined;
+
+  const normDob = normalizeDate(knownDob);
+  const normExpiry = normalizeDate(knownExpiry);
+
+  const candidates = allDates.filter((d) => {
+    const norm = normalizeDate(d);
+    return norm !== normDob && norm !== normExpiry && norm.length > 0;
+  });
+
+  if (candidates.length === 0) return undefined;
+  // If multiple candidates, prefer the one closest to (but before) expiry — that's likely the issue date
+  return candidates[0];
 }
 
 function parsePassportFromFreeText(text: string): Partial<PassportData> {
@@ -307,21 +361,22 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
     if (t.length < 30) result.type = t;
   }
   if (!result.type) {
-    // Detect common visa types directly from text (Indian e-Visa, sticker visas)
+    // Detect common visa types directly from text (handles OCR typos like "TOURYIST" for "TOURIST")
     const typePatterns = [
-      { pattern: /e[\s-]*tourist\s*visa/i, value: "Tourist" },
-      { pattern: /tourist\s*visa/i, value: "Tourist" },
-      { pattern: /e[\s-]*business\s*visa/i, value: "Business" },
-      { pattern: /business\s*visa/i, value: "Business" },
-      { pattern: /e[\s-]*medical\s*visa/i, value: "Medical" },
-      { pattern: /medical\s*visa/i, value: "Medical" },
-      { pattern: /e[\s-]*conference\s*visa/i, value: "Conference" },
-      { pattern: /student\s*visa/i, value: "Student" },
-      { pattern: /employment\s*visa/i, value: "Employment" },
-      { pattern: /research\s*visa/i, value: "Research" },
-      { pattern: /transit\s*visa/i, value: "Transit" },
-      { pattern: /journalist\s*visa/i, value: "Journalist" },
-      { pattern: /entry\s*visa/i, value: "Entry" },
+      { pattern: /e[\s-]*tourist/i, value: "Tourist" },
+      { pattern: /tou?r[yi1l]s?t/i, value: "Tourist" },
+      { pattern: /e[\s-]*business/i, value: "Business" },
+      { pattern: /bus[i1l]ness/i, value: "Business" },
+      { pattern: /e[\s-]*medical/i, value: "Medical" },
+      { pattern: /medical/i, value: "Medical" },
+      { pattern: /e[\s-]*conference/i, value: "Conference" },
+      { pattern: /conference/i, value: "Conference" },
+      { pattern: /student/i, value: "Student" },
+      { pattern: /employment/i, value: "Employment" },
+      { pattern: /research/i, value: "Research" },
+      { pattern: /transit/i, value: "Transit" },
+      { pattern: /journalist/i, value: "Journalist" },
+      { pattern: /entry/i, value: "Entry" },
     ];
     for (const { pattern, value } of typePatterns) {
       if (pattern.test(text)) { result.type = value; break; }
@@ -331,6 +386,7 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
   // Date of Issue
   const visaIssuePrefixes = [
     "issue\\s*date", "date\\s*of\\s*issue", "issued\\s*on", "issued",
+    "issue\\ndate",
     "date\\s*de\\s*d[ée]livrance", "datum\\s*van\\s*afgifte",
     "fecha\\s*de\\s*expedici[oó]n"
   ];
@@ -354,6 +410,20 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
   } else {
     const expiryNextLine = matchDateNextLine(text, ...visaExpiryPrefixes);
     if (expiryNextLine) result.validTill = expiryNextLine;
+  }
+
+  // Fallback: if we have one date but not the other, use elimination
+  if (!result.dateOfIssue || !result.validTill) {
+    const allVisaDates = findAllDates(text);
+    const knownDate = result.dateOfIssue || result.validTill || "";
+    const normKnown = normalizeDate(knownDate);
+    const unknownDates = allVisaDates.filter((d) => normalizeDate(d) !== normKnown && normalizeDate(d).length > 0);
+    if (!result.dateOfIssue && unknownDates.length > 0) {
+      result.dateOfIssue = unknownDates[0];
+    }
+    if (!result.validTill && unknownDates.length > 1) {
+      result.validTill = unknownDates[1];
+    }
   }
 
   // Place of Issue — Indian cities (common visa issuance locations)
