@@ -35,7 +35,7 @@ assert("nationality", passport.nationality, "GERMANY");
 assert("sex", passport.sex, "Male");
 assert("dateOfBirth", passport.dateOfBirth, "21/06/2002");
 assert("expiryDate", passport.expiryDate, "16/05/2029");
-assert("dateOfIssue", passport.dateOfIssue, "17.05.2023");
+assert("dateOfIssue", passport.dateOfIssue, "17/05/2023");
 assert("placeOfIssue", passport.placeOfIssue, "STADT KONSTANZ");
 
 // ── Visa test ──────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ console.log("\nParsed visa:", JSON.stringify(visa, null, 2));
 console.log();
 
 assert("type", visa.type, "Tourist");
-assert("dateOfIssue", visa.dateOfIssue, "22 APR 2026");
+assert("dateOfIssue", visa.dateOfIssue, "22/04/2026");
 assert("placeOfIssue contains NEW DELHI", visa.placeOfIssue, "NEW DELHI", contains);
 
 // ── Summary ────────────────────────────────────────────────────────

@@ -140,7 +140,7 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
     dateOfBirth: dob,
     sex,
     expiryDate: expiry,
-    ...(dateOfIssue && { dateOfIssue }),
+    ...(dateOfIssue && { dateOfIssue: normalizeDate(dateOfIssue) || dateOfIssue }),
     ...(freeTextExtras.placeOfIssue && { placeOfIssue: freeTextExtras.placeOfIssue }),
   };
 }
@@ -272,7 +272,7 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
     "data\\s*di\\s*nascita", "data\\s*de\\s*nascimento",
     "תאריך\\s*לידה"
   );
-  if (dob) result.dateOfBirth = dob;
+  if (dob) result.dateOfBirth = normalizeDate(dob) || dob;
 
   // Expiry / Valid till — EN, DE, FR, NL, ES, IT, PT, HE
   const expiry = matchDate(text,
@@ -285,7 +285,7 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
     "data\\s*de\\s*validade",
     "תוקף\\s*עד", "בתוקף\\s*עד"
   );
-  if (expiry) result.expiryDate = expiry;
+  if (expiry) result.expiryDate = normalizeDate(expiry) || expiry;
 
   // Date of Issue — EN, DE, FR, NL, ES, IT, PT, HE
   const issuePrefixes = [
@@ -300,11 +300,11 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
   ];
   const issue = matchDate(text, ...issuePrefixes);
   if (issue) {
-    result.dateOfIssue = issue;
+    result.dateOfIssue = normalizeDate(issue) || issue;
   } else {
     // Fallback: look for date on the line after the label line
     const issueNextLine = matchDateNextLine(text, ...issuePrefixes);
-    if (issueNextLine) result.dateOfIssue = issueNextLine;
+    if (issueNextLine) result.dateOfIssue = normalizeDate(issueNextLine) || issueNextLine;
   }
 
   // Place of Issue / Authority — EU passports have multilingual labels on one line, value on next
@@ -408,10 +408,10 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
   ];
   const issueDate = matchDate(text, ...visaIssuePrefixes);
   if (issueDate) {
-    result.dateOfIssue = issueDate;
+    result.dateOfIssue = normalizeDate(issueDate) || issueDate;
   } else {
     const issueDateNextLine = matchDateNextLine(text, ...visaIssuePrefixes);
-    if (issueDateNextLine) result.dateOfIssue = issueDateNextLine;
+    if (issueDateNextLine) result.dateOfIssue = normalizeDate(issueDateNextLine) || issueDateNextLine;
   }
 
   // Valid Till / Expiry
@@ -422,10 +422,10 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
   ];
   const expiryDate = matchDate(text, ...visaExpiryPrefixes);
   if (expiryDate) {
-    result.validTill = expiryDate;
+    result.validTill = normalizeDate(expiryDate) || expiryDate;
   } else {
     const expiryNextLine = matchDateNextLine(text, ...visaExpiryPrefixes);
-    if (expiryNextLine) result.validTill = expiryNextLine;
+    if (expiryNextLine) result.validTill = normalizeDate(expiryNextLine) || expiryNextLine;
   }
 
   // Fallback: if we have one date but not the other, use elimination
@@ -435,10 +435,10 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
     const normKnown = normalizeDate(knownDate);
     const unknownDates = allVisaDates.filter((d) => normalizeDate(d) !== normKnown && normalizeDate(d).length > 0);
     if (!result.dateOfIssue && unknownDates.length > 0) {
-      result.dateOfIssue = unknownDates[0];
+      result.dateOfIssue = normalizeDate(unknownDates[0]) || unknownDates[0];
     }
     if (!result.validTill && unknownDates.length > 1) {
-      result.validTill = unknownDates[1];
+      result.validTill = normalizeDate(unknownDates[1]) || unknownDates[1];
     }
   }
 
