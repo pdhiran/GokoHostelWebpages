@@ -259,7 +259,7 @@ async function fillFormC(page: Page, d: any) {
           .jpeg({ quality: 30 })
           .toBuffer();
       }
-      const photoPath = "/tmp/frro_passport_photo.jpg";
+      const photoPath = "/tmp/frropassportphoto.jpg";
       fs.writeFileSync(photoPath, finalPhoto);
 
       // FRRO has a file input for photo — find it and upload
