@@ -910,6 +910,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                       dateOfBirth: p.dateOfBirth || "",
                       sex: p.sex || "",
                       expiryDate: p.expiryDate || "",
+                      passportDateOfIssue: p.dateOfIssue || "",
                       placeOfIssue: p.placeOfIssue || "",
                       passportNationality: p.nationality || formCPopup.row[8] || "",
                       passportCountry: formCPopup.row[8] || "",
@@ -978,6 +979,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                   { key: "passportNumber", label: "Passport No" },
                   { key: "placeOfIssue", label: "Place of Issue (City)" },
                   { key: "passportCountry", label: "Place of Issue (Country)" },
+                  { key: "passportDateOfIssue", label: "Date of Issue (DD/MM/YYYY)" },
                   { key: "expiryDate", label: "Valid Till (DD/MM/YYYY)" },
                 ]} data={formCEditData} onChange={setFormCEditData} />
                 <FormCEditSection title="Visa Details" fields={[
@@ -1012,7 +1014,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                     try {
                       const updatedData = {
                         ...formCPopup.data,
-                        extractedPassport: { surname: formCEditData.surname, givenName: formCEditData.givenName, passportNumber: formCEditData.passportNumber, dateOfBirth: formCEditData.dateOfBirth, sex: formCEditData.sex, expiryDate: formCEditData.expiryDate, placeOfIssue: formCEditData.placeOfIssue, nationality: formCEditData.passportNationality },
+                        extractedPassport: { surname: formCEditData.surname, givenName: formCEditData.givenName, passportNumber: formCEditData.passportNumber, dateOfBirth: formCEditData.dateOfBirth, sex: formCEditData.sex, dateOfIssue: formCEditData.passportDateOfIssue, expiryDate: formCEditData.expiryDate, placeOfIssue: formCEditData.placeOfIssue, nationality: formCEditData.passportNationality },
                         extractedVisa: { visaNumber: formCEditData.visaNumber, type: formCEditData.visaType, dateOfIssue: formCEditData.visaDateOfIssue, validTill: formCEditData.visaValidTill, placeOfIssue: formCEditData.visaPlaceOfIssue },
                         arrivedFromCountry: formCEditData.arrivedFromCountry, arrivedFromCity: formCEditData.arrivedFromCity, arrivedFromPlace: formCEditData.arrivedFromPlace,
                         dateOfArrivalInIndia: formCEditData.dateOfArrivalInIndia, purposeOfVisit: formCEditData.purposeOfVisit, employedInIndia: formCEditData.employedInIndia,

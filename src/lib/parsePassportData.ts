@@ -97,6 +97,9 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
   const sex = line2[20] === "F" ? "Female" : line2[20] === "M" ? "Male" : "";
   const expiry = parseMRZDate(line2.slice(21, 27));
 
+  // dateOfIssue and placeOfIssue are NOT in the MRZ — extract from visual zone text
+  const freeTextExtras = parsePassportFromFreeText(ocrText);
+
   return {
     surname,
     givenName,
@@ -105,6 +108,8 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
     dateOfBirth: dob,
     sex,
     expiryDate: expiry,
+    ...(freeTextExtras.dateOfIssue && { dateOfIssue: freeTextExtras.dateOfIssue }),
+    ...(freeTextExtras.placeOfIssue && { placeOfIssue: freeTextExtras.placeOfIssue }),
   };
 }
 
