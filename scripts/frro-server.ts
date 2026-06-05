@@ -216,51 +216,74 @@ async function fillFormC(page: Page, d: any) {
   const surname = passport.surname || d.guestName?.split(" ").pop() || "";
   const givenName = passport.givenName || d.guestName?.split(" ").slice(0, -1).join(" ") || "";
 
-
-  // Upload passport photo (resize to <50KB JPG)
+  // Upload passport photo (resize to <50KB JPG, FRRO requirement)
   try {
-    const idLink = d.idCardLink || "";
-    const driveLink = idLink.split(" | ")[0];
-    if (driveLink && driveLink.startsWith("http")) {
-      const sharp = (await import("sharp")).default;
-      const fs = await import("fs");
-      // Try direct download (public link)
-      const imgRes = await fetch(driveLink.replace("/view", "/uc?export=download&confirm=t"));
-      if (imgRes.ok) {
-        const contentType = imgRes.headers.get("content-type") || "";
-        if (contentType.includes("image") || contentType.includes("octet")) {
-          const buffer = Buffer.from(await imgRes.arrayBuffer());
-          let finalPhoto = await sharp(buffer)
-            .resize(300, 400, { fit: "cover" })
-            .jpeg({ quality: 60 })
-            .toBuffer();
-          if (finalPhoto.length > 50000) {
-            finalPhoto = await sharp(buffer)
-              .resize(200, 267, { fit: "cover" })
-              .jpeg({ quality: 40 })
-              .toBuffer();
+    let photoBuffer: Buffer | null = null;
+
+    // Prefer base64 from API (already downloaded server-side with OAuth)
+    if (d.passportPhotoBase64) {
+      photoBuffer = Buffer.from(d.passportPhotoBase64, "base64");
+      console.log(`  Got passport photo from API (${(photoBuffer.length / 1024).toFixed(1)}KB raw)`);
+    } else {
+      // Fallback: try direct Drive download
+      const idLink = d.idCardLink || "";
+      const driveLink = idLink.split(" | ")[0];
+      if (driveLink && driveLink.startsWith("http")) {
+        const imgRes = await fetch(driveLink.replace("/view", "/uc?export=download&confirm=t"));
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get("content-type") || "";
+          if (contentType.includes("image") || contentType.includes("octet")) {
+            photoBuffer = Buffer.from(await imgRes.arrayBuffer());
+          } else {
+            console.log("  Photo download returned non-image content (likely login page)");
           }
-          const photoPath = "/tmp/frro_passport_photo.jpg";
-          fs.writeFileSync(photoPath, finalPhoto);
-          const fileInput = await page.$('input[type="file"]');
-          if (fileInput) {
-            await fileInput.setInputFiles(photoPath);
-            const uploadBtn = await page.$('input[value*="Upload"], button:has-text("Upload")');
-            if (uploadBtn) {
-              await uploadBtn.click();
-              await page.waitForTimeout(2000);
-            }
-            console.log(`  Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
-          }
-        } else {
-          console.log("  Photo download returned non-image content (likely login page)");
         }
       }
     }
-  } catch (e: any) {
-    console.log(`  Photo upload skipped: ${e.message}`);
-  }
 
+    if (photoBuffer) {
+      const sharp = (await import("sharp")).default;
+      let finalPhoto = await sharp(photoBuffer)
+        .resize(300, 400, { fit: "cover" })
+        .jpeg({ quality: 60 })
+        .toBuffer();
+      if (finalPhoto.length > 50000) {
+        finalPhoto = await sharp(photoBuffer)
+          .resize(200, 267, { fit: "cover" })
+          .jpeg({ quality: 40 })
+          .toBuffer();
+      }
+      if (finalPhoto.length > 50000) {
+        finalPhoto = await sharp(photoBuffer)
+          .resize(150, 200, { fit: "cover" })
+          .jpeg({ quality: 30 })
+          .toBuffer();
+      }
+      const photoPath = "/tmp/frro_passport_photo.jpg";
+      fs.writeFileSync(photoPath, finalPhoto);
+
+      // FRRO has a file input for photo — find it and upload
+      const fileInput = await page.$('input[type="file"][name*="photo"], input[type="file"][name*="Photo"], input[type="file"][accept*="image"]');
+      const fallbackInput = fileInput || await page.$('input[type="file"]');
+      if (fallbackInput) {
+        await fallbackInput.setInputFiles(photoPath);
+        await page.waitForTimeout(500);
+        // Click upload button if present
+        const uploadBtn = await page.$('input[value*="Upload"], input[value*="upload"], button:has-text("Upload"), input[type="button"][value*="Upload"]');
+        if (uploadBtn) {
+          await uploadBtn.click();
+          await page.waitForTimeout(3000);
+        }
+        console.log(`  ✓ Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+      } else {
+        console.log("  ✗ No file input found for photo upload");
+      }
+    } else {
+      console.log("  ⚠ No passport photo available to upload");
+    }
+  } catch (e: any) {
+    console.log(`  ✗ Photo upload failed: ${e.message}`);
+  }
 
   console.log("\nFilling Form C fields by exact FRRO field names...\n");
 
@@ -272,7 +295,6 @@ async function fillFormC(page: Page, d: any) {
       try {
         await el.fill(value);
       } catch {
-        // Fallback: force set via JavaScript (for readonly/date-picker fields)
         await page.evaluate(({ n, v }) => {
           const input = document.querySelector(`input[name="${n}"], textarea[name="${n}"]`) as HTMLInputElement;
           if (input) {
@@ -289,17 +311,58 @@ async function fillFormC(page: Page, d: any) {
     }
   }
 
+  // Helper: fill date fields that use jQuery datepicker (readonly inputs)
+  async function fillDateField(name: string, value: string) {
+    if (!value) return;
+    const formatted = formatDate(value);
+    if (!formatted) return;
+
+    const exists = await page.$(`input[name="${name}"]`);
+    if (!exists) {
+      console.log(`  ✗ ${name} not found`);
+      return;
+    }
+
+    // Force-set via JS: remove readonly, set value, trigger all relevant events
+    await page.evaluate(({ n, v }) => {
+      const input = document.querySelector(`input[name="${n}"]`) as HTMLInputElement;
+      if (!input) return;
+      input.removeAttribute("readonly");
+      input.removeAttribute("disabled");
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, "value"
+      )?.set;
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(input, v);
+      } else {
+        input.value = v;
+      }
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.dispatchEvent(new Event("blur", { bubbles: true }));
+      // If jQuery datepicker is attached, update its internal state
+      if ((window as any).jQuery && (window as any).jQuery(input).datepicker) {
+        try {
+          const parts = v.split("/");
+          if (parts.length === 3) {
+            const dateObj = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            (window as any).jQuery(input).datepicker("setDate", dateObj);
+          }
+        } catch {}
+      }
+    }, { n: name, v: formatted });
+    console.log(`  ✓ ${name} = "${formatted}" (date)`);
+  }
+
   // Helper: select dropdown option by text match (prefers exact match)
   async function fillSelect(name: string, value: string) {
     if (!value) return;
-    // ^VALUE$ syntax forces exact-only matching
     const forceExact = value.startsWith("^") && value.endsWith("$");
     const searchValue = forceExact ? value.slice(1, -1) : value;
 
     const el = await page.$(`select[name="${name}"]`);
     if (el) {
       const options = await el.$$("option");
-      // First try exact match
       for (const opt of options) {
         const text = (await opt.textContent() || "").trim();
         if (text.toUpperCase() === searchValue.toUpperCase()) {
@@ -311,7 +374,6 @@ async function fillFormC(page: Page, d: any) {
         }
       }
       if (forceExact) { console.log(`  ⚠ ${name}: no exact option matching "${searchValue}"`); return; }
-      // Then try starts-with match
       for (const opt of options) {
         const text = (await opt.textContent() || "").trim();
         if (text.toUpperCase().startsWith(searchValue.toUpperCase())) {
@@ -322,17 +384,22 @@ async function fillFormC(page: Page, d: any) {
           return;
         }
       }
-      // Finally try contains (but skip if value is too short/common)
       if (searchValue.length > 3) {
+        let bestMatch: { text: string; val: string } | null = null;
         for (const opt of options) {
           const text = (await opt.textContent() || "").trim();
           if (text.toUpperCase().includes(searchValue.toUpperCase())) {
             const val = await opt.getAttribute("value") || "";
-            await el.selectOption(val);
-            await el.dispatchEvent("change");
-            console.log(`  ✓ ${name} = "${text}" (contains)`);
-            return;
+            if (!bestMatch || text.length < bestMatch.text.length) {
+              bestMatch = { text, val };
+            }
           }
+        }
+        if (bestMatch) {
+          await el.selectOption(bestMatch.val);
+          await el.dispatchEvent("change");
+          console.log(`  ✓ ${name} = "${bestMatch.text}" (contains-best)`);
+          return;
         }
       }
       console.log(`  ⚠ ${name}: no option matching "${searchValue}"`);
@@ -341,14 +408,33 @@ async function fillFormC(page: Page, d: any) {
     }
   }
 
-  // Helper: convert date from YYYY-MM-DD to DD/MM/YYYY
+  // Helper: convert date from various formats to DD/MM/YYYY
   function formatDate(dateStr: string): string {
     if (!dateStr) return "";
-    // Already in DD/MM/YYYY or DD.MM.YYYY format
+    // Already in DD/MM/YYYY or DD.MM.YYYY or DD-MM-YYYY format
     if (/^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4}$/.test(dateStr)) return dateStr.replace(/[.-]/g, "/");
-    // Convert from YYYY-MM-DD
-    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+    // YYYY-MM-DD → DD/MM/YYYY
+    const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    // "01 JAN 2025" or "1 January 2025" formats
+    const monthNames: Record<string, string> = {
+      JAN: "01", FEB: "02", MAR: "03", APR: "04", MAY: "05", JUN: "06",
+      JUL: "07", AUG: "08", SEP: "09", OCT: "10", NOV: "11", DEC: "12",
+      JANUARY: "01", FEBRUARY: "02", MARCH: "03", APRIL: "04",
+      JUNE: "06", JULY: "07", AUGUST: "08", SEPTEMBER: "09",
+      OCTOBER: "10", NOVEMBER: "11", DECEMBER: "12",
+    };
+    const textDateMatch = dateStr.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+    if (textDateMatch) {
+      const mm = monthNames[textDateMatch[2].toUpperCase()];
+      if (mm) return `${textDateMatch[1].padStart(2, "0")}/${mm}/${textDateMatch[3]}`;
+    }
+    // "JAN 01 2025" format
+    const textDateMatch2 = dateStr.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+    if (textDateMatch2) {
+      const mm = monthNames[textDateMatch2[1].toUpperCase()];
+      if (mm) return `${textDateMatch2[2].padStart(2, "0")}/${mm}/${textDateMatch2[3]}`;
+    }
     return dateStr;
   }
 
@@ -369,7 +455,7 @@ async function fillFormC(page: Page, d: any) {
   await fillInput("applicant_givenname", givenName);
   await fillSelect("applicant_sex", passport.sex === "Male" ? "Male" : passport.sex === "Female" ? "Female" : "");
   await fillSelect("dobformat", "DD/MM/YYYY");
-  await fillInput("applicant_dob", passport.dateOfBirth || "");
+  await fillDateField("applicant_dob", passport.dateOfBirth || "");
   await fillSelect("applicant_special_category", "Others");
   await fillSelect("applicant_nationality", d.nationality || "");
 
@@ -389,18 +475,18 @@ async function fillFormC(page: Page, d: any) {
   await fillInput("applicant_passpno", passport.passportNumber || "");
   await fillInput("applicant_passplcofissue", passport.placeOfIssue || "");
   await fillSelect("passport_issue_country", d.nationality || "");
-  await fillInput("applicant_passpdoissue", formatDate(passport.dateOfIssue || ""));
-  await fillInput("applicant_passpvalidtill", formatDate(passport.expiryDate || ""));
+  await fillDateField("applicant_passpdoissue", passport.dateOfIssue || "");
+  await fillDateField("applicant_passpvalidtill", passport.expiryDate || "");
 
   // Visa
   await fillInput("applicant_visano", visa.visaNumber || "");
   await fillInput("applicant_visaplcoissue", visa.placeOfIssue || "");
   await fillSelect("visa_issue_country", "^INDIA$");
-  await fillInput("applicant_visadoissue", formatDate(visa.dateOfIssue || ""));
-  await fillInput("applicant_visavalidtill", formatDate(visa.validTill || ""));
+  await fillDateField("applicant_visadoissue", visa.dateOfIssue || "");
+  await fillDateField("applicant_visavalidtill", visa.validTill || "");
   await fillSelect("applicant_visatype", visa.type || "Tourist");
 
-  // Arrival (arrivedFromCountry — use starts-with for "INDIA" since exact may have trailing space)
+  // Arrival
   const arrCountry = d.arrivedFromCountry || "";
   if (arrCountry.toLowerCase() === "india") {
     await fillSelect("applicant_arrivedfromcountry", "INDIA");
@@ -409,8 +495,8 @@ async function fillFormC(page: Page, d: any) {
   }
   await fillInput("applicant_arrivedfromcity", d.arrivedFromCity || "");
   await fillInput("applicant_arrivedfromplace", d.arrivedFromPlace || "");
-  await fillInput("applicant_doarrivalindia", formatDate(d.dateOfArrivalInIndia || ""));
-  await fillInput("applicant_doarrivalhotel", formatDate(d.arrivalDate || ""));
+  await fillDateField("applicant_doarrivalindia", d.dateOfArrivalInIndia || "");
+  await fillDateField("applicant_doarrivalhotel", d.arrivalDate || "");
   await fillInput("applicant_timeoarrivalhotel", d.arrivalTime || "");
   await fillInput("applicant_intnddurhotel", d.stayingDays || "");
 
@@ -429,24 +515,50 @@ async function fillFormC(page: Page, d: any) {
   await fillInput("applicant_contactnoperm", d.homeCountryPhone || "");
   await fillInput("applicant_mcontactnoperm", d.homeCountryPhone || "");
 
-  // Re-fill date fields at the end (FRRO date pickers may clear them)
-  await page.waitForTimeout(300);
+  // Final pass: force-set ALL date fields via JS (FRRO datepickers tend to clear values)
+  await page.waitForTimeout(500);
+  const allDates: Record<string, string> = {
+    applicant_dob: formatDate(passport.dateOfBirth || ""),
+    applicant_passpdoissue: formatDate(passport.dateOfIssue || ""),
+    applicant_passpvalidtill: formatDate(passport.expiryDate || ""),
+    applicant_visadoissue: formatDate(visa.dateOfIssue || ""),
+    applicant_visavalidtill: formatDate(visa.validTill || ""),
+    applicant_doarrivalindia: formatDate(d.dateOfArrivalInIndia || ""),
+    applicant_doarrivalhotel: formatDate(d.arrivalDate || ""),
+  };
+
   await page.evaluate((dates) => {
     for (const [name, value] of Object.entries(dates)) {
       if (!value) continue;
       const el = document.querySelector(`input[name="${name}"]`) as HTMLInputElement;
-      if (el && !el.value) {
+      if (el) {
         el.removeAttribute("readonly");
+        el.removeAttribute("disabled");
         el.value = value;
         el.dispatchEvent(new Event("change", { bubbles: true }));
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        // Also try jQuery datepicker setDate
+        if ((window as any).jQuery) {
+          try {
+            const parts = value.split("/");
+            if (parts.length === 3) {
+              const dateObj = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+              (window as any).jQuery(el).datepicker("setDate", dateObj);
+            }
+          } catch {}
+        }
       }
     }
-  }, {
-    applicant_doarrivalindia: formatDate(d.dateOfArrivalInIndia || ""),
-    applicant_doarrivalhotel: formatDate(d.arrivalDate || ""),
-    applicant_intnddurhotel: d.stayingDays || "",
-  });
+  }, allDates);
 
+  // Also re-fill the duration field (plain text, no datepicker)
+  await page.evaluate((val) => {
+    if (!val) return;
+    const el = document.querySelector('input[name="applicant_intnddurhotel"]') as HTMLInputElement;
+    if (el && !el.value) { el.value = val; el.dispatchEvent(new Event("change", { bubbles: true })); }
+  }, d.stayingDays || "");
+
+  console.log("\n  Date fields force-set in final pass");
   console.log("\nForm C filling complete!");
 }
 

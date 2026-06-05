@@ -29,6 +29,36 @@ function verifyToken(token: string, id: string, secret: string): boolean {
   }
 }
 
+function extractDriveId(url: string): string | null {
+  const match = url.match(/\/d\/([^/]+)\//);
+  return match ? match[1] : null;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunks: string[] = [];
+  for (let i = 0; i < bytes.length; i += 8192) {
+    chunks.push(String.fromCharCode(...bytes.slice(i, i + 8192)));
+  }
+  return btoa(chunks.join(""));
+}
+
+async function downloadDriveFileAsBase64(fileId: string): Promise<string | null> {
+  try {
+    const { getOAuthTokenWithDb } = await import("@/lib/googleApiFetch");
+    const token = await getOAuthTokenWithDb();
+    if (!token) return null;
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const buffer = await res.arrayBuffer();
+    return arrayBufferToBase64(buffer);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const token = req.nextUrl.searchParams.get("token");
@@ -51,6 +81,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     try { formCData = JSON.parse(row.formCData); } catch {}
   }
 
+  // Download ID photo as base64 for FRRO upload (works with any ID type that has an image)
+  let passportPhotoBase64: string | null = null;
+  if (row.idCardLink) {
+    const links = row.idCardLink.split(" | ").filter((l) => l.startsWith("http"));
+    if (links.length > 0) {
+      const fileId = extractDriveId(links[0]);
+      if (fileId) {
+        passportPhotoBase64 = await downloadDriveFileAsBase64(fileId);
+      }
+    }
+  }
+
   const response = {
     guestName: row.name,
     nationality: row.nationality,
@@ -59,6 +101,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     arrivalTime: row.arrivalTime,
     stayingDays: row.stayingDays,
     comingFrom: row.comingFrom,
+    idCardLink: row.idCardLink || "",
+    visaLink: row.visaLink || "",
+    idType: row.idType || "",
+    ...(passportPhotoBase64 && { passportPhotoBase64 }),
     ...formCData,
   };
 

@@ -1108,17 +1108,30 @@ export function AdminRecords({ password, username, role }: { password: string; u
             )}
 
             <div className="mt-6 space-y-3">
-              {formCPopup.data.frroApplicationId && (
+              {(formCPopup.data.frroApplicationId || formCPopup.data.frroSubmissions?.length > 0) && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <p className="text-sm font-semibold text-emerald-800">Form C submitted to FRRO</p>
-                  <p className="mt-1 text-xs text-emerald-700">Application ID: <span className="font-bold">{formCPopup.data.frroApplicationId}</span></p>
-                  {formCPopup.data.frroSubmittedAt && (
-                    <p className="mt-0.5 text-[10px] text-emerald-600">Submitted: {new Date(formCPopup.data.frroSubmittedAt).toLocaleString()}</p>
+                  {formCPopup.data.frroSubmissions?.length > 0 ? (
+                    <div className="mt-1 space-y-1.5">
+                      {formCPopup.data.frroSubmissions.map((sub: { id: string; date: string }, i: number) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-xs text-emerald-700">#{i + 1} Application ID: <span className="font-bold">{sub.id}</span></span>
+                          <span className="text-[10px] text-emerald-600">({new Date(sub.date).toLocaleString()})</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-xs text-emerald-700">Application ID: <span className="font-bold">{formCPopup.data.frroApplicationId}</span></p>
+                      {formCPopup.data.frroSubmittedAt && (
+                        <p className="mt-0.5 text-[10px] text-emerald-600">Submitted: {new Date(formCPopup.data.frroSubmittedAt).toLocaleString()}</p>
+                      )}
+                    </>
                   )}
                   <div className="mt-2 rounded-lg bg-emerald-100 p-2">
                     <p className="text-[11px] text-emerald-800"><strong>Next steps:</strong> Review the details and submit permanently by logging in here:</p>
                     <a href="https://indianfrro.gov.in/frro/FormC/login.jsp" target="_blank" rel="noopener" className="mt-1 inline-block text-xs font-medium text-emerald-700 underline hover:text-emerald-900">https://indianfrro.gov.in/frro/FormC/login.jsp</a>
-                    <p className="mt-1 text-[10px] text-emerald-700">Enter Application ID: {formCPopup.data.frroApplicationId} → review → click &quot;Save and Continue&quot; to submit permanently.</p>
+                    <p className="mt-1 text-[10px] text-emerald-700">Enter latest Application ID → review → click &quot;Save and Continue&quot; to submit permanently.</p>
                   </div>
                 </div>
               )}
@@ -1151,7 +1164,12 @@ export function AdminRecords({ password, username, role }: { password: string; u
                         } else {
                           setFrroStatus(`Success! Application ID: ${appId}`);
                           const rowId = parseInt(formCPopup.row[17] || "0", 10);
-                          const updatedData = { ...formCPopup.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
+                          const prevSubs = formCPopup.data.frroSubmissions || [];
+                          if (formCPopup.data.frroApplicationId && !prevSubs.length) {
+                            prevSubs.push({ id: formCPopup.data.frroApplicationId, date: formCPopup.data.frroSubmittedAt || new Date().toISOString() });
+                          }
+                          prevSubs.push({ id: appId, date: new Date().toISOString() });
+                          const updatedData = { ...formCPopup.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString(), frroSubmissions: prevSubs };
                           await apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
                           setFormCPopup({ ...formCPopup, data: updatedData });
                         }
@@ -1170,7 +1188,12 @@ export function AdminRecords({ password, username, role }: { password: string; u
                                 } else {
                                   setFrroStatus(`Success! Application ID: ${appId}`);
                                   const rowId = parseInt(formCPopup!.row[17] || "0", 10);
-                                  const updatedData = { ...formCPopup!.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
+                                  const prevSubs = formCPopup!.data.frroSubmissions || [];
+                                  if (formCPopup!.data.frroApplicationId && !prevSubs.length) {
+                                    prevSubs.push({ id: formCPopup!.data.frroApplicationId, date: formCPopup!.data.frroSubmittedAt || new Date().toISOString() });
+                                  }
+                                  prevSubs.push({ id: appId, date: new Date().toISOString() });
+                                  const updatedData = { ...formCPopup!.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString(), frroSubmissions: prevSubs };
                                   apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
                                   setFormCPopup({ ...formCPopup!, data: updatedData });
                                 }
@@ -1199,7 +1222,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                     const hash = btoa(payload + ":" + secret).replace(/=/g, "");
                     const token = `${btoa(payload).replace(/=/g, "")}.${hash}`;
                     const apiUrl = `${window.location.origin}/api/form-c/${checkinId}?token=${token}`;
-                    const script = `fetch('${apiUrl}').then(r=>r.json()).then(d=>{const S=(label,v)=>{if(!v)return;const tds=[...document.querySelectorAll('td,th,label')];const td=tds.find(t=>t.textContent.trim().toLowerCase().includes(label.toLowerCase()));if(td){const row=td.closest('tr')||td.parentElement;if(row){const inputs=row.querySelectorAll('input,select,textarea');if(inputs.length){const el=inputs[0];if(el.tagName==='SELECT'){const opts=[...el.options];const match=opts.find(o=>o.text.toUpperCase().includes(v.toUpperCase())||o.value.toUpperCase().includes(v.toUpperCase()));if(match){el.value=match.value;el.dispatchEvent(new Event('change',{bubbles:true}));}else el.value=v;}else if(el.type==='radio'){const radios=row.querySelectorAll('input[type=radio]');radios.forEach(r=>{if(r.value.toLowerCase()===v.toLowerCase()||r.nextSibling?.textContent?.trim().toLowerCase()===v.toLowerCase())r.checked=true;});}else{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}}}}};const n=d.extractedPassport||{};const v2=d.extractedVisa||{};S('Surname',n.surname||d.guestName?.split(' ').pop()||'');S('Given Name',n.givenName||d.guestName?.split(' ').slice(0,-1).join(' ')||'');S('Sex',n.sex||'');S('Date of Birth',n.dateOfBirth||'');S('Nationality',d.nationality||'');S('Address in country',d.homeAddress||'');S('Passport No',n.passportNumber||'');S('Visa No',v2.visaNumber||'');S('Type of visa',v2.type||'');S('Arrived from Country',d.arrivedFromCountry||'');S('Arrived from City',d.arrivedFromCity||'');S('Arrived from Place',d.arrivedFromPlace||'');S('Date of Arrival in India',d.dateOfArrivalInIndia||'');S('Date of Arrival in Hotel',d.arrivalDate||'');S('Time of Arrival in Hotel',d.arrivalTime||'');S('duration of stay',d.stayingDays||'');S('employed in India',d.employedInIndia||'No');S('Purpose of Visit',d.purposeOfVisit||'Tourism');S('Contact Phone No (In India',d.contact||'');S('Mobile No (In India',d.contact||'');S('Mobile No (Permanently',d.homeCountryPhone||'');alert('Form C fields filled! Review and click Temporary Save.');}).catch(e=>alert('Error: '+e.message))`;
+                    const script = `fetch('${apiUrl}').then(r=>r.json()).then(d=>{const fmtD=(s)=>{if(!s)return'';if(/^\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]\\d{4}$/.test(s))return s.replace(/[.-]/g,'/');const m=s.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);if(m)return m[3]+'/'+m[2]+'/'+m[1];const mn={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};const tm=s.match(/^(\\d{1,2})\\s+([A-Za-z]{3,})\\s+(\\d{4})$/);if(tm){const mo=mn[tm[2].toUpperCase().slice(0,3)];if(mo)return tm[1].padStart(2,'0')+'/'+mo+'/'+tm[3];}return s;};const FD=(n,v)=>{if(!v)return;const fv=fmtD(v);if(!fv)return;const el=document.querySelector('input[name=\"'+n+'\"]');if(el){el.removeAttribute('readonly');el.removeAttribute('disabled');el.value=fv;el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery&&jQuery(el).datepicker){try{const p=fv.split('/');if(p.length===3)jQuery(el).datepicker('setDate',new Date(+p[2],+p[1]-1,+p[0]));}catch{}}}};const F=(n,v)=>{if(!v)return;const els=document.querySelectorAll('input[name=\"'+n+'\"],select[name=\"'+n+'\"],textarea[name=\"'+n+'\"]');if(els.length){els.forEach(el=>{if(el.tagName==='SELECT'){const opts=[...el.options];const match=opts.find(o=>o.text.toUpperCase().includes(v.toUpperCase())||o.value.toUpperCase().includes(v.toUpperCase()));if(match){el.value=match.value;el.dispatchEvent(new Event('change',{bubbles:true}));}else el.value=v;}else if(el.type==='radio'){if(el.value.toLowerCase()===v.toLowerCase())el.checked=true;}else{el.removeAttribute('readonly');el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}});}};const n2=d.extractedPassport||{};const v2=d.extractedVisa||{};F('applicant_surname',n2.surname||d.guestName?.split(' ').pop()||'');F('applicant_givenname',n2.givenName||d.guestName?.split(' ').slice(0,-1).join(' ')||'');F('applicant_sex',n2.sex||'');F('dobformat','DD/MM/YYYY');FD('applicant_dob',n2.dateOfBirth||'');F('applicant_special_category','Others');F('applicant_nationality',d.nationality||'');F('applicant_permaddr',[d.homeAddress,d.homeCity].filter(Boolean).join(', ')||'');F('applicant_permcity',d.homeCity||'');F('applicant_permcountry',d.nationality||'');F('applicant_refaddr','Near Hema Shree, Gokarna Main Beach');F('applicant_refstate','KARNATAKA');F('applicant_refpincode','581421');F('applicant_passpno',n2.passportNumber||'');F('applicant_passplcofissue',n2.placeOfIssue||'');F('passport_issue_country',d.nationality||'');FD('applicant_passpdoissue',n2.dateOfIssue||'');FD('applicant_passpvalidtill',n2.expiryDate||'');F('applicant_visano',v2.visaNumber||'');F('applicant_visaplcoissue',v2.placeOfIssue||'');F('visa_issue_country','INDIA');FD('applicant_visadoissue',v2.dateOfIssue||'');FD('applicant_visavalidtill',v2.validTill||'');F('applicant_visatype',v2.type||'Tourist');F('applicant_arrivedfromcountry',d.arrivedFromCountry||'');F('applicant_arrivedfromcity',d.arrivedFromCity||'');F('applicant_arrivedfromplace',d.arrivedFromPlace||'');FD('applicant_doarrivalindia',d.dateOfArrivalInIndia||'');FD('applicant_doarrivalhotel',d.arrivalDate||'');F('applicant_timeoarrivalhotel',d.arrivalTime||'');F('applicant_intnddurhotel',d.stayingDays||'');F('applicant_purpovisit',d.purposeOfVisit||'Tourism');F('applicant_contactnoinindia',d.contact||'');F('applicant_mcontactnoinindia',d.contact||'');F('applicant_contactnoperm',d.homeCountryPhone||'');F('applicant_mcontactnoperm',d.homeCountryPhone||'');setTimeout(()=>{FD('applicant_dob',n2.dateOfBirth||'');FD('applicant_passpdoissue',n2.dateOfIssue||'');FD('applicant_passpvalidtill',n2.expiryDate||'');FD('applicant_visadoissue',v2.dateOfIssue||'');FD('applicant_visavalidtill',v2.validTill||'');FD('applicant_doarrivalindia',d.dateOfArrivalInIndia||'');FD('applicant_doarrivalhotel',d.arrivalDate||'');},500);alert('Form C fields filled! Review dates and click Temporary Save.');}).catch(e=>alert('Error: '+e.message))`;
                     navigator.clipboard.writeText(script).then(() => {
                       alert("Copied! On FRRO Form C page, open browser console (F12) and paste.");
                     }).catch(() => {
@@ -1251,20 +1274,26 @@ export function AdminRecords({ password, username, role }: { password: string; u
 }
 
 function FormCSection({ title, items }: { title: string; items: { label: string; value?: string; unreliable?: boolean }[] }) {
-  const filledItems = items.filter((i) => i.value);
-  if (filledItems.length === 0) return null;
-  const hasUnreliable = filledItems.some((i) => i.unreliable);
+  const hasUnreliable = items.some((i) => i.unreliable && i.value);
+  const missingCount = items.filter((i) => !i.value).length;
   return (
-    <div className={cn("rounded-xl border p-4", hasUnreliable ? "border-amber-200 bg-amber-50/20" : "border-brand-mist")}>
-      <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-green-dark/50">
+    <div className={cn("rounded-xl border p-4", missingCount > 0 ? "border-red-200 bg-red-50/20" : hasUnreliable ? "border-amber-200 bg-amber-50/20" : "border-brand-mist")}>
+      <h4 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-green-dark/50">
         {title}
-        {hasUnreliable && <span className="ml-2 text-[9px] font-normal normal-case text-amber-600">⚠ verify handwritten fields</span>}
+        {missingCount > 0 && <span className="text-[9px] font-normal normal-case text-red-600">⚠ {missingCount} missing — fill before submitting</span>}
+        {hasUnreliable && !missingCount && <span className="text-[9px] font-normal normal-case text-amber-600">⚠ verify handwritten fields</span>}
       </h4>
       <div className="grid gap-2 sm:grid-cols-2">
-        {filledItems.map((item) => (
+        {items.map((item) => (
           <div key={item.label}>
-            <span className={cn("text-[10px]", item.unreliable ? "text-amber-600 font-medium" : "text-brand-green-dark/50")}>{item.label}{item.unreliable ? " ⚠" : ""}</span>
-            <p className={cn("text-sm font-medium", item.unreliable ? "text-amber-800" : "text-brand-green-dark")}>{item.value}</p>
+            <span className={cn("text-[10px]", !item.value ? "text-red-500 font-medium" : item.unreliable ? "text-amber-600 font-medium" : "text-brand-green-dark/50")}>
+              {item.label}{!item.value ? " ⚠" : item.unreliable ? " ⚠" : ""}
+            </span>
+            {item.value ? (
+              <p className={cn("text-sm font-medium", item.unreliable ? "text-amber-800" : "text-brand-green-dark")}>{item.value}</p>
+            ) : (
+              <p className="text-sm font-medium italic text-red-400">Missing — click Edit to fill</p>
+            )}
           </div>
         ))}
       </div>
