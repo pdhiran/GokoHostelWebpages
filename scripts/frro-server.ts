@@ -285,155 +285,91 @@ async function fillFormC(page: Page, d: any) {
 
       console.log(`  Photo compressed to ${(finalPhoto.length / 1024).toFixed(1)}KB`);
 
-      // FRRO has a file input for photo — find it and upload
-      // DEBUG: enumerate all file inputs and buttons on the page
-      const debugInfo = await page.evaluate(() => {
-        const fileInputs = [...document.querySelectorAll('input[type="file"]')].map(el => ({
-          name: (el as HTMLInputElement).name,
-          accept: (el as HTMLInputElement).accept,
-          id: el.id,
-          disabled: (el as HTMLInputElement).disabled,
-        }));
-        const buttons = [...document.querySelectorAll('input[type="button"], input[type="submit"], button')]
-          .filter(el => {
-            const val = (el as HTMLInputElement).value || el.textContent || "";
-            return val.toLowerCase().includes("upload");
-          })
-          .map(el => ({
-            tag: el.tagName,
-            type: (el as HTMLInputElement).type,
-            value: (el as HTMLInputElement).value || el.textContent || "",
-            disabled: (el as HTMLInputElement).disabled,
-            onclick: (el as HTMLElement).getAttribute("onclick") || "",
-            name: (el as HTMLInputElement).name,
-          }));
-        return { fileInputs, buttons };
-      });
-      console.log(`  [DEBUG] File inputs found: ${JSON.stringify(debugInfo.fileInputs)}`);
-      console.log(`  [DEBUG] Upload buttons found: ${JSON.stringify(debugInfo.buttons)}`);
-
-      const fileInput = await page.$('input[type="file"][name*="photo"], input[type="file"][name*="Photo"], input[type="file"][accept*="image"]');
-      const fallbackInput = fileInput || await page.$('input[type="file"]');
+      const fallbackInput = await page.$('input[type="file"]');
       if (fallbackInput) {
-        // Write photo to disk
+        // Step 1: Set file on input (for UI display + to pass the plugin's value check)
         const photoPath = "/tmp/photo.jpg";
         fs.writeFileSync(photoPath, finalPhoto);
+        await fallbackInput.setInputFiles(photoPath);
+        await page.waitForTimeout(500);
+        console.log(`  [DEBUG] File set on input`);
 
-        let alertMessages: string[] = [];
+        // Step 2: Set up route interception to capture the real upload URL
+        let capturedUploadUrl = "";
+        const routeHandler = async (route: any) => {
+          const req = route.request();
+          if (req.method() === "POST") {
+            capturedUploadUrl = req.url();
+            console.log(`  [DEBUG] Intercepted POST to: ${capturedUploadUrl}`);
+          }
+          await route.continue();
+        };
+        await page.route("**/*", routeHandler);
+
+        // Step 3: Dismiss any alerts and click Upload (iframe clone will send empty file — that's OK)
         page.on("dialog", async (dialog) => {
-          const msg = dialog.message().trim();
-          alertMessages.push(msg);
-          console.log(`  [DEBUG] ALERT: "${msg}"`);
+          console.log(`  [DEBUG] Alert: "${dialog.message().trim()}"`);
           await dialog.accept();
         });
 
-        // Method 1: File chooser API (trusted selection)
-        console.log(`  [DEBUG] Method 1: File chooser API...`);
-        try {
-          const [fileChooser] = await Promise.all([
-            page.waitForEvent("filechooser", { timeout: 5000 }),
-            fallbackInput.click(),
-          ]);
-          await fileChooser.setFiles(photoPath);
-          console.log(`  [DEBUG] File chooser set, checking input value...`);
-          await page.waitForTimeout(500);
+        console.log(`  [DEBUG] Clicking Upload File to capture URL...`);
+        await page.click('input[value="Upload File"]');
+        await page.waitForTimeout(5000);
 
-          const fileState = await page.evaluate(() => {
-            const inp = document.getElementById("file1") as HTMLInputElement;
-            return { value: inp?.value, filesLen: inp?.files?.length, name: inp?.files?.[0]?.name, size: inp?.files?.[0]?.size };
+        // Step 4: Remove interception
+        await page.unroute("**/*", routeHandler);
+        console.log(`  [DEBUG] Captured URL: "${capturedUploadUrl}"`);
+
+        // Step 5: Also try reading URL from ajaxfileupload.js source (fallback)
+        if (!capturedUploadUrl) {
+          const extractedUrl = await page.evaluate(() => {
+            const fnStr = (window as any).ajaxFileUpload?.toString() || "";
+            const urlMatch = fnStr.match(/url\s*:\s*['"]([^'"]+)/);
+            const accoMatch = fnStr.match(/var\s+j\s*=\s*['"]([^'"]+)/);
+            let url = urlMatch?.[1] || "";
+            const accoCode = accoMatch?.[1] || "";
+            if (url.includes("'+j+'")) url = url.replace("'+j+'", accoCode);
+            if (url.includes("' + j + '")) url = url.replace("' + j + '", accoCode);
+            if (url && !url.startsWith("http")) {
+              url = window.location.href.replace(/\/[^/]*$/, "/") + url;
+            }
+            return url;
           });
-          console.log(`  [DEBUG] After file chooser: ${JSON.stringify(fileState)}`);
-        } catch (e: any) {
-          console.log(`  [DEBUG] File chooser failed: ${e.message}`);
-          // Fallback: setInputFiles directly
-          await fallbackInput.setInputFiles(photoPath);
-          console.log(`  [DEBUG] Used setInputFiles fallback`);
+          if (extractedUrl) capturedUploadUrl = extractedUrl;
+          console.log(`  [DEBUG] URL from function source: "${capturedUploadUrl}"`);
         }
 
-        await page.waitForTimeout(1000);
-
-        // Check what ajaxFileUpload will see when it reads the file
-        const preUploadCheck = await page.evaluate(() => {
-          const inp = document.getElementById("file1") as HTMLInputElement;
-          const val = inp?.value || "";
-          const formVal = (document as any).OnlineForm?.file1?.value || "";
-          // Check what the validation in ajaxFileUpload would do
-          const ext3 = val.substring(val.length - 3).toLowerCase();
-          const ext4 = val.substring(val.length - 4).toLowerCase();
-          return { inputValue: val, formValue: formVal, ext3, ext4, isEmpty: val === "" };
-        });
-        console.log(`  [DEBUG] Pre-upload validation state: ${JSON.stringify(preUploadCheck)}`);
-
-        // Read the FULL ajaxFileUpload source to understand the "Please Choose a JPG file" check
-        const fnSource = await page.evaluate(() => {
-          return (window as any).ajaxFileUpload?.toString() || "not found";
-        });
-        // Find the line that triggers the JPG alert
-        const jpgAlertLine = fnSource.split("\n").filter((l: string) => l.includes("JPG") || l.includes("jpg") || l.includes("Choose"));
-        console.log(`  [DEBUG] Lines with JPG/Choose in ajaxFileUpload:\n    ${jpgAlertLine.join("\n    ")}`);
-
-        // Override the button's onclick AND the global function
-        console.log(`  [DEBUG] Patching upload button onclick + global ajaxFileUpload...`);
-        const uploadUrl = await page.evaluate(() => {
-          // Read the original function to extract the URL
-          const fnStr = (window as any).ajaxFileUpload?.toString() || "";
-          const urlMatch = fnStr.match(/url\s*:\s*['"]([^'"]+)/);
-          const accoMatch = fnStr.match(/var\s+j\s*=\s*['"]([^'"]+)/);
-          const accoCode = accoMatch?.[1] || "";
-          let url = urlMatch?.[1] || "";
-          // Replace j variable placeholder if present
-          if (url.includes("'+j+'")) url = url.replace("'+j+'", accoCode);
-          if (url.includes("' + j + '")) url = url.replace("' + j + '", accoCode);
-          // Store for debugging
-          (window as any).__frroUploadUrl = url;
-          (window as any).__frroAccoCode = accoCode;
-          return { url, accoCode, fnLength: fnStr.length };
-        });
-        console.log(`  [DEBUG] Extracted URL: "${uploadUrl.url}", accoCode: "${uploadUrl.accoCode}", fn length: ${uploadUrl.fnLength}`);
-
-        // Do the upload ourselves directly via page.evaluate
-        console.log(`  [DEBUG] Uploading directly via XHR...`);
-        alertMessages = [];
-        const directResult = await page.evaluate(async () => {
-          const fileInput = document.getElementById("file1") as HTMLInputElement;
-          const filesCount = fileInput?.files?.length || 0;
-          if (!filesCount) return { error: "No files in input", filesCount };
-
-          const file = fileInput.files![0];
-          const formData = new FormData();
-          formData.append("file1", file, file.name);
-
-          const accoCode = (window as any).__frroAccoCode || "";
-          let url = (window as any).__frroUploadUrl || "";
-          if (!url) {
-            // Last resort: try the generateRandom.jsp we saw in network tab
-            url = "generateRandom.jsp";
-          }
-          if (!url.startsWith("http")) {
-            const base = window.location.href.replace(/\/[^/]*$/, "/");
-            url = base + url;
-          }
-          const ts = new Date().getTime();
-          const finalUrl = url + (url.includes("?") ? "&" : "?") + "nocache=" + ts;
-
-          try {
-            const resp = await fetch(finalUrl, { method: "POST", body: formData, credentials: "include" });
-            const text = await resp.text();
-            const pict = document.getElementById("pict");
-            if (resp.ok && pict) {
-              pict.innerHTML = text || '<span style="color:green">Photo uploaded</span>';
+        // Step 6: Replay the upload with actual file data via fetch
+        if (capturedUploadUrl) {
+          console.log(`  [DEBUG] Replaying upload to: ${capturedUploadUrl}`);
+          const uploadResult = await page.evaluate(async (args: { base64: string; url: string }) => {
+            try {
+              const bin = atob(args.base64);
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const file = new File([bytes], "photo.jpg", { type: "image/jpeg" });
+              const fd = new FormData();
+              fd.append("file1", file, "photo.jpg");
+              const res = await fetch(args.url, { method: "POST", body: fd, credentials: "include" });
+              const text = await res.text();
+              const pict = document.getElementById("pict");
+              if (pict && res.ok) {
+                pict.innerHTML = text || '<img src="getPhoto.jsp" width="80" height="100" />';
+              }
+              return { ok: res.ok, status: res.status, response: text.slice(0, 300) };
+            } catch (e: any) {
+              return { ok: false, status: 0, response: e.message };
             }
-            return { ok: resp.ok, status: resp.status, url: finalUrl, response: text.slice(0, 300), filesCount };
-          } catch (e: any) {
-            return { error: e.message, url: finalUrl, filesCount };
-          }
-        });
-        console.log(`  [DEBUG] Direct XHR result: ${JSON.stringify(directResult)}`);
+          }, { base64: finalPhoto.toString("base64"), url: capturedUploadUrl });
 
-        if (directResult.ok) {
-          console.log(`  ✓ Photo uploaded (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+          console.log(`  [DEBUG] Upload replay result: ${JSON.stringify(uploadResult)}`);
+          if (uploadResult.ok) {
+            console.log(`  ✓ Photo uploaded (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+          } else {
+            console.log(`  ⚠ Photo upload replay failed (status ${uploadResult.status})`);
+          }
         } else {
-          console.log(`  ⚠ Photo direct upload failed — admin must click Upload manually`);
+          console.log(`  ⚠ Could not capture upload URL — photo must be uploaded manually`);
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
