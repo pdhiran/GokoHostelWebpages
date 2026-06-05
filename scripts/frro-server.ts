@@ -291,8 +291,8 @@ async function fillFormC(page: Page, d: any) {
         const photoPath = "/tmp/photo.jpg";
         fs.writeFileSync(photoPath, finalPhoto);
         await fallbackInput.setInputFiles(photoPath);
-        await page.waitForTimeout(500);
-        console.log(`  [DEBUG] File set on input`);
+        await page.waitForTimeout(2000);
+        console.log(`  [DEBUG] File set on input, size=${finalPhoto.length}`);
 
         // Step 2: Intercept the iframe POST and REPLACE its body with our real file data
         const photoBase64 = finalPhoto.toString("base64");
@@ -324,20 +324,19 @@ async function fillFormC(page: Page, d: any) {
             const fullBody = Buffer.concat(parts);
 
             try {
-              const response = await route.fetch({
+              console.log(`  [DEBUG] Replacing POST body (${fullBody.length} bytes, boundary=${boundary})`);
+              await route.continue({
                 headers: {
                   ...req.headers(),
                   "content-type": `multipart/form-data; boundary=${boundary}`,
                   "x-requested-with": "XMLHttpRequest",
+                  "content-length": String(fullBody.length),
                 },
                 postData: fullBody,
               });
-              const body = await response.text();
-              console.log(`  [DEBUG] Server response (${response.status()}): "${body.slice(0, 150)}"`);
-              uploadSuccess = response.status() === 200 && !body.includes("Please Choose");
-              await route.fulfill({ response });
+              uploadSuccess = true; // We'll verify after via page state
             } catch (e: any) {
-              console.log(`  [DEBUG] Intercept fetch error: ${e.message}`);
+              console.log(`  [DEBUG] route.continue error: ${e.message}`);
               await route.continue();
             }
           } else {
@@ -359,8 +358,15 @@ async function fillFormC(page: Page, d: any) {
         // Step 4: Remove interception
         await page.unroute("**/*", routeHandler);
 
-        if (uploadSuccess) {
-          console.log(`  ✓ Photo uploaded via intercepted request (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+        // Check if photo appeared on page (look for image in #pict or any new img)
+        const photoOnPage = await page.evaluate(() => {
+          const pict = document.getElementById("pict");
+          return pict?.innerHTML?.includes("<img") || pict?.innerHTML?.includes("src=") || false;
+        });
+        if (photoOnPage) {
+          console.log(`  ✓ Photo uploaded and visible (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+        } else if (uploadSuccess) {
+          console.log(`  ✓ Photo upload request sent (${(finalPhoto.length / 1024).toFixed(1)}KB) — verify on page`);
         } else {
           console.log(`  ⚠ Photo upload failed — use 'Download Photo' button to upload manually`);
         }
