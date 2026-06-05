@@ -321,39 +321,26 @@ async function fillFormC(page: Page, d: any) {
         });
         console.log(`  [DEBUG] Upload button state after file select: ${JSON.stringify(btnState)}`);
 
-        // Click "Upload File" button
-        const uploadBtn = await page.$('input[value*="Upload"]')
-          || await page.$('button:has-text("Upload")')
-          || await page.$('input[type="button"][onclick*="upload"]')
-          || await page.$('input[type="submit"][value*="Upload"]');
-        if (uploadBtn) {
-          const isDisabled = await uploadBtn.isDisabled();
-          console.log(`  [DEBUG] Found upload button, disabled=${isDisabled}`);
-          if (isDisabled) {
-            // Force enable and click
-            await page.evaluate(() => {
-              const btn = document.querySelector('input[value*="Upload"]') as HTMLInputElement;
-              if (btn) { btn.disabled = false; btn.removeAttribute("disabled"); }
-            });
-            console.log(`  [DEBUG] Force-enabled upload button`);
-          }
-          await uploadBtn.click();
-          console.log(`  [DEBUG] Clicked upload button, waiting 4s...`);
-          await page.waitForTimeout(4000);
-        } else {
-          console.log(`  [DEBUG] No upload button found via selectors, trying JS click...`);
+        // Trigger the upload — call ajaxFileUpload() directly since button click may not invoke it
+        console.log(`  [DEBUG] Calling ajaxFileUpload() directly...`);
+        try {
           await page.evaluate(() => {
-            const btns = document.querySelectorAll("input[type='button'], input[type='submit'], button");
-            for (const btn of btns) {
-              if ((btn as HTMLInputElement).value?.includes("Upload") || btn.textContent?.includes("Upload")) {
-                (btn as HTMLInputElement).disabled = false;
-                (btn as HTMLElement).click();
-                break;
-              }
+            if (typeof (window as any).ajaxFileUpload === "function") {
+              (window as any).ajaxFileUpload();
+            } else {
+              // Fallback: click the button
+              const btn = document.querySelector('input[value*="Upload"]') as HTMLInputElement;
+              if (btn) btn.click();
             }
           });
-          await page.waitForTimeout(4000);
+        } catch (e: any) {
+          console.log(`  [DEBUG] ajaxFileUpload() call error: ${e.message}`);
+          // Fallback: try regular button click
+          const uploadBtn = await page.$('input[value*="Upload"]');
+          if (uploadBtn) await uploadBtn.click();
         }
+        console.log(`  [DEBUG] Upload triggered, waiting 5s for completion...`);
+        await page.waitForTimeout(5000);
 
         // Check page for any alerts or new elements after upload
         const afterUpload = await page.evaluate(() => {
