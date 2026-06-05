@@ -182,8 +182,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
         }
         return links.join(" | ");
       };
-      if (editIdFiles.length > 0) updated[12] = await doUpload(editIdFiles, updated[3] || "Guest", "id");
-      if (editVisaFiles.length > 0) updated[13] = await doUpload(editVisaFiles, updated[3] || "Guest", "visa");
+      if (editIdFiles.length > 0) updated[14] = await doUpload(editIdFiles, updated[3] || "Guest", "id");
+      if (editVisaFiles.length > 0) updated[15] = await doUpload(editVisaFiles, updated[3] || "Guest", "visa");
       const rowId = parseInt(rows[editIndex!][17] || "0", 10);
       const res = await apiCall({ action: "update", rowId, entry: updated, tab: currentTab });
       if (res.ok) { setEditIndex(null); refresh(); }
@@ -764,7 +764,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                   <>
                     {idLinks.length > 0 && (
                       <div className="flex flex-wrap gap-2">
-                        <span className="text-xs text-brand-green-dark/50">ID ({verifyPopup.row[11]}):</span>
+                        <span className="text-xs text-brand-green-dark/50">ID ({verifyPopup.row[13]}):</span>
                         {idLinks.map((url, i) => (
                           <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/[0.12]">
