@@ -142,6 +142,32 @@ async function navigateToFormC(page: Page) {
 
 async function clickTemporarySave(page: Page) {
   try {
+    // Wait for photo to be uploaded before saving
+    const hasPhoto = await page.evaluate(() => {
+      const pict = document.getElementById("pict");
+      return pict?.innerHTML?.includes("<img") || pict?.innerHTML?.includes("src=") || false;
+    });
+
+    if (!hasPhoto) {
+      console.log("\n  ⏳ Waiting for photo upload... (upload manually in the browser window)");
+      // Poll every 3 seconds for up to 2 minutes
+      for (let i = 0; i < 40; i++) {
+        await page.waitForTimeout(3000);
+        const photoNow = await page.evaluate(() => {
+          const pict = document.getElementById("pict");
+          return pict?.innerHTML?.includes("<img") || pict?.innerHTML?.includes("src=") || false;
+        });
+        if (photoNow) {
+          console.log("  ✓ Photo detected! Proceeding with save...");
+          break;
+        }
+        if (i % 5 === 4) console.log(`  ⏳ Still waiting for photo... (${(i + 1) * 3}s)`);
+      }
+    }
+
+    // Handle any alert dialogs during save
+    page.on("dialog", async (d) => { await d.accept(); });
+
     const saveBtn = await page.$('input[value*="Temporary"], button:has-text("Temporary Save")');
     if (saveBtn) {
       await saveBtn.click();
@@ -294,82 +320,11 @@ async function fillFormC(page: Page, d: any) {
         await page.waitForTimeout(2000);
         console.log(`  [DEBUG] File set on input, size=${finalPhoto.length}`);
 
-        // Step 2: Intercept the iframe POST and REPLACE its body with our real file data
-        const photoBase64 = finalPhoto.toString("base64");
-        let uploadSuccess = false;
-
-        const routeHandler = async (route: any) => {
-          const req = route.request();
-          if (req.method() === "POST" && req.url().includes("fupserv")) {
-            console.log(`  [DEBUG] Intercepting POST to: ${req.url()}`);
-            const url = req.url();
-            const urlParams = new URLSearchParams(url.split("?")[1] || "");
-            const t4g = urlParams.get("t4g") || "";
-
-            // Build multipart body with our photo (matching exactly what manual upload sends)
-            const boundary = "----WebKitFormBoundary" + Math.random().toString(36).slice(2, 15);
-            const photoBytes = Buffer.from(photoBase64, "base64");
-
-            const parts: Buffer[] = [];
-            // File part
-            parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="photo.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`));
-            parts.push(photoBytes);
-            parts.push(Buffer.from(`\r\n`));
-            // t4g part
-            if (t4g) {
-              parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="t4g"\r\n\r\n${t4g}\r\n`));
-            }
-            // End boundary
-            parts.push(Buffer.from(`--${boundary}--\r\n`));
-            const fullBody = Buffer.concat(parts);
-
-            try {
-              console.log(`  [DEBUG] Replacing POST body (${fullBody.length} bytes, boundary=${boundary})`);
-              await route.continue({
-                headers: {
-                  ...req.headers(),
-                  "content-type": `multipart/form-data; boundary=${boundary}`,
-                  "x-requested-with": "XMLHttpRequest",
-                  "content-length": String(fullBody.length),
-                },
-                postData: fullBody,
-              });
-              uploadSuccess = true; // We'll verify after via page state
-            } catch (e: any) {
-              console.log(`  [DEBUG] route.continue error: ${e.message}`);
-              await route.continue();
-            }
-          } else {
-            await route.continue();
-          }
-        };
-        await page.route("**/*", routeHandler);
-
-        // Step 3: Dismiss alerts and click Upload (POST will be intercepted and body replaced)
-        page.on("dialog", async (dialog) => {
-          console.log(`  [DEBUG] Alert: "${dialog.message().trim()}"`);
-          await dialog.accept();
-        });
-
-        console.log(`  [DEBUG] Clicking Upload File (POST will be intercepted)...`);
-        await page.click('input[value="Upload File"]');
-        await page.waitForTimeout(6000);
-
-        // Step 4: Remove interception
-        await page.unroute("**/*", routeHandler);
-
-        // Check if photo appeared on page (look for image in #pict or any new img)
-        const photoOnPage = await page.evaluate(() => {
-          const pict = document.getElementById("pict");
-          return pict?.innerHTML?.includes("<img") || pict?.innerHTML?.includes("src=") || false;
-        });
-        if (photoOnPage) {
-          console.log(`  ✓ Photo uploaded and visible (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
-        } else if (uploadSuccess) {
-          console.log(`  ✓ Photo upload request sent (${(finalPhoto.length / 1024).toFixed(1)}KB) — verify on page`);
-        } else {
-          console.log(`  ⚠ Photo upload failed — use 'Download Photo' button to upload manually`);
-        }
+        // Auto upload not possible (FRRO server validates session-level file dialog state).
+        // Open the photo file so admin can easily upload it manually.
+        console.log(`\n  ⚠ FRRO blocks programmatic photo uploads.`);
+        console.log(`  → Photo saved to: ${photoPath} (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+        console.log(`  → Upload it manually on the FRRO page, then form will auto-save.\n`);
       } else {
         console.log("  ✗ No file input found for photo upload");
       }
