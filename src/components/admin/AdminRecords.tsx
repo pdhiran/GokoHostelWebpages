@@ -145,7 +145,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
     setLoading(true);
     try {
       const row = rows[rowIndex];
-      const rowId = parseInt(row[15] || "0", 10);
+      const rowId = parseInt(row[17] || "0", 10);
       const driveFileIds: string[] = [];
       [row[12], row[13]].forEach((cell) => {
         if (cell) cell.split(" | ").forEach((url) => {
@@ -184,7 +184,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
       };
       if (editIdFiles.length > 0) updated[12] = await doUpload(editIdFiles, updated[3] || "Guest", "id");
       if (editVisaFiles.length > 0) updated[13] = await doUpload(editVisaFiles, updated[3] || "Guest", "visa");
-      const rowId = parseInt(rows[editIndex!][15] || "0", 10);
+      const rowId = parseInt(rows[editIndex!][17] || "0", 10);
       const res = await apiCall({ action: "update", rowId, entry: updated, tab: currentTab });
       if (res.ok) { setEditIndex(null); refresh(); }
     } finally { setLoading(false); }
@@ -265,7 +265,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
     if (!confirm("Re-activate this guest? They will appear in the 'unassigned beds' list.")) return;
     setLoading(true);
     try {
-      const checkinId = parseInt(rows[origIdx][15] || "0", 10);
+      const checkinId = parseInt(rows[origIdx][17] || "0", 10);
       const res = await apiCall({ action: "undoCheckout", checkinId });
       if (res.ok) refresh();
       else { const d = await res.json(); alert(d.error || "Failed"); }
@@ -275,7 +275,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const verifyManually = async (origIdx: number, verified: boolean) => {
     setVerifying(true);
     try {
-      const rowId = parseInt(rows[origIdx][15] || "0", 10);
+      const rowId = parseInt(rows[origIdx][17] || "0", 10);
       const res = await apiCall({ action: "verifyCheckin", rowId, verified });
       if (res.ok) { setVerifyPopup(null); refresh(); }
     } finally { setVerifying(false); }
@@ -303,14 +303,14 @@ export function AdminRecords({ password, username, role }: { password: string; u
         }
       }
       if (links.length > 0) {
-        const updated = Array(15).fill("").map((_, i) => rows[uploadPopup.origIdx][i] || "");
+        const updated = Array(17).fill("").map((_, i) => rows[uploadPopup.origIdx][i] || "");
         if (uploadPopup.type === "id") {
           updated[12] = links.join(" | ");
           if (uploadIdType) updated[11] = uploadIdType;
         } else {
           updated[13] = links.join(" | ");
         }
-        const rowId = parseInt(rows[uploadPopup.origIdx][15] || "0", 10);
+        const rowId = parseInt(rows[uploadPopup.origIdx][17] || "0", 10);
         const updateRes = await apiCall({ action: "update", rowId, entry: updated, tab: currentTab });
         if (!updateRes.ok) {
           const errData = await updateRes.json();
@@ -331,7 +331,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
     setFrroStatus("");
     setFormCEditing(false);
     try {
-      const rowId = parseInt(row[15] || "0", 10);
+      const rowId = parseInt(row[17] || "0", 10);
       const res = await apiCall({ action: "getFormCData", rowId });
       if (res.ok) {
         const d = await res.json();
@@ -724,7 +724,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                             <FileTextIcon className="h-3 w-3" /> Form C
                           </button>
                         )}
-                        {row[16] === "checked_out" && row[17] && (Date.now() - new Date(row[17]).getTime() < 24 * 60 * 60 * 1000) && (
+                        {row[18] === "checked_out" && row[19] && (Date.now() - new Date(row[19]).getTime() < 24 * 60 * 60 * 1000) && (
                           <button type="button" onClick={() => undoCheckout(origIdx)} className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-100">Reactivate</button>
                         )}
                         <button type="button" onClick={() => startEdit(origIdx)} className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-green/70 hover:bg-brand-green/[0.06]"><PencilIcon className="h-4 w-4" /></button>
@@ -885,7 +885,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                     if (!confirm("Re-read passport/visa images and extract data again?")) return;
                     setFormCLoading(true);
                     try {
-                      const rowId = parseInt(formCPopup.row[15] || "0", 10);
+                      const rowId = parseInt(formCPopup.row[17] || "0", 10);
                       const res = await apiCall({ action: "reExtractFormC", rowId });
                       if (res.ok) {
                         const d = await res.json();
@@ -1019,7 +1019,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                         nextDestination: formCEditData.nextDestination, nextDestState: formCEditData.nextDestState, nextDestCity: formCEditData.nextDestCity,
                         homeAddress: formCEditData.homeAddress, homeCity: formCEditData.homeCity, homeCountryPhone: formCEditData.homeCountryPhone,
                       };
-                      const rowId = parseInt(formCPopup.row[15] || "0", 10);
+                      const rowId = parseInt(formCPopup.row[17] || "0", 10);
                       const res = await apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
                       if (res.ok) {
                         setFormCPopup({ ...formCPopup, data: updatedData });
@@ -1130,7 +1130,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                     setFrroSubmitting(true);
                     setFrroStatus("Connecting to local server...");
                     try {
-                      const checkinId = formCPopup.row[15];
+                      const checkinId = formCPopup.row[17];
                       const secret = password;
                       const expiry = Date.now() + 60 * 60 * 1000;
                       const payload = `${checkinId}:${expiry}`;
@@ -1150,7 +1150,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                           setFrroStatus(appId);
                         } else {
                           setFrroStatus(`Success! Application ID: ${appId}`);
-                          const rowId = parseInt(formCPopup.row[15] || "0", 10);
+                          const rowId = parseInt(formCPopup.row[17] || "0", 10);
                           const updatedData = { ...formCPopup.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
                           await apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
                           setFormCPopup({ ...formCPopup, data: updatedData });
@@ -1169,7 +1169,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                                   setFrroStatus(appId);
                                 } else {
                                   setFrroStatus(`Success! Application ID: ${appId}`);
-                                  const rowId = parseInt(formCPopup!.row[15] || "0", 10);
+                                  const rowId = parseInt(formCPopup!.row[17] || "0", 10);
                                   const updatedData = { ...formCPopup!.data, frroApplicationId: appId, frroSubmittedAt: new Date().toISOString() };
                                   apiCall({ action: "updateFormCData", rowId, formCData: JSON.stringify(updatedData) });
                                   setFormCPopup({ ...formCPopup!, data: updatedData });
@@ -1192,7 +1192,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                 <button
                   type="button"
                   onClick={() => {
-                    const checkinId = formCPopup.row[15];
+                    const checkinId = formCPopup.row[17];
                     const secret = password;
                     const expiry = Date.now() + 60 * 60 * 1000;
                     const payload = `${checkinId}:${expiry}`;

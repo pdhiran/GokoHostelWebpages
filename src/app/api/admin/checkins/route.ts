@@ -111,6 +111,7 @@ export async function POST(req: NextRequest) {
         r.submittedAt, r.arrivalDate, r.arrivalTime, r.name, r.persons,
         r.contact, r.stayingDays, r.comingFrom, r.nationality, r.emergencyName,
         r.emergencyPhone, r.idType, r.idCardLink, r.visaLink, r.verified,
+        r.bookingPlatform || "", r.bookingId || "",
         String(r.id), r.status || "active", r.checkedOutAt || "",
       ]);
       const months = await getCheckinMonths();
