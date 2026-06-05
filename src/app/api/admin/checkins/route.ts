@@ -508,6 +508,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "checkoutGuest") {
+      const { checkinId, guestName: checkoutGuestName } = rest;
+      if (!isValidId(checkinId) || checkinId === 0) return NextResponse.json({ error: "Invalid check-in ID" }, { status: 400 });
+
+      const db = getDb();
+      const result = await db.update(checkins)
+        .set({ status: "checked_out", checkedOutAt: new Date().toISOString() })
+        .where(and(eq(checkins.id, checkinId), eq(checkins.status, "active")));
+
+      const changed = (result as any)?.rowsAffected ?? (result as any)?.changes ?? 1;
+      if (changed === 0) {
+        return NextResponse.json({ error: "Guest not found or already checked out" }, { status: 400 });
+      }
+
+      await addAuditEntry({ username: actingUser, action: "guest_checkout_direct", target: checkoutGuestName || `id:${checkinId}` });
+      addSystemLog({ level: "info", source: "admin-api", message: `Direct checkout: ${checkoutGuestName || "unknown"} (id:${checkinId}) by ${actingUser}` }).catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
     if (action === "markClean") {
       const { bedId } = rest;
       if (!isValidId(bedId)) return NextResponse.json({ error: "Invalid bed ID" }, { status: 400 });

@@ -145,6 +145,8 @@ export function AdminBeds({ password, username, role }: { password: string; user
   const [selectedDorm, setSelectedDorm] = useState<string | null>(null);
   const [assigningGuest, setAssigningGuest] = useState<string[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [checkoutConfirm, setCheckoutConfirm] = useState<string[] | null>(null);
+  const [checkingOut, setCheckingOut] = useState(false);
 
   useEffect(() => { loadBeds(); }, []);
 
@@ -159,6 +161,21 @@ export function AdminBeds({ password, username, role }: { password: string; user
         setUnassigned(data.unassigned || []);
       }
     } finally { setLoading(false); }
+  };
+
+  const checkoutGuestDirect = async (guest: string[]) => {
+    setCheckingOut(true);
+    try {
+      const checkinId = parseInt(guest[15] || "0", 10);
+      const res = await apiCall({ action: "checkoutGuest", checkinId, guestName: guest[3] || "" });
+      if (res.ok) {
+        setCheckoutConfirm(null);
+        await loadBeds();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || "Checkout failed");
+      }
+    } finally { setCheckingOut(false); }
   };
 
   const assignBed = async (bedIdx: number, guest: string[]) => {
@@ -286,12 +303,43 @@ export function AdminBeds({ password, username, role }: { password: string; user
                   <span className="font-medium text-brand-green-dark">{guest[3]}</span>
                   <span className="ml-2 text-xs text-brand-green-dark/50">{guest[6]} days · {guest[7]}</span>
                 </div>
-                <button type="button" onClick={() => { setChangingBed(null); setAssigningGuest(guest); }}
-                  className="rounded-md bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark">
-                  Assign bed
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setCheckoutConfirm(guest)}
+                    className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100">
+                    Checkout
+                  </button>
+                  <button type="button" onClick={() => { setChangingBed(null); setAssigningGuest(guest); }}
+                    className="rounded-md bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark">
+                    Assign bed
+                  </button>
+                </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Checkout confirmation popup */}
+      {checkoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="font-display text-lg font-bold text-brand-green-dark">Confirm Checkout</h3>
+            <p className="mt-2 text-sm text-brand-green-dark/80">
+              Are you sure you want to mark <strong>{checkoutConfirm[3]}</strong> as checked out?
+            </p>
+            <p className="mt-1 text-xs text-brand-green-dark/50">
+              This guest will be removed from the unassigned list. No bed assignment needed.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setCheckoutConfirm(null)} disabled={checkingOut}
+                className="rounded-lg border border-brand-mist px-4 py-2 text-sm font-medium text-brand-green-dark hover:bg-brand-sand/50">
+                No
+              </button>
+              <button type="button" onClick={() => checkoutGuestDirect(checkoutConfirm)} disabled={checkingOut}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+                {checkingOut ? "Processing..." : "Yes, Checkout"}
+              </button>
+            </div>
           </div>
         </div>
       )}
