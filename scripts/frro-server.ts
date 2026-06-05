@@ -372,84 +372,68 @@ async function fillFormC(page: Page, d: any) {
         const jpgAlertLine = fnSource.split("\n").filter((l: string) => l.includes("JPG") || l.includes("jpg") || l.includes("Choose"));
         console.log(`  [DEBUG] Lines with JPG/Choose in ajaxFileUpload:\n    ${jpgAlertLine.join("\n    ")}`);
 
-        // Override ajaxFileUpload with a direct FormData upload (iframe clone loses programmatic files)
-        console.log(`  [DEBUG] Monkey-patching ajaxFileUpload for direct upload...`);
-        await page.evaluate(() => {
-          const origFn = (window as any).ajaxFileUpload;
-          const fnStr = origFn?.toString() || "";
-          // Extract the upload URL from the original function
-          const urlMatch = fnStr.match(/url\s*:\s*["']([^"']+)/);
+        // Override the button's onclick AND the global function
+        console.log(`  [DEBUG] Patching upload button onclick + global ajaxFileUpload...`);
+        const uploadUrl = await page.evaluate(() => {
+          // Read the original function to extract the URL
+          const fnStr = (window as any).ajaxFileUpload?.toString() || "";
+          const urlMatch = fnStr.match(/url\s*:\s*['"]([^'"]+)/);
           const accoMatch = fnStr.match(/var\s+j\s*=\s*['"]([^'"]+)/);
-          const accoCode = accoMatch?.[1] || "OVN9";
-
-          (window as any).ajaxFileUpload = function() {
-            const fileInput = document.getElementById("file1") as HTMLInputElement;
-            if (!fileInput?.files?.length) {
-              alert("Please Choose a JPG file");
-              return;
-            }
-            const file = fileInput.files[0];
-            const formData = new FormData();
-            formData.append("file1", file, file.name);
-            formData.append("accocod", accoCode);
-
-            // Determine upload URL
-            let uploadUrl = urlMatch?.[1] || "";
-            if (!uploadUrl) {
-              // Try common FRRO upload endpoints
-              const base = window.location.href.replace(/\/[^/]*$/, "/");
-              uploadUrl = base + "ajaxUpldImg.jsp";
-            }
-            // Replace placeholders in URL
-            uploadUrl = uploadUrl.replace(/'\s*\+\s*j\s*\+\s*'/g, accoCode);
-            if (!uploadUrl.startsWith("http")) {
-              const base = window.location.href.replace(/\/[^/]*$/, "/");
-              uploadUrl = base + uploadUrl;
-            }
-            const ts = new Date().getTime();
-            uploadUrl += (uploadUrl.includes("?") ? "&" : "?") + "nocache=" + ts;
-
-            console.log("[FRRO-patch] Uploading to:", uploadUrl);
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", uploadUrl, true);
-            xhr.withCredentials = true;
-            xhr.onreadystatechange = function() {
-              if (xhr.readyState === 4) {
-                console.log("[FRRO-patch] Response:", xhr.status, xhr.responseText?.slice(0, 200));
-                const pict = document.getElementById("pict");
-                if (xhr.status === 200 && pict) {
-                  if (xhr.responseText.includes("<img") || xhr.responseText.includes("src=")) {
-                    pict.innerHTML = xhr.responseText;
-                  } else {
-                    pict.innerHTML = '<span style="color:green;font-size:11px">Photo uploaded ✓</span>';
-                  }
-                  alert("Photo successfully uploaded\n");
-                } else {
-                  alert("Please Choose a JPG file\n");
-                }
-                (window as any).lock = 0;
-              }
-            };
-            xhr.send(formData);
-          };
+          const accoCode = accoMatch?.[1] || "";
+          let url = urlMatch?.[1] || "";
+          // Replace j variable placeholder if present
+          if (url.includes("'+j+'")) url = url.replace("'+j+'", accoCode);
+          if (url.includes("' + j + '")) url = url.replace("' + j + '", accoCode);
+          // Store for debugging
+          (window as any).__frroUploadUrl = url;
+          (window as any).__frroAccoCode = accoCode;
+          return { url, accoCode, fnLength: fnStr.length };
         });
+        console.log(`  [DEBUG] Extracted URL: "${uploadUrl.url}", accoCode: "${uploadUrl.accoCode}", fn length: ${uploadUrl.fnLength}`);
 
-        // Now click Upload File — it will call our patched function
-        console.log(`  [DEBUG] Clicking Upload File (patched)...`);
+        // Do the upload ourselves directly via page.evaluate
+        console.log(`  [DEBUG] Uploading directly via XHR...`);
         alertMessages = [];
-        await page.click('input[value="Upload File"]');
-        await page.waitForTimeout(6000);
+        const directResult = await page.evaluate(async () => {
+          const fileInput = document.getElementById("file1") as HTMLInputElement;
+          const filesCount = fileInput?.files?.length || 0;
+          if (!filesCount) return { error: "No files in input", filesCount };
 
-        const uploaded = alertMessages.some(m => m.includes("successfully"));
-        if (uploaded) {
-          console.log(`  ✓ Photo uploaded successfully (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+          const file = fileInput.files![0];
+          const formData = new FormData();
+          formData.append("file1", file, file.name);
+
+          const accoCode = (window as any).__frroAccoCode || "";
+          let url = (window as any).__frroUploadUrl || "";
+          if (!url) {
+            // Last resort: try the generateRandom.jsp we saw in network tab
+            url = "generateRandom.jsp";
+          }
+          if (!url.startsWith("http")) {
+            const base = window.location.href.replace(/\/[^/]*$/, "/");
+            url = base + url;
+          }
+          const ts = new Date().getTime();
+          const finalUrl = url + (url.includes("?") ? "&" : "?") + "nocache=" + ts;
+
+          try {
+            const resp = await fetch(finalUrl, { method: "POST", body: formData, credentials: "include" });
+            const text = await resp.text();
+            const pict = document.getElementById("pict");
+            if (resp.ok && pict) {
+              pict.innerHTML = text || '<span style="color:green">Photo uploaded</span>';
+            }
+            return { ok: resp.ok, status: resp.status, url: finalUrl, response: text.slice(0, 300), filesCount };
+          } catch (e: any) {
+            return { error: e.message, url: finalUrl, filesCount };
+          }
+        });
+        console.log(`  [DEBUG] Direct XHR result: ${JSON.stringify(directResult)}`);
+
+        if (directResult.ok) {
+          console.log(`  ✓ Photo uploaded (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
         } else {
-          console.log(`  ⚠ Photo upload alerts: ${JSON.stringify(alertMessages)}`);
-          // Log what URL was tried
-          const consoleLogs = await page.evaluate(() => {
-            return (window as any).__frroUploadLog || "";
-          });
-          console.log(`  [DEBUG] Console: ${consoleLogs}`);
+          console.log(`  ⚠ Photo direct upload failed — admin must click Upload manually`);
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
