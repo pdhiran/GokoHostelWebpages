@@ -243,22 +243,37 @@ async function fillFormC(page: Page, d: any) {
 
     if (photoBuffer) {
       const sharp = (await import("sharp")).default;
-      let finalPhoto = await sharp(photoBuffer)
-        .resize(300, 400, { fit: "cover" })
-        .jpeg({ quality: 60 })
+      const MAX_SIZE = 49000; // FRRO strictly requires < 50KB
+      let finalPhoto: Buffer;
+
+      // Progressive reduction until under 49KB
+      const attempts = [
+        { width: 300, height: 400, quality: 55 },
+        { width: 250, height: 333, quality: 45 },
+        { width: 200, height: 267, quality: 40 },
+        { width: 180, height: 240, quality: 35 },
+        { width: 150, height: 200, quality: 30 },
+        { width: 120, height: 160, quality: 25 },
+        { width: 100, height: 133, quality: 20 },
+      ];
+
+      finalPhoto = await sharp(photoBuffer)
+        .resize(attempts[0].width, attempts[0].height, { fit: "cover" })
+        .jpeg({ quality: attempts[0].quality })
         .toBuffer();
-      if (finalPhoto.length > 50000) {
+
+      for (let i = 1; i < attempts.length && finalPhoto.length > MAX_SIZE; i++) {
         finalPhoto = await sharp(photoBuffer)
-          .resize(200, 267, { fit: "cover" })
-          .jpeg({ quality: 40 })
+          .resize(attempts[i].width, attempts[i].height, { fit: "cover" })
+          .jpeg({ quality: attempts[i].quality })
           .toBuffer();
       }
-      if (finalPhoto.length > 50000) {
-        finalPhoto = await sharp(photoBuffer)
-          .resize(150, 200, { fit: "cover" })
-          .jpeg({ quality: 30 })
-          .toBuffer();
+
+      if (finalPhoto.length > MAX_SIZE) {
+        console.log(`  ⚠ Photo still ${(finalPhoto.length / 1024).toFixed(1)}KB after max compression — FRRO may reject`);
       }
+
+      console.log(`  Photo compressed to ${(finalPhoto.length / 1024).toFixed(1)}KB`);
       const photoPath = "/tmp/frropassportphoto.jpg";
       fs.writeFileSync(photoPath, finalPhoto);
 
