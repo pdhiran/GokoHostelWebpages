@@ -1239,6 +1239,44 @@ export function AdminRecords({ password, username, role }: { password: string; u
               {frroStatus && (
                 <p className={cn("text-center text-xs font-medium", frroStatus.includes("Success") ? "text-emerald-600" : frroStatus.includes("Failed") || frroStatus.includes("not running") ? "text-red-600" : "text-amber-600")}>{frroStatus}</p>
               )}
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const checkinId = formCPopup.row[17];
+                    const secret = password;
+                    const expiry = Date.now() + 60 * 60 * 1000;
+                    const payload = `${checkinId}:${expiry}`;
+                    const hash = btoa(payload + ":" + secret).replace(/=/g, "");
+                    const token = `${btoa(payload).replace(/=/g, "")}.${hash}`;
+                    const res = await fetch(`/api/form-c/${checkinId}?token=${token}`);
+                    if (!res.ok) { alert("Failed to fetch photo"); return; }
+                    const data = await res.json();
+                    if (!data.passportPhotoBase64) { alert("No photo available for this guest"); return; }
+                    const img = new Image();
+                    img.onload = () => {
+                      const canvas = document.createElement("canvas");
+                      canvas.width = 300; canvas.height = 400;
+                      const ctx = canvas.getContext("2d")!;
+                      ctx.drawImage(img, 0, 0, 300, 400);
+                      let quality = 0.85;
+                      let dataUrl = canvas.toDataURL("image/jpeg", quality);
+                      while (dataUrl.length * 0.75 > 48000 && quality > 0.2) {
+                        quality -= 0.05;
+                        dataUrl = canvas.toDataURL("image/jpeg", quality);
+                      }
+                      const a = document.createElement("a");
+                      a.href = dataUrl;
+                      a.download = "photo.jpg";
+                      a.click();
+                    };
+                    img.src = "data:image/jpeg;base64," + data.passportPhotoBase64;
+                  } catch (e: any) { alert("Error: " + e.message); }
+                }}
+                className="w-full rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-200"
+              >
+                Download Photo for FRRO Upload (under 48KB)
+              </button>
               <div className="flex items-center justify-center gap-3 text-[10px] text-brand-green-dark/50">
                 <span>Mobile: paste script in browser console on FRRO page</span>
                 <span>·</span>
