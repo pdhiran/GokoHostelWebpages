@@ -243,18 +243,21 @@ async function fillFormC(page: Page, d: any) {
 
     if (photoBuffer) {
       const sharp = (await import("sharp")).default;
-      const MAX_SIZE = 49000; // FRRO strictly requires < 50KB
+      const TARGET_MIN = 40000; // Aim for 40-48KB (good quality but under FRRO's 50KB limit)
+      const TARGET_MAX = 48000;
       let finalPhoto: Buffer;
 
-      // Progressive reduction until under 49KB
+      // Start with high quality and reduce only if over 48KB
       const attempts = [
-        { width: 300, height: 400, quality: 55 },
-        { width: 250, height: 333, quality: 45 },
-        { width: 200, height: 267, quality: 40 },
-        { width: 180, height: 240, quality: 35 },
-        { width: 150, height: 200, quality: 30 },
-        { width: 120, height: 160, quality: 25 },
-        { width: 100, height: 133, quality: 20 },
+        { width: 400, height: 500, quality: 90 },
+        { width: 350, height: 450, quality: 85 },
+        { width: 300, height: 400, quality: 80 },
+        { width: 300, height: 400, quality: 70 },
+        { width: 280, height: 370, quality: 65 },
+        { width: 250, height: 333, quality: 60 },
+        { width: 230, height: 307, quality: 55 },
+        { width: 200, height: 267, quality: 50 },
+        { width: 180, height: 240, quality: 45 },
       ];
 
       finalPhoto = await sharp(photoBuffer)
@@ -262,15 +265,22 @@ async function fillFormC(page: Page, d: any) {
         .jpeg({ quality: attempts[0].quality })
         .toBuffer();
 
-      for (let i = 1; i < attempts.length && finalPhoto.length > MAX_SIZE; i++) {
+      for (let i = 1; i < attempts.length && finalPhoto.length > TARGET_MAX; i++) {
         finalPhoto = await sharp(photoBuffer)
           .resize(attempts[i].width, attempts[i].height, { fit: "cover" })
           .jpeg({ quality: attempts[i].quality })
           .toBuffer();
       }
 
-      if (finalPhoto.length > MAX_SIZE) {
-        console.log(`  ⚠ Photo still ${(finalPhoto.length / 1024).toFixed(1)}KB after max compression — FRRO may reject`);
+      // If still too small (source image was tiny), try upscaling with high quality
+      if (finalPhoto.length < TARGET_MIN) {
+        const upscaled = await sharp(photoBuffer)
+          .resize(400, 500, { fit: "cover", withoutEnlargement: false })
+          .jpeg({ quality: 95 })
+          .toBuffer();
+        if (upscaled.length <= TARGET_MAX) {
+          finalPhoto = upscaled;
+        }
       }
 
       console.log(`  Photo compressed to ${(finalPhoto.length / 1024).toFixed(1)}KB`);
@@ -305,8 +315,8 @@ async function fillFormC(page: Page, d: any) {
       const fileInput = await page.$('input[type="file"][name*="photo"], input[type="file"][name*="Photo"], input[type="file"][accept*="image"]');
       const fallbackInput = fileInput || await page.$('input[type="file"]');
       if (fallbackInput) {
-        // Write photo to disk
-        const photoPath = "/tmp/photo.JPG";
+        // Write photo to disk (use .jpg lowercase — FRRO validates extension)
+        const photoPath = "/tmp/photo.jpg";
         fs.writeFileSync(photoPath, finalPhoto);
 
         // Use file chooser API for a "trusted" file selection (required for iframe-based uploads)
