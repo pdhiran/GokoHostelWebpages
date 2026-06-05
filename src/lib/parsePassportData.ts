@@ -31,22 +31,44 @@ export type FormCExtractedData = {
 };
 
 const COUNTRY_CODES: Record<string, string> = {
-  D: "GERMANY", DEU: "GERMANY", DEUTSCH: "GERMANY", DEUTSCHE: "GERMANY",
-  GBR: "UNITED KINGDOM", GB: "UNITED KINGDOM", BRITISH: "UNITED KINGDOM",
-  USA: "UNITED STATES", US: "UNITED STATES", FRA: "FRANCE", F: "FRANCE",
-  ITA: "ITALY", I: "ITALY", ESP: "SPAIN", E: "SPAIN", NLD: "NETHERLANDS",
-  NL: "NETHERLANDS", BEL: "BELGIUM", AUT: "AUSTRIA", CHE: "SWITZERLAND",
-  CH: "SWITZERLAND", SWE: "SWEDEN", NOR: "NORWAY", DNK: "DENMARK",
-  FIN: "FINLAND", PRT: "PORTUGAL", IRL: "IRELAND", POL: "POLAND",
-  CZE: "CZECH REPUBLIC", ROU: "ROMANIA", HUN: "HUNGARY", GRC: "GREECE",
-  AUS: "AUSTRALIA", NZL: "NEW ZEALAND", CAN: "CANADA", JPN: "JAPAN",
-  KOR: "SOUTH KOREA", CHN: "CHINA", IND: "INDIA", BRA: "BRAZIL",
-  MEX: "MEXICO", ARG: "ARGENTINA", ZAF: "SOUTH AFRICA", RUS: "RUSSIA",
-  TUR: "TURKEY", ISR: "ISRAEL", THA: "THAILAND", MYS: "MALAYSIA",
-  SGP: "SINGAPORE", IDN: "INDONESIA", PHL: "PHILIPPINES", VNM: "VIETNAM",
-  COL: "COLOMBIA", PER: "PERU", CHL: "CHILE", ARE: "UNITED ARAB EMIRATES",
-  SAU: "SAUDI ARABIA", EGY: "EGYPT", NPL: "NEPAL", LKA: "SRI LANKA",
-  BGD: "BANGLADESH", PAK: "PAKISTAN", UKR: "UKRAINE", ISL: "ICELAND",
+  // ISO alpha-3 and common MRZ codes
+  D: "GERMANY", DEU: "GERMANY", DEUTSCH: "GERMANY", DEUTSCHE: "GERMANY", ALLEMAGNE: "GERMANY", DUITSLAND: "GERMANY", ALEMANIA: "GERMANY", GERMANIA: "GERMANY",
+  GBR: "UNITED KINGDOM", GB: "UNITED KINGDOM", BRITISH: "UNITED KINGDOM", BRITANNIQUE: "UNITED KINGDOM",
+  USA: "UNITED STATES", US: "UNITED STATES", AMERICAN: "UNITED STATES", AMÉRICAIN: "UNITED STATES",
+  FRA: "FRANCE", F: "FRANCE", FRANÇAIS: "FRANCE", FRANÇAISE: "FRANCE", FRENCH: "FRANCE", FRANCIA: "FRANCE", FRANKRIJK: "FRANCE",
+  ITA: "ITALY", I: "ITALY", ITALIEN: "ITALY", ITALIENNE: "ITALY", ITALIANA: "ITALY", ITALIANO: "ITALY", ITALIE: "ITALY",
+  ESP: "SPAIN", E: "SPAIN", ESPAGNE: "SPAIN", SPANJE: "SPAIN", ESPAÑOLA: "SPAIN", SPANIEN: "SPAIN",
+  NLD: "NETHERLANDS", NL: "NETHERLANDS", NÉERLANDAIS: "NETHERLANDS", NÉERLANDAISE: "NETHERLANDS", NEDERLANDS: "NETHERLANDS", NIEDERLÄNDISCH: "NETHERLANDS", HOLLANDAIS: "NETHERLANDS", PAYS: "NETHERLANDS",
+  BEL: "BELGIUM", BELGIQUE: "BELGIUM", BELGE: "BELGIUM", BELGISCH: "BELGIUM", BELGIEN: "BELGIUM", BÉLGICA: "BELGIUM",
+  AUT: "AUSTRIA", ÖSTERREICH: "AUSTRIA", AUTRICHIEN: "AUSTRIA", AUTRICHE: "AUSTRIA", OOSTENRIJK: "AUSTRIA",
+  CHE: "SWITZERLAND", CH: "SWITZERLAND", SUISSE: "SWITZERLAND", SCHWEIZ: "SWITZERLAND", SVIZZERA: "SWITZERLAND", ZWITSERLAND: "SWITZERLAND",
+  SWE: "SWEDEN", SUÈDE: "SWEDEN", SCHWEDEN: "SWEDEN", ZWEDEN: "SWEDEN", SUECIA: "SWEDEN",
+  NOR: "NORWAY", NORVÈGE: "NORWAY", NORWEGEN: "NORWAY", NOORWEGEN: "NORWAY", NORUEGA: "NORWAY",
+  DNK: "DENMARK", DANEMARK: "DENMARK", DÄNEMARK: "DENMARK", DENEMARKEN: "DENMARK", DINAMARCA: "DENMARK",
+  FIN: "FINLAND", FINLANDE: "FINLAND", FINNLAND: "FINLAND",
+  PRT: "PORTUGAL", PORTUGAIS: "PORTUGAL", PORTUGUESA: "PORTUGAL",
+  IRL: "IRELAND", IRLANDE: "IRELAND", IRLAND: "IRELAND", IERLAND: "IRELAND", IRLANDA: "IRELAND",
+  POL: "POLAND", POLOGNE: "POLAND", POLEN: "POLAND", POLSKA: "POLAND", POLONIA: "POLAND",
+  CZE: "CZECH REPUBLIC", TCHÈQUE: "CZECH REPUBLIC", TSCHECHIEN: "CZECH REPUBLIC",
+  ROU: "ROMANIA", ROUMANIE: "ROMANIA", RUMÄNIEN: "ROMANIA",
+  HUN: "HUNGARY", HONGRIE: "HUNGARY", UNGARN: "HUNGARY", HONGARIJE: "HUNGARY",
+  GRC: "GREECE", GRÈCE: "GREECE", GRIECHENLAND: "GREECE", GRIEKENLAND: "GREECE", GRECIA: "GREECE",
+  AUS: "AUSTRALIA", NZL: "NEW ZEALAND", CAN: "CANADA", JPN: "JAPAN", JAPON: "JAPAN",
+  KOR: "SOUTH KOREA", CHN: "CHINA", CHINE: "CHINA", IND: "INDIA", INDE: "INDIA", INDIEN: "INDIA",
+  BRA: "BRAZIL", BRÉSIL: "BRAZIL", BRASILIEN: "BRAZIL", BRASILE: "BRAZIL", BRASIL: "BRAZIL",
+  MEX: "MEXICO", MEXIQUE: "MEXICO", MEXIKO: "MEXICO", ARG: "ARGENTINA", ARGENTINE: "ARGENTINA",
+  ZAF: "SOUTH AFRICA", RUS: "RUSSIA", RUSSIE: "RUSSIA", RUSSLAND: "RUSSIA",
+  TUR: "TURKEY", TURQUIE: "TURKEY", TÜRKEI: "TURKEY", TURKIJE: "TURKEY",
+  ISR: "ISRAEL", ISRAËL: "ISRAEL", ISRAELISCH: "ISRAEL", ISRAÉLIEN: "ISRAEL",
+  THA: "THAILAND", THAÏLANDE: "THAILAND", MYS: "MALAYSIA", MALAISIE: "MALAYSIA",
+  SGP: "SINGAPORE", SINGAPOUR: "SINGAPORE", IDN: "INDONESIA", INDONÉSIE: "INDONESIA",
+  PHL: "PHILIPPINES", VNM: "VIETNAM", COL: "COLOMBIA", COLOMBIE: "COLOMBIA",
+  PER: "PERU", PÉROU: "PERU", CHL: "CHILE", CHILI: "CHILE",
+  ARE: "UNITED ARAB EMIRATES", SAU: "SAUDI ARABIA", EGY: "EGYPT", ÉGYPTE: "EGYPT", ÄGYPTEN: "EGYPT",
+  NPL: "NEPAL", NÉPAL: "NEPAL", LKA: "SRI LANKA",
+  BGD: "BANGLADESH", PAK: "PAKISTAN", UKR: "UKRAINE", ISL: "ICELAND", ISLANDE: "ICELAND",
+  LTU: "LITHUANIA", LVA: "LATVIA", EST: "ESTONIA", SVK: "SLOVAKIA", SVN: "SLOVENIA",
+  HRV: "CROATIA", SRB: "SERBIA", BGR: "BULGARIA", CYP: "CYPRUS", MLT: "MALTA", LUX: "LUXEMBOURG",
 };
 
 function resolveCountryCode(code: string): string {
@@ -127,31 +149,70 @@ function matchDate(text: string, ...prefixes: string[]): string | undefined {
 function parsePassportFromFreeText(text: string): Partial<PassportData> {
   const result: Partial<PassportData> = {};
 
-  const passportNoMatch = text.match(/(?:passport\s*(?:no|number|#)|pass[\s-]*n[or][\s.:]*|no[.:]\s*)[\s:]*([A-Z0-9]{6,12})/i);
+  // Passport number — multilingual labels
+  const passportNoMatch = text.match(/(?:passport\s*(?:no|number|#)|pass[\s-]*n[or][\s.:]*|no[.:]\s*|passeport\s*n|paspoort\s*n|pasaporte\s*n|passaporto\s*n|מספר\s*דרכון)[\s:]*([A-Z0-9]{6,12})/i);
   if (passportNoMatch) result.passportNumber = passportNoMatch[1];
 
-  const nameMatch = text.match(/(?:given\s*names?|first\s*names?|vorname[n]?)[\s:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  // Given name — EN, DE, FR, NL, ES, IT, PT, HE
+  const nameMatch = text.match(/(?:given\s*names?|first\s*names?|vorname[n]?|pr[ée]nom[s]?|voornamen?|nombre[s]?|nome|שם פרטי)[\s:]*([A-Za-zÀ-ÿ\s]+?)(?:\n|$)/i);
   if (nameMatch) result.givenName = nameMatch[1].trim();
 
-  const surnameMatch = text.match(/(?:surname|family\s*name|last\s*name|name)[\s/:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  // Surname — EN, DE, FR, NL, ES, IT, PT, HE
+  const surnameMatch = text.match(/(?:surname|family\s*name|last\s*name|nom|naam|achternaam|apellido[s]?|cognome|sobrenome|שם משפחה)[\s/:]*([A-Za-zÀ-ÿ\s]+?)(?:\n|$)/i);
   if (surnameMatch) result.surname = surnameMatch[1].trim();
 
-  const sexMatch = text.match(/(?:sex|gender|geschlecht)[\s/:]*([MF]|Male|Female)/i);
-  if (sexMatch) result.sex = sexMatch[1].length === 1 ? (sexMatch[1] === "M" ? "Male" : "Female") : sexMatch[1];
+  // Sex — EN, DE, FR, NL, ES, IT, PT, HE
+  const sexMatch = text.match(/(?:sex|gender|geschlecht|sexe|geslacht|sexo|sesso|מין)[\s/:]*([MFmf]|Male|Female|Masculin|F[ée]minin|Mannelijk|Vrouwelijk|Masculino|Feminino|Maschile|Femminile)/i);
+  if (sexMatch) {
+    const v = sexMatch[1].toUpperCase();
+    if (v === "M" || v.startsWith("MA")) result.sex = "Male";
+    else if (v === "F" || v.startsWith("FE") || v.startsWith("FÉ") || v.startsWith("VR")) result.sex = "Female";
+  }
 
-  const dob = matchDate(text, "date\\s*of\\s*birth", "d\\.?o\\.?b\\.?", "born", "geburtsdatum", "geburtst");
+  // Date of Birth — EN, DE, FR, NL, ES, IT, PT, HE
+  const dob = matchDate(text,
+    "date\\s*of\\s*birth", "d\\.?o\\.?b\\.?", "born",
+    "geburtsdatum", "geburtst",
+    "date\\s*de\\s*naissance", "n[ée]\\s*le",
+    "geboortedatum",
+    "fecha\\s*de\\s*nacimiento",
+    "data\\s*di\\s*nascita", "data\\s*de\\s*nascimento",
+    "תאריך\\s*לידה"
+  );
   if (dob) result.dateOfBirth = dob;
 
-  const expiry = matchDate(text, "expiry", "valid\\s*(?:till|until|thru)", "date\\s*of\\s*expiry", "gültig\\s*bis");
+  // Expiry / Valid till — EN, DE, FR, NL, ES, IT, PT, HE
+  const expiry = matchDate(text,
+    "expiry", "valid\\s*(?:till|until|thru)", "date\\s*of\\s*expiry",
+    "gültig\\s*bis", "ablaufdatum",
+    "date\\s*d[''']expiration", "valable\\s*jusqu",
+    "geldig\\s*tot", "vervaldatum",
+    "fecha\\s*de\\s*(?:expiraci[oó]n|caducidad|vencimiento)",
+    "data\\s*di\\s*scadenza", "scadenza",
+    "data\\s*de\\s*validade",
+    "תוקף\\s*עד", "בתוקף\\s*עד"
+  );
   if (expiry) result.expiryDate = expiry;
 
-  const issue = matchDate(text, "date\\s*of\\s*issue", "issued", "ausstellungsdatum");
+  // Date of Issue — EN, DE, FR, NL, ES, IT, PT, HE
+  const issue = matchDate(text,
+    "date\\s*of\\s*issue", "issued",
+    "ausstellungsdatum", "ausgestellt",
+    "date\\s*de\\s*d[ée]livrance", "d[ée]livr[ée]\\s*le",
+    "datum\\s*van\\s*(?:afgifte|uitgifte)", "afgegeven",
+    "fecha\\s*de\\s*expedici[oó]n",
+    "data\\s*di\\s*rilascio", "rilasciato",
+    "data\\s*de\\s*emiss[aã]o",
+    "תאריך\\s*הנפקה"
+  );
   if (issue) result.dateOfIssue = issue;
 
-  const placeMatch = text.match(/(?:place\s*of\s*issue|authority|behörde)[\s/:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  // Place of Issue / Authority — EN, DE, FR, NL, ES, IT, PT, HE
+  const placeMatch = text.match(/(?:place\s*of\s*issue|authority|issuing\s*authority|behörde|ausstellungsbeh[oö]rde|autorit[ée]|lieu\s*de\s*d[ée]livrance|afgegeven\s*door|autoriteit|lugar\s*de\s*expedici[oó]n|autorit[àa]\s*di\s*rilascio|luogo\s*di\s*rilascio|local\s*de\s*emiss[aã]o|רשות\s*מנפיקה)[\s/:]*([A-Za-zÀ-ÿ\s\-]+?)(?:\n|$)/i);
   if (placeMatch) result.placeOfIssue = placeMatch[1].trim();
 
-  const nationalityMatch = text.match(/(?:nationality|citizen|staatsangehörigkeit)[\s/:]*([A-Za-z\s]+?)(?:\n|$)/i);
+  // Nationality — EN, DE, FR, NL, ES, IT, PT, HE
+  const nationalityMatch = text.match(/(?:nationality|citizen|staatsangeh[öo]rigkeit|nationalit[ée]|nationaliteit|nacionalidad|cittadinanza|nacionalidade|אזרחות|לאום)[\s/:]*([A-Za-zÀ-ÿ\s]+?)(?:\n|$)/i);
   if (nationalityMatch) {
     const raw = nationalityMatch[1].trim();
     result.nationality = resolveCountryCode(raw) || raw;
