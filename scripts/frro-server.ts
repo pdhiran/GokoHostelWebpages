@@ -267,12 +267,27 @@ async function fillFormC(page: Page, d: any) {
       const fallbackInput = fileInput || await page.$('input[type="file"]');
       if (fallbackInput) {
         await fallbackInput.setInputFiles(photoPath);
-        await page.waitForTimeout(500);
-        // Click upload button if present
-        const uploadBtn = await page.$('input[value*="Upload"], input[value*="upload"], button:has-text("Upload"), input[type="button"][value*="Upload"]');
+        await page.waitForTimeout(2000);
+        // Click "Upload File" button
+        const uploadBtn = await page.$('input[value*="Upload"]')
+          || await page.$('button:has-text("Upload")')
+          || await page.$('input[type="button"][onclick*="upload"]')
+          || await page.$('input[type="submit"][value*="Upload"]');
         if (uploadBtn) {
           await uploadBtn.click();
-          await page.waitForTimeout(3000);
+          await page.waitForTimeout(4000);
+        } else {
+          // Try clicking by evaluating JS (FRRO button might be dynamically enabled)
+          await page.evaluate(() => {
+            const btns = document.querySelectorAll("input[type='button'], input[type='submit'], button");
+            for (const btn of btns) {
+              if ((btn as HTMLInputElement).value?.includes("Upload") || btn.textContent?.includes("Upload")) {
+                (btn as HTMLElement).click();
+                break;
+              }
+            }
+          });
+          await page.waitForTimeout(4000);
         }
         console.log(`  ✓ Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
       } else {
