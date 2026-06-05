@@ -135,15 +135,36 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
   };
 }
 
-const DATE_PATTERN = /(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4}|\d{1,2}\s+[A-Z]{3}\s+\d{4})/i;
+// Matches: DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY, DD MM YYYY, D/M/YY,
+// DD MON YYYY, DD MON/MON YYYY (bilingual), DD MONTH YYYY
+const DATE_PATTERN = /(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4}|\d{1,2}\s+[A-Z]{3,9}(?:\/[A-Z]{3,9})?\s+\d{4})/i;
 
 function matchDate(text: string, ...prefixes: string[]): string | undefined {
   for (const prefix of prefixes) {
-    // Allow up to 100 chars between the label and the date value
-    // (EU passports have multilingual labels like "Date of issue / Date de délivrance / Ausstellungsdatum\n22.09.2022")
-    const regex = new RegExp(`${prefix}[^\\d]{0,100}?${DATE_PATTERN.source}`, "i");
+    // Allow up to 120 non-digit chars between the label and the date value
+    // (EU passports: "Date of issue / Date de délivrance / Ausstellungsdatum\n22.09.2022")
+    const regex = new RegExp(`${prefix}[^\\d]{0,120}?${DATE_PATTERN.source}`, "i");
     const m = text.match(regex);
     if (m) return m[1];
+  }
+  return undefined;
+}
+
+// Try to find a date on the line FOLLOWING a label line (for EU passports where label and value are on separate lines)
+function matchDateNextLine(text: string, ...labelPatterns: string[]): string | undefined {
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length - 1; i++) {
+    const line = lines[i];
+    for (const pattern of labelPatterns) {
+      if (new RegExp(pattern, "i").test(line)) {
+        // Check the next 1-2 lines for a date
+        for (let j = 1; j <= 2 && i + j < lines.length; j++) {
+          const nextLine = lines[i + j].trim();
+          const dateMatch = nextLine.match(DATE_PATTERN);
+          if (dateMatch) return dateMatch[1];
+        }
+      }
+    }
   }
   return undefined;
 }
@@ -197,7 +218,7 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
   if (expiry) result.expiryDate = expiry;
 
   // Date of Issue — EN, DE, FR, NL, ES, IT, PT, HE
-  const issue = matchDate(text,
+  const issuePrefixes = [
     "date\\s*of\\s*issue", "issued",
     "ausstellungsdatum", "ausgestellt",
     "date\\s*de\\s*d[ée]livrance", "d[ée]livr[ée]\\s*le",
@@ -206,8 +227,15 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
     "data\\s*di\\s*rilascio", "rilasciato",
     "data\\s*de\\s*emiss[aã]o",
     "תאריך\\s*הנפקה"
-  );
-  if (issue) result.dateOfIssue = issue;
+  ];
+  const issue = matchDate(text, ...issuePrefixes);
+  if (issue) {
+    result.dateOfIssue = issue;
+  } else {
+    // Fallback: look for date on the line after the label line
+    const issueNextLine = matchDateNextLine(text, ...issuePrefixes);
+    if (issueNextLine) result.dateOfIssue = issueNextLine;
+  }
 
   // Place of Issue / Authority — EU passports have multilingual labels on one line, value on next
   // e.g. "Authority / Autorité / Behörde\nStadt Regensburg" or "Authority Autorité Behörde\nStadt Regensburg"
@@ -252,8 +280,8 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
 export function parseVisaFromText(text: string): Partial<VisaData> {
   const result: Partial<VisaData> = {};
 
-  // Visa number: look for alphanumeric code after "Visa No" (skip if it matches common label words)
-  const visaNoMatch = text.match(/visa\s*no[.:]*[\s]*([A-Z0-9][A-Z0-9\-]{3,19})/i);
+  // Visa number: various formats
+  const visaNoMatch = text.match(/(?:visa\s*no|visa\s*number|no\s*de\s*visa|visum\s*(?:nr|nummer))[\s.:]*([A-Z0-9][A-Z0-9\-]{3,19})/i);
   if (visaNoMatch) {
     const candidate = visaNoMatch[1].trim();
     const skipWords = ["issue", "date", "type", "place", "valid", "from", "entry", "entries"];
@@ -261,29 +289,87 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
       result.visaNumber = candidate;
     }
   }
+  if (!result.visaNumber) {
+    // Fallback: look for standalone alphanumeric code near "visa" keyword (Indian e-Visa format)
+    const altMatch = text.match(/visa[^A-Z0-9]{0,30}?([A-Z0-9]{6,20})/i);
+    if (altMatch) {
+      const candidate = altMatch[1];
+      if (!/^(type|date|issue|valid|place|from|entry)/i.test(candidate)) {
+        result.visaNumber = candidate;
+      }
+    }
+  }
 
-  const typeMatch = text.match(/visa\s*type[.:]*[\s]*([A-Za-z\s\-]+?)(?:\n|$)/i);
+  // Type of Visa — look for explicit label first, then detect common types
+  const typeMatch = text.match(/(?:visa\s*type|type\s*of\s*visa|type\s*de\s*visa|visa\s*categor|categor[iy])[\s.:]*([A-Za-z\s\-]+?)(?:\n|$)/i);
   if (typeMatch) {
     const t = typeMatch[1].trim();
     if (t.length < 30) result.type = t;
   }
-
-  const issueDate = matchDate(text, "issue\\s*date", "date\\s*of\\s*issue");
-  if (issueDate) result.dateOfIssue = issueDate;
-
-  const expiryDate = matchDate(text, "expiry\\s*date", "valid\\s*(?:till|until|thru)", "expiry\\s*[.:]");
-  if (expiryDate) {
-    // Sanity check: if parsed year < current year, likely OCR error — still store but note
-    result.validTill = expiryDate;
+  if (!result.type) {
+    // Detect common visa types directly from text (Indian e-Visa, sticker visas)
+    const typePatterns = [
+      { pattern: /e[\s-]*tourist\s*visa/i, value: "Tourist" },
+      { pattern: /tourist\s*visa/i, value: "Tourist" },
+      { pattern: /e[\s-]*business\s*visa/i, value: "Business" },
+      { pattern: /business\s*visa/i, value: "Business" },
+      { pattern: /e[\s-]*medical\s*visa/i, value: "Medical" },
+      { pattern: /medical\s*visa/i, value: "Medical" },
+      { pattern: /e[\s-]*conference\s*visa/i, value: "Conference" },
+      { pattern: /student\s*visa/i, value: "Student" },
+      { pattern: /employment\s*visa/i, value: "Employment" },
+      { pattern: /research\s*visa/i, value: "Research" },
+      { pattern: /transit\s*visa/i, value: "Transit" },
+      { pattern: /journalist\s*visa/i, value: "Journalist" },
+      { pattern: /entry\s*visa/i, value: "Entry" },
+    ];
+    for (const { pattern, value } of typePatterns) {
+      if (pattern.test(text)) { result.type = value; break; }
+    }
   }
 
-  // Place: look for airport/city names near bottom of visa stamp
-  const placeMatch = text.match(/(?:airport|port)[,.\s]*([A-Za-z\s]+?)(?:\n|$)/i);
+  // Date of Issue
+  const visaIssuePrefixes = [
+    "issue\\s*date", "date\\s*of\\s*issue", "issued\\s*on", "issued",
+    "date\\s*de\\s*d[ée]livrance", "datum\\s*van\\s*afgifte",
+    "fecha\\s*de\\s*expedici[oó]n"
+  ];
+  const issueDate = matchDate(text, ...visaIssuePrefixes);
+  if (issueDate) {
+    result.dateOfIssue = issueDate;
+  } else {
+    const issueDateNextLine = matchDateNextLine(text, ...visaIssuePrefixes);
+    if (issueDateNextLine) result.dateOfIssue = issueDateNextLine;
+  }
+
+  // Valid Till / Expiry
+  const visaExpiryPrefixes = [
+    "expiry\\s*date", "valid\\s*(?:till|until|thru|upto|up\\s*to)",
+    "date\\s*of\\s*expiry", "expires?\\s*on",
+    "date\\s*d[''']expiration", "geldig\\s*tot"
+  ];
+  const expiryDate = matchDate(text, ...visaExpiryPrefixes);
+  if (expiryDate) {
+    result.validTill = expiryDate;
+  } else {
+    const expiryNextLine = matchDateNextLine(text, ...visaExpiryPrefixes);
+    if (expiryNextLine) result.validTill = expiryNextLine;
+  }
+
+  // Place of Issue — Indian cities (common visa issuance locations)
+  const placeMatch = text.match(/(?:place\s*of\s*issue|issued\s*at|port\s*of\s*arrival|airport)[\s.:]*([A-Za-z\s]+?)(?:\n|$)/i);
   if (placeMatch) {
     result.placeOfIssue = placeMatch[1].trim().replace(/\s+/g, " ");
-  } else {
-    const cityMatch = text.match(/(?:NEW\s*DELHI|MUMBAI|CHENNAI|KOLKATA|HYDERABAD|BANGALORE|COCHIN|GOA|DELHI)/i);
-    if (cityMatch) result.placeOfIssue = cityMatch[0].toUpperCase();
+  }
+  if (!result.placeOfIssue) {
+    // Look for known Indian cities in the text
+    const indianCities = ["NEW DELHI", "MUMBAI", "CHENNAI", "KOLKATA", "HYDERABAD", "BANGALORE", "BENGALURU", "COCHIN", "KOCHI", "GOA", "DELHI", "AHMEDABAD", "PUNE", "JAIPUR", "LUCKNOW", "CHANDIGARH", "TRIVANDRUM", "THIRUVANANTHAPURAM"];
+    for (const city of indianCities) {
+      if (text.toUpperCase().includes(city)) {
+        result.placeOfIssue = city;
+        break;
+      }
+    }
   }
 
   return result;
