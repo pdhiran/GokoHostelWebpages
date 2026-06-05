@@ -315,48 +315,85 @@ async function fillFormC(page: Page, d: any) {
       const fileInput = await page.$('input[type="file"][name*="photo"], input[type="file"][name*="Photo"], input[type="file"][accept*="image"]');
       const fallbackInput = fileInput || await page.$('input[type="file"]');
       if (fallbackInput) {
-        // Write photo to disk (use .jpg lowercase — FRRO validates extension)
+        // Write photo to disk
         const photoPath = "/tmp/photo.jpg";
         fs.writeFileSync(photoPath, finalPhoto);
 
-        // Use file chooser API for a "trusted" file selection (required for iframe-based uploads)
-        let alertMessage = "";
+        let alertMessages: string[] = [];
         page.on("dialog", async (dialog) => {
-          alertMessage = dialog.message();
-          console.log(`  [DEBUG] ALERT: "${alertMessage.trim()}"`);
+          const msg = dialog.message().trim();
+          alertMessages.push(msg);
+          console.log(`  [DEBUG] ALERT: "${msg}"`);
           await dialog.accept();
         });
 
-        console.log(`  Selecting photo via file chooser (${(finalPhoto.length / 1024).toFixed(1)}KB)...`);
-        const [fileChooser] = await Promise.all([
-          page.waitForEvent("filechooser"),
-          fallbackInput.click(),
-        ]);
-        await fileChooser.setFiles(photoPath);
+        // Method 1: File chooser API (trusted selection)
+        console.log(`  [DEBUG] Method 1: File chooser API...`);
+        try {
+          const [fileChooser] = await Promise.all([
+            page.waitForEvent("filechooser", { timeout: 5000 }),
+            fallbackInput.click(),
+          ]);
+          await fileChooser.setFiles(photoPath);
+          console.log(`  [DEBUG] File chooser set, checking input value...`);
+          await page.waitForTimeout(500);
+
+          const fileState = await page.evaluate(() => {
+            const inp = document.getElementById("file1") as HTMLInputElement;
+            return { value: inp?.value, filesLen: inp?.files?.length, name: inp?.files?.[0]?.name, size: inp?.files?.[0]?.size };
+          });
+          console.log(`  [DEBUG] After file chooser: ${JSON.stringify(fileState)}`);
+        } catch (e: any) {
+          console.log(`  [DEBUG] File chooser failed: ${e.message}`);
+          // Fallback: setInputFiles directly
+          await fallbackInput.setInputFiles(photoPath);
+          console.log(`  [DEBUG] Used setInputFiles fallback`);
+        }
+
         await page.waitForTimeout(1000);
 
+        // Check what ajaxFileUpload will see when it reads the file
+        const preUploadCheck = await page.evaluate(() => {
+          const inp = document.getElementById("file1") as HTMLInputElement;
+          const val = inp?.value || "";
+          const formVal = (document as any).OnlineForm?.file1?.value || "";
+          // Check what the validation in ajaxFileUpload would do
+          const ext3 = val.substring(val.length - 3).toLowerCase();
+          const ext4 = val.substring(val.length - 4).toLowerCase();
+          return { inputValue: val, formValue: formVal, ext3, ext4, isEmpty: val === "" };
+        });
+        console.log(`  [DEBUG] Pre-upload validation state: ${JSON.stringify(preUploadCheck)}`);
+
+        // Read the FULL ajaxFileUpload source to understand the "Please Choose a JPG file" check
+        const fnSource = await page.evaluate(() => {
+          return (window as any).ajaxFileUpload?.toString() || "not found";
+        });
+        // Find the line that triggers the JPG alert
+        const jpgAlertLine = fnSource.split("\n").filter((l: string) => l.includes("JPG") || l.includes("jpg") || l.includes("Choose"));
+        console.log(`  [DEBUG] Lines with JPG/Choose in ajaxFileUpload:\n    ${jpgAlertLine.join("\n    ")}`);
+
         // Click Upload File button
-        console.log(`  Clicking Upload File...`);
+        console.log(`  [DEBUG] Clicking Upload File...`);
+        alertMessages = [];
         await page.click('input[value="Upload File"]');
         await page.waitForTimeout(5000);
 
-        if (alertMessage.includes("successfully")) {
+        const uploaded = alertMessages.some(m => m.includes("successfully"));
+        if (uploaded) {
           console.log(`  ✓ Photo uploaded successfully (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
-        } else if (alertMessage.includes("JPG") || alertMessage.includes("special")) {
-          console.log(`  ⚠ Photo upload warning: "${alertMessage.trim()}" — retrying...`);
-          // May need a second click after dismissing alert
-          try {
-            const [fc2] = await Promise.all([
-              page.waitForEvent("filechooser", { timeout: 3000 }),
-              fallbackInput.click(),
-            ]);
-            await fc2.setFiles(photoPath);
-            await page.waitForTimeout(1000);
-            await page.click('input[value="Upload File"]');
-            await page.waitForTimeout(5000);
-          } catch {}
         } else {
-          console.log(`  ⚠ Photo upload status unclear: "${alertMessage.trim()}"`);
+          console.log(`  ⚠ Photo upload failed. Alerts: ${JSON.stringify(alertMessages)}`);
+          // Try alternative: reset lock and call again
+          console.log(`  [DEBUG] Resetting lock and retrying...`);
+          await page.evaluate(() => { (window as any).lock = 0; });
+          await page.click('input[value="Upload File"]');
+          await page.waitForTimeout(5000);
+          const uploaded2 = alertMessages.some(m => m.includes("successfully"));
+          if (uploaded2) {
+            console.log(`  ✓ Photo uploaded on retry (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+          } else {
+            console.log(`  ✗ Photo upload failed after retry. All alerts: ${JSON.stringify(alertMessages)}`);
+          }
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
