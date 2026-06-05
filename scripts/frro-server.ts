@@ -307,12 +307,31 @@ async function fillFormC(page: Page, d: any) {
       if (fallbackInput) {
         const inputName = await fallbackInput.getAttribute("name") || "unknown";
         console.log(`  [DEBUG] Using file input: name="${inputName}"`);
-        await fallbackInput.setInputFiles({
-          name: "photo.JPG",
-          mimeType: "image/jpeg",
-          buffer: finalPhoto,
+
+        // Verify the buffer is valid JPEG (magic bytes: FF D8 FF)
+        const isValidJpeg = finalPhoto[0] === 0xFF && finalPhoto[1] === 0xD8 && finalPhoto[2] === 0xFF;
+        console.log(`  [DEBUG] JPEG magic bytes: ${finalPhoto[0].toString(16)} ${finalPhoto[1].toString(16)} ${finalPhoto[2].toString(16)} — valid=${isValidJpeg}`);
+        console.log(`  [DEBUG] File size: ${finalPhoto.length} bytes (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+
+        // Write to disk and use file path (more compatible with old JSP upload)
+        const photoPath = "/tmp/photo.JPG";
+        fs.writeFileSync(photoPath, finalPhoto);
+        await fallbackInput.setInputFiles(photoPath);
+
+        // Check what the file input value looks like to the page
+        const inputValue = await page.evaluate(() => {
+          const inp = document.getElementById("file1") as HTMLInputElement;
+          return { value: inp?.value || "", filesLength: inp?.files?.length || 0, fileName: inp?.files?.[0]?.name || "", fileType: inp?.files?.[0]?.type || "", fileSize: inp?.files?.[0]?.size || 0 };
         });
-        console.log(`  [DEBUG] setInputFiles done (buffer mode, name=photo.jpg, mime=image/jpeg), waiting 2s...`);
+        console.log(`  [DEBUG] File input state: ${JSON.stringify(inputValue)}`);
+
+        // Read the ajaxFileUpload function to see what it checks
+        const uploadFnSource = await page.evaluate(() => {
+          return typeof (window as any).ajaxFileUpload === "function" ? (window as any).ajaxFileUpload.toString().slice(0, 500) : "not found";
+        });
+        console.log(`  [DEBUG] ajaxFileUpload source (first 500 chars): ${uploadFnSource}`);
+
+        console.log(`  [DEBUG] setInputFiles done, waiting 2s...`);
         await page.waitForTimeout(2000);
 
         // Check if button is now enabled
