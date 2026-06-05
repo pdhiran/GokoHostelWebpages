@@ -139,7 +139,9 @@ const DATE_PATTERN = /(\d{1,2}[\s/.-]\d{1,2}[\s/.-]\d{2,4}|\d{1,2}\s+[A-Z]{3}\s+
 
 function matchDate(text: string, ...prefixes: string[]): string | undefined {
   for (const prefix of prefixes) {
-    const regex = new RegExp(`${prefix}[\\s:]*${DATE_PATTERN.source}`, "i");
+    // Allow up to 100 chars between the label and the date value
+    // (EU passports have multilingual labels like "Date of issue / Date de délivrance / Ausstellungsdatum\n22.09.2022")
+    const regex = new RegExp(`${prefix}[^\\d]{0,100}?${DATE_PATTERN.source}`, "i");
     const m = text.match(regex);
     if (m) return m[1];
   }
@@ -207,9 +209,35 @@ function parsePassportFromFreeText(text: string): Partial<PassportData> {
   );
   if (issue) result.dateOfIssue = issue;
 
-  // Place of Issue / Authority — EN, DE, FR, NL, ES, IT, PT, HE
-  const placeMatch = text.match(/(?:place\s*of\s*issue|authority|issuing\s*authority|behörde|ausstellungsbeh[oö]rde|autorit[ée]|lieu\s*de\s*d[ée]livrance|afgegeven\s*door|autoriteit|lugar\s*de\s*expedici[oó]n|autorit[àa]\s*di\s*rilascio|luogo\s*di\s*rilascio|local\s*de\s*emiss[aã]o|רשות\s*מנפיקה)[\s/:]*([A-Za-zÀ-ÿ\s\-]+?)(?:\n|$)/i);
-  if (placeMatch) result.placeOfIssue = placeMatch[1].trim();
+  // Place of Issue / Authority — EU passports have multilingual labels on one line, value on next
+  // e.g. "Authority / Autorité / Behörde\nStadt Regensburg" or "Authority Autorité Behörde\nStadt Regensburg"
+  const placeLabels = "(?:place\\s*of\\s*issue|authority|issuing\\s*authority|beh[oö]rde|ausstellungsbeh[oö]rde|autorit[ée]|lieu\\s*de\\s*d[ée]livrance|afgegeven\\s*door|autoriteit|lugar\\s*de\\s*expedici[oó]n|autorit[àa]\\s*di\\s*rilascio|luogo\\s*di\\s*rilascio|local\\s*de\\s*emiss[aã]o|רשות\\s*מנפיקה)";
+  // Match the label line (possibly with multiple language labels), then capture the value on the next line
+  const placeNewlineMatch = text.match(new RegExp(`${placeLabels}[^\\n]*\\n\\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\\s\\-\\.]+?)(?:\\n|$)`, "i"));
+  if (placeNewlineMatch) {
+    const val = placeNewlineMatch[1].trim();
+    // Skip if the captured value is just another label
+    const labelWords = ["date", "valid", "expiry", "passport", "pass", "name", "given", "sex", "code", "type"];
+    if (!labelWords.some((w) => val.toLowerCase().startsWith(w)) && val.length > 1) {
+      result.placeOfIssue = val;
+    }
+  }
+  if (!result.placeOfIssue) {
+    // Fallback: look for common patterns like "Stadt XXX", "Ville de XXX", "Gemeente XXX"
+    const cityPrefixMatch = text.match(/(?:stadt|ville\s*de|gemeente|ciudad\s*de|citt[àa]\s*di|cidade\s*de)\s+([A-Za-zÀ-ÿ\s\-]+?)(?:\n|$)/i);
+    if (cityPrefixMatch) result.placeOfIssue = cityPrefixMatch[0].trim();
+    else {
+      // Original fallback
+      const simplePlaceMatch = text.match(/(?:place\s*of\s*issue|authority|beh[oö]rde)[\s/:]*([A-Za-zÀ-ÿ\s\-]+?)(?:\n|$)/i);
+      if (simplePlaceMatch) {
+        const val = simplePlaceMatch[1].trim();
+        const skipWords = ["autorit", "behörd", "lieu", "autoriteit", "lugar", "place", "date", "délivr"];
+        if (!skipWords.some((w) => val.toLowerCase().startsWith(w)) && val.length > 2) {
+          result.placeOfIssue = val;
+        }
+      }
+    }
+  }
 
   // Nationality — EN, DE, FR, NL, ES, IT, PT, HE
   const nationalityMatch = text.match(/(?:nationality|citizen|staatsangeh[öo]rigkeit|nationalit[ée]|nationaliteit|nacionalidad|cittadinanza|nacionalidade|אזרחות|לאום)[\s/:]*([A-Za-zÀ-ÿ\s]+?)(?:\n|$)/i);
