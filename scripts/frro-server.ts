@@ -321,26 +321,35 @@ async function fillFormC(page: Page, d: any) {
         });
         console.log(`  [DEBUG] Upload button state after file select: ${JSON.stringify(btnState)}`);
 
-        // Trigger the upload — call ajaxFileUpload() directly since button click may not invoke it
-        console.log(`  [DEBUG] Calling ajaxFileUpload() directly...`);
+        // Listen for alerts/dialogs before triggering upload
+        let alertMessage = "";
+        page.on("dialog", async (dialog) => {
+          alertMessage = dialog.message();
+          console.log(`  [DEBUG] ALERT captured: "${alertMessage}"`);
+          await dialog.accept();
+        });
+
+        // Trigger the upload
+        console.log(`  [DEBUG] Clicking Upload File button...`);
         try {
+          await page.click('input[value="Upload File"]');
+        } catch {
+          // Fallback: call ajaxFileUpload() directly
+          console.log(`  [DEBUG] Click failed, calling ajaxFileUpload() directly...`);
           await page.evaluate(() => {
             if (typeof (window as any).ajaxFileUpload === "function") {
               (window as any).ajaxFileUpload();
             } else {
-              // Fallback: click the button
               const btn = document.querySelector('input[value*="Upload"]') as HTMLInputElement;
               if (btn) btn.click();
             }
           });
-        } catch (e: any) {
-          console.log(`  [DEBUG] ajaxFileUpload() call error: ${e.message}`);
-          // Fallback: try regular button click
-          const uploadBtn = await page.$('input[value*="Upload"]');
-          if (uploadBtn) await uploadBtn.click();
         }
         console.log(`  [DEBUG] Upload triggered, waiting 5s for completion...`);
         await page.waitForTimeout(5000);
+        if (alertMessage) {
+          console.log(`  [DEBUG] Alert during upload: "${alertMessage}"`);
+        }
 
         // Check page for any alerts or new elements after upload
         const afterUpload = await page.evaluate(() => {
