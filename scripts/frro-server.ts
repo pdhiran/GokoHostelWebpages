@@ -274,8 +274,6 @@ async function fillFormC(page: Page, d: any) {
       }
 
       console.log(`  Photo compressed to ${(finalPhoto.length / 1024).toFixed(1)}KB`);
-      const photoPath = "/tmp/photo.jpg";
-      fs.writeFileSync(photoPath, finalPhoto);
 
       // FRRO has a file input for photo — find it and upload
       // DEBUG: enumerate all file inputs and buttons on the page
@@ -309,8 +307,12 @@ async function fillFormC(page: Page, d: any) {
       if (fallbackInput) {
         const inputName = await fallbackInput.getAttribute("name") || "unknown";
         console.log(`  [DEBUG] Using file input: name="${inputName}"`);
-        await fallbackInput.setInputFiles(photoPath);
-        console.log(`  [DEBUG] setInputFiles done, waiting 2s...`);
+        await fallbackInput.setInputFiles({
+          name: "photo.jpg",
+          mimeType: "image/jpeg",
+          buffer: finalPhoto,
+        });
+        console.log(`  [DEBUG] setInputFiles done (buffer mode, name=photo.jpg, mime=image/jpeg), waiting 2s...`);
         await page.waitForTimeout(2000);
 
         // Check if button is now enabled
