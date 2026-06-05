@@ -289,7 +289,16 @@ async function fillFormC(page: Page, d: any) {
           });
           await page.waitForTimeout(4000);
         }
-        console.log(`  ✓ Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+        // Verify upload succeeded (check for image preview or success indicator)
+        const photoVisible = await page.$('img[src*="photo"], img[src*="Photo"], img[alt*="photo"], img[alt*="Photo"]');
+        const uploadError = await page.textContent("body").then(t => t?.includes("upload") && t?.includes("error") || t?.includes("failed"));
+        if (photoVisible) {
+          console.log(`  ✓ Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB) — confirmed visible`);
+        } else if (uploadError) {
+          console.log(`  ⚠ Photo upload may have failed — error detected on page`);
+        } else {
+          console.log(`  ✓ Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+        }
       } else {
         console.log("  ✗ No file input found for photo upload");
       }
@@ -500,6 +509,22 @@ async function fillFormC(page: Page, d: any) {
   await fillDateField("applicant_visadoissue", visa.dateOfIssue || "");
   await fillDateField("applicant_visavalidtill", visa.validTill || "");
   await fillSelect("applicant_visatype", visa.type || "Tourist");
+  await page.waitForTimeout(500);
+  // Visa Sub Type — required field on FRRO. For e-Visas: "e-VISA", otherwise try first available option
+  const visaSubType = d.visaSubType || (visa.type?.toLowerCase().includes("tourist") ? "e-VISA" : "");
+  if (visaSubType) {
+    await fillSelect("applicant_visasubtype", visaSubType);
+  } else {
+    // Select first non-empty option as fallback
+    await page.evaluate(() => {
+      const sel = document.querySelector('select[name="applicant_visasubtype"]') as HTMLSelectElement;
+      if (sel && sel.options.length > 1) {
+        sel.selectedIndex = 1;
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    console.log(`  ✓ applicant_visasubtype = first available option (fallback)`);
+  }
 
   // Arrival
   const arrCountry = d.arrivedFromCountry || "";
