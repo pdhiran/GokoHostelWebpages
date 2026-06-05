@@ -123,7 +123,11 @@ export function parsePassportMRZ(ocrText: string): Partial<PassportData> {
   const freeTextExtras = parsePassportFromFreeText(ocrText);
 
   let dateOfIssue = freeTextExtras.dateOfIssue;
-  // Fallback: find date of issue by elimination (remove known DOB and expiry from all dates found)
+  // If the free-text parser captured a date that matches the MRZ expiry, discard it —
+  // German passports interleave issue/expiry labels so the wrong date can be grabbed.
+  if (dateOfIssue && normalizeDate(dateOfIssue) === normalizeDate(expiry)) {
+    dateOfIssue = undefined;
+  }
   if (!dateOfIssue) {
     dateOfIssue = findDateOfIssueByElimination(ocrText, dob, expiry);
   }
@@ -195,11 +199,23 @@ function normalizeDate(d: string): string {
     const yr = numMatch[3].length === 2 ? (parseInt(numMatch[3]) > 50 ? `19${numMatch[3]}` : `20${numMatch[3]}`) : numMatch[3];
     return `${numMatch[1].padStart(2, "0")}/${numMatch[2].padStart(2, "0")}/${yr}`;
   }
-  // DD MON YYYY
-  const monthMap: Record<string, string> = { JAN: "01", FEB: "02", MAR: "03", APR: "04", MAY: "05", JUN: "06", JUL: "07", AUG: "08", SEP: "09", OCT: "10", NOV: "11", DEC: "12" };
-  const textMatch = d.match(/^(\d{1,2})\s+([A-Z]{3,9})(?:\/[A-Z]{3,9})?\s+(\d{4})$/i);
+  // DD MON YYYY (supports EN, FR, DE, NL, ES, IT, PT month abbreviations)
+  const monthMap: Record<string, string> = {
+    JAN: "01", FEB: "02", MAR: "03", APR: "04", MAY: "05", JUN: "06",
+    JUL: "07", AUG: "08", SEP: "09", OCT: "10", NOV: "11", DEC: "12",
+    // French
+    JANV: "01", FEVR: "02", FÉV: "02", MARS: "03", AVR: "04", AVRI: "04",
+    MAI: "05", JUIN: "06", JUIL: "07", AOÛT: "08", AOUT: "08", SEPT: "09",
+    // German
+    MÄR: "03", MARZ: "03", MRZ: "03", DEZ: "12", OKT: "10",
+    // Dutch
+    MEI: "05", MRT: "03", // Spanish/Italian/Portuguese
+    ENE: "01", ABR: "04", AGO: "08", SET: "09", DIC: "12", GEN: "01", LUG: "07", OTT: "10",
+  };
+  const textMatch = d.match(/^(\d{1,2})\s+([A-ZÀ-ÿ]{3,9})(?:\/[A-ZÀ-ÿ]{3,9})?\s+(\d{4})$/i);
   if (textMatch) {
-    const mm = monthMap[textMatch[2].toUpperCase().slice(0, 3)];
+    const key = textMatch[2].toUpperCase().replace(/[ÉÈ]/g, "E").replace(/[Ü]/g, "U").replace(/[Ä]/g, "A").slice(0, 4);
+    const mm = monthMap[key] || monthMap[key.slice(0, 3)];
     if (mm) return `${textMatch[1].padStart(2, "0")}/${mm}/${textMatch[3]}`;
   }
   return d;
@@ -376,7 +392,7 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
       { pattern: /research/i, value: "Research" },
       { pattern: /transit/i, value: "Transit" },
       { pattern: /journalist/i, value: "Journalist" },
-      { pattern: /entry/i, value: "Entry" },
+      { pattern: /entry\s*visa/i, value: "Entry" },
     ];
     for (const { pattern, value } of typePatterns) {
       if (pattern.test(text)) { result.type = value; break; }
@@ -426,19 +442,19 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
     }
   }
 
-  // Place of Issue — Indian cities (common visa issuance locations)
-  const placeMatch = text.match(/(?:place\s*of\s*issue|issued\s*at|port\s*of\s*arrival|airport)[\s.:]*([A-Za-z\s]+?)(?:\n|$)/i);
-  if (placeMatch) {
-    result.placeOfIssue = placeMatch[1].trim().replace(/\s+/g, " ");
+  // Place of Issue — prefer a known city name found in the text (resilient to OCR noise),
+  // then fall back to regex-based extraction.
+  const indianCities = ["NEW DELHI", "MUMBAI", "CHENNAI", "KOLKATA", "HYDERABAD", "BANGALORE", "BENGALURU", "COCHIN", "KOCHI", "GOA", "DELHI", "AHMEDABAD", "PUNE", "JAIPUR", "LUCKNOW", "CHANDIGARH", "TRIVANDRUM", "THIRUVANANTHAPURAM"];
+  for (const city of indianCities) {
+    if (text.toUpperCase().includes(city)) {
+      result.placeOfIssue = city;
+      break;
+    }
   }
   if (!result.placeOfIssue) {
-    // Look for known Indian cities in the text
-    const indianCities = ["NEW DELHI", "MUMBAI", "CHENNAI", "KOLKATA", "HYDERABAD", "BANGALORE", "BENGALURU", "COCHIN", "KOCHI", "GOA", "DELHI", "AHMEDABAD", "PUNE", "JAIPUR", "LUCKNOW", "CHANDIGARH", "TRIVANDRUM", "THIRUVANANTHAPURAM"];
-    for (const city of indianCities) {
-      if (text.toUpperCase().includes(city)) {
-        result.placeOfIssue = city;
-        break;
-      }
+    const placeMatch = text.match(/(?:place\s*of\s*issue|issued\s*at|port\s*of\s*arrival|airport)[\s.:]*([A-Za-z\s]+?)(?:\n|$)/i);
+    if (placeMatch) {
+      result.placeOfIssue = placeMatch[1].trim().replace(/\s+/g, " ");
     }
   }
 
