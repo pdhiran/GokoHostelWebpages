@@ -334,6 +334,9 @@ export function SelfCheckinForm() {
 
   const nationality = watch("nationality");
   const bookingPlatform = watch("bookingPlatform");
+  const bookingId = watch("bookingId");
+  const numberOfPersons = watch("numberOfPersons");
+  const stayingDays = watch("stayingDays");
   const needsBookingId = bookingPlatform && bookingPlatform !== "Offline booking" && bookingPlatform !== "Walk-in";
 
   const handlePhoneLookup = async () => {
@@ -395,6 +398,7 @@ export function SelfCheckinForm() {
         setReturnGuest(null);
         setPrevIdCardLink("");
         setPrevVisaLink("");
+        setValue("contactNumber", cleaned);
       }
       setStep("form");
     } catch {
@@ -408,6 +412,10 @@ export function SelfCheckinForm() {
     setReturnGuest(null);
     setPrevIdCardLink("");
     setPrevVisaLink("");
+    const cleaned = phoneInput.replace(/[\s\-]/g, "");
+    if (cleaned.length >= 7) {
+      setValue("contactNumber", cleaned);
+    }
     setStep("form");
   };
 
@@ -845,7 +853,7 @@ export function SelfCheckinForm() {
               className={cn(
                 "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring",
                 errors.bookingPlatform && "border-red-400",
-                returnGuest && "border-amber-400 ring-2 ring-amber-100"
+                returnGuest && !bookingPlatform && "border-amber-400 ring-2 ring-amber-100"
               )}
             >
               <option value="">Select platform...</option>
@@ -853,7 +861,7 @@ export function SelfCheckinForm() {
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
-            {returnGuest && !errors.bookingPlatform && (
+            {returnGuest && !bookingPlatform && !errors.bookingPlatform && (
               <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
             )}
             {errors.bookingPlatform && (
@@ -869,10 +877,10 @@ export function SelfCheckinForm() {
                 {...register("bookingId")}
                 className={cn(
                   errors.bookingId && "border-red-400",
-                  returnGuest && "border-amber-400 ring-2 ring-amber-100"
+                  returnGuest && !bookingId && "border-amber-400 ring-2 ring-amber-100"
                 )}
               />
-              {returnGuest && !errors.bookingId && (
+              {returnGuest && !bookingId && !errors.bookingId && (
                 <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
               )}
               {errors.bookingId && (
@@ -909,10 +917,10 @@ export function SelfCheckinForm() {
               {...register("numberOfPersons")}
               className={cn(
                 errors.numberOfPersons && "border-red-400",
-                returnGuest && "border-amber-400 ring-2 ring-amber-100"
+                returnGuest && !numberOfPersons && "border-amber-400 ring-2 ring-amber-100"
               )}
             />
-            {returnGuest && !errors.numberOfPersons && (
+            {returnGuest && !numberOfPersons && !errors.numberOfPersons && (
               <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
             )}
             {errors.numberOfPersons && (
@@ -931,10 +939,10 @@ export function SelfCheckinForm() {
               {...register("stayingDays")}
               className={cn(
                 errors.stayingDays && "border-red-400",
-                returnGuest && "border-amber-400 ring-2 ring-amber-100"
+                returnGuest && !stayingDays && "border-amber-400 ring-2 ring-amber-100"
               )}
             />
-            {returnGuest && !errors.stayingDays && (
+            {returnGuest && !stayingDays && !errors.stayingDays && (
               <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
             )}
             {errors.stayingDays && (
