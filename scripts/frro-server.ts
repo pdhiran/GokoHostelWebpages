@@ -274,7 +274,7 @@ async function fillFormC(page: Page, d: any) {
       }
 
       console.log(`  Photo compressed to ${(finalPhoto.length / 1024).toFixed(1)}KB`);
-      const photoPath = "/tmp/frropassportphoto.jpg";
+      const photoPath = "/tmp/photo.jpg";
       fs.writeFileSync(photoPath, finalPhoto);
 
       // FRRO has a file input for photo — find it and upload
