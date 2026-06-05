@@ -308,7 +308,7 @@ async function fillFormC(page: Page, d: any) {
         const inputName = await fallbackInput.getAttribute("name") || "unknown";
         console.log(`  [DEBUG] Using file input: name="${inputName}"`);
         await fallbackInput.setInputFiles({
-          name: "photo.jpg",
+          name: "photo.JPG",
           mimeType: "image/jpeg",
           buffer: finalPhoto,
         });
