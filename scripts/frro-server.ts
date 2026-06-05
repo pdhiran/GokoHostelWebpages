@@ -340,6 +340,7 @@ async function fillFormC(page: Page, d: any) {
         }
 
         // Step 6: Replay the upload with actual file data via fetch
+        // Server expects: field name "file" (not "file1"), t4g in form data, X-Requested-With header
         if (capturedUploadUrl) {
           console.log(`  [DEBUG] Replaying upload to: ${capturedUploadUrl}`);
           const uploadResult = await page.evaluate(async (args: { base64: string; url: string }) => {
@@ -348,15 +349,27 @@ async function fillFormC(page: Page, d: any) {
               const bytes = new Uint8Array(bin.length);
               for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
               const file = new File([bytes], "photo.jpg", { type: "image/jpeg" });
+
+              // Extract t4g from the URL
+              const urlParams = new URLSearchParams(args.url.split("?")[1] || "");
+              const t4g = urlParams.get("t4g") || "";
+
               const fd = new FormData();
-              fd.append("file1", file, "photo.jpg");
-              const res = await fetch(args.url, { method: "POST", body: fd, credentials: "include" });
+              fd.append("file", file, "photo.jpg");
+              if (t4g) fd.append("t4g", t4g);
+
+              const res = await fetch(args.url, {
+                method: "POST",
+                body: fd,
+                credentials: "include",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+              });
               const text = await res.text();
               const pict = document.getElementById("pict");
-              if (pict && res.ok) {
+              if (pict && res.ok && !text.includes("Please Choose")) {
                 pict.innerHTML = text || '<img src="getPhoto.jsp" width="80" height="100" />';
               }
-              return { ok: res.ok, status: res.status, response: text.slice(0, 300) };
+              return { ok: res.ok && !text.includes("Please Choose"), status: res.status, response: text.slice(0, 300) };
             } catch (e: any) {
               return { ok: false, status: 0, response: e.message };
             }
@@ -366,7 +379,7 @@ async function fillFormC(page: Page, d: any) {
           if (uploadResult.ok) {
             console.log(`  ✓ Photo uploaded (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
           } else {
-            console.log(`  ⚠ Photo upload replay failed (status ${uploadResult.status})`);
+            console.log(`  ⚠ Photo upload failed: ${uploadResult.response}`);
           }
         } else {
           console.log(`  ⚠ Could not capture upload URL — photo must be uploaded manually`);
