@@ -1161,7 +1161,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                       const data = await res.json();
                       if (data.success) {
                         const appId = data.applicationId || "saved";
-                        if (appId.startsWith("FAILED")) {
+                        if (appId.startsWith("FAILED") || appId.includes("check") || appId.includes("missing")) {
                           setFrroStatus(appId);
                         } else {
                           setFrroStatus(`Success! Application ID: ${appId}`);
@@ -1185,7 +1185,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                               clearInterval(poll);
                               if (statusData.lastResult.success) {
                                 const appId = statusData.lastResult.applicationId || "Form C saved";
-                                if (appId.startsWith("FAILED")) {
+                                if (appId.startsWith("FAILED") || appId.includes("check") || appId.includes("missing")) {
                                   setFrroStatus(appId);
                                 } else {
                                   setFrroStatus(`Success! Application ID: ${appId}`);
