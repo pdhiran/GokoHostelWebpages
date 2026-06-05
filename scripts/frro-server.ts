@@ -294,95 +294,75 @@ async function fillFormC(page: Page, d: any) {
         await page.waitForTimeout(500);
         console.log(`  [DEBUG] File set on input`);
 
-        // Step 2: Set up route interception to capture the real upload URL
-        let capturedUploadUrl = "";
+        // Step 2: Intercept the iframe POST and REPLACE its body with our real file data
+        const photoBase64 = finalPhoto.toString("base64");
+        let uploadSuccess = false;
+
         const routeHandler = async (route: any) => {
           const req = route.request();
-          if (req.method() === "POST") {
-            capturedUploadUrl = req.url();
-            console.log(`  [DEBUG] Intercepted POST to: ${capturedUploadUrl}`);
+          if (req.method() === "POST" && req.url().includes("fupserv")) {
+            console.log(`  [DEBUG] Intercepting POST to: ${req.url()}`);
+            const url = req.url();
+            const urlParams = new URLSearchParams(url.split("?")[1] || "");
+            const t4g = urlParams.get("t4g") || "";
+
+            // Build multipart body with our photo (matching exactly what manual upload sends)
+            const boundary = "----WebKitFormBoundary" + Math.random().toString(36).slice(2, 15);
+            const photoBytes = Buffer.from(photoBase64, "base64");
+
+            const parts: Buffer[] = [];
+            // File part
+            parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="photo.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`));
+            parts.push(photoBytes);
+            parts.push(Buffer.from(`\r\n`));
+            // t4g part
+            if (t4g) {
+              parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="t4g"\r\n\r\n${t4g}\r\n`));
+            }
+            // End boundary
+            parts.push(Buffer.from(`--${boundary}--\r\n`));
+            const fullBody = Buffer.concat(parts);
+
+            try {
+              const response = await route.fetch({
+                headers: {
+                  ...req.headers(),
+                  "content-type": `multipart/form-data; boundary=${boundary}`,
+                  "x-requested-with": "XMLHttpRequest",
+                },
+                postData: fullBody,
+              });
+              const body = await response.text();
+              console.log(`  [DEBUG] Server response (${response.status()}): "${body.slice(0, 150)}"`);
+              uploadSuccess = response.status() === 200 && !body.includes("Please Choose");
+              await route.fulfill({ response });
+            } catch (e: any) {
+              console.log(`  [DEBUG] Intercept fetch error: ${e.message}`);
+              await route.continue();
+            }
+          } else {
+            await route.continue();
           }
-          await route.continue();
         };
         await page.route("**/*", routeHandler);
 
-        // Step 3: Dismiss any alerts and click Upload (iframe clone will send empty file — that's OK)
+        // Step 3: Dismiss alerts and click Upload (POST will be intercepted and body replaced)
         page.on("dialog", async (dialog) => {
           console.log(`  [DEBUG] Alert: "${dialog.message().trim()}"`);
           await dialog.accept();
         });
 
-        console.log(`  [DEBUG] Clicking Upload File to capture URL...`);
+        console.log(`  [DEBUG] Clicking Upload File (POST will be intercepted)...`);
         await page.click('input[value="Upload File"]');
-        await page.waitForTimeout(5000);
+        await page.waitForTimeout(6000);
 
         // Step 4: Remove interception
         await page.unroute("**/*", routeHandler);
-        console.log(`  [DEBUG] Captured URL: "${capturedUploadUrl}"`);
 
-        // Step 5: Also try reading URL from ajaxfileupload.js source (fallback)
-        if (!capturedUploadUrl) {
-          const extractedUrl = await page.evaluate(() => {
-            const fnStr = (window as any).ajaxFileUpload?.toString() || "";
-            const urlMatch = fnStr.match(/url\s*:\s*['"]([^'"]+)/);
-            const accoMatch = fnStr.match(/var\s+j\s*=\s*['"]([^'"]+)/);
-            let url = urlMatch?.[1] || "";
-            const accoCode = accoMatch?.[1] || "";
-            if (url.includes("'+j+'")) url = url.replace("'+j+'", accoCode);
-            if (url.includes("' + j + '")) url = url.replace("' + j + '", accoCode);
-            if (url && !url.startsWith("http")) {
-              url = window.location.href.replace(/\/[^/]*$/, "/") + url;
-            }
-            return url;
-          });
-          if (extractedUrl) capturedUploadUrl = extractedUrl;
-          console.log(`  [DEBUG] URL from function source: "${capturedUploadUrl}"`);
-        }
-
-        // Step 6: Replay the upload with actual file data via fetch
-        // Server expects: field name "file" (not "file1"), t4g in form data, X-Requested-With header
-        if (capturedUploadUrl) {
-          console.log(`  [DEBUG] Replaying upload to: ${capturedUploadUrl}`);
-          const uploadResult = await page.evaluate(async (args: { base64: string; url: string }) => {
-            try {
-              const bin = atob(args.base64);
-              const bytes = new Uint8Array(bin.length);
-              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-              const file = new File([bytes], "photo.jpg", { type: "image/jpeg" });
-
-              // Extract t4g from the URL
-              const urlParams = new URLSearchParams(args.url.split("?")[1] || "");
-              const t4g = urlParams.get("t4g") || "";
-
-              const fd = new FormData();
-              fd.append("file", file, "photo.jpg");
-              if (t4g) fd.append("t4g", t4g);
-
-              const res = await fetch(args.url, {
-                method: "POST",
-                body: fd,
-                credentials: "include",
-                headers: { "X-Requested-With": "XMLHttpRequest" },
-              });
-              const text = await res.text();
-              const pict = document.getElementById("pict");
-              if (pict && res.ok && !text.includes("Please Choose")) {
-                pict.innerHTML = text || '<img src="getPhoto.jsp" width="80" height="100" />';
-              }
-              return { ok: res.ok && !text.includes("Please Choose"), status: res.status, response: text.slice(0, 300) };
-            } catch (e: any) {
-              return { ok: false, status: 0, response: e.message };
-            }
-          }, { base64: finalPhoto.toString("base64"), url: capturedUploadUrl });
-
-          console.log(`  [DEBUG] Upload replay result: ${JSON.stringify(uploadResult)}`);
-          if (uploadResult.ok) {
-            console.log(`  ✓ Photo uploaded (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
-          } else {
-            console.log(`  ⚠ Photo upload failed: ${uploadResult.response}`);
-          }
+        if (uploadSuccess) {
+          console.log(`  ✓ Photo uploaded via intercepted request (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
         } else {
-          console.log(`  ⚠ Could not capture upload URL — photo must be uploaded manually`);
+          console.log(`  ⚠ Photo upload failed — use 'Download Photo' button to upload manually`);
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
