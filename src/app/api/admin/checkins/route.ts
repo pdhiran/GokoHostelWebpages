@@ -274,8 +274,10 @@ export async function POST(req: NextRequest) {
 
       let extractedPassport: Record<string, any> | null = null;
       let extractedVisa: Record<string, any> | null = null;
+      let rawPassportOcr = "";
+      let rawVisaOcr = "";
 
-      if (row.idCardLink && row.idType === "passport") {
+      if (row.idCardLink) {
         const links = row.idCardLink.split(" | ").filter((l) => l.startsWith("http"));
         if (links.length > 0) {
           const fileId = extractDriveId(links[0]);
@@ -285,6 +287,7 @@ export async function POST(req: NextRequest) {
               if (buffer) {
                 const base64 = arrayBufferToBase64(buffer);
                 const analysis = await visionAnalyze(base64, "image/jpeg");
+                rawPassportOcr = analysis.text || "";
                 const parsed = parsePassportMRZ(analysis.text);
                 if (Object.keys(parsed).length > 0) extractedPassport = parsed;
                 incrementStat("vision", 1).catch(() => {});
@@ -306,6 +309,7 @@ export async function POST(req: NextRequest) {
               if (buffer) {
                 const base64 = arrayBufferToBase64(buffer);
                 const analysis = await visionAnalyze(base64, "image/jpeg");
+                rawVisaOcr = analysis.text || "";
                 const parsed = parseVisaFromText(analysis.text);
                 if (Object.keys(parsed).length > 0) extractedVisa = parsed;
                 incrementStat("vision", 1).catch(() => {});
@@ -323,6 +327,8 @@ export async function POST(req: NextRequest) {
       const updatedData = { ...existingData };
       if (extractedPassport) updatedData.extractedPassport = extractedPassport;
       if (extractedVisa) updatedData.extractedVisa = extractedVisa;
+      if (rawPassportOcr) updatedData._rawPassportOcr = rawPassportOcr;
+      if (rawVisaOcr) updatedData._rawVisaOcr = rawVisaOcr;
       await db.update(checkins).set({ formCData: JSON.stringify(updatedData) }).where(eq(checkins.id, rowId));
 
       return NextResponse.json({ success: true, formCData: JSON.stringify(updatedData) });
