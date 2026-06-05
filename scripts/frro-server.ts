@@ -336,9 +336,14 @@ async function fillFormC(page: Page, d: any) {
           await dialog.accept();
         });
 
-        // Bypass ajaxFileUpload() — directly upload via fetch with FormData
-        // (jQuery iframe-based upload can't handle programmatically-set files)
-        console.log(`  [DEBUG] Uploading photo directly via fetch (bypassing ajaxFileUpload)...`);
+        // Get full ajaxFileUpload source to find the real upload URL
+        const fullFnSource = await page.evaluate(() => {
+          return typeof (window as any).ajaxFileUpload === "function" ? (window as any).ajaxFileUpload.toString() : "not found";
+        });
+        console.log(`  [DEBUG] ajaxFileUpload full source (${fullFnSource.length} chars):\n${fullFnSource}\n`);
+
+        // Override ajaxFileUpload to use our file directly via XMLHttpRequest
+        console.log(`  [DEBUG] Overriding ajaxFileUpload and uploading photo...`);
         const uploadResult = await page.evaluate(async (photoBase64: string) => {
           try {
             // Convert base64 to blob
@@ -348,59 +353,64 @@ async function fillFormC(page: Page, d: any) {
             const blob = new Blob([bytes], { type: "image/jpeg" });
             const file = new File([blob], "photo.JPG", { type: "image/jpeg" });
 
-            // Find the upload URL from the page's ajaxFileUpload function or form action
-            const formAction = (document.querySelector("form") as HTMLFormElement)?.action || "";
-            // The FRRO upload URL pattern
-            const currentUrl = window.location.href;
-            const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf("/"));
-            const uploadUrl = baseUrl + "/ajaximage.jsp";
+            // Extract the URL from the original ajaxFileUpload function
+            const fnStr = (window as any).ajaxFileUpload?.toString() || "";
+            const urlMatch = fnStr.match(/url\s*:\s*["']([^"']+)["']/);
+            const urlMatch2 = fnStr.match(/["'](https?:\/\/[^"']*upload[^"']*|[^"']*\.jsp[^"']*file[^"']*|[^"']*file[^"']*\.jsp[^"']*)/i);
+            const urlMatch3 = fnStr.match(/["']([^"']*(?:upload|photo|image|file)[^"']*\.jsp[^"']*)/i);
+            let uploadUrl = urlMatch?.[1] || urlMatch2?.[1] || urlMatch3?.[1] || "";
+
+            // If relative URL, make absolute
+            if (uploadUrl && !uploadUrl.startsWith("http")) {
+              const base = window.location.href.substring(0, window.location.href.lastIndexOf("/") + 1);
+              uploadUrl = base + uploadUrl;
+            }
+
+            // Also look for form action
+            const form = document.querySelector('form[name="OnlineForm"], form') as HTMLFormElement;
+            const formAction = form?.action || "";
 
             // Build FormData
             const formData = new FormData();
             formData.append("file1", file, "photo.JPG");
-            // Add session params from URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const t4g = urlParams.get("t4g") || "";
-            if (t4g) formData.append("t4g", t4g);
 
-            const res = await fetch(uploadUrl, {
+            if (!uploadUrl) {
+              return { success: false, status: 0, response: "Could not find upload URL", url: "", formAction, fnSnippet: fnStr.slice(0, 300) };
+            }
+
+            // Add timestamp param like the original function does
+            const d = new Date();
+            const separator = uploadUrl.includes("?") ? "&" : "?";
+            const finalUrl = uploadUrl + separator + "t=" + d.getTime();
+
+            const res = await fetch(finalUrl, {
               method: "POST",
               body: formData,
               credentials: "include",
             });
 
             const text = await res.text();
-            return { success: res.ok, status: res.status, response: text.slice(0, 200), url: uploadUrl };
+            // Update the photo display area
+            const pict = document.getElementById("pict");
+            if (pict && res.ok) {
+              if (text.includes("<img") || text.includes("src=")) {
+                pict.innerHTML = text;
+              } else {
+                pict.innerHTML = '<span style="color:green">Photo uploaded</span>';
+              }
+            }
+            return { success: res.ok, status: res.status, response: text.slice(0, 300), url: finalUrl };
           } catch (e: any) {
             return { success: false, status: 0, response: e.message, url: "" };
           }
         }, finalPhoto.toString("base64"));
 
-        console.log(`  [DEBUG] Direct upload result: ${JSON.stringify(uploadResult)}`);
+        console.log(`  [DEBUG] Upload result: ${JSON.stringify(uploadResult)}`);
 
-        if (uploadResult.success && !uploadResult.response.includes("error")) {
-          // Try to display the uploaded photo in the page
-          await page.evaluate((resp: string) => {
-            const pict = document.getElementById("pict");
-            if (pict && resp.includes("<img") || resp.includes("src=")) {
-              pict.innerHTML = resp;
-            } else if (pict) {
-              pict.innerHTML = '<img src="' + window.location.href.replace("formc.jsp", "getPhoto.jsp") + '" width="80" height="100" />';
-            }
-          }, uploadResult.response);
-          console.log(`  ✓ Photo uploaded directly (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+        if (uploadResult.success) {
+          console.log(`  ✓ Photo uploaded (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
         } else {
-          // Fallback: try the original ajaxFileUpload click
-          console.log(`  [DEBUG] Direct upload failed, trying button click fallback...`);
-          try {
-            await page.click('input[value="Upload File"]');
-            await page.waitForTimeout(5000);
-          } catch {}
-          if (alertMessage) {
-            console.log(`  ⚠ Photo upload failed: "${alertMessage}"`);
-          } else {
-            console.log(`  ✓ Photo upload attempted via button click (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
-          }
+          console.log(`  ⚠ Photo upload failed — admin must upload manually`);
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
