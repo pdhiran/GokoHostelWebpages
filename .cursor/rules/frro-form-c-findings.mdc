@@ -1,0 +1,124 @@
+---
+description: FRRO Form C automation findings, technical constraints, and implementation details
+globs: ["scripts/frro-server.ts", "src/lib/frroBookmarklet.ts", "src/app/api/form-c/**"]
+---
+
+# FRRO Form C Automation — Technical Findings
+
+## Overview
+
+The FRRO (Foreigners Regional Registration Office) Form C must be submitted for every foreign guest staying at the hostel. The system at `indianfrro.gov.in` is a legacy JSP application. We automate filling it via a local Playwright server (`scripts/frro-server.ts`).
+
+## Architecture
+
+```
+Admin Panel (Form C popup)
+    ↓ "Desktop: Auto-Submit"
+Local FRRO Server (localhost:3456)
+    ↓ fetches guest data from
+/api/form-c/[id] (returns all fields + passport photo base64)
+    ↓ opens browser
+indianfrro.gov.in/frro/FormC/formc.jsp
+    ↓ fills fields, uploads photo, clicks save
+```
+
+## FRRO Page Technical Details
+
+- URL: `https://indianfrro.gov.in/frro/FormC/formc.jsp?t4g=<SESSION_TOKEN>`
+- Framework: JSP (Java Server Pages), jQuery 3.7.1
+- File upload: jQuery `$.ajaxFileUpload` plugin (iframe-based)
+- Date fields: jQuery datepicker (readonly inputs)
+- Dropdowns: cascading (state → district, visa type → sub type)
+- Session param: `t4g` — passed as URL param and in form data
+
+## Photo Upload — CRITICAL CONSTRAINT
+
+**FRRO rejects ALL programmatic photo uploads.** The server validates at the session level that a real OS file dialog was used.
+
+### What was tried and failed:
+1. `page.setInputFiles(path)` — iframe clone loses programmatic files (Chromium security)
+2. File Chooser API (`page.waitForEvent("filechooser")`) — same clone issue
+3. `page.route()` interception + body replacement via `route.continue({ postData })` — server still returns "Please Choose a JPG file"
+4. `page.route()` + `route.fetch()` with rebuilt multipart body — same rejection
+5. Direct `fetch()` from page context to `fupserv` endpoint — same rejection
+6. Monkey-patching `window.ajaxFileUpload` — function call works but jQuery plugin still clones internally
+
+### Root cause:
+The FRRO server's `fupserv` servlet validates that the upload originated from a real file dialog at the session level. This is server-side validation that cannot be bypassed from the client.
+
+### Working solution:
+1. Script fills all fields automatically
+2. Photo is saved to `/tmp/photo.jpg` (40-48KB, valid JPEG)
+3. Script waits (polls every 3s) for photo to appear in `#pict` div
+4. Admin manually uploads the prepared photo via "Download Photo for FRRO" button
+5. Once photo detected → script auto-clicks "Temporary Save and Exit"
+
+### Upload endpoint (for reference):
+- URL: `https://indianfrro.gov.in/frro/FormC/fupserv?t4g=<SESSION>`
+- Method: POST multipart/form-data
+- Field name: `file` (NOT `file1`)
+- Additional form field: `t4g` = session token
+- Required header: `X-Requested-With: XMLHttpRequest`
+- Max file size: 50KB
+- Format: JPEG only (`.jpg` extension required)
+- Filename: alphanumeric only (no special chars, dot before extension OK)
+
+## Date Fields
+
+FRRO uses jQuery datepicker with readonly inputs. To fill them:
+1. Remove `readonly` attribute
+2. Set value to DD/MM/YYYY format
+3. Dispatch `change` and `input` events
+4. Call `jQuery(el).datepicker("setDate", dateObj)` if available
+5. Final pass: force-set ALL date fields again at end (FRRO JS clears them)
+
+### Date fields on the form:
+- `applicant_dob` — Date of Birth
+- `applicant_passpdoissue` — Passport Date of Issue
+- `applicant_passpvalidtill` — Passport Valid Till
+- `applicant_visadoissue` — Visa Date of Issue
+- `applicant_visavalidtill` — Visa Valid Till
+- `applicant_doarrivalindia` — Date of Arrival in India
+- `applicant_doarrivalhotel` — Date of Arrival in Hotel
+
+## Dropdown Fields
+
+### Standard dropdowns (use `fillSelect` with text matching):
+- `applicant_sex`, `applicant_nationality`, `applicant_special_category`
+- `applicant_permcountry`, `applicant_refstate`, `applicant_refstatedistr`
+- `passport_issue_country`, `visa_issue_country`, `applicant_visatype`
+- `applicant_arrivedfromcountry`, `applicant_purpovisit`
+
+### Cascading dropdowns (need wait between selections):
+- `applicant_refstate` → (500ms) → `applicant_refstatedistr`
+- `applicant_next_destination_state_IN` → (500ms) → district dropdown
+- `applicant_visatype` → (1000ms) → `applicant_visasubtype` (optional, often empty)
+
+### Contains-match improvement:
+When matching dropdown options via "contains", pick the **shortest** matching option to avoid "INDIA" matching "BRITISH INDIAN OCEAN TERRITORY".
+
+## OCR Parsing (`src/lib/parsePassportData.ts`)
+
+### Key findings:
+1. MRZ parsing gives: name, passport no, DOB, sex, expiry — but NOT date of issue or place of issue
+2. Date of issue and place of issue are in the visual zone (not MRZ)
+3. EU passports have multilingual labels — OCR interleaves columns making labels far from values
+4. **Date elimination method**: find all dates, remove known DOB and expiry, remainder is date of issue
+5. Place of issue: look for value on NEXT LINE after label line (EU format)
+6. Guard: if free-text parser grabs expiry as issue date, discard it
+
+### Supported languages for field detection:
+English, German, French, Dutch, Hebrew, Spanish, Italian, Portuguese
+
+### Visa OCR:
+- Type detection: fuzzy regex handles OCR typos (e.g., "TOURYIST" → Tourist)
+- Indian e-Visa format: labels and values on alternating lines
+- Known Indian cities checked for place of issue (NEW DELHI, HYDERABAD, etc.)
+
+## Hotel Details (hardcoded)
+
+- Name: GOKO SOCIAL
+- Address: Near Hema Shree, Gokarna Main Beach
+- State: KARNATAKA
+- District: UTTARA KANNADA
+- Pin Code: 581421

@@ -1,0 +1,258 @@
+---
+description: Comprehensive overview of GokoWeb - architecture, features, workflows, integrations, and deployment
+globs: ["**/*.{ts,tsx,js,json}"]
+---
+
+# GokoWeb — Complete Project Reference
+
+## Project Overview
+
+**GokoWeb** (`goko-premium`) is a full-stack web application for **Goko Hostel & Community Space** in Gokarna, India. It combines a marketing website, a guest self check-in system, and an operations admin panel.
+
+| Aspect | Details |
+|--------|---------|
+| **Purpose** | Hostel marketing site + operational backend |
+| **Domain** | `https://www.gokohostel.com` |
+| **Framework** | Next.js 15.5 (App Router), React 19, TypeScript |
+| **Styling** | Tailwind CSS, Framer Motion, shadcn/ui |
+| **Forms** | react-hook-form + Zod |
+| **Database** | Cloudflare D1 (SQLite) via Drizzle ORM |
+| **Deployment** | Cloudflare Workers via @opennextjs/cloudflare |
+| **Worker** | `goko-hostel-latest-webpage` (wrangler.jsonc) |
+
+---
+
+## Key Features
+
+### Public Marketing Site (7+ pages)
+Home, Events, Stay, Community Area, Story, Reviews, FAQs, How to Reach, Things to Do, Booking Enquiry. Global shell with sticky header, footer, WhatsApp float, Book Now gate (Stayflexi).
+
+### Guest Self Check-in (`/self-checkin`)
+- Mobile-first form with ID upload + real-time Vision API validation
+- Returning guest lookup by phone (reuses prior Drive links)
+- Foreign guest Form C fields + passport/visa OCR
+- Booking platform + ID capture
+- Uploads to Google Drive; records in D1
+
+### Admin Panel (`/admin`)
+Six sections (password-protected):
+
+| Section | Component | Purpose |
+|---------|-----------|---------|
+| Dashboard | `AdminDashboard` | Today's check-ins/checkouts, occupancy |
+| Bookings | `AdminBookings` | OTA bookings, Gmail sync |
+| Beds | `AdminBeds` | Visual bed map, assign/checkout/change |
+| Timeline | `AdminTimeline` | Multi-day occupancy grid |
+| Records | `AdminRecords` | Monthly check-in CRUD, Form C |
+| Management | `AdminManagement` | Dorms, users, backup, audit, logs, health, rates |
+
+**Roles:** `admin`, `manager`, `staff`
+
+### Form C / FRRO Automation
+- Passport MRZ + visa OCR parsing (8 languages)
+- Local Playwright server for auto-fill
+- Bookmarklet/console script for mobile
+- See `frro-form-c-findings.mdc` for full technical details
+
+### Bed Management
+- Dorm setup (Bunk, Bunk2L1U, Single)
+- Lifecycle: available → occupied → cleanup → available
+- Bed history audit trail
+
+### Booking Management
+- Manual + Gmail sync (MakeMyTrip, Booking.com, Hostelworld)
+- Email parsing via `otaEmailParser.ts`
+
+### Rate Scraping
+- GitHub Actions workflow dispatches Puppeteer scraper
+- Results stored and displayed in admin UI
+
+---
+
+## Directory Structure
+
+```
+GokoWeb/
+├── src/
+│   ├── app/                    # Next.js App Router pages + API routes
+│   │   ├── admin/              # Admin panel page
+│   │   ├── self-checkin/       # Guest check-in page
+│   │   └── api/                # REST API
+│   ├── components/
+│   │   ├── admin/              # 18 admin components
+│   │   ├── forms/              # SelfCheckinForm, BookingEnquiryForm
+│   │   ├── layout/             # Header, Footer, SiteShell
+│   │   ├── sections/           # Marketing page sections
+│   │   └── ui/                 # shadcn primitives
+│   ├── content/                # Static data (nav, FAQs, countries)
+│   ├── db/                     # schema.ts, queries.ts, index.ts
+│   └── lib/                    # Business logic utilities
+├── migrations/                 # D1 SQL migrations (0001–0008)
+├── scripts/                    # FRRO server, scraper, migration tools
+├── public/                     # Static assets
+├── .github/workflows/          # scrape-rates.yml
+└── wrangler.jsonc              # Cloudflare Worker config
+```
+
+---
+
+## Database Schema (D1)
+
+### `checkins`
+Core guest records: name, contact, nationality, arrival/departure dates, ID links (Drive URLs), verification status, `form_c_data` JSON, booking platform/ID, month key.
+
+### `beds`
+Bed inventory: dorm_id, bed_id, position (Upper/Lower/Single), type, status, guest info, dates.
+
+### `dorms`
+Dorm names (unique).
+
+### `bed_history`
+Audit trail: bed_id_label, dorm, action, guest info, timestamp.
+
+### `bookings`
+OTA/manual bookings: guest, platform, ref, dates, room type, payment status, source.
+
+### `settings`
+Key-value store: `image_validation`, OAuth tokens, FRRO credentials, etc.
+
+### `users`
+Admin users: username, password_hash, role, permissions (JSON).
+
+### `audit_log` / `system_logs`
+Observability: who did what, errors, API calls.
+
+### `api_stats`
+Monthly counters: vision, drive, sheets, total.
+
+### `rate_scrapes`
+Competitor rate data: city, dates, results (JSON), status.
+
+---
+
+## API Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/checkin` | POST | Guest self check-in (multipart) |
+| `/api/checkin/lookup` | GET | Returning guest lookup by phone |
+| `/api/validate-id` | POST | Real-time ID/visa Vision validation |
+| `/api/settings` | GET | Public feature flags |
+| `/api/admin/checkins` | POST | Monolithic admin API (40+ actions via `action` field) |
+| `/api/admin/upload` | POST | File upload to Google Drive |
+| `/api/bookings/sync` | POST | Gmail OTA booking sync |
+| `/api/form-c/[id]` | GET | Tokenized Form C data + photo for FRRO |
+| `/api/auth/google/start` | GET | OAuth initiation |
+| `/api/auth/google/callback` | GET | OAuth callback |
+
+### Admin API Actions (via `action` field)
+**Records:** list, add, addPast, update, delete, verifyCheckin, checkoutGuest, undoCheckout
+**Form C:** getFormCData, reExtractFormC, updateFormCData
+**Dashboard:** getDashboard
+**Beds:** getBeds, assignBed, checkoutBed, markClean, unassignBed, changeBed
+**Dorms:** initDorms, removeDorm, removeBed
+**Settings:** getSetting, setSetting, getStats, healthCheck
+**Users:** getUsers, createUser, updateUser, deleteUser
+**Audit:** getAuditLog, getSystemLogs, runBackup
+**Bookings:** getBookings, getUpcomingBookings, addBooking, updateBookingStatus, deleteBooking
+**Rates:** getLatestRateScrape, getRateScrapeStatus, startRateScrape, updateRateScrapeResults
+
+---
+
+## Key Workflows
+
+### Guest Self Check-in
+1. Guest opens `/self-checkin` → fills form
+2. Phone lookup for returning guests (reuses prior ID links)
+3. ID validation via Vision API
+4. Submit → Upload images to Drive → OCR passport/visa for foreigners → Insert D1 record
+
+### Form C Submission
+1. Admin opens Form C popup for a foreign guest
+2. Preview extracted data (passport, visa, arrival info)
+3. "Desktop: Auto-Submit" → local Playwright server fills FRRO form
+4. Admin uploads photo manually → script auto-saves
+5. Application ID stored in `frroSubmissions` array
+
+### Bed Assignment
+1. Guest checks in → appears in unassigned list
+2. Staff assigns to available bed → bed becomes occupied
+3. Checkout → bed goes to cleanup → mark clean → available again
+
+### Booking Sync
+1. Admin triggers Gmail sync → API reads OTA confirmation emails
+2. `otaEmailParser.ts` extracts booking details
+3. Deduplicates by booking_ref → inserts new bookings
+
+---
+
+## External Integrations
+
+| Service | Purpose | Auth |
+|---------|---------|------|
+| Cloudflare D1 | Database | Worker binding `DB` |
+| Google Drive | ID/visa image storage | OAuth2 refresh token |
+| Google Vision | OCR, label detection, SafeSearch | Service account JWT |
+| Gmail | OTA booking email sync | OAuth2 refresh token |
+| FRRO (indianfrro.gov.in) | Form C for foreign guests | Manual CAPTCHA + Playwright |
+| GitHub Actions | Rate scraping | GITHUB_TOKEN + workflow dispatch |
+| Stayflexi | Booking engine | URL only |
+
+---
+
+## Scripts (`scripts/`)
+
+| Script | Purpose |
+|--------|---------|
+| `frro-server.ts` | Express + Playwright for FRRO auto-fill (port 3456) |
+| `scrape-booking-rates.js` | Puppeteer Booking.com scraper (GitHub Actions) |
+| `migrate-sheets-to-d1.ts` | One-time Sheets → D1 migration |
+| `get-drive-token.js` | OAuth token CLI |
+| `test-ocr-parsing.ts` | OCR parsing tests |
+
+---
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Vision API |
+| `GOOGLE_DRIVE_FOLDER_ID` | ID uploads folder |
+| `GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN` | Drive/Gmail |
+| `GOOGLE_WEB_CLIENT_ID/SECRET` | Admin OAuth re-auth |
+| `ADMIN_PASSWORD` | Full admin access |
+| `MANAGER_PASSWORD` | Limited access |
+| `GITHUB_TOKEN` | Rate scraping dispatch |
+| `GITHUB_REPO` | Scraping repo (default: thegokosocial/GokoHostelWebpages) |
+
+---
+
+## Deployment
+
+```bash
+# Local dev
+npm run dev
+
+# Cloudflare local preview
+npm run preview:cf
+
+# Deploy to Cloudflare Workers
+npm run cf:build && npm run deploy:cf
+
+# D1 migrations
+npm run db:migrate:local   # local
+npm run db:migrate:prod    # production
+```
+
+---
+
+## OCR Parsing (`src/lib/parsePassportData.ts`)
+
+Supports 8 languages: English, German, French, Dutch, Hebrew, Spanish, Italian, Portuguese.
+
+Key techniques:
+- MRZ parsing for core passport fields
+- Date elimination method for date of issue (finds all dates, removes known DOB/expiry)
+- Next-line matching for EU multilingual label format
+- Fuzzy regex for visa type OCR errors
+- normalizeDate supports EN/FR/DE/NL/ES/IT/PT month abbreviations
