@@ -325,24 +325,10 @@ async function fillFormC(page: Page, d: any) {
         });
         console.log(`  [DEBUG] File input state: ${JSON.stringify(inputValue)}`);
 
-        // Read the ajaxFileUpload function to see what it checks
-        const uploadFnSource = await page.evaluate(() => {
-          return typeof (window as any).ajaxFileUpload === "function" ? (window as any).ajaxFileUpload.toString().slice(0, 500) : "not found";
-        });
-        console.log(`  [DEBUG] ajaxFileUpload source (first 500 chars): ${uploadFnSource}`);
+        console.log(`  [DEBUG] setInputFiles done, waiting 1s...`);
+        await page.waitForTimeout(1000);
 
-        console.log(`  [DEBUG] setInputFiles done, waiting 2s...`);
-        await page.waitForTimeout(2000);
-
-        // Check if button is now enabled
-        const btnState = await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('input[type="button"], input[type="submit"], button')]
-            .filter(el => ((el as HTMLInputElement).value || el.textContent || "").toLowerCase().includes("upload"));
-          return btns.map(b => ({ value: (b as HTMLInputElement).value, disabled: (b as HTMLInputElement).disabled, className: b.className }));
-        });
-        console.log(`  [DEBUG] Upload button state after file select: ${JSON.stringify(btnState)}`);
-
-        // Listen for alerts/dialogs before triggering upload
+        // Listen for alerts/dialogs
         let alertMessage = "";
         page.on("dialog", async (dialog) => {
           alertMessage = dialog.message();
@@ -350,47 +336,71 @@ async function fillFormC(page: Page, d: any) {
           await dialog.accept();
         });
 
-        // Trigger the upload
-        console.log(`  [DEBUG] Clicking Upload File button...`);
-        try {
-          await page.click('input[value="Upload File"]');
-        } catch {
-          // Fallback: call ajaxFileUpload() directly
-          console.log(`  [DEBUG] Click failed, calling ajaxFileUpload() directly...`);
-          await page.evaluate(() => {
-            if (typeof (window as any).ajaxFileUpload === "function") {
-              (window as any).ajaxFileUpload();
-            } else {
-              const btn = document.querySelector('input[value*="Upload"]') as HTMLInputElement;
-              if (btn) btn.click();
+        // Bypass ajaxFileUpload() — directly upload via fetch with FormData
+        // (jQuery iframe-based upload can't handle programmatically-set files)
+        console.log(`  [DEBUG] Uploading photo directly via fetch (bypassing ajaxFileUpload)...`);
+        const uploadResult = await page.evaluate(async (photoBase64: string) => {
+          try {
+            // Convert base64 to blob
+            const binaryStr = atob(photoBase64);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            const blob = new Blob([bytes], { type: "image/jpeg" });
+            const file = new File([blob], "photo.JPG", { type: "image/jpeg" });
+
+            // Find the upload URL from the page's ajaxFileUpload function or form action
+            const formAction = (document.querySelector("form") as HTMLFormElement)?.action || "";
+            // The FRRO upload URL pattern
+            const currentUrl = window.location.href;
+            const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf("/"));
+            const uploadUrl = baseUrl + "/ajaximage.jsp";
+
+            // Build FormData
+            const formData = new FormData();
+            formData.append("file1", file, "photo.JPG");
+            // Add session params from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const t4g = urlParams.get("t4g") || "";
+            if (t4g) formData.append("t4g", t4g);
+
+            const res = await fetch(uploadUrl, {
+              method: "POST",
+              body: formData,
+              credentials: "include",
+            });
+
+            const text = await res.text();
+            return { success: res.ok, status: res.status, response: text.slice(0, 200), url: uploadUrl };
+          } catch (e: any) {
+            return { success: false, status: 0, response: e.message, url: "" };
+          }
+        }, finalPhoto.toString("base64"));
+
+        console.log(`  [DEBUG] Direct upload result: ${JSON.stringify(uploadResult)}`);
+
+        if (uploadResult.success && !uploadResult.response.includes("error")) {
+          // Try to display the uploaded photo in the page
+          await page.evaluate((resp: string) => {
+            const pict = document.getElementById("pict");
+            if (pict && resp.includes("<img") || resp.includes("src=")) {
+              pict.innerHTML = resp;
+            } else if (pict) {
+              pict.innerHTML = '<img src="' + window.location.href.replace("formc.jsp", "getPhoto.jsp") + '" width="80" height="100" />';
             }
-          });
-        }
-        console.log(`  [DEBUG] Upload triggered, waiting 5s for completion...`);
-        await page.waitForTimeout(5000);
-        if (alertMessage) {
-          console.log(`  [DEBUG] Alert during upload: "${alertMessage}"`);
-        }
-
-        // Check page for any alerts or new elements after upload
-        const afterUpload = await page.evaluate(() => {
-          const imgs = document.querySelectorAll('img');
-          const photoImgs = [...imgs].filter(i => i.src && (i.src.includes("photo") || i.src.includes("Photo") || i.width > 50));
-          const alerts = document.querySelectorAll('.alert, .error, .success, [role="alert"]');
-          return {
-            totalImgs: imgs.length,
-            photoImgs: photoImgs.map(i => ({ src: i.src.slice(0, 80), w: i.width, h: i.height })),
-            alerts: [...alerts].map(a => a.textContent?.slice(0, 100)),
-            pageTitle: document.title,
-          };
-        });
-        console.log(`  [DEBUG] After upload: ${JSON.stringify(afterUpload)}`);
-
-        const photoVisible = afterUpload.photoImgs.length > 0;
-        if (photoVisible) {
-          console.log(`  ✓ Uploaded passport photo (${(finalPhoto.length / 1024).toFixed(1)}KB) — confirmed visible`);
+          }, uploadResult.response);
+          console.log(`  ✓ Photo uploaded directly (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
         } else {
-          console.log(`  ⚠ Photo upload — no confirmation image visible (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+          // Fallback: try the original ajaxFileUpload click
+          console.log(`  [DEBUG] Direct upload failed, trying button click fallback...`);
+          try {
+            await page.click('input[value="Upload File"]');
+            await page.waitForTimeout(5000);
+          } catch {}
+          if (alertMessage) {
+            console.log(`  ⚠ Photo upload failed: "${alertMessage}"`);
+          } else {
+            console.log(`  ✓ Photo upload attempted via button click (${(finalPhoto.length / 1024).toFixed(1)}KB)`);
+          }
         }
       } else {
         console.log("  ✗ No file input found for photo upload");
