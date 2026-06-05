@@ -110,8 +110,8 @@ export async function POST(req: NextRequest) {
       const rows = dbRows.map((r) => [
         r.submittedAt, r.arrivalDate, r.arrivalTime, r.name, r.persons,
         r.contact, r.stayingDays, r.comingFrom, r.nationality, r.emergencyName,
-        r.emergencyPhone, r.idType, r.idCardLink, r.visaLink, r.verified,
-        r.bookingPlatform || "", r.bookingId || "",
+        r.emergencyPhone, r.bookingPlatform || "", r.bookingId || "",
+        r.idType, r.idCardLink, r.visaLink, r.verified,
         String(r.id), r.status || "active", r.checkedOutAt || "",
       ]);
       const months = await getCheckinMonths();
@@ -123,19 +123,21 @@ export async function POST(req: NextRequest) {
       if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
 
       const e = Array.isArray(entry) ? entry : [];
-      const finalBookingId = (bookingPlatform === "Offline booking" || bookingPlatform === "Walk-in")
+      const platform = bookingPlatform || e[11] || "";
+      const rawBid = rawBookingId || e[12] || "";
+      const finalBookingId = (platform === "Offline booking" || platform === "Walk-in")
         ? generateBookingId()
-        : (rawBookingId || "");
+        : rawBid;
 
       await addCheckin({
         submittedAt: e[0] || new Date().toISOString(),
         arrivalDate: e[1] || "", arrivalTime: e[2] || "", name: e[3] || "",
         persons: e[4] || "1", contact: e[5] || "", stayingDays: e[6] || "1",
         comingFrom: e[7] || "", nationality: e[8] || "", emergencyName: e[9] || "",
-        emergencyPhone: e[10] || "", idType: e[11] || "", idCardLink: e[12] || "",
-        visaLink: e[13] || "", verified: e[14] || "pending",
+        emergencyPhone: e[10] || "", idType: e[13] || "", idCardLink: e[14] || "",
+        visaLink: e[15] || "", verified: e[16] || "pending",
         formCData: formCData || "", createdMonth: getMonthKey(),
-        bookingPlatform: bookingPlatform || "",
+        bookingPlatform: platform,
         bookingId: finalBookingId,
       });
       await addAuditEntry({ username: actingUser, action: "checkin_add", target: e[3] || "unknown" });
@@ -151,22 +153,25 @@ export async function POST(req: NextRequest) {
       const e = Array.isArray(entry) ? entry : [];
       const arrivalDate = e[1] || "";
       const monthKey = arrivalDate ? getMonthKey(new Date(arrivalDate)) : getMonthKey();
-      const finalBookingId = (bookingPlatform === "Offline booking" || bookingPlatform === "Walk-in")
-        ? generateBookingId()
-        : (rawBookingId || "");
 
       const db = getDb();
+      const pastPlatform = bookingPlatform || e[11] || "";
+      const pastRawBid = rawBookingId || e[12] || "";
+      const finalBookingId = (pastPlatform === "Offline booking" || pastPlatform === "Walk-in")
+        ? generateBookingId()
+        : pastRawBid;
+
       await db.insert(checkins).values({
         submittedAt: e[0] || new Date().toISOString(),
         arrivalDate, arrivalTime: e[2] || "", name: e[3] || "",
         persons: e[4] || "1", contact: e[5] || "", stayingDays: e[6] || "1",
         comingFrom: e[7] || "", nationality: e[8] || "", emergencyName: e[9] || "",
-        emergencyPhone: e[10] || "", idType: e[11] || "", idCardLink: e[12] || "",
-        visaLink: e[13] || "", verified: e[14] || "pending",
+        emergencyPhone: e[10] || "", idType: e[13] || "", idCardLink: e[14] || "",
+        visaLink: e[15] || "", verified: e[16] || "pending",
         status: "checked_out",
         checkedOutAt: checkoutDate || "",
         formCData: formCData || "",
-        bookingPlatform: bookingPlatform || "",
+        bookingPlatform: pastPlatform,
         bookingId: finalBookingId,
         createdMonth: monthKey,
       });
@@ -184,7 +189,8 @@ export async function POST(req: NextRequest) {
         submittedAt: e[0], arrivalDate: e[1], arrivalTime: e[2], name: e[3],
         persons: e[4], contact: e[5], stayingDays: e[6], comingFrom: e[7],
         nationality: e[8], emergencyName: e[9], emergencyPhone: e[10],
-        idType: e[11], idCardLink: e[12], visaLink: e[13], verified: e[14],
+        bookingPlatform: e[11], bookingId: e[12],
+        idType: e[13], idCardLink: e[14], visaLink: e[15], verified: e[16],
       } : entry;
 
       await updateCheckin(rowId, data);

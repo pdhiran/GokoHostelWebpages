@@ -23,7 +23,7 @@ const TEXT_FIELDS = [
   { index: 8, label: "Nationality", type: "country" },
   { index: 9, label: "Emergency Contact", type: "text" },
   { index: 10, label: "Emergency Phone", type: "tel" },
-  { index: 11, label: "ID Type", type: "select", options: ["aadhaar", "driving_licence", "passport"] },
+  { index: 13, label: "ID Type", type: "select", options: ["aadhaar", "driving_licence", "passport"] },
 ];
 
 const FORM_C_FIELDS = [
@@ -42,7 +42,7 @@ const FORM_C_FIELDS = [
 ];
 
 function getDefaults(): string[] {
-  const arr = Array(15).fill("");
+  const arr = Array(17).fill("");
   const now = new Date();
   arr[1] = now.toISOString().split("T")[0];
   arr[2] = now.toTimeString().slice(0, 5);
@@ -75,7 +75,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [pastBookingPlatform, setPastBookingPlatform] = useState("");
   const [pastBookingId, setPastBookingId] = useState("");
   const [editIndex, setEditIndex] = useState<number | null>(null);
-  const [editEntry, setEditEntry] = useState<string[]>(Array(15).fill(""));
+  const [editEntry, setEditEntry] = useState<string[]>(Array(17).fill(""));
   const [editIdFiles, setEditIdFiles] = useState<File[]>([]);
   const [editVisaFiles, setEditVisaFiles] = useState<File[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -147,7 +147,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
       const row = rows[rowIndex];
       const rowId = parseInt(row[17] || "0", 10);
       const driveFileIds: string[] = [];
-      [row[12], row[13]].forEach((cell) => {
+      [row[14], row[15]].forEach((cell) => {
         if (cell) cell.split(" | ").forEach((url) => {
           if (url.startsWith("http")) { const id = extractDriveFileId(url); if (id) driveFileIds.push(id); }
         });
@@ -159,7 +159,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
   };
 
   const startEdit = (rowIndex: number) => {
-    const padded = Array(15).fill("").map((_, i) => rows[rowIndex][i] || "");
+    const padded = Array(17).fill("").map((_, i) => rows[rowIndex][i] || "");
     setEditEntry(padded);
     setEditIndex(rowIndex);
     setEditIdFiles([]);
@@ -214,7 +214,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
             alert(`File upload error: ${err?.message || "Network error"}. Entry will be saved without ID document.`);
           }
         }
-        if (links.length > 0) entry[12] = links.join(" | ");
+        if (links.length > 0) entry[14] = links.join(" | ");
       }
 
       const isForeigner = newEntry[8] && newEntry[8] !== "India";
@@ -250,7 +250,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
             alert(`File upload error: ${err?.message || "Network error"}. Entry will be saved without ID document.`);
           }
         }
-        if (links.length > 0) entry[12] = links.join(" | ");
+        if (links.length > 0) entry[14] = links.join(" | ");
       }
 
       const isForeigner = pastEntry[8] && pastEntry[8] !== "India";
@@ -305,10 +305,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
       if (links.length > 0) {
         const updated = Array(17).fill("").map((_, i) => rows[uploadPopup.origIdx][i] || "");
         if (uploadPopup.type === "id") {
-          updated[12] = links.join(" | ");
-          if (uploadIdType) updated[11] = uploadIdType;
+          updated[14] = links.join(" | ");
+          if (uploadIdType) updated[13] = uploadIdType;
         } else {
-          updated[13] = links.join(" | ");
+          updated[15] = links.join(" | ");
         }
         const rowId = parseInt(rows[uploadPopup.origIdx][17] || "0", 10);
         const updateRes = await apiCall({ action: "update", rowId, entry: updated, tab: currentTab });
@@ -756,8 +756,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
             <div className="mt-4 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-brand-green-dark/50">ID Documents</p>
               {(() => {
-                const idCell = verifyPopup.row[12] || "";
-                const visaCell = verifyPopup.row[13] || "";
+                const idCell = verifyPopup.row[14] || "";
+                const visaCell = verifyPopup.row[15] || "";
                 const idLinks = idCell.split(" | ").filter((u) => u.startsWith("http"));
                 const visaLinks = visaCell.split(" | ").filter((u) => u.startsWith("http"));
                 return (

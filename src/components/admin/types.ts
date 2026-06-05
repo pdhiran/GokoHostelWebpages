@@ -44,6 +44,6 @@ export function parseBedRow(row: string[]): BedRow {
 export const CHECKIN_COLUMNS = [
   "Submitted At", "Arrival Date", "Arrival Time", "Name", "Persons",
   "Contact", "Days", "Coming From", "Nationality", "Emergency Contact",
-  "Emergency Phone", "ID Type", "ID Card", "Visa", "Verified",
-  "Platform", "Booking ID",
+  "Emergency Phone", "Platform", "Booking ID", "ID Type", "ID Card",
+  "Visa", "Verified",
 ];
