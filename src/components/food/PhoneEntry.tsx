@@ -71,14 +71,13 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
     } finally {
       setLoading(false);
     }
-  }, [onIdentified]);
+  }, [onIdentified, onWalkin]);
 
   useEffect(() => {
     if (savedPhone && !autoLookedUp) {
       setAutoLookedUp(true);
-      doLookup(savedPhone);
     }
-  }, [savedPhone, autoLookedUp, doLookup]);
+  }, [savedPhone, autoLookedUp]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

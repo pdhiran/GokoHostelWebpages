@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { PrinterIcon } from "lucide-react";
+import { isBluetoothSupported, printFoodBill } from "@/lib/thermalPrint";
 
 export interface CartItemData {
   menuItemId: number;
@@ -59,7 +61,17 @@ export function FoodCart({
   const [walkinName, setWalkinName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [orderSuccess, setOrderSuccess] = useState<{ orderNumber: string; total: number } | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState<{
+    orderNumber: string;
+    total: number;
+    items: Array<{ name: string; quantity: number; price: number; lineTotal: number }>;
+    subtotal: number;
+    taxAmount: number;
+  } | null>(null);
+  const [btSupported, setBtSupported] = useState(false);
+  const [printingReceipt, setPrintingReceipt] = useState(false);
+
+  useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const taxAmount = Math.round((subtotal * taxRate) / 100);
@@ -102,7 +114,18 @@ export function FoodCart({
         return;
       }
 
-      setOrderSuccess({ orderNumber: data.orderNumber, total: data.total });
+      setOrderSuccess({
+        orderNumber: data.orderNumber,
+        total: data.total,
+        items: cart.map(c => ({
+          name: c.name,
+          quantity: c.quantity,
+          price: c.price,
+          lineTotal: c.price * c.quantity,
+        })),
+        subtotal,
+        taxAmount,
+      });
       onOrderPlaced(data.orderNumber);
 
       if (whatsappNumber && customerWhatsappEnabled) {
@@ -139,6 +162,38 @@ export function FoodCart({
           </p>
 
           <div className="mt-6 space-y-3">
+            {btSupported && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setPrintingReceipt(true);
+                  try {
+                    await printFoodBill({
+                      billNumber: orderSuccess.orderNumber,
+                      guestName: guestInfo.guestType === "hostel" ? guestInfo.name : walkinName || "Guest",
+                      guestPhone: guestInfo.phone || undefined,
+                      roomInfo: guestInfo.roomInfo || undefined,
+                      guestType: guestInfo.guestType,
+                      items: orderSuccess.items,
+                      subtotal: orderSuccess.subtotal,
+                      tax: orderSuccess.taxAmount,
+                      total: orderSuccess.total,
+                      taxRate,
+                    });
+                    alert("Receipt printed successfully!");
+                  } catch (err: any) {
+                    alert(`Print failed: ${err.message || "Unknown error"}`);
+                  } finally {
+                    setPrintingReceipt(false);
+                  }
+                }}
+                disabled={printingReceipt}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                <PrinterIcon className="h-4 w-4" />
+                {printingReceipt ? "Printing..." : "Print Receipt"}
+              </button>
+            )}
             <a
               href={`/food-order/status?order=${orderSuccess.orderNumber}&phone=${guestInfo.phone}`}
               className="block w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3 text-center font-semibold text-white shadow-lg transition hover:shadow-xl"

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon } from "lucide-react";
+import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon } from "lucide-react";
+import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem } from "@/lib/thermalPrint";
 import type { Role } from "./types";
 
 type FoodTab = "active" | "place" | "tabs" | "walkin" | "combined" | "history";
@@ -541,6 +542,10 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
   const [guestOrders, setGuestOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [btSupported, setBtSupported] = useState(false);
+  const [printing, setPrinting] = useState<number | null>(null);
+
+  useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -587,6 +592,40 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
     const orderIds = guestOrders.map((o) => o.id);
     if (orderIds.length === 0) return;
     await markPaid(orderIds, paymentMethod);
+  };
+
+  const handlePrintBill = async (guest: GuestWithTab) => {
+    setPrinting(guest.checkinId);
+    try {
+      const allItems: BillItem[] = guestOrders.flatMap(o =>
+        o.items.filter(i => i.status !== "voided").map(i => ({
+          name: i.itemName,
+          quantity: i.quantity,
+          price: i.itemPrice,
+          lineTotal: i.lineTotal,
+          status: i.status,
+        }))
+      );
+      const subtotal = guestOrders.reduce((s, o) => s + o.subtotal, 0);
+      const tax = guestOrders.reduce((s, o) => s + o.tax, 0);
+      const total = guestOrders.reduce((s, o) => s + o.total, 0);
+      await printFoodBill({
+        guestName: guest.name,
+        guestPhone: guest.contact,
+        roomInfo: guest.bedInfo,
+        guestType: "hostel",
+        items: allItems,
+        subtotal,
+        tax,
+        total,
+        taxRate: 5,
+      });
+      alert("Bill printed successfully!");
+    } catch (err: any) {
+      alert(`Print failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setPrinting(null);
+    }
   };
 
   if (loading) return <LoadingState />;
@@ -688,13 +727,17 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      disabled
-                      className="mt-1 rounded-md border border-brand-mist px-3 py-1.5 text-xs text-brand-green-dark/50 cursor-not-allowed"
-                    >
-                      Generate Bill (coming soon)
-                    </button>
+                    {btSupported && (
+                      <button
+                        type="button"
+                        onClick={() => handlePrintBill(g)}
+                        disabled={printing === g.checkinId}
+                        className="mt-1 flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <PrinterIcon className="h-3.5 w-3.5" />
+                        {printing === g.checkinId ? "Printing..." : "Print Bill"}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -712,6 +755,10 @@ function WalkinOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
+  const [btSupported, setBtSupported] = useState(false);
+  const [printing, setPrinting] = useState<number | null>(null);
+
+  useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -735,6 +782,35 @@ function WalkinOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }
       await load();
     } finally {
       setBusy(null);
+    }
+  };
+
+  const handlePrint = async (order: Order) => {
+    setPrinting(order.id);
+    try {
+      await printFoodBill({
+        billNumber: order.orderNumber,
+        guestName: order.guestName,
+        guestPhone: order.guestPhone || undefined,
+        roomInfo: order.roomInfo || undefined,
+        guestType: order.guestType,
+        items: order.items.filter(i => i.status !== "voided").map(i => ({
+          name: i.itemName,
+          quantity: i.quantity,
+          price: i.itemPrice,
+          lineTotal: i.lineTotal,
+          status: i.status,
+        })),
+        subtotal: order.subtotal,
+        tax: order.tax,
+        total: order.total,
+        taxRate: 5,
+      });
+      alert("Bill printed successfully!");
+    } catch (err: any) {
+      alert(`Print failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setPrinting(null);
     }
   };
 
@@ -800,6 +876,17 @@ function WalkinOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 >
                   <SmartphoneIcon className="h-3.5 w-3.5" /> Online
                 </button>
+                {btSupported && (
+                  <button
+                    type="button"
+                    onClick={() => handlePrint(order)}
+                    disabled={printing === order.id}
+                    className="flex items-center gap-1 rounded-lg border px-3 py-1 text-xs font-medium transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <PrinterIcon className="h-3.5 w-3.5" />
+                    {printing === order.id ? "Printing..." : "Print"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -817,6 +904,10 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<{ guests: any[]; grandTotal: number } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [btSupported, setBtSupported] = useState(false);
+  const [printingCombined, setPrintingCombined] = useState(false);
+
+  useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
   useEffect(() => {
     (async () => {
@@ -845,6 +936,31 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
       }
     } finally {
       setLoadingPreview(false);
+    }
+  };
+
+  const handlePrintCombined = async () => {
+    if (!preview) return;
+    setPrintingCombined(true);
+    try {
+      const guestData = preview.guests.map((g: any) => ({
+        name: g.guestName as string,
+        total: (g.subtotal ?? 0) as number,
+        items: ((g.orders || []) as any[]).flatMap((o: any) =>
+          ((o.items || []) as any[]).filter((i: any) => i.status !== "voided").map((i: any) => ({
+            name: (i.itemName || i.name || "") as string,
+            quantity: (i.quantity || 0) as number,
+            price: (i.itemPrice || i.price || 0) as number,
+            lineTotal: (i.lineTotal || 0) as number,
+          }))
+        ),
+      }));
+      await printCombinedBill(guestData, preview.grandTotal, 5);
+      alert("Combined bill printed successfully!");
+    } catch (err: any) {
+      alert(`Print failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setPrintingCombined(false);
     }
   };
 
@@ -911,13 +1027,17 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
             <span className="text-sm font-bold text-brand-green-dark">Grand Total</span>
             <span className="text-lg font-bold text-brand-green">₹{(preview.grandTotal / 100).toFixed(0)}</span>
           </div>
-          <button
-            type="button"
-            disabled
-            className="mt-3 w-full rounded-lg border border-brand-mist px-4 py-2 text-sm text-brand-green-dark/50 cursor-not-allowed"
-          >
-            Generate Combined Bill (coming soon)
-          </button>
+          {btSupported && (
+            <button
+              type="button"
+              onClick={handlePrintCombined}
+              disabled={printingCombined}
+              className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-gray-50 disabled:opacity-50"
+            >
+              <PrinterIcon className="h-4 w-4" />
+              {printingCombined ? "Printing..." : "Print Combined Bill"}
+            </button>
+          )}
         </div>
       )}
     </div>

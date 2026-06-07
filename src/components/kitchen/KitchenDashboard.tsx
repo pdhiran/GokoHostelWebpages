@@ -17,7 +17,9 @@ import {
   PackageIcon,
   FlameIcon,
   UtensilsCrossedIcon,
+  PrinterIcon,
 } from "lucide-react";
+import { isBluetoothSupported, printOrderTicket } from "@/lib/thermalPrint";
 
 interface OrderItem {
   id: number;
@@ -122,6 +124,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
   const [rejectReason, setRejectReason] = useState("Out of stock");
   const [rejectCustom, setRejectCustom] = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
+  const [btSupported, setBtSupported] = useState(false);
 
   const fetchingRef = useRef(false);
   const prevPlacedCountRef = useRef(0);
@@ -213,6 +216,8 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     };
   }, [fetchOrders, fetchMenuItems]);
 
+  useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
+
   const updateStatus = async (orderId: number, status: string) => {
     try {
       await api("updateStatus", { orderId, status });
@@ -268,6 +273,25 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
       await api("toggleBusy", { isBusy: newBusy });
       setIsBusy(newBusy);
     } catch {}
+  };
+
+  const handlePrintTicket = async (order: Order) => {
+    try {
+      await printOrderTicket({
+        orderNumber: order.orderNumber,
+        guestName: order.guestName,
+        guestType: order.guestType,
+        roomInfo: order.roomInfo || undefined,
+        items: order.items.filter(i => i.status !== "voided").map(i => ({
+          name: i.itemName,
+          quantity: i.quantity,
+        })),
+        specialInstructions: order.specialInstructions || undefined,
+        createdAt: order.createdAt,
+      });
+    } catch (err: any) {
+      alert(`Print failed: ${err.message || "Unknown error"}`);
+    }
   };
 
   const placedOrders = useMemo(() => orders.filter((o) => o.status === "placed"), [orders]);
@@ -562,6 +586,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             onRejectItem={(orderId, item) =>
               setRejectModal({ orderId, orderItemId: item.id, itemName: item.itemName })
             }
+            onPrintTicket={btSupported ? handlePrintTicket : undefined}
           />
           <OrderColumn
             title="Preparing"
@@ -600,6 +625,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               onRejectItem={(orderId, item) =>
                 setRejectModal({ orderId, orderItemId: item.id, itemName: item.itemName })
               }
+              onPrintTicket={btSupported ? handlePrintTicket : undefined}
             />
           )}
           {mobileTab === "preparing" && (
@@ -729,6 +755,7 @@ function OrderColumn({
   actionColor,
   onAction,
   onRejectItem,
+  onPrintTicket,
 }: {
   title: string;
   orders: Order[];
@@ -737,6 +764,7 @@ function OrderColumn({
   actionColor: string;
   onAction: (orderId: number) => void;
   onRejectItem: (orderId: number, item: OrderItem) => void;
+  onPrintTicket?: (order: Order) => Promise<void>;
 }) {
   const borderColor =
     color === "amber"
@@ -784,6 +812,7 @@ function OrderColumn({
               onAction={() => onAction(order.id)}
               onRejectItem={(item) => onRejectItem(order.id, item)}
               isReadyColumn={color === "emerald"}
+              onPrintTicket={onPrintTicket ? () => onPrintTicket(order) : undefined}
             />
           ))}
         </AnimatePresence>
@@ -806,6 +835,7 @@ function OrderCard({
   onAction,
   onRejectItem,
   isReadyColumn,
+  onPrintTicket,
 }: {
   order: Order;
   borderColor: string;
@@ -814,8 +844,10 @@ function OrderCard({
   onAction: () => void;
   onRejectItem: (item: OrderItem) => void;
   isReadyColumn: boolean;
+  onPrintTicket?: () => Promise<void>;
 }) {
   const [loading, setLoading] = useState(false);
+  const [printLoading, setPrintLoading] = useState(false);
 
   const handleAction = async () => {
     setLoading(true);
@@ -937,6 +969,22 @@ function OrderCard({
               {order.guestName}
             </span>
           </div>
+        )}
+
+        {/* Print ticket button */}
+        {onPrintTicket && (
+          <button
+            type="button"
+            onClick={async () => {
+              setPrintLoading(true);
+              try { await onPrintTicket(); } catch {} finally { setPrintLoading(false); }
+            }}
+            disabled={printLoading}
+            className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-600 px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-slate-700 disabled:opacity-50"
+          >
+            <PrinterIcon className="h-3.5 w-3.5" />
+            {printLoading ? "Printing..." : "Print Ticket"}
+          </button>
         )}
 
         {/* Action button */}
