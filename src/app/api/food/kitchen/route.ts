@@ -5,6 +5,7 @@ import {
   updateFoodOrderStatus,
   toggleMenuItemAvailability,
   getAllMenuItems,
+  getActiveMenuCategories,
   addOrderModification,
   updateFoodOrder,
   getSetting,
@@ -57,6 +58,8 @@ export async function POST(req: NextRequest) {
 
     if (action === "listOrders") {
       const orders = await getActiveFoodOrders();
+      const allItems = await getAllMenuItems();
+      const menuItemTags = new Map(allItems.map((m) => [m.id, m.tags || "[]"]));
       const ordersWithItems = await Promise.all(
         orders.map(async (order) => {
           const items = await getFoodOrderItems(order.id);
@@ -70,6 +73,7 @@ export async function POST(req: NextRequest) {
               quantity: i.quantity,
               lineTotal: i.lineTotal,
               status: i.status,
+              tags: menuItemTags.get(i.menuItemId) || "[]",
             })),
           };
         })
@@ -153,16 +157,25 @@ export async function POST(req: NextRequest) {
 
     if (action === "getMenuItems") {
       const items = await getAllMenuItems();
+      const categories = await getActiveMenuCategories();
       return NextResponse.json({
         success: true,
-        data: items.map((i) => ({
-          id: i.id,
-          name: i.name,
-          nameKannada: i.nameKannada,
-          price: i.price,
-          isAvailable: i.isAvailable,
-          categoryId: i.categoryId,
-        })),
+        data: {
+          items: items.map((i) => ({
+            id: i.id,
+            name: i.name,
+            nameKannada: i.nameKannada,
+            price: i.price,
+            isAvailable: i.isAvailable,
+            categoryId: i.categoryId,
+            tags: i.tags,
+          })),
+          categories: categories.map((c) => ({
+            id: c.id,
+            name: c.name,
+            icon: c.icon,
+          })),
+        },
       });
     }
 

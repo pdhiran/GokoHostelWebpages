@@ -57,6 +57,13 @@ type ItemForm = {
   tagVeg: boolean;
   tagNonVeg: boolean;
   tagSpicy: boolean;
+  tagSeafood: boolean;
+  tagChicken: boolean;
+  tagMutton: boolean;
+  tagEgg: boolean;
+  tagChefSpecial: boolean;
+  tagGokoSpecial: boolean;
+  customTags: string[];
   ingredients: string;
   displayOrder: string;
 };
@@ -65,6 +72,8 @@ const emptyCategoryForm: CategoryForm = { name: "", nameKannada: "", icon: "🍽
 const emptyItemForm: ItemForm = {
   categoryId: "", name: "", nameKannada: "", description: "",
   priceDisplay: "", priceText: "", tagVeg: false, tagNonVeg: false, tagSpicy: false,
+  tagSeafood: false, tagChicken: false, tagMutton: false, tagEgg: false,
+  tagChefSpecial: false, tagGokoSpecial: false, customTags: [],
   ingredients: "", displayOrder: "0",
 };
 
@@ -214,6 +223,8 @@ export function AdminMenuManagement({ password, username, role }: { password: st
 
   const openEditItem = (item: MenuItem) => {
     const tags = parseTags(item.tags);
+    const predefinedKeys = ["veg", "non-veg", "spicy", "seafood", "chicken", "mutton", "egg", "chef-special", "goko-special"];
+    const custom = tags.filter((t) => !predefinedKeys.includes(t.toLowerCase()));
     setItemForm({
       categoryId: String(item.categoryId),
       name: item.name,
@@ -224,6 +235,13 @@ export function AdminMenuManagement({ password, username, role }: { password: st
       tagVeg: tags.includes("veg"),
       tagNonVeg: tags.includes("non-veg"),
       tagSpicy: tags.includes("spicy"),
+      tagSeafood: tags.includes("seafood"),
+      tagChicken: tags.includes("chicken"),
+      tagMutton: tags.includes("mutton"),
+      tagEgg: tags.includes("egg"),
+      tagChefSpecial: tags.includes("chef-special"),
+      tagGokoSpecial: tags.includes("goko-special"),
+      customTags: custom,
       ingredients: parseIngredients(item.ingredients).join(", "),
       displayOrder: String(item.displayOrder),
     });
@@ -243,6 +261,13 @@ export function AdminMenuManagement({ password, username, role }: { password: st
       if (itemForm.tagVeg) tags.push("veg");
       if (itemForm.tagNonVeg) tags.push("non-veg");
       if (itemForm.tagSpicy) tags.push("spicy");
+      if (itemForm.tagSeafood) tags.push("seafood");
+      if (itemForm.tagChicken) tags.push("chicken");
+      if (itemForm.tagMutton) tags.push("mutton");
+      if (itemForm.tagEgg) tags.push("egg");
+      if (itemForm.tagChefSpecial) tags.push("chef-special");
+      if (itemForm.tagGokoSpecial) tags.push("goko-special");
+      tags.push(...itemForm.customTags);
 
       const ingredientsArr = itemForm.ingredients
         .split(",")
@@ -508,11 +533,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                 <Label className="text-xs">Price Text (optional)</Label>
                 <Input value={itemForm.priceText} onChange={(e) => setItemForm({ ...itemForm, priceText: e.target.value })} placeholder="e.g. per plate" className="mt-1" />
               </div>
-              <div>
-                <Label className="text-xs">Display Order</Label>
-                <Input type="number" value={itemForm.displayOrder} onChange={(e) => setItemForm({ ...itemForm, displayOrder: e.target.value })} className="mt-1" />
-              </div>
-              <div>
+              <div className="sm:col-span-2 md:col-span-3">
                 <Label className="text-xs">Tags</Label>
                 <div className="mt-2 flex flex-wrap gap-3">
                   <label className="flex items-center gap-1.5 text-xs">
@@ -527,11 +548,76 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                     <input type="checkbox" checked={itemForm.tagSpicy} onChange={(e) => setItemForm({ ...itemForm, tagSpicy: e.target.checked })} className="rounded" />
                     🌶️ Spicy
                   </label>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={itemForm.tagSeafood} onChange={(e) => setItemForm({ ...itemForm, tagSeafood: e.target.checked })} className="rounded" />
+                    🐟 Seafood
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={itemForm.tagChicken} onChange={(e) => setItemForm({ ...itemForm, tagChicken: e.target.checked })} className="rounded" />
+                    🍗 Chicken
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={itemForm.tagMutton} onChange={(e) => setItemForm({ ...itemForm, tagMutton: e.target.checked })} className="rounded" />
+                    🍖 Mutton
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={itemForm.tagEgg} onChange={(e) => setItemForm({ ...itemForm, tagEgg: e.target.checked })} className="rounded" />
+                    🥚 Egg
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={itemForm.tagChefSpecial} onChange={(e) => setItemForm({ ...itemForm, tagChefSpecial: e.target.checked })} className="rounded" />
+                    👨‍🍳 Chef Special
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={itemForm.tagGokoSpecial} onChange={(e) => setItemForm({ ...itemForm, tagGokoSpecial: e.target.checked })} className="rounded" />
+                    ⭐ Goko Special
+                  </label>
+                </div>
+                {/* Custom tags */}
+                <div className="mt-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Add custom tag…"
+                      className="max-w-[200px] text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const val = e.currentTarget.value.trim().toLowerCase().replace(/\s+/g, "-");
+                          if (val && !itemForm.customTags.includes(val)) {
+                            setItemForm({ ...itemForm, customTags: [...itemForm.customTags, val] });
+                          }
+                          e.currentTarget.value = "";
+                        }
+                      }}
+                    />
+                    <span className="text-[10px] text-brand-green-dark/40">Press Enter to add</span>
+                  </div>
+                  {itemForm.customTags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {itemForm.customTags.map((tag) => (
+                        <span key={tag} className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => setItemForm({ ...itemForm, customTags: itemForm.customTags.filter((t) => t !== tag) })}
+                            className="ml-0.5 text-gray-400 hover:text-red-500"
+                          >
+                            <XIcon className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="sm:col-span-2">
                 <Label className="text-xs">Ingredients (comma-separated)</Label>
                 <Input value={itemForm.ingredients} onChange={(e) => setItemForm({ ...itemForm, ingredients: e.target.value })} placeholder="e.g. rice, lentils, spices" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-[10px] text-brand-green-dark/50">Display Order</Label>
+                <Input type="number" value={itemForm.displayOrder} onChange={(e) => setItemForm({ ...itemForm, displayOrder: e.target.value })} className="mt-1 text-xs" />
+                <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Optional. Items with 0 display in default order.</p>
               </div>
             </div>
             <div className="mt-4 flex gap-2">
@@ -581,10 +667,26 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                           {item.priceText && <span className="ml-1 text-[10px] font-normal text-brand-green-dark/40">{item.priceText}</span>}
                         </td>
                         <td className="py-2.5 pr-3">
-                          <div className="flex gap-1">
-                            {tags.includes("veg") && <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Veg</span>}
-                            {tags.includes("non-veg") && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">Non-Veg</span>}
-                            {tags.includes("spicy") && <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">🌶️</span>}
+                          <div className="flex flex-wrap gap-1">
+                            {tags.map((tag) => {
+                              const lc = tag.toLowerCase();
+                              let classes = "bg-gray-100 text-gray-600";
+                              if (lc === "veg") classes = "bg-green-100 text-green-700";
+                              else if (lc === "non-veg") classes = "bg-red-100 text-red-700";
+                              else if (lc === "spicy") classes = "bg-amber-100 text-amber-700";
+                              else if (lc === "seafood") classes = "bg-blue-100 text-blue-700";
+                              else if (lc === "chicken") classes = "bg-orange-100 text-orange-700";
+                              else if (lc === "mutton") classes = "bg-red-100 text-red-800";
+                              else if (lc === "egg") classes = "bg-yellow-100 text-yellow-700";
+                              else if (lc === "chef-special") classes = "bg-purple-100 text-purple-700";
+                              else if (lc === "goko-special") classes = "bg-indigo-100 text-indigo-700";
+                              const display = lc.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+                              return (
+                                <span key={tag} className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${classes}`}>
+                                  {display}
+                                </span>
+                              );
+                            })}
                           </div>
                         </td>
                         <td className="py-2.5 pr-3">

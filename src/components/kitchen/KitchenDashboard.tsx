@@ -27,6 +27,7 @@ interface OrderItem {
   quantity: number;
   lineTotal: number;
   status: string;
+  tags: string;
 }
 
 interface Order {
@@ -54,6 +55,13 @@ interface MenuItem {
   price: number;
   isAvailable: number;
   categoryId: number;
+  tags: string;
+}
+
+interface KitchenCategory {
+  id: number;
+  name: string;
+  icon: string;
 }
 
 interface KitchenDashboardProps {
@@ -62,6 +70,31 @@ interface KitchenDashboardProps {
 }
 
 type MobileTab = "new" | "preparing" | "ready";
+
+const TAG_COLORS: Record<string, string> = {
+  veg: "bg-green-500/20 text-green-400",
+  "non-veg": "bg-red-500/20 text-red-400",
+  spicy: "bg-amber-500/20 text-amber-400",
+  seafood: "bg-blue-500/20 text-blue-400",
+  chicken: "bg-orange-500/20 text-orange-400",
+  mutton: "bg-red-700/20 text-red-300",
+  egg: "bg-yellow-500/20 text-yellow-400",
+  "chef-special": "bg-purple-500/20 text-purple-400",
+  "goko-special": "bg-indigo-500/20 text-indigo-400",
+};
+
+function parseTags(tagsStr: string): string[] {
+  try {
+    const parsed = JSON.parse(tagsStr);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function tagDisplayName(tag: string): string {
+  return tag.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
 
 const REJECT_REASONS = [
   "Out of stock",
@@ -73,10 +106,11 @@ const REJECT_REASONS = [
 export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [kitchenCategories, setKitchenCategories] = useState<KitchenCategory[]>([]);
+  const [selectedMenuCategory, setSelectedMenuCategory] = useState<number | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("new");
   const [showMenuPanel, setShowMenuPanel] = useState(false);
-  const [showAllMenu, setShowAllMenu] = useState(false);
   const [showDemand, setShowDemand] = useState(false);
   const [newOrderBadge, setNewOrderBadge] = useState(0);
 
@@ -155,7 +189,16 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
   const fetchMenuItems = useCallback(async () => {
     try {
       const data = await api("getMenuItems");
-      if (data.success) setMenuItems(data.data);
+      if (data.success) {
+        setMenuItems(data.data.items);
+        setKitchenCategories(data.data.categories);
+        setSelectedMenuCategory((prev) => {
+          if (!prev && data.data.categories.length > 0) {
+            return data.data.categories[0].id;
+          }
+          return prev;
+        });
+      }
     } catch {}
   }, [api]);
 
@@ -249,7 +292,10 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     [menuItems]
   );
 
-  const displayedMenu = showAllMenu ? menuItems : unavailableItems;
+  const categoryMenuItems = useMemo(
+    () => selectedMenuCategory ? menuItems.filter((m) => m.categoryId === selectedMenuCategory) : [],
+    [menuItems, selectedMenuCategory]
+  );
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -303,7 +349,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               className="relative flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-600"
             >
               <PackageIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">86&apos;d</span>
+              <span className="hidden sm:inline">Out of Stock</span>
               {unavailableItems.length > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold">
                   {unavailableItems.length}
@@ -380,20 +426,42 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                   Menu Availability
                   {unavailableItems.length > 0 && (
                     <span className="ml-2 text-red-400">
-                      ({unavailableItems.length} items 86&apos;d)
+                      ({unavailableItems.length} Out of Stock)
                     </span>
                   )}
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAllMenu(!showAllMenu)}
-                  className="text-xs text-slate-400 hover:text-white"
-                >
-                  {showAllMenu ? "Show 86'd only" : "Show all items"}
-                </button>
               </div>
+              {/* Category selector */}
+              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+                {kitchenCategories.map((cat) => {
+                  const catUnavail = menuItems.filter(
+                    (m) => m.categoryId === cat.id && m.isAvailable === 0
+                  ).length;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedMenuCategory(cat.id)}
+                      className={`flex flex-shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        selectedMenuCategory === cat.id
+                          ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40"
+                          : "bg-slate-700 text-slate-400 hover:bg-slate-600"
+                      }`}
+                    >
+                      <span>{cat.icon}</span>
+                      <span>{cat.name}</span>
+                      {catUnavail > 0 && (
+                        <span className="ml-1 rounded-full bg-red-500/20 px-1.5 py-0.5 text-[10px] font-bold text-red-400">
+                          {catUnavail}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Items in selected category */}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {displayedMenu.map((item) => (
+                {categoryMenuItems.map((item) => (
                   <div
                     key={item.id}
                     className={`flex items-center justify-between rounded-lg px-3 py-2 ${
@@ -419,13 +487,13 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                           : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
                       }`}
                     >
-                      {item.isAvailable ? "Available" : "86'd"}
+                      {item.isAvailable ? "Available" : "Out of Stock"}
                     </button>
                   </div>
                 ))}
-                {displayedMenu.length === 0 && (
+                {categoryMenuItems.length === 0 && (
                   <p className="col-span-full py-4 text-center text-sm text-slate-500">
-                    {showAllMenu ? "No menu items found" : "All items available"}
+                    {kitchenCategories.length === 0 ? "No categories found" : "No items in this category"}
                   </p>
                 )}
               </div>
@@ -807,11 +875,25 @@ function OrderCard({
 
         {/* Items */}
         <div className="mb-3 space-y-1">
-          {activeItems.map((item) => (
+          {activeItems.map((item) => {
+            const itemTags = parseTags(item.tags);
+            return (
             <div key={item.id} className="group flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
                 <span className="font-bold text-amber-400">{item.quantity}x</span>
                 <span>{item.itemName}</span>
+                {itemTags.length > 0 && (
+                  <div className="flex gap-1">
+                    {itemTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${TAG_COLORS[tag.toLowerCase()] || "bg-slate-600/30 text-slate-400"}`}
+                      >
+                        {tagDisplayName(tag)}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <button
                 type="button"
@@ -822,7 +904,8 @@ function OrderCard({
                 <XIcon className="h-3.5 w-3.5" />
               </button>
             </div>
-          ))}
+            );
+          })}
           {voidedItems.length > 0 && (
             <div className="mt-1 border-t border-slate-700 pt-1">
               {voidedItems.map((item) => (

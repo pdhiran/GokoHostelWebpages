@@ -45,6 +45,7 @@ interface MenuBrowserProps {
 }
 
 type DietFilter = "all" | "veg" | "nonveg";
+type CuratedFilter = "chef-special" | "goko-special" | null;
 
 function parseTags(tagsStr: string): string[] {
   try {
@@ -62,6 +63,7 @@ function formatPrice(paise: number): string {
 export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFromCart }: MenuBrowserProps) {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [dietFilter, setDietFilter] = useState<DietFilter>("all");
+  const [curatedFilter, setCuratedFilter] = useState<CuratedFilter>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const sortedCategories = useMemo(
@@ -81,6 +83,13 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
       });
     }
 
+    if (curatedFilter) {
+      result = result.filter((item) => {
+        const tags = parseTags(item.tags).map((t) => t.toLowerCase());
+        return tags.includes(curatedFilter);
+      });
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
@@ -91,7 +100,16 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
     }
 
     return result;
-  }, [items, selectedCategory, dietFilter, searchQuery]);
+  }, [items, selectedCategory, dietFilter, curatedFilter, searchQuery]);
+
+  const hasChefSpecial = useMemo(
+    () => items.some((i) => i.categoryId === selectedCategory && parseTags(i.tags).map((t) => t.toLowerCase()).includes("chef-special")),
+    [items, selectedCategory]
+  );
+  const hasGokoSpecial = useMemo(
+    () => items.some((i) => i.categoryId === selectedCategory && parseTags(i.tags).map((t) => t.toLowerCase()).includes("goko-special")),
+    [items, selectedCategory]
+  );
 
   const getCartQuantity = (menuItemId: number): number => {
     const found = cart.find((c) => c.menuItemId === menuItemId);
@@ -156,6 +174,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
             setSelectedCategory(null);
             setSearchQuery("");
             setDietFilter("all");
+            setCuratedFilter(null);
           }}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200"
         >
@@ -185,7 +204,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
       </div>
 
       {/* Diet filter */}
-      <div className="mb-4 flex gap-2">
+      <div className="mb-2 flex gap-2">
         <button
           onClick={() => setDietFilter("all")}
           className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
@@ -219,6 +238,36 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
           Non-veg
         </button>
       </div>
+
+      {/* Curated filter chips */}
+      {(hasChefSpecial || hasGokoSpecial) && (
+        <div className="mb-4 flex gap-2">
+          {hasChefSpecial && (
+            <button
+              onClick={() => setCuratedFilter(curatedFilter === "chef-special" ? null : "chef-special")}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+                curatedFilter === "chef-special"
+                  ? "bg-purple-600 text-white"
+                  : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+              }`}
+            >
+              👨‍🍳 Chef Special
+            </button>
+          )}
+          {hasGokoSpecial && (
+            <button
+              onClick={() => setCuratedFilter(curatedFilter === "goko-special" ? null : "goko-special")}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+                curatedFilter === "goko-special"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+              }`}
+            >
+              ⭐ Goko Special
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Items grid */}
       <AnimatePresence mode="popLayout">
@@ -255,16 +304,24 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                   <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100">
                     {item.imageUrl ? (
                       <img
-                        src={item.imageUrl}
+                        src={`/images/food/${item.imageUrl}`}
                         alt={item.name}
                         className="h-full w-full object-cover"
                         loading="lazy"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.style.display = "none";
+                          const placeholder = target.nextElementSibling as HTMLElement;
+                          if (placeholder) placeholder.style.display = "flex";
+                        }}
                       />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-2xl text-gray-300">
-                        🍽️
-                      </div>
-                    )}
+                    ) : null}
+                    <div
+                      className="flex h-full w-full items-center justify-center text-2xl text-gray-400"
+                      style={{ display: item.imageUrl ? "none" : "flex" }}
+                    >
+                      {currentCategory?.icon || "🍽️"}
+                    </div>
                   </div>
 
                   {/* Content */}
@@ -290,12 +347,19 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                             if (lc === "veg") classes = "bg-green-50 text-green-700";
                             else if (lc === "non-veg" || lc === "nonveg") classes = "bg-red-50 text-red-700";
                             else if (lc === "spicy") classes = "bg-amber-50 text-amber-700";
+                            else if (lc === "seafood") classes = "bg-blue-50 text-blue-700";
+                            else if (lc === "chicken") classes = "bg-orange-50 text-orange-700";
+                            else if (lc === "mutton") classes = "bg-red-50 text-red-800";
+                            else if (lc === "egg") classes = "bg-yellow-50 text-yellow-700";
+                            else if (lc === "chef-special") classes = "bg-purple-50 text-purple-700";
+                            else if (lc === "goko-special") classes = "bg-indigo-50 text-indigo-700";
+                            const display = lc.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
                             return (
                               <span
                                 key={tag}
                                 className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${classes}`}
                               >
-                                {tag}
+                                {display}
                               </span>
                             );
                           })}
