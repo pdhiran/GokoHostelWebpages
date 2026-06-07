@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getActiveMenuCategories, getAvailableMenuItems, getSetting } from "@/db/queries";
+import { getActiveMenuCategories, getAvailableMenuItems, getAllMenuItems, getSetting } from "@/db/queries";
 
 export async function GET() {
   try {
-    const [categories, items, kitchenOpen, kitchenClose, kitchenBusy, taxRate, whatsappNumber, customerWhatsapp] =
+    const [categories, showOos, kitchenOpen, kitchenClose, kitchenBusy, taxRate, whatsappNumber, customerWhatsapp] =
       await Promise.all([
         getActiveMenuCategories(),
-        getAvailableMenuItems(),
+        getSetting("food_show_out_of_stock"),
         getSetting("food_kitchen_open"),
         getSetting("food_kitchen_close"),
         getSetting("food_kitchen_busy"),
@@ -14,6 +14,9 @@ export async function GET() {
         getSetting("food_kitchen_whatsapp"),
         getSetting("food_customer_whatsapp"),
       ]);
+
+    const showOutOfStock = showOos === "true";
+    const items = showOutOfStock ? await getAllMenuItems() : await getAvailableMenuItems();
 
     return NextResponse.json({
       categories,
@@ -25,6 +28,7 @@ export async function GET() {
         taxRate: Number(taxRate) || 5,
         whatsappNumber: whatsappNumber || "",
         customerWhatsappEnabled: customerWhatsapp !== "false",
+        showOutOfStock,
       },
     });
   } catch (error: any) {

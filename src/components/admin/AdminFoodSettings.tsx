@@ -17,6 +17,7 @@ type FoodSettings = {
   food_tab_limit: string;
   food_kitchen_busy: string;
   food_customer_whatsapp: string;
+  food_show_out_of_stock: string;
 };
 
 const DEFAULT_SETTINGS: FoodSettings = {
@@ -27,6 +28,7 @@ const DEFAULT_SETTINGS: FoodSettings = {
   food_tab_limit: "0",
   food_kitchen_busy: "false",
   food_customer_whatsapp: "true",
+  food_show_out_of_stock: "false",
 };
 
 function paiseToRupees(paise: string): string {
@@ -73,6 +75,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
           food_tab_limit: s.food_tab_limit || DEFAULT_SETTINGS.food_tab_limit,
           food_kitchen_busy: s.food_kitchen_busy || DEFAULT_SETTINGS.food_kitchen_busy,
           food_customer_whatsapp: s.food_customer_whatsapp ?? DEFAULT_SETTINGS.food_customer_whatsapp,
+          food_show_out_of_stock: s.food_show_out_of_stock ?? DEFAULT_SETTINGS.food_show_out_of_stock,
         };
         setSettings(merged);
         setSavedSettings(merged);
@@ -209,6 +212,48 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             <span className={cn(
               "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
               settings.food_customer_whatsapp === "true" ? "translate-x-6" : "translate-x-0"
+            )} />
+          </button>
+        </div>
+      </div>
+
+      {/* Show Out of Stock Items Toggle */}
+      <div className="mt-4 rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-base font-bold text-brand-green-dark">Show Out of Stock Items</h3>
+            <p className="mt-0.5 text-xs text-brand-green-dark/50">
+              {settings.food_show_out_of_stock === "true"
+                ? "Out of stock items are shown greyed out on the guest menu."
+                : "Out of stock items are hidden from the guest menu."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              const newValue = settings.food_show_out_of_stock === "true" ? "false" : "true";
+              setSaving(true);
+              try {
+                const res = await apiCall({
+                  action: "updateFoodSettings",
+                  settings: { food_show_out_of_stock: newValue },
+                });
+                if (res.ok) {
+                  setSettings((prev) => ({ ...prev, food_show_out_of_stock: newValue }));
+                  setSavedSettings((prev) => ({ ...prev, food_show_out_of_stock: newValue }));
+                }
+              } catch {}
+              setSaving(false);
+            }}
+            disabled={saving}
+            className={cn(
+              "relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+              settings.food_show_out_of_stock === "true" ? "bg-green-500" : "bg-gray-200"
+            )}
+          >
+            <span className={cn(
+              "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+              settings.food_show_out_of_stock === "true" ? "translate-x-6" : "translate-x-0"
             )} />
           </button>
         </div>

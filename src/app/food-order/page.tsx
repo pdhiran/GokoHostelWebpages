@@ -31,6 +31,7 @@ interface MenuSettings {
   taxRate: number;
   whatsappNumber: string;
   customerWhatsappEnabled: boolean;
+  showOutOfStock: boolean;
 }
 
 interface MenuCategory {
