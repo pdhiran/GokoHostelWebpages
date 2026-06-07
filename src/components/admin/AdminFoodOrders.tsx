@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon } from "lucide-react";
+import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem } from "@/lib/thermalPrint";
+import { generateGuestBill, generateCombinedBill, type GuestBillData, type CombinedBillData, type BillOrder, type BillOrderItem } from "@/components/admin/FoodBillGenerator";
 import type { Role } from "./types";
 
 type FoodTab = "active" | "place" | "tabs" | "walkin" | "combined" | "history";
@@ -542,10 +543,7 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
   const [guestOrders, setGuestOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [btSupported, setBtSupported] = useState(false);
   const [printing, setPrinting] = useState<number | null>(null);
-
-  useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -727,17 +725,55 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
                       </div>
                     )}
 
-                    {btSupported && (
+                    <div className="mt-1 flex items-center gap-2">
+                      {btSupported && (
+                        <button
+                          type="button"
+                          onClick={() => handlePrintBill(g)}
+                          disabled={printing === g.checkinId}
+                          className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          <PrinterIcon className="h-3.5 w-3.5" />
+                          {printing === g.checkinId ? "Printing..." : "Print"}
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => handlePrintBill(g)}
-                        disabled={printing === g.checkinId}
-                        className="mt-1 flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:bg-gray-50 disabled:opacity-50"
+                        onClick={() => {
+                          const orders: BillOrder[] = guestOrders.map(o => ({
+                            orderNumber: o.orderNumber,
+                            createdAt: o.createdAt,
+                            items: o.items.filter(i => i.status !== "voided").map(i => ({
+                              itemName: i.itemName,
+                              quantity: i.quantity,
+                              itemPrice: i.itemPrice,
+                              lineTotal: i.lineTotal,
+                              status: i.status,
+                            })),
+                            subtotal: o.subtotal,
+                            tax: o.tax,
+                            total: o.total,
+                            specialInstructions: o.specialInstructions || undefined,
+                          }));
+                          const billData: GuestBillData = {
+                            guestName: g.name,
+                            guestPhone: g.contact,
+                            roomInfo: g.bedInfo || undefined,
+                            orders,
+                            grandSubtotal: guestOrders.reduce((s, o) => s + o.subtotal, 0),
+                            grandTax: guestOrders.reduce((s, o) => s + o.tax, 0),
+                            grandTotal: guestOrders.reduce((s, o) => s + o.total, 0),
+                            taxRate: 5,
+                            billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                          };
+                          generateGuestBill(billData);
+                        }}
+                        className="flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
                       >
-                        <PrinterIcon className="h-3.5 w-3.5" />
-                        {printing === g.checkinId ? "Printing..." : "Print Bill"}
+                        <DownloadIcon className="h-3.5 w-3.5" />
+                        PDF
                       </button>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -881,12 +917,46 @@ function WalkinOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                     type="button"
                     onClick={() => handlePrint(order)}
                     disabled={printing === order.id}
-                    className="flex items-center gap-1 rounded-lg border px-3 py-1 text-xs font-medium transition hover:bg-gray-50 disabled:opacity-50"
+                    className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
                     <PrinterIcon className="h-3.5 w-3.5" />
                     {printing === order.id ? "Printing..." : "Print"}
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const orders: BillOrder[] = [{
+                      orderNumber: order.orderNumber,
+                      createdAt: order.createdAt,
+                      items: order.items.filter(i => i.status !== "voided").map(i => ({
+                        itemName: i.itemName,
+                        quantity: i.quantity,
+                        itemPrice: i.itemPrice,
+                        lineTotal: i.lineTotal,
+                        status: i.status,
+                      })),
+                      subtotal: order.subtotal,
+                      tax: order.tax,
+                      total: order.total,
+                      specialInstructions: order.specialInstructions || undefined,
+                    }];
+                    generateGuestBill({
+                      guestName: order.guestName,
+                      guestPhone: order.guestPhone || "",
+                      orders,
+                      grandSubtotal: order.subtotal,
+                      grandTax: order.tax,
+                      grandTotal: order.total,
+                      taxRate: 5,
+                      billDate: new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                    });
+                  }}
+                  className="flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  <DownloadIcon className="h-3.5 w-3.5" />
+                  PDF
+                </button>
               </div>
             </div>
           </div>
@@ -1027,17 +1097,60 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
             <span className="text-sm font-bold text-brand-green-dark">Grand Total</span>
             <span className="text-lg font-bold text-brand-green">₹{(preview.grandTotal / 100).toFixed(0)}</span>
           </div>
-          {btSupported && (
+          <div className="mt-3 flex items-center gap-2">
+            {btSupported && (
+              <button
+                type="button"
+                onClick={handlePrintCombined}
+                disabled={printingCombined}
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <PrinterIcon className="h-4 w-4" />
+                {printingCombined ? "Printing..." : "Print Combined"}
+              </button>
+            )}
             <button
               type="button"
-              onClick={handlePrintCombined}
-              disabled={printingCombined}
-              className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-gray-50 disabled:opacity-50"
+              onClick={() => {
+                if (!preview) return;
+                const combinedData: CombinedBillData = {
+                  guests: preview.guests.map((g: any) => ({
+                    guestName: g.guestName as string,
+                    guestPhone: (g.guestPhone || "") as string,
+                    roomInfo: g.roomInfo || undefined,
+                    orders: ((g.orders || []) as any[]).map((o: any) => ({
+                      orderNumber: o.orderNumber as string,
+                      createdAt: o.createdAt as string,
+                      items: ((o.items || []) as any[]).filter((i: any) => i.status !== "voided").map((i: any) => ({
+                        itemName: (i.itemName || i.name || "") as string,
+                        quantity: (i.quantity || 0) as number,
+                        itemPrice: (i.itemPrice || i.price || 0) as number,
+                        lineTotal: (i.lineTotal || 0) as number,
+                        status: (i.status || "active") as string,
+                      })),
+                      subtotal: (o.subtotal || 0) as number,
+                      tax: (o.tax || 0) as number,
+                      total: (o.total || 0) as number,
+                      specialInstructions: o.specialInstructions || undefined,
+                    })),
+                    guestSubtotal: (g.subtotal || 0) as number,
+                    guestTax: (g.tax || 0) as number,
+                    guestTotal: (g.subtotal || 0) as number,
+                  })),
+                  grandSubtotal: preview.grandTotal,
+                  grandTax: Math.round(preview.grandTotal * 5 / 105),
+                  grandTotal: preview.grandTotal,
+                  taxRate: 5,
+                  billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                };
+                generateCombinedBill(combinedData);
+              }}
+              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
             >
-              <PrinterIcon className="h-4 w-4" />
-              {printingCombined ? "Printing..." : "Print Combined Bill"}
+              <DownloadIcon className="h-4 w-4" />
+              Download PDF
             </button>
-          )}
+          </div>
         </div>
       )}
     </div>
@@ -1057,6 +1170,10 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupResult, setCleanupResult] = useState("");
+  const [btSupported, setBtSupported] = useState(false);
+  const [printing, setPrinting] = useState<number | null>(null);
+
+  useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1221,6 +1338,81 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   {order.cancelledReason && (
                     <p className="text-xs text-red-500">Cancelled: {order.cancelledReason}</p>
                   )}
+                  <div className="flex items-center gap-2 border-t border-brand-mist pt-2">
+                    {btSupported && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setPrinting(order.id);
+                          try {
+                            await printFoodBill({
+                              billNumber: order.orderNumber,
+                              guestName: order.guestName,
+                              guestPhone: order.guestPhone || undefined,
+                              roomInfo: order.roomInfo || undefined,
+                              guestType: order.guestType,
+                              items: order.items.filter(i => i.status !== "voided").map(i => ({
+                                name: i.itemName,
+                                quantity: i.quantity,
+                                price: i.itemPrice,
+                                lineTotal: i.lineTotal,
+                                status: i.status,
+                              })),
+                              subtotal: order.subtotal,
+                              tax: order.tax,
+                              total: order.total,
+                              taxRate: 5,
+                            });
+                            alert("Bill printed successfully!");
+                          } catch (err: any) {
+                            alert(`Print failed: ${err.message || "Unknown error"}`);
+                          } finally {
+                            setPrinting(null);
+                          }
+                        }}
+                        disabled={printing === order.id}
+                        className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <PrinterIcon className="h-3.5 w-3.5" />
+                        {printing === order.id ? "Printing..." : "Print"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const billOrders: BillOrder[] = [{
+                          orderNumber: order.orderNumber,
+                          createdAt: order.createdAt,
+                          items: order.items.filter(i => i.status !== "voided").map(i => ({
+                            itemName: i.itemName,
+                            quantity: i.quantity,
+                            itemPrice: i.itemPrice,
+                            lineTotal: i.lineTotal,
+                            status: i.status,
+                          })),
+                          subtotal: order.subtotal,
+                          tax: order.tax,
+                          total: order.total,
+                          specialInstructions: order.specialInstructions || undefined,
+                        }];
+                        generateGuestBill({
+                          guestName: order.guestName,
+                          guestPhone: order.guestPhone || "",
+                          roomInfo: order.roomInfo || undefined,
+                          orders: billOrders,
+                          grandSubtotal: order.subtotal,
+                          grandTax: order.tax,
+                          grandTotal: order.total,
+                          taxRate: 5,
+                          billDate: new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                        });
+                      }}
+                      className="flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                    >
+                      <DownloadIcon className="h-3.5 w-3.5" />
+                      PDF
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

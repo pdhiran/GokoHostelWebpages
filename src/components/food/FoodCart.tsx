@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PrinterIcon } from "lucide-react";
+import { PrinterIcon, DownloadIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill } from "@/lib/thermalPrint";
+import { generateGuestBill, type GuestBillData, type BillOrder } from "@/components/admin/FoodBillGenerator";
 
 export interface CartItemData {
   menuItemId: number;
@@ -194,6 +195,42 @@ export function FoodCart({
                 {printingReceipt ? "Printing..." : "Print Receipt"}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                const guestName = guestInfo.guestType === "hostel" ? guestInfo.name : walkinName || "Guest";
+                const billOrders: BillOrder[] = [{
+                  orderNumber: orderSuccess.orderNumber,
+                  createdAt: new Date().toISOString(),
+                  items: orderSuccess.items.map(i => ({
+                    itemName: i.name,
+                    quantity: i.quantity,
+                    itemPrice: i.price,
+                    lineTotal: i.lineTotal,
+                    status: "active",
+                  })),
+                  subtotal: orderSuccess.subtotal,
+                  tax: orderSuccess.taxAmount,
+                  total: orderSuccess.total,
+                }];
+                const billData: GuestBillData = {
+                  guestName,
+                  guestPhone: guestInfo.phone || "",
+                  roomInfo: guestInfo.roomInfo || undefined,
+                  orders: billOrders,
+                  grandSubtotal: orderSuccess.subtotal,
+                  grandTax: orderSuccess.taxAmount,
+                  grandTotal: orderSuccess.total,
+                  taxRate,
+                  billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                };
+                generateGuestBill(billData);
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 py-3 text-sm font-medium text-blue-700 transition hover:bg-blue-50"
+            >
+              <DownloadIcon className="h-4 w-4" />
+              Download PDF
+            </button>
             <a
               href={`/food-order/status?order=${orderSuccess.orderNumber}&phone=${guestInfo.phone}`}
               className="block w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3 text-center font-semibold text-white shadow-lg transition hover:shadow-xl"
