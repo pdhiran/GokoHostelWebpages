@@ -23,6 +23,7 @@ import {
   getUserByUsername,
   getSetting,
 } from "@/db/queries";
+import { normalizePhone } from "@/lib/phoneUtils";
 import { getDb } from "@/db";
 import { foodOrders, foodOrderItems, checkins } from "@/db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
@@ -173,7 +174,7 @@ export async function POST(req: NextRequest) {
             guestType: guestType || "walkin",
             checkinId: checkinId || undefined,
             guestName,
-            guestPhone: guestPhone || "",
+            guestPhone: normalizePhone(guestPhone || ""),
             roomInfo: roomInfo || "",
             specialInstructions: specialInstructions || "",
             subtotal,
@@ -191,7 +192,7 @@ export async function POST(req: NextRequest) {
               guestType: guestType || "walkin",
               checkinId: checkinId || undefined,
               guestName,
-              guestPhone: guestPhone || "",
+              guestPhone: normalizePhone(guestPhone || ""),
               roomInfo: roomInfo || "",
               specialInstructions: specialInstructions || "",
               subtotal,
