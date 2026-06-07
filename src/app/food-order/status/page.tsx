@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 
@@ -52,7 +52,7 @@ function getElapsedTime(createdAt: string): string {
   return `${hrs}h ${mins % 60}m ago`;
 }
 
-export default function OrderStatusPage() {
+function OrderStatusContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get("order") || "";
   const phone = searchParams.get("phone") || "";
@@ -246,5 +246,19 @@ export default function OrderStatusPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OrderStatusPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-500 to-cyan-500">
+          <div className="text-white text-lg">Loading order status...</div>
+        </div>
+      }
+    >
+      <OrderStatusContent />
+    </Suspense>
   );
 }

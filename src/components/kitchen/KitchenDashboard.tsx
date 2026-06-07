@@ -303,7 +303,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               className="relative flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-600"
             >
               <PackageIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">86'd</span>
+              <span className="hidden sm:inline">86&apos;d</span>
               {unavailableItems.length > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold">
                   {unavailableItems.length}
@@ -380,7 +380,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                   Menu Availability
                   {unavailableItems.length > 0 && (
                     <span className="ml-2 text-red-400">
-                      ({unavailableItems.length} items 86'd)
+                      ({unavailableItems.length} items 86&apos;d)
                     </span>
                   )}
                 </h3>
