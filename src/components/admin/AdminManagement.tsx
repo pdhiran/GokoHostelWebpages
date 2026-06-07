@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
@@ -11,6 +11,8 @@ import { ManagementLogs } from "./ManagementLogs";
 import { ManagementHealth } from "./ManagementHealth";
 import { AdminBedHistory } from "./AdminBedHistory";
 import { AdminCheckRates } from "./AdminCheckRates";
+import { AdminMenuManagement } from "./AdminMenuManagement";
+import { AdminFoodSettings } from "./AdminFoodSettings";
 import type { Role, ManagementTab } from "./types";
 
 const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
@@ -22,6 +24,8 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "health", label: "Health & Stats", icon: <HeartPulseIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "history", label: "History", icon: <HistoryIcon className="h-3.5 w-3.5" /> },
   { id: "rates", label: "Rates", icon: <IndianRupeeIcon className="h-3.5 w-3.5" /> },
+  { id: "menu", label: "Menu", icon: <UtensilsIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "foodSettings", label: "Food Settings", icon: <SettingsIcon className="h-3.5 w-3.5" />, adminOnly: true },
 ];
 
 export function AdminManagement({ password, username, role }: { password: string; username?: string; role: Role }) {
@@ -65,6 +69,8 @@ export function AdminManagement({ password, username, role }: { password: string
         {tab === "health" && <ManagementHealth password={password} role={role} />}
         {tab === "history" && <AdminBedHistory password={password} username={username} role={role} />}
         {tab === "rates" && <AdminCheckRates password={password} username={username} role={role} />}
+        {tab === "menu" && <AdminMenuManagement password={password} username={username} role={role} />}
+        {tab === "foodSettings" && <AdminFoodSettings password={password} username={username} role={role} />}
       </div>
     </div>
   );

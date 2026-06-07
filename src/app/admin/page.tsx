@@ -12,6 +12,7 @@ import { AdminBeds } from "@/components/admin/AdminBeds";
 import { AdminBookings } from "@/components/admin/AdminBookings";
 import { AdminManagement } from "@/components/admin/AdminManagement";
 import { AdminTimeline } from "@/components/admin/AdminTimeline";
+import { AdminFoodOrders } from "@/components/admin/AdminFoodOrders";
 import type { Role, AdminSection } from "@/components/admin/types";
 
 export default function AdminPage() {
@@ -130,6 +131,7 @@ export default function AdminPage() {
     { id: "beds", label: "Beds", icon: <BedDoubleIcon className="h-4 w-4" /> },
     { id: "timeline", label: "Timeline", icon: <CalendarDaysIcon className="h-4 w-4" /> },
     { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" /> },
+    { id: "foodOrders", label: "Food Orders", icon: <span className="text-base leading-none">🍽️</span> },
     { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" /> },
   ];
 
@@ -179,6 +181,7 @@ export default function AdminPage() {
         {section === "beds" && <AdminBeds password={password} username={username} role={role} />}
         {section === "timeline" && <AdminTimeline password={password} username={username} role={role} />}
         {section === "records" && <AdminRecords password={password} username={username} role={role} />}
+        {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} />}
         {section === "management" && <AdminManagement password={password} username={username} role={role} />}
       </div>
     </section>

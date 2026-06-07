@@ -1,6 +1,6 @@
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { getDb } from "./index";
-import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings } from "./schema";
+import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications } from "./schema";
 
 // --- Check-ins ---
 
@@ -391,4 +391,346 @@ export async function getRateScrapeById(id: number) {
 export async function updateRateScrape(id: number, data: { status?: string; results?: string; completedAt?: string }) {
   const db = getDb();
   return db.update(rateScrapes).set(data).where(eq(rateScrapes.id, id));
+}
+
+// --- Menu Categories ---
+
+export async function getActiveMenuCategories() {
+  const db = getDb();
+  return db.select().from(menuCategories)
+    .where(eq(menuCategories.isActive, 1))
+    .orderBy(menuCategories.displayOrder);
+}
+
+export async function getAllMenuCategories() {
+  const db = getDb();
+  return db.select().from(menuCategories).orderBy(menuCategories.displayOrder);
+}
+
+export async function addMenuCategory(data: { name: string; nameKannada?: string; icon?: string; description?: string; displayOrder?: number }) {
+  const db = getDb();
+  return db.insert(menuCategories).values({
+    name: data.name,
+    nameKannada: data.nameKannada || "",
+    icon: data.icon || "🍽️",
+    description: data.description || "",
+    displayOrder: data.displayOrder || 0,
+    isActive: 1,
+  });
+}
+
+export async function updateMenuCategory(id: number, data: Partial<typeof menuCategories.$inferInsert>) {
+  const db = getDb();
+  return db.update(menuCategories).set(data).where(eq(menuCategories.id, id));
+}
+
+export async function deleteMenuCategory(id: number) {
+  const db = getDb();
+  await db.delete(menuItems).where(eq(menuItems.categoryId, id));
+  await db.delete(menuCategories).where(eq(menuCategories.id, id));
+}
+
+// --- Menu Items ---
+
+export async function getAvailableMenuItems() {
+  const db = getDb();
+  return db.select({
+    id: menuItems.id,
+    categoryId: menuItems.categoryId,
+    name: menuItems.name,
+    nameKannada: menuItems.nameKannada,
+    description: menuItems.description,
+    price: menuItems.price,
+    priceText: menuItems.priceText,
+    tags: menuItems.tags,
+    ingredients: menuItems.ingredients,
+    imageUrl: menuItems.imageUrl,
+    isAvailable: menuItems.isAvailable,
+    displayOrder: menuItems.displayOrder,
+  }).from(menuItems)
+    .innerJoin(menuCategories, eq(menuItems.categoryId, menuCategories.id))
+    .where(and(eq(menuItems.isAvailable, 1), eq(menuCategories.isActive, 1)))
+    .orderBy(menuItems.displayOrder);
+}
+
+export async function getMenuItemById(id: number) {
+  const db = getDb();
+  const rows = await db.select().from(menuItems).where(eq(menuItems.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getMenuWithCategories() {
+  const db = getDb();
+  const categories = await db.select().from(menuCategories)
+    .where(eq(menuCategories.isActive, 1))
+    .orderBy(menuCategories.displayOrder);
+  const items = await db.select().from(menuItems)
+    .innerJoin(menuCategories, eq(menuItems.categoryId, menuCategories.id))
+    .where(and(eq(menuItems.isAvailable, 1), eq(menuCategories.isActive, 1)))
+    .orderBy(menuItems.displayOrder);
+  return { categories, items: items.map(r => r.menu_items) };
+}
+
+export async function getMenuItemsByCategory(categoryId: number) {
+  const db = getDb();
+  return db.select().from(menuItems)
+    .where(eq(menuItems.categoryId, categoryId))
+    .orderBy(menuItems.displayOrder);
+}
+
+export async function getAllMenuItems() {
+  const db = getDb();
+  return db.select().from(menuItems).orderBy(menuItems.categoryId, menuItems.displayOrder);
+}
+
+export async function addMenuItem(data: {
+  categoryId: number; name: string; nameKannada?: string; description?: string;
+  price: number; priceText?: string; tags?: string; ingredients?: string;
+  imageUrl?: string; isAvailable?: number; displayOrder?: number;
+}) {
+  const db = getDb();
+  return db.insert(menuItems).values({
+    categoryId: data.categoryId,
+    name: data.name,
+    nameKannada: data.nameKannada || "",
+    description: data.description || "",
+    price: data.price,
+    priceText: data.priceText || "",
+    tags: data.tags || "[]",
+    ingredients: data.ingredients || "[]",
+    imageUrl: data.imageUrl || "",
+    isAvailable: data.isAvailable ?? 1,
+    displayOrder: data.displayOrder || 0,
+  });
+}
+
+export async function updateMenuItem(id: number, data: Partial<typeof menuItems.$inferInsert>) {
+  const db = getDb();
+  return db.update(menuItems).set(data).where(eq(menuItems.id, id));
+}
+
+export async function deleteMenuItem(id: number) {
+  const db = getDb();
+  return db.delete(menuItems).where(eq(menuItems.id, id));
+}
+
+export async function toggleMenuItemAvailability(id: number, isAvailable: number) {
+  const db = getDb();
+  return db.update(menuItems).set({ isAvailable }).where(eq(menuItems.id, id));
+}
+
+// --- Food Orders ---
+
+export async function createFoodOrder(data: {
+  orderNumber: string; idempotencyKey?: string; guestType: string;
+  checkinId?: number; guestName: string; guestPhone?: string;
+  roomInfo?: string; tableNumber?: string; specialInstructions?: string;
+  subtotal: number; tax: number; total: number;
+  paymentStatus?: string; createdBy?: string;
+}) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  return db.insert(foodOrders).values({
+    orderNumber: data.orderNumber,
+    idempotencyKey: data.idempotencyKey || null,
+    guestType: data.guestType,
+    checkinId: data.checkinId,
+    guestName: data.guestName,
+    guestPhone: data.guestPhone || "",
+    roomInfo: data.roomInfo || "",
+    tableNumber: data.tableNumber || "",
+    specialInstructions: data.specialInstructions || "",
+    subtotal: data.subtotal,
+    tax: data.tax,
+    total: data.total,
+    status: "placed",
+    paymentStatus: data.paymentStatus || "pending",
+    createdBy: data.createdBy || "guest",
+    createdAt: now,
+    updatedAt: now,
+  }).returning();
+}
+
+export async function addFoodOrderItems(items: Array<{
+  orderId: number; menuItemId: number; itemName: string;
+  itemPrice: number; quantity: number; lineTotal: number;
+}>) {
+  const db = getDb();
+  return db.insert(foodOrderItems).values(items);
+}
+
+export async function getFoodOrdersByStatus(status: string) {
+  const db = getDb();
+  return db.select().from(foodOrders)
+    .where(eq(foodOrders.status, status))
+    .orderBy(foodOrders.createdAt);
+}
+
+export async function getActiveFoodOrders() {
+  const db = getDb();
+  return db.select().from(foodOrders)
+    .where(
+      and(
+        sql`${foodOrders.status} != 'served'`,
+        sql`${foodOrders.status} != 'cancelled'`
+      )
+    )
+    .orderBy(foodOrders.createdAt);
+}
+
+export async function getFoodOrderById(id: number) {
+  const db = getDb();
+  const rows = await db.select().from(foodOrders).where(eq(foodOrders.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getFoodOrderByNumber(orderNumber: string) {
+  const db = getDb();
+  const rows = await db.select().from(foodOrders).where(eq(foodOrders.orderNumber, orderNumber)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getFoodOrderByIdempotencyKey(key: string) {
+  const db = getDb();
+  if (!key) return null;
+  const rows = await db.select().from(foodOrders).where(eq(foodOrders.idempotencyKey, key)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getFoodOrderItems(orderId: number) {
+  const db = getDb();
+  return db.select().from(foodOrderItems).where(eq(foodOrderItems.orderId, orderId));
+}
+
+export async function updateFoodOrderStatus(id: number, status: string, cancelledReason?: string) {
+  const db = getDb();
+  const data: any = { status, updatedAt: new Date().toISOString() };
+  if (status === "cancelled") {
+    data.cancelledAt = new Date().toISOString();
+    if (cancelledReason) data.cancelledReason = cancelledReason;
+  }
+  return db.update(foodOrders).set(data).where(eq(foodOrders.id, id));
+}
+
+export async function updateFoodOrderPayment(id: number, data: {
+  paymentStatus: string; paymentMethod?: string; paidBy?: string;
+}) {
+  const db = getDb();
+  return db.update(foodOrders).set({
+    paymentStatus: data.paymentStatus,
+    paymentMethod: data.paymentMethod || "",
+    paidBy: data.paidBy || "",
+    updatedAt: new Date().toISOString(),
+  }).where(eq(foodOrders.id, id));
+}
+
+export async function getGuestFoodTab(checkinId: number) {
+  const db = getDb();
+  return db.select().from(foodOrders)
+    .where(and(
+      eq(foodOrders.checkinId, checkinId),
+      eq(foodOrders.paymentStatus, "on_tab"),
+    ))
+    .orderBy(foodOrders.createdAt);
+}
+
+export async function getGuestAllFoodOrders(checkinId: number) {
+  const db = getDb();
+  return db.select().from(foodOrders)
+    .where(eq(foodOrders.checkinId, checkinId))
+    .orderBy(desc(foodOrders.createdAt));
+}
+
+export async function getFoodOrderHistory(limit = 100, offset = 0) {
+  const db = getDb();
+  return db.select().from(foodOrders)
+    .orderBy(desc(foodOrders.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function getNextOrderNumber() {
+  const db = getDb();
+  const istDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const dayOfYear = Math.floor((istDate.getTime() - new Date(istDate.getFullYear(), 0, 0).getTime()) / 86400000);
+  const prefix = `D${dayOfYear}`;
+
+  const rows = await db.select({
+    maxNum: sql<number>`COALESCE(MAX(CAST(SUBSTR(${foodOrders.orderNumber}, ${prefix.length + 2}) AS INTEGER)), 0)`
+  }).from(foodOrders)
+    .where(sql`${foodOrders.orderNumber} LIKE ${prefix + '-%'}`);
+
+  const next = (rows[0]?.maxNum || 0) + 1;
+  return `${prefix}-${String(next).padStart(2, "0")}`;
+}
+
+// --- Order Modifications ---
+
+export async function addOrderModification(data: {
+  orderId: number; action: string; itemId?: number;
+  oldValue?: string; newValue?: string; reason?: string; modifiedBy: string;
+}) {
+  const db = getDb();
+  return db.insert(orderModifications).values({
+    orderId: data.orderId,
+    action: data.action,
+    itemId: data.itemId,
+    oldValue: data.oldValue || "",
+    newValue: data.newValue || "",
+    reason: data.reason || "",
+    modifiedBy: data.modifiedBy,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function getOrderModifications(orderId: number) {
+  const db = getDb();
+  return db.select().from(orderModifications)
+    .where(eq(orderModifications.orderId, orderId))
+    .orderBy(desc(orderModifications.id));
+}
+
+// --- Tab Helpers ---
+
+export async function getGuestTabTotal(checkinId: number): Promise<number> {
+  const db = getDb();
+  const rows = await db.select({
+    total: sql<number>`COALESCE(SUM(${foodOrders.total}), 0)`
+  }).from(foodOrders)
+    .where(and(
+      eq(foodOrders.checkinId, checkinId),
+      eq(foodOrders.paymentStatus, "on_tab"),
+    ));
+  return rows[0]?.total || 0;
+}
+
+export async function getFoodOrdersByCheckinIds(checkinIds: number[]) {
+  const db = getDb();
+  if (checkinIds.length === 0) return [];
+  return db.select().from(foodOrders)
+    .where(and(
+      inArray(foodOrders.checkinId, checkinIds),
+      eq(foodOrders.paymentStatus, "on_tab"),
+    ))
+    .orderBy(foodOrders.createdAt);
+}
+
+export async function updateFoodOrder(id: number, data: Partial<typeof foodOrders.$inferInsert>) {
+  const db = getDb();
+  return db.update(foodOrders).set({
+    ...data,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(foodOrders.id, id));
+}
+
+export async function deleteFoodOrderItem(id: number) {
+  const db = getDb();
+  return db.delete(foodOrderItems).where(eq(foodOrderItems.id, id));
+}
+
+// --- Active Checkins for Food Lookup ---
+
+export async function getActiveCheckins() {
+  const db = getDb();
+  return db.select().from(checkins).where(eq(checkins.status, "active"));
 }

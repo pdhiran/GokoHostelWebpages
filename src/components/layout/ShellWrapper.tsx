@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-const BARE_ROUTES = ["/admin", "/self-checkin"];
+const BARE_ROUTES = ["/admin", "/self-checkin", "/food-order", "/kitchen"];
 
 export function ShellWrapper({
   children,

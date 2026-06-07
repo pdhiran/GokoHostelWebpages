@@ -1,0 +1,435 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+  getActiveFoodOrders,
+  getFoodOrderHistory,
+  getFoodOrderById,
+  getFoodOrderItems,
+  getOrderModifications,
+  updateFoodOrderStatus,
+  updateFoodOrderPayment,
+  updateFoodOrder,
+  createFoodOrder,
+  addFoodOrderItems,
+  addOrderModification,
+  getNextOrderNumber,
+  getMenuItemById,
+  getMenuWithCategories,
+  getGuestFoodTab,
+  getGuestTabTotal,
+  getFoodOrdersByCheckinIds,
+  getActiveCheckins,
+  getAllBeds,
+  addAuditEntry,
+  getUserByUsername,
+  getSetting,
+} from "@/db/queries";
+import { getDb } from "@/db";
+import { foodOrders, foodOrderItems, checkins } from "@/db/schema";
+import { eq, and, sql, desc } from "drizzle-orm";
+
+type UserRole = "admin" | "manager" | "staff";
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + "goko-salt-2026");
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const computed = await hashPassword(password);
+  return computed === hash;
+}
+
+async function authenticateUser(password: string, username?: string): Promise<{ role: UserRole; displayName: string } | null> {
+  if (!password) return null;
+
+  if (!username) {
+    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", displayName: "Admin" };
+    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", displayName: "Manager" };
+    return null;
+  }
+
+  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return { role: "admin", displayName: "Admin" };
+  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return { role: "manager", displayName: "Manager" };
+
+  try {
+    const user = await getUserByUsername(username);
+    if (!user) return null;
+    const valid = await verifyPassword(password, user.passwordHash);
+    if (!valid) return null;
+    return { role: (user.role as UserRole) || "manager", displayName: user.displayName || username };
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { password, action, username, ...rest } = body;
+
+    const auth = await authenticateUser(password, username);
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { role, displayName } = auth;
+    const actorName = username || displayName;
+
+    switch (action) {
+      case "listOrders": {
+        const { status, dateFrom, dateTo, guestType, limit: rawLimit } = rest;
+        const limitNum = Math.min(Number(rawLimit) || 50, 200);
+
+        if (status === "active" || (!status && !dateFrom)) {
+          const orders = await getActiveFoodOrders();
+          const withItems = await Promise.all(
+            orders.map(async (o) => ({
+              ...o,
+              items: await getFoodOrderItems(o.id),
+            }))
+          );
+          return NextResponse.json({ role, orders: withItems });
+        }
+
+        const db = getDb();
+        const conditions: any[] = [];
+        if (status && status !== "all_history") conditions.push(eq(foodOrders.status, status));
+        if (guestType) conditions.push(eq(foodOrders.guestType, guestType));
+        if (dateFrom) conditions.push(sql`${foodOrders.createdAt} >= ${dateFrom}`);
+        if (dateTo) conditions.push(sql`${foodOrders.createdAt} <= ${dateTo + "T23:59:59"}`);
+
+        const orders = conditions.length > 0
+          ? await db.select().from(foodOrders).where(and(...conditions)).orderBy(desc(foodOrders.createdAt)).limit(limitNum)
+          : await db.select().from(foodOrders).orderBy(desc(foodOrders.createdAt)).limit(limitNum);
+
+        const withItems = await Promise.all(
+          orders.map(async (o) => ({
+            ...o,
+            items: await getFoodOrderItems(o.id),
+          }))
+        );
+        return NextResponse.json({ role, orders: withItems });
+      }
+
+      case "getOrderDetails": {
+        const { orderId } = rest;
+        if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+        const order = await getFoodOrderById(orderId);
+        if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        const items = await getFoodOrderItems(orderId);
+        const modifications = await getOrderModifications(orderId);
+        return NextResponse.json({ role, order, items, modifications });
+      }
+
+      case "updateOrderStatus": {
+        const { orderId, status, cancelledReason } = rest;
+        if (!orderId || !status) return NextResponse.json({ error: "orderId and status required" }, { status: 400 });
+        const validStatuses = ["placed", "preparing", "ready", "served", "cancelled"];
+        if (!validStatuses.includes(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+
+        await updateFoodOrderStatus(orderId, status, cancelledReason);
+        await addAuditEntry({
+          username: actorName,
+          action: "food_order_status",
+          target: `order:${orderId}`,
+          details: `Status → ${status}${cancelledReason ? ` (${cancelledReason})` : ""}`,
+        });
+        return NextResponse.json({ success: true, role });
+      }
+
+      case "placeOrderForGuest": {
+        const { guestType, checkinId, guestName, guestPhone, roomInfo, items, specialInstructions } = rest;
+        if (!guestName || !items || !Array.isArray(items) || items.length === 0) {
+          return NextResponse.json({ error: "guestName and items required" }, { status: 400 });
+        }
+
+        const validatedItems: Array<{ menuItemId: number; itemName: string; itemPrice: number; quantity: number; lineTotal: number }> = [];
+        for (const item of items) {
+          const menuItem = await getMenuItemById(item.menuItemId);
+          if (!menuItem) return NextResponse.json({ error: `Menu item #${item.menuItemId} not found` }, { status: 400 });
+          if (menuItem.price <= 0) return NextResponse.json({ error: `"${menuItem.name}" has invalid price` }, { status: 400 });
+          validatedItems.push({
+            menuItemId: menuItem.id,
+            itemName: menuItem.name,
+            itemPrice: menuItem.price,
+            quantity: item.quantity || 1,
+            lineTotal: menuItem.price * (item.quantity || 1),
+          });
+        }
+
+        const subtotal = validatedItems.reduce((sum, i) => sum + i.lineTotal, 0);
+        const taxRateStr = await getSetting("food_tax_rate");
+        const taxRate = Number(taxRateStr) || 5;
+        const tax = Math.round((subtotal * taxRate) / 100);
+        const total = subtotal + tax;
+
+        let orderNumber = await getNextOrderNumber();
+        let order: any;
+        try {
+          const result = await createFoodOrder({
+            orderNumber,
+            guestType: guestType || "walkin",
+            checkinId: checkinId || undefined,
+            guestName,
+            guestPhone: guestPhone || "",
+            roomInfo: roomInfo || "",
+            specialInstructions: specialInstructions || "",
+            subtotal,
+            tax,
+            total,
+            paymentStatus: guestType === "hostel" && checkinId ? "on_tab" : "pending",
+            createdBy: actorName,
+          });
+          order = result[0];
+        } catch (err: any) {
+          if (err?.message?.includes("UNIQUE") || err?.message?.includes("unique")) {
+            orderNumber = await getNextOrderNumber();
+            const result = await createFoodOrder({
+              orderNumber,
+              guestType: guestType || "walkin",
+              checkinId: checkinId || undefined,
+              guestName,
+              guestPhone: guestPhone || "",
+              roomInfo: roomInfo || "",
+              specialInstructions: specialInstructions || "",
+              subtotal,
+              tax,
+              total,
+              paymentStatus: guestType === "hostel" && checkinId ? "on_tab" : "pending",
+              createdBy: actorName,
+            });
+            order = result[0];
+          } else {
+            throw err;
+          }
+        }
+
+        await addFoodOrderItems(validatedItems.map((v) => ({ orderId: order.id, ...v })));
+        await addAuditEntry({
+          username: actorName,
+          action: "food_order_placed",
+          target: `order:${order.id}`,
+          details: `Placed for ${guestName} (${guestType}), total ₹${(total / 100).toFixed(0)}`,
+        });
+        return NextResponse.json({ success: true, role, orderId: order.id, orderNumber: order.orderNumber, total });
+      }
+
+      case "getGuestTab": {
+        const { checkinId } = rest;
+        if (!checkinId) return NextResponse.json({ error: "checkinId required" }, { status: 400 });
+        const orders = await getGuestFoodTab(checkinId);
+        const withItems = await Promise.all(
+          orders.map(async (o) => ({ ...o, items: await getFoodOrderItems(o.id) }))
+        );
+        const tabTotal = await getGuestTabTotal(checkinId);
+        return NextResponse.json({ role, orders: withItems, tabTotal });
+      }
+
+      case "markOrderPaid": {
+        const { orderIds, paymentMethod, paidBy } = rest;
+        if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+          return NextResponse.json({ error: "orderIds required" }, { status: 400 });
+        }
+        if (!paymentMethod) return NextResponse.json({ error: "paymentMethod required" }, { status: 400 });
+
+        for (const oid of orderIds) {
+          await updateFoodOrderPayment(oid, {
+            paymentStatus: "paid",
+            paymentMethod,
+            paidBy: paidBy || actorName,
+          });
+        }
+        await addAuditEntry({
+          username: actorName,
+          action: "food_order_paid",
+          target: `orders:${orderIds.join(",")}`,
+          details: `Marked paid via ${paymentMethod}`,
+        });
+        return NextResponse.json({ success: true, role });
+      }
+
+      case "voidItem": {
+        const { orderId, orderItemId, reason } = rest;
+        if (!orderId || !orderItemId) return NextResponse.json({ error: "orderId and orderItemId required" }, { status: 400 });
+
+        const db = getDb();
+        const itemRows = await db.select().from(foodOrderItems).where(eq(foodOrderItems.id, orderItemId)).limit(1);
+        const item = itemRows[0];
+        if (!item || item.orderId !== orderId) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+
+        await db.update(foodOrderItems).set({ status: "voided" }).where(eq(foodOrderItems.id, orderItemId));
+        await addOrderModification({
+          orderId,
+          action: "void_item",
+          itemId: orderItemId,
+          oldValue: `${item.itemName} x${item.quantity} = ₹${item.lineTotal}`,
+          newValue: "voided",
+          reason: reason || "",
+          modifiedBy: actorName,
+        });
+
+        const activeItems = await db.select().from(foodOrderItems)
+          .where(and(eq(foodOrderItems.orderId, orderId), sql`${foodOrderItems.status} != 'voided'`));
+        const newSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+        const voidTaxRateStr = await getSetting("food_tax_rate");
+        const voidTaxRate = Number(voidTaxRateStr) || 5;
+        const newTax = Math.round((newSubtotal * voidTaxRate) / 100);
+        const newTotal = newSubtotal + newTax;
+        await updateFoodOrder(orderId, { subtotal: newSubtotal, tax: newTax, total: newTotal });
+
+        await addAuditEntry({
+          username: actorName,
+          action: "food_item_voided",
+          target: `order:${orderId}/item:${orderItemId}`,
+          details: `Voided ${item.itemName}${reason ? `: ${reason}` : ""}`,
+        });
+        return NextResponse.json({ success: true, role, newTotal });
+      }
+
+      case "applyDiscount": {
+        const { orderId, discountAmount, reason } = rest;
+        if (!orderId || !discountAmount) return NextResponse.json({ error: "orderId and discountAmount required" }, { status: 400 });
+
+        const order = await getFoodOrderById(orderId);
+        if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+        const discount = Math.abs(Number(discountAmount));
+        const newSubtotal = Math.max(0, order.subtotal - discount);
+        const discTaxRateStr = await getSetting("food_tax_rate");
+        const discTaxRate = Number(discTaxRateStr) || 5;
+        const newTax = Math.round((newSubtotal * discTaxRate) / 100);
+        const newTotal = newSubtotal + newTax;
+        await updateFoodOrder(orderId, { subtotal: newSubtotal, tax: newTax, total: newTotal });
+        await addOrderModification({
+          orderId,
+          action: "discount",
+          oldValue: `₹${(order.total / 100).toFixed(0)}`,
+          newValue: `₹${(newTotal / 100).toFixed(0)}`,
+          reason: reason || `Discount of ₹${(discount / 100).toFixed(0)}`,
+          modifiedBy: actorName,
+        });
+        await addAuditEntry({
+          username: actorName,
+          action: "food_discount",
+          target: `order:${orderId}`,
+          details: `Discount ₹${(discount / 100).toFixed(0)}, new total ₹${(newTotal / 100).toFixed(0)}. Reason: ${reason || "N/A"}`,
+        });
+        return NextResponse.json({ success: true, role, newTotal });
+      }
+
+      case "reassignOrder": {
+        const { orderId, checkinId, guestName, roomInfo } = rest;
+        if (!orderId || !checkinId) return NextResponse.json({ error: "orderId and checkinId required" }, { status: 400 });
+
+        await updateFoodOrder(orderId, {
+          checkinId,
+          guestType: "hostel",
+          guestName: guestName || undefined,
+          roomInfo: roomInfo || undefined,
+          paymentStatus: "on_tab",
+        });
+        await addAuditEntry({
+          username: actorName,
+          action: "food_order_reassigned",
+          target: `order:${orderId}`,
+          details: `Reassigned to checkin:${checkinId} (${guestName || "unknown"})`,
+        });
+        return NextResponse.json({ success: true, role });
+      }
+
+      case "getActiveGuests": {
+        const guests = await getActiveCheckins();
+        const allBeds = await getAllBeds();
+        const occupiedBeds = allBeds.filter((b) => b.status === "occupied");
+
+        const guestList = guests.map((g) => {
+          const bed = occupiedBeds.find(
+            (b) => b.guestName === g.name || b.guestContact === g.contact
+          );
+          return {
+            id: g.id,
+            name: g.name,
+            contact: g.contact,
+            arrivalDate: g.arrivalDate,
+            stayingDays: g.stayingDays,
+            bedInfo: bed ? `${bed.dormName} - Bed ${bed.bedId}` : "",
+          };
+        });
+        return NextResponse.json({ role, guests: guestList });
+      }
+
+      case "getGuestsWithTabs": {
+        const db = getDb();
+        const tabOrders = await db.select({
+          checkinId: foodOrders.checkinId,
+          tabTotal: sql<number>`SUM(${foodOrders.total})`,
+          orderCount: sql<number>`COUNT(*)`,
+        }).from(foodOrders)
+          .where(eq(foodOrders.paymentStatus, "on_tab"))
+          .groupBy(foodOrders.checkinId);
+
+        const guestsWithTabs = [];
+        for (const row of tabOrders) {
+          if (!row.checkinId) continue;
+          const checkinRows = await db.select().from(checkins).where(eq(checkins.id, row.checkinId)).limit(1);
+          const guest = checkinRows[0];
+          if (!guest) continue;
+
+          const allBeds2 = await getAllBeds();
+          const bed = allBeds2.find(
+            (b) => b.status === "occupied" && (b.guestName === guest.name || b.guestContact === guest.contact)
+          );
+
+          guestsWithTabs.push({
+            checkinId: row.checkinId,
+            name: guest.name,
+            contact: guest.contact,
+            bedInfo: bed ? `${bed.dormName} - Bed ${bed.bedId}` : "",
+            tabTotal: row.tabTotal,
+            orderCount: row.orderCount,
+          });
+        }
+        return NextResponse.json({ role, guests: guestsWithTabs });
+      }
+
+      case "getCombinedBill": {
+        const { checkinIds } = rest;
+        if (!checkinIds || !Array.isArray(checkinIds) || checkinIds.length === 0) {
+          return NextResponse.json({ error: "checkinIds required" }, { status: 400 });
+        }
+
+        const orders = await getFoodOrdersByCheckinIds(checkinIds);
+        const withItems = await Promise.all(
+          orders.map(async (o) => ({ ...o, items: await getFoodOrderItems(o.id) }))
+        );
+
+        const grouped: Record<number, { checkinId: number; guestName: string; roomInfo: string; orders: any[]; subtotal: number }> = {};
+        for (const o of withItems) {
+          const cid = o.checkinId!;
+          if (!grouped[cid]) {
+            grouped[cid] = { checkinId: cid, guestName: o.guestName, roomInfo: o.roomInfo || "", orders: [], subtotal: 0 };
+          }
+          grouped[cid].orders.push(o);
+          grouped[cid].subtotal += o.total;
+        }
+
+        const guests = Object.values(grouped);
+        const grandTotal = guests.reduce((sum, g) => sum + g.subtotal, 0);
+        return NextResponse.json({ role, guests, grandTotal });
+      }
+
+      case "getMenu": {
+        const data = await getMenuWithCategories();
+        return NextResponse.json({ role, ...data });
+      }
+
+      default:
+        return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+    }
+  } catch (error: any) {
+    console.error("Admin food orders API error:", error?.message || error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

@@ -155,3 +155,91 @@ export const bookings = sqliteTable("bookings", {
   index("idx_bookings_platform").on(table.platform),
   index("idx_bookings_status").on(table.status),
 ]);
+
+// --- Food Ordering ---
+
+export const menuCategories = sqliteTable("menu_categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  nameKannada: text("name_kannada").default(""),
+  icon: text("icon").notNull().default("🍽️"),
+  description: text("description").default(""),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: integer("is_active").notNull().default(1),
+});
+
+export const menuItems = sqliteTable("menu_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  categoryId: integer("category_id").notNull().references(() => menuCategories.id),
+  name: text("name").notNull(),
+  nameKannada: text("name_kannada").default(""),
+  description: text("description").default(""),
+  price: integer("price").notNull().default(0),
+  priceText: text("price_text").default(""),
+  tags: text("tags").notNull().default("[]"),
+  ingredients: text("ingredients").notNull().default("[]"),
+  imageUrl: text("image_url").default(""),
+  isAvailable: integer("is_available").notNull().default(1),
+  displayOrder: integer("display_order").notNull().default(0),
+}, (table) => [
+  index("idx_menu_items_category").on(table.categoryId),
+  index("idx_menu_items_available").on(table.isAvailable),
+]);
+
+export const foodOrders = sqliteTable("food_orders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderNumber: text("order_number").notNull().unique(),
+  idempotencyKey: text("idempotency_key"),
+  guestType: text("guest_type").notNull().default("walkin"),
+  checkinId: integer("checkin_id").references(() => checkins.id),
+  guestName: text("guest_name").notNull(),
+  guestPhone: text("guest_phone").notNull().default(""),
+  roomInfo: text("room_info").default(""),
+  tableNumber: text("table_number").default(""),
+  specialInstructions: text("special_instructions").default(""),
+  subtotal: integer("subtotal").notNull().default(0),
+  tax: integer("tax").notNull().default(0),
+  total: integer("total").notNull().default(0),
+  status: text("status").notNull().default("placed"),
+  paymentStatus: text("payment_status").notNull().default("pending"),
+  paymentMethod: text("payment_method").default(""),
+  paidBy: text("paid_by").default(""),
+  cancelledReason: text("cancelled_reason").default(""),
+  cancelledAt: text("cancelled_at").default(""),
+  createdBy: text("created_by").notNull().default("guest"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_food_orders_checkin").on(table.checkinId),
+  index("idx_food_orders_status").on(table.status),
+  index("idx_food_orders_payment").on(table.paymentStatus),
+  index("idx_food_orders_created").on(table.createdAt),
+  uniqueIndex("idx_food_orders_idempotency").on(table.idempotencyKey),
+]);
+
+export const foodOrderItems = sqliteTable("food_order_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: integer("order_id").notNull().references(() => foodOrders.id),
+  menuItemId: integer("menu_item_id").notNull().references(() => menuItems.id),
+  itemName: text("item_name").notNull(),
+  itemPrice: integer("item_price").notNull().default(0),
+  quantity: integer("quantity").notNull().default(1),
+  lineTotal: integer("line_total").notNull().default(0),
+  status: text("status").notNull().default("active"),
+}, (table) => [
+  index("idx_food_order_items_order").on(table.orderId),
+]);
+
+export const orderModifications = sqliteTable("order_modifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: integer("order_id").notNull().references(() => foodOrders.id),
+  action: text("action").notNull(),
+  itemId: integer("item_id"),
+  oldValue: text("old_value").default(""),
+  newValue: text("new_value").default(""),
+  reason: text("reason").default(""),
+  modifiedBy: text("modified_by").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_order_mods_order").on(table.orderId),
+]);
