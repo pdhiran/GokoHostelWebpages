@@ -38,13 +38,11 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [guests, setGuests] = useState<LookupGuest[]>([]);
-  const [noMatch, setNoMatch] = useState(false);
   const [autoLookedUp, setAutoLookedUp] = useState(false);
 
   const doLookup = useCallback(async (phoneDigits: string) => {
     setLoading(true);
     setError("");
-    setNoMatch(false);
     setGuests([]);
 
     try {
@@ -64,7 +62,9 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
       } else if (data.found && data.guests.length > 1) {
         setGuests(data.guests);
       } else {
-        setNoMatch(true);
+        const digits = stripNonDigits(phoneDigits);
+        localStorage.setItem("gokoFoodPhone", digits);
+        onWalkin(digits);
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -94,7 +94,6 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
     const raw = stripNonDigits(e.target.value);
     setPhone(raw);
     setError("");
-    setNoMatch(false);
     setGuests([]);
   };
 
@@ -112,17 +111,11 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
   const handleChangeNumber = () => {
     setPhone("");
     setError("");
-    setNoMatch(false);
     setGuests([]);
     setAutoLookedUp(false);
     localStorage.removeItem("gokoFoodPhone");
   };
 
-  const handleWalkin = () => {
-    const digits = stripNonDigits(phone);
-    localStorage.setItem("gokoFoodPhone", digits);
-    onWalkin(digits);
-  };
 
   return (
     <motion.div
@@ -159,7 +152,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
             />
           </div>
 
-          {savedPhone && !noMatch && guests.length === 0 && (
+          {savedPhone && guests.length === 0 && (
             <button
               type="button"
               onClick={handleChangeNumber}
@@ -235,30 +228,6 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
             </motion.div>
           )}
 
-          {noMatch && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mt-5 text-center"
-            >
-              <p className="mb-4 text-sm text-gray-600">No booking found for this number</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleChangeNumber}
-                  className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                >
-                  Try another number
-                </button>
-                <button
-                  onClick={handleWalkin}
-                  className="flex-1 rounded-xl bg-gray-800 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700"
-                >
-                  Continue as walk-in
-                </button>
-              </div>
-            </motion.div>
-          )}
         </AnimatePresence>
       </div>
     </motion.div>

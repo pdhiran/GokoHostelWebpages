@@ -734,3 +734,45 @@ export async function getActiveCheckins() {
   const db = getDb();
   return db.select().from(checkins).where(eq(checkins.status, "active"));
 }
+
+// --- Data Retention / Cleanup ---
+
+export async function getOrdersForCleanup() {
+  const db = getDb();
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Hostel guests: checkin is checked_out AND checked_out_at > 7 days ago
+  const hostelOrders = await db
+    .select({ id: foodOrders.id })
+    .from(foodOrders)
+    .innerJoin(checkins, eq(foodOrders.checkinId, checkins.id))
+    .where(
+      and(
+        eq(checkins.status, "checked_out"),
+        sql`${checkins.checkedOutAt} != ''`,
+        sql`${checkins.checkedOutAt} < ${sevenDaysAgo}`
+      )
+    );
+
+  // Walk-in guests: created > 7 days ago AND served/cancelled
+  const walkinOrders = await db
+    .select({ id: foodOrders.id })
+    .from(foodOrders)
+    .where(
+      and(
+        eq(foodOrders.guestType, "walkin"),
+        sql`${foodOrders.createdAt} < ${sevenDaysAgo}`,
+        sql`(${foodOrders.status} = 'served' OR ${foodOrders.status} = 'cancelled')`
+      )
+    );
+
+  const allIds = [...hostelOrders.map((r) => r.id), ...walkinOrders.map((r) => r.id)];
+  return [...new Set(allIds)];
+}
+
+export async function deleteOrderItemsByOrderIds(orderIds: number[]) {
+  if (orderIds.length === 0) return 0;
+  const db = getDb();
+  const result = await db.delete(foodOrderItems).where(inArray(foodOrderItems.orderId, orderIds));
+  return (result as any).rowsAffected ?? (result as any).changes ?? orderIds.length;
+}

@@ -16,6 +16,7 @@ type FoodSettings = {
   food_kitchen_close: string;
   food_tab_limit: string;
   food_kitchen_busy: string;
+  food_customer_whatsapp: string;
 };
 
 const DEFAULT_SETTINGS: FoodSettings = {
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS: FoodSettings = {
   food_kitchen_close: "22:00",
   food_tab_limit: "0",
   food_kitchen_busy: "false",
+  food_customer_whatsapp: "true",
 };
 
 function paiseToRupees(paise: string): string {
@@ -70,6 +72,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
           food_kitchen_close: s.food_kitchen_close || DEFAULT_SETTINGS.food_kitchen_close,
           food_tab_limit: s.food_tab_limit || DEFAULT_SETTINGS.food_tab_limit,
           food_kitchen_busy: s.food_kitchen_busy || DEFAULT_SETTINGS.food_kitchen_busy,
+          food_customer_whatsapp: s.food_customer_whatsapp ?? DEFAULT_SETTINGS.food_customer_whatsapp,
         };
         setSettings(merged);
         setSavedSettings(merged);
@@ -164,6 +167,48 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             <span className={cn(
               "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
               isBusy ? "translate-x-6" : "translate-x-0"
+            )} />
+          </button>
+        </div>
+      </div>
+
+      {/* Customer WhatsApp Toggle */}
+      <div className="mt-4 rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-base font-bold text-brand-green-dark">Customer WhatsApp Order</h3>
+            <p className="mt-0.5 text-xs text-brand-green-dark/50">
+              {settings.food_customer_whatsapp === "true"
+                ? "Customers are prompted to send order via WhatsApp after placing."
+                : "WhatsApp order sharing is disabled for customers."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              const newValue = settings.food_customer_whatsapp === "true" ? "false" : "true";
+              setSaving(true);
+              try {
+                const res = await apiCall({
+                  action: "updateFoodSettings",
+                  settings: { food_customer_whatsapp: newValue },
+                });
+                if (res.ok) {
+                  setSettings((prev) => ({ ...prev, food_customer_whatsapp: newValue }));
+                  setSavedSettings((prev) => ({ ...prev, food_customer_whatsapp: newValue }));
+                }
+              } catch {}
+              setSaving(false);
+            }}
+            disabled={saving}
+            className={cn(
+              "relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+              settings.food_customer_whatsapp === "true" ? "bg-green-500" : "bg-gray-200"
+            )}
+          >
+            <span className={cn(
+              "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+              settings.food_customer_whatsapp === "true" ? "translate-x-6" : "translate-x-0"
             )} />
           </button>
         </div>

@@ -8,12 +8,29 @@ import { FoodCart, type CartItemData, type GuestInfoData } from "@/components/fo
 
 type View = "loading" | "closed" | "phone" | "menu" | "cart";
 
+interface PastOrderItem {
+  menuItemId: number;
+  name: string;
+  quantity: number;
+  price: number;
+  lineTotal: number;
+}
+
+interface PastOrder {
+  orderNumber: string;
+  status: string;
+  items: PastOrderItem[];
+  total: number;
+  createdAt: string;
+}
+
 interface MenuSettings {
   kitchenOpen: string;
   kitchenClose: string;
   isBusy: boolean;
   taxRate: number;
   whatsappNumber: string;
+  customerWhatsappEnabled: boolean;
 }
 
 interface MenuCategory {
@@ -74,6 +91,10 @@ export default function FoodOrderPage() {
   const [guestInfo, setGuestInfo] = useState<GuestInfoData | null>(null);
   const [savedPhone, setSavedPhone] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState("");
+  const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
+  const [showMyOrders, setShowMyOrders] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [reorderToast, setReorderToast] = useState("");
 
   useEffect(() => {
     const stored = loadCartFromStorage();
@@ -111,6 +132,23 @@ export default function FoodOrderPage() {
     }
   };
 
+  const fetchMyOrders = useCallback(async (phone: string) => {
+    setLoadingOrders(true);
+    try {
+      const res = await fetch(`/api/food/status?phone=${encodeURIComponent(phone)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.found && data.orders) {
+          setPastOrders(data.orders);
+        }
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, []);
+
   const handleIdentified = useCallback((guest: GuestInfo) => {
     setGuestInfo({
       name: guest.name,
@@ -120,7 +158,10 @@ export default function FoodOrderPage() {
       roomInfo: guest.roomInfo,
     });
     setView("menu");
-  }, []);
+    if (guest.guestType === "hostel" && guest.phone) {
+      fetchMyOrders(guest.phone);
+    }
+  }, [fetchMyOrders]);
 
   const handleWalkin = useCallback((phone: string) => {
     setGuestInfo({
@@ -132,6 +173,51 @@ export default function FoodOrderPage() {
     });
     setView("menu");
   }, []);
+
+  const handleReorder = useCallback((order: PastOrder) => {
+    const skipped: string[] = [];
+    const availableIds = new Set(items.filter((i) => i.isAvailable).map((i) => i.id));
+
+    setCart((prev) => {
+      let next = [...prev];
+      for (const oi of order.items) {
+        if (!availableIds.has(oi.menuItemId)) {
+          skipped.push(oi.name);
+          continue;
+        }
+        const menuItem = items.find((i) => i.id === oi.menuItemId);
+        if (!menuItem) {
+          skipped.push(oi.name);
+          continue;
+        }
+        const existing = next.find((c) => c.menuItemId === oi.menuItemId);
+        if (existing) {
+          next = next.map((c) =>
+            c.menuItemId === oi.menuItemId ? { ...c, quantity: c.quantity + oi.quantity } : c
+          );
+        } else {
+          next.push({
+            menuItemId: menuItem.id,
+            name: menuItem.name,
+            nameKannada: menuItem.nameKannada,
+            price: menuItem.price,
+            quantity: oi.quantity,
+            imageUrl: menuItem.imageUrl,
+          });
+        }
+      }
+      saveCartToStorage(next);
+      return next;
+    });
+
+    if (skipped.length > 0) {
+      setReorderToast(`Some items unavailable: ${skipped.join(", ")}`);
+    } else {
+      setReorderToast("Items added to cart!");
+    }
+    setShowMyOrders(false);
+    setTimeout(() => setReorderToast(""), 4000);
+  }, [items]);
 
   const handleAddToCart = useCallback((item: CartItem) => {
     setCart((prev) => {
@@ -295,6 +381,17 @@ export default function FoodOrderPage() {
                       <p className="text-sm text-blue-100">{guestInfo.roomInfo}</p>
                     )}
                   </div>
+                  {guestInfo?.guestType === "hostel" && pastOrders.length > 0 && (
+                    <button
+                      onClick={() => setShowMyOrders(true)}
+                      className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      My Orders
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -323,6 +420,7 @@ export default function FoodOrderPage() {
                   guestInfo={guestInfo}
                   taxRate={settings?.taxRate || 5}
                   whatsappNumber={settings?.whatsappNumber || ""}
+                  customerWhatsappEnabled={settings?.customerWhatsappEnabled ?? true}
                   onUpdateQuantity={handleUpdateQuantity}
                   onRemoveItem={handleRemoveItem}
                   onOrderPlaced={handleOrderPlaced}
@@ -358,6 +456,153 @@ export default function FoodOrderPage() {
           </span>
         </motion.button>
       )}
+
+      {/* Reorder toast */}
+      <AnimatePresence>
+        {reorderToast && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            className="fixed bottom-20 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg"
+          >
+            {reorderToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* My Orders slide-up panel */}
+      <AnimatePresence>
+        {showMyOrders && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMyOrders(false)}
+              className="fixed inset-0 z-[70] bg-black/40"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 z-[80] max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white pb-8 shadow-2xl"
+            >
+              <div className="sticky top-0 z-10 bg-white px-5 pb-3 pt-4">
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300" />
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-800">My Orders</h2>
+                  <button
+                    onClick={() => setShowMyOrders(false)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-5">
+                {loadingOrders ? (
+                  <div className="flex justify-center py-10">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                      className="h-8 w-8 rounded-full border-3 border-gray-200 border-t-blue-500"
+                    />
+                  </div>
+                ) : pastOrders.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-gray-400">No past orders found</p>
+                ) : (
+                  <MyOrdersList orders={pastOrders} onReorder={handleReorder} />
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function formatOrderDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const dateOnly = (dt: Date) => dt.toISOString().split("T")[0];
+  if (dateOnly(d) === dateOnly(today)) return "Today";
+  if (dateOnly(d) === dateOnly(yesterday)) return "Yesterday";
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  placed: "bg-yellow-100 text-yellow-700",
+  preparing: "bg-blue-100 text-blue-700",
+  ready: "bg-green-100 text-green-700",
+  served: "bg-gray-100 text-gray-600",
+  cancelled: "bg-red-100 text-red-600",
+};
+
+function MyOrdersList({ orders, onReorder }: { orders: PastOrder[]; onReorder: (order: PastOrder) => void }) {
+  const grouped: Record<string, PastOrder[]> = {};
+  for (const o of orders) {
+    const key = formatOrderDate(o.createdAt);
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(o);
+  }
+
+  return (
+    <div className="space-y-5">
+      {Object.entries(grouped).map(([date, dateOrders]) => (
+        <div key={date}>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{date}</p>
+          <div className="space-y-3">
+            {dateOrders.map((order) => (
+              <div key={order.orderNumber} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-bold text-gray-700">#{order.orderNumber}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}>
+                      {order.status}
+                    </span>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+
+                <div className="mt-2 space-y-0.5">
+                  {order.items.map((item, idx) => (
+                    <p key={idx} className="text-sm text-gray-600">
+                      {item.quantity}× {item.name}
+                      <span className="ml-1 text-gray-400">₹{Math.round(item.lineTotal / 100)}</span>
+                    </p>
+                  ))}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-800">₹{Math.round(order.total / 100)}</span>
+                  {order.status !== "cancelled" && (
+                    <button
+                      onClick={() => onReorder(order)}
+                      className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Reorder
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

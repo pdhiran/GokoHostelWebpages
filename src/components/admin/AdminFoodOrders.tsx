@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon } from "lucide-react";
 import type { Role } from "./types";
 
-type FoodTab = "active" | "place" | "tabs" | "combined" | "history";
+type FoodTab = "active" | "place" | "tabs" | "walkin" | "combined" | "history";
 
 interface OrderItem {
   id: number;
@@ -102,6 +102,7 @@ export function AdminFoodOrders({ password, username, role }: { password: string
     { id: "active", label: "Active Orders" },
     { id: "place", label: "Place Order" },
     { id: "tabs", label: "Guest Tabs" },
+    { id: "walkin", label: "Walk-in Orders" },
     { id: "combined", label: "Combined Bill" },
     { id: "history", label: "Order History" },
   ];
@@ -127,6 +128,7 @@ export function AdminFoodOrders({ password, username, role }: { password: string
       {tab === "active" && <ActiveOrders apiCall={apiCall} />}
       {tab === "place" && <PlaceOrder apiCall={apiCall} />}
       {tab === "tabs" && <GuestTabs apiCall={apiCall} />}
+      {tab === "walkin" && <WalkinOrders apiCall={apiCall} />}
       {tab === "combined" && <CombinedBill apiCall={apiCall} />}
       {tab === "history" && <OrderHistory apiCall={apiCall} />}
     </div>
@@ -196,7 +198,11 @@ function ActiveOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 <span className="font-mono text-sm font-bold text-brand-green">{order.orderNumber}</span>
                 <StatusBadge status={order.status} />
               </div>
-              <p className="text-sm font-medium text-brand-green-dark">{order.guestName}</p>
+              <p className="text-sm font-medium text-brand-green-dark">
+                {order.guestName}
+                {order.guestType === "walkin" && <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>}
+                {order.guestType === "hostel" && <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>}
+              </p>
               {order.roomInfo && <p className="text-xs text-brand-green-dark/60">{order.roomInfo}</p>}
               <div className="mt-2 space-y-0.5">
                 {order.items.filter(i => i.status !== "voided").map((item) => (
@@ -534,8 +540,6 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
   const [expandedGuest, setExpandedGuest] = useState<number | null>(null);
   const [guestOrders, setGuestOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
-  const [payingOrderId, setPayingOrderId] = useState<number | null>(null);
-  const [payMethod, setPayMethod] = useState("Cash");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -568,22 +572,21 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
     }
   };
 
-  const markPaid = async (orderIds: number[]) => {
+  const markPaid = async (orderIds: number[], paymentMethod: string) => {
     setBusy(true);
     try {
-      await apiCall({ action: "markOrderPaid", orderIds, paymentMethod: payMethod });
+      await apiCall({ action: "markOrderPaid", orderIds, paymentMethod });
       await load();
       if (expandedGuest) await expandGuest(expandedGuest);
     } finally {
       setBusy(false);
-      setPayingOrderId(null);
     }
   };
 
-  const markAllPaid = async (checkinId: number) => {
+  const markAllPaid = async (checkinId: number, paymentMethod: string) => {
     const orderIds = guestOrders.map((o) => o.id);
     if (orderIds.length === 0) return;
-    await markPaid(orderIds);
+    await markPaid(orderIds, paymentMethod);
   };
 
   if (loading) return <LoadingState />;
@@ -613,6 +616,7 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
             >
               <div>
                 <span className="text-sm font-medium text-brand-green-dark">{g.name}</span>
+                <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
                 {g.bedInfo && <span className="ml-2 text-xs text-brand-green-dark/50">{g.bedInfo}</span>}
                 <span className="ml-2 text-xs text-brand-green-dark/40">({g.orderCount} orders)</span>
               </div>
@@ -642,50 +646,44 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
                             <p key={item.id} className="text-xs text-brand-green-dark/60">{item.quantity}× {item.itemName} — ₹{(item.lineTotal / 100).toFixed(0)}</p>
                           ))}
                         </div>
-                        {payingOrderId === order.id ? (
-                          <div className="mt-2 flex items-center gap-2">
-                            <select
-                              value={payMethod}
-                              onChange={(e) => setPayMethod(e.target.value)}
-                              className="rounded border border-brand-mist px-2 py-1 text-xs"
-                            >
-                              <option>Cash</option>
-                              <option>UPI</option>
-                              <option>Card</option>
-                              <option>Other</option>
-                            </select>
-                            <button type="button" onClick={() => markPaid([order.id])} disabled={busy} className="rounded bg-brand-green px-2 py-1 text-xs text-white disabled:opacity-50">
-                              Confirm
-                            </button>
-                            <button type="button" onClick={() => setPayingOrderId(null)} className="text-xs text-brand-green-dark/50">Cancel</button>
-                          </div>
-                        ) : (
+                        <div className="mt-2 flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => setPayingOrderId(order.id)}
-                            className="mt-2 rounded-md border border-brand-green/30 px-2 py-1 text-xs text-brand-green hover:bg-brand-green/[0.04]"
+                            onClick={() => markPaid([order.id], "cash")}
+                            disabled={busy}
+                            className="flex items-center gap-1 rounded-md border border-green-500 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
                           >
-                            Mark Paid
+                            <BanknoteIcon className="h-3.5 w-3.5" /> Cash
                           </button>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() => markPaid([order.id], "online")}
+                            disabled={busy}
+                            className="flex items-center gap-1 rounded-md border border-blue-500 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                          >
+                            <SmartphoneIcon className="h-3.5 w-3.5" /> Online
+                          </button>
+                        </div>
                       </div>
                     ))}
 
                     {guestOrders.length > 1 && (
                       <div className="flex items-center gap-2 border-t border-brand-mist pt-2">
-                        <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="rounded border border-brand-mist px-2 py-1 text-xs">
-                          <option>Cash</option>
-                          <option>UPI</option>
-                          <option>Card</option>
-                          <option>Other</option>
-                        </select>
                         <button
                           type="button"
-                          onClick={() => markAllPaid(g.checkinId)}
+                          onClick={() => markAllPaid(g.checkinId, "cash")}
                           disabled={busy}
-                          className="rounded bg-brand-green px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                          className="flex items-center gap-1.5 rounded-md border border-green-500 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
                         >
-                          Mark All Paid · ₹{(g.tabTotal / 100).toFixed(0)}
+                          <BanknoteIcon className="h-3.5 w-3.5" /> Pay All - Cash · ₹{(g.tabTotal / 100).toFixed(0)}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => markAllPaid(g.checkinId, "online")}
+                          disabled={busy}
+                          className="flex items-center gap-1.5 rounded-md border border-blue-500 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                        >
+                          <SmartphoneIcon className="h-3.5 w-3.5" /> Pay All - Online
                         </button>
                       </div>
                     )}
@@ -701,6 +699,109 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
                 )}
               </div>
             )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Walk-in Orders ─────────────────────────────────────────────────────────
+
+function WalkinOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiCall({ action: "getWalkinOrders" });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data.orders || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [apiCall]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const markPaid = async (orderId: number, paymentMethod: string) => {
+    setBusy(orderId);
+    try {
+      await apiCall({ action: "markOrderPaid", orderIds: [orderId], paymentMethod });
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (loading) return <LoadingState />;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-lg font-bold text-brand-green-dark">Walk-in Orders ({orders.length})</h3>
+        <button type="button" onClick={load} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-brand-green hover:bg-brand-green/[0.06]">
+          <RefreshCwIcon className="h-3.5 w-3.5" /> Refresh
+        </button>
+      </div>
+
+      {orders.length === 0 && (
+        <div className="rounded-xl border border-brand-mist bg-white p-8 text-center text-sm text-brand-green-dark/50">
+          No unpaid walk-in orders
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {orders.map((order) => (
+          <div key={order.id} className="rounded-xl border border-brand-mist bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
+                <StatusBadge status={order.status} />
+                <span className="text-sm font-medium text-brand-green-dark">{order.guestName}</span>
+                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>
+              </div>
+              <span className="text-sm font-bold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</span>
+            </div>
+
+            <div className="mt-2 space-y-0.5">
+              {order.items.filter(i => i.status !== "voided").map((item) => (
+                <p key={item.id} className="text-xs text-brand-green-dark/70">
+                  {item.quantity}× {item.itemName} — ₹{(item.lineTotal / 100).toFixed(0)}
+                </p>
+              ))}
+            </div>
+
+            <div className="mt-2 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs text-brand-green-dark/50">
+                <span>{new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                <span>·</span>
+                <PaymentBadge status={order.paymentStatus} />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => markPaid(order.id, "cash")}
+                  disabled={busy === order.id}
+                  className="flex items-center gap-1 rounded-md border border-green-500 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                >
+                  <BanknoteIcon className="h-3.5 w-3.5" /> Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markPaid(order.id, "online")}
+                  disabled={busy === order.id}
+                  className="flex items-center gap-1 rounded-md border border-blue-500 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  <SmartphoneIcon className="h-3.5 w-3.5" /> Online
+                </button>
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -769,6 +870,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 />
                 <div className="flex-1">
                   <span className="text-sm font-medium text-brand-green-dark">{g.name}</span>
+                  <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
                   {g.bedInfo && <span className="ml-2 text-xs text-brand-green-dark/50">{g.bedInfo}</span>}
                 </div>
                 <span className="text-sm font-medium text-brand-green">₹{(g.tabTotal / 100).toFixed(0)}</span>
@@ -795,7 +897,10 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
           {preview.guests.map((g: any) => (
             <div key={g.checkinId} className="mb-3 border-b border-brand-mist pb-3 last:mb-0 last:border-0 last:pb-0">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-brand-green-dark">{g.guestName}</span>
+                <span className="text-sm font-medium text-brand-green-dark">
+                  {g.guestName}
+                  <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
+                </span>
                 <span className="text-sm font-bold">₹{(g.subtotal / 100).toFixed(0)}</span>
               </div>
               {g.roomInfo && <p className="text-xs text-brand-green-dark/50">{g.roomInfo}</p>}
@@ -829,6 +934,9 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   const [statusFilter, setStatusFilter] = useState("");
   const [guestTypeFilter, setGuestTypeFilter] = useState("");
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+  const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -852,9 +960,70 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
 
   useEffect(() => { load(); }, [load]);
 
+  const handleCleanup = async () => {
+    setCleanupBusy(true);
+    setCleanupResult("");
+    try {
+      const res = await apiCall({ action: "cleanupOldOrders" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCleanupResult(`Cleaned ${data.ordersCleanedCount} orders, deleted ${data.itemsDeletedCount} item records.`);
+        await load();
+      } else {
+        setCleanupResult(data.error || "Cleanup failed");
+      }
+    } catch {
+      setCleanupResult("Network error during cleanup");
+    } finally {
+      setCleanupBusy(false);
+      setShowCleanupConfirm(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <h3 className="font-display text-lg font-bold text-brand-green-dark">Order History</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-lg font-bold text-brand-green-dark">Order History</h3>
+        <button
+          type="button"
+          onClick={() => setShowCleanupConfirm(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+        >
+          <XIcon className="h-3.5 w-3.5" />
+          Cleanup Old Orders
+        </button>
+      </div>
+
+      {showCleanupConfirm && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">
+            This will delete item details for orders older than 1 week (checked-out hostel guests and completed walk-in orders). Order summaries will be kept. Continue?
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={handleCleanup}
+              disabled={cleanupBusy}
+              className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {cleanupBusy ? "Cleaning..." : "Yes, Cleanup"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCleanupConfirm(false)}
+              className="rounded-lg border border-brand-mist px-4 py-1.5 text-xs font-medium text-brand-green-dark/70 hover:bg-brand-sand"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {cleanupResult && (
+        <div className="rounded-xl border border-brand-mist bg-white p-3 text-sm text-brand-green-dark">
+          {cleanupResult}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 rounded-xl border border-brand-mist bg-white p-3">
@@ -905,6 +1074,8 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                   <StatusBadge status={order.status} />
                   <span className="text-sm text-brand-green-dark">{order.guestName}</span>
+                  {order.guestType === "walkin" && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>}
+                  {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>}
                   <span className="text-xs text-brand-green-dark/40">{order.guestType === "hostel" ? "🏨" : "🚶"}</span>
                 </div>
                 <div className="flex items-center gap-3">

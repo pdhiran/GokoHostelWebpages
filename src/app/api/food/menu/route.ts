@@ -3,7 +3,7 @@ import { getActiveMenuCategories, getAvailableMenuItems, getSetting } from "@/db
 
 export async function GET() {
   try {
-    const [categories, items, kitchenOpen, kitchenClose, kitchenBusy, taxRate, whatsappNumber] =
+    const [categories, items, kitchenOpen, kitchenClose, kitchenBusy, taxRate, whatsappNumber, customerWhatsapp] =
       await Promise.all([
         getActiveMenuCategories(),
         getAvailableMenuItems(),
@@ -12,6 +12,7 @@ export async function GET() {
         getSetting("food_kitchen_busy"),
         getSetting("food_tax_rate"),
         getSetting("food_kitchen_whatsapp"),
+        getSetting("food_customer_whatsapp"),
       ]);
 
     return NextResponse.json({
@@ -23,6 +24,7 @@ export async function GET() {
         isBusy: kitchenBusy === "true",
         taxRate: Number(taxRate) || 5,
         whatsappNumber: whatsappNumber || "",
+        customerWhatsappEnabled: customerWhatsapp !== "false",
       },
     });
   } catch (error: any) {

@@ -22,6 +22,8 @@ import {
   addAuditEntry,
   getUserByUsername,
   getSetting,
+  getOrdersForCleanup,
+  deleteOrderItemsByOrderIds,
 } from "@/db/queries";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { getDb } from "@/db";
@@ -424,6 +426,55 @@ export async function POST(req: NextRequest) {
       case "getMenu": {
         const data = await getMenuWithCategories();
         return NextResponse.json({ role, ...data });
+      }
+
+      case "getWalkinOrders": {
+        const db = getDb();
+        const orders = await db
+          .select()
+          .from(foodOrders)
+          .where(
+            and(
+              eq(foodOrders.guestType, "walkin"),
+              sql`${foodOrders.paymentStatus} != 'paid'`
+            )
+          )
+          .orderBy(desc(foodOrders.createdAt));
+
+        const withItems = await Promise.all(
+          orders.map(async (o) => ({
+            ...o,
+            items: await getFoodOrderItems(o.id),
+          }))
+        );
+        return NextResponse.json({ role, orders: withItems });
+      }
+
+      case "cleanupOldOrders": {
+        if (role !== "admin") {
+          return NextResponse.json({ error: "Admin only" }, { status: 403 });
+        }
+
+        const orderIds = await getOrdersForCleanup();
+        if (orderIds.length === 0) {
+          return NextResponse.json({ success: true, role, ordersCleanedCount: 0, itemsDeletedCount: 0 });
+        }
+
+        const itemsDeleted = await deleteOrderItemsByOrderIds(orderIds);
+
+        await addAuditEntry({
+          username: actorName,
+          action: "food_cleanup",
+          target: `orders:${orderIds.length}`,
+          details: `Cleaned ${orderIds.length} orders, deleted ${itemsDeleted} item records`,
+        });
+
+        return NextResponse.json({
+          success: true,
+          role,
+          ordersCleanedCount: orderIds.length,
+          itemsDeletedCount: itemsDeleted,
+        });
       }
 
       default:

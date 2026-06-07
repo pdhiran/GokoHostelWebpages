@@ -25,6 +25,7 @@ interface FoodCartProps {
   guestInfo: GuestInfoData;
   taxRate?: number;
   whatsappNumber?: string;
+  customerWhatsappEnabled?: boolean;
   onUpdateQuantity: (menuItemId: number, delta: number) => void;
   onRemoveItem: (menuItemId: number) => void;
   onOrderPlaced: (orderNumber: string) => void;
@@ -48,6 +49,7 @@ export function FoodCart({
   guestInfo,
   taxRate = 5,
   whatsappNumber = "",
+  customerWhatsappEnabled = true,
   onUpdateQuantity,
   onRemoveItem,
   onOrderPlaced,
@@ -103,7 +105,7 @@ export function FoodCart({
       setOrderSuccess({ orderNumber: data.orderNumber, total: data.total });
       onOrderPlaced(data.orderNumber);
 
-      if (whatsappNumber) {
+      if (whatsappNumber && customerWhatsappEnabled) {
         const msg = buildWhatsAppMessage(name, data.orderNumber, cart, total, specialInstructions, guestInfo.roomInfo);
         const waUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
         window.open(waUrl, "_blank");
