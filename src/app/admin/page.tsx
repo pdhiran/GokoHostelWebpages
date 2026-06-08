@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon } from "lucide-react";
+import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { AdminRecords } from "@/components/admin/AdminRecords";
@@ -23,6 +23,38 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [section, setSection] = useState<AdminSection>("dashboard");
   const [selectedRole, setSelectedRole] = useState<"admin" | "manager" | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [cpCurrent, setCpCurrent] = useState("");
+  const [cpNew, setCpNew] = useState("");
+  const [cpConfirm, setCpConfirm] = useState("");
+  const [cpLoading, setCpLoading] = useState(false);
+  const [cpError, setCpError] = useState("");
+  const [cpSuccess, setCpSuccess] = useState("");
+
+  const handleChangePassword = async () => {
+    setCpError("");
+    setCpSuccess("");
+    if (!cpNew || !cpCurrent) { setCpError("All fields are required"); return; }
+    if (cpNew !== cpConfirm) { setCpError("New passwords do not match"); return; }
+    if (cpNew.length < 4) { setCpError("Password must be at least 4 characters"); return; }
+    setCpLoading(true);
+    try {
+      const res = await fetch("/api/admin/checkins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, username, action: "changeMyPassword", currentPassword: cpCurrent, newPassword: cpNew }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setCpError(data.error || "Failed to change password"); return; }
+      setCpSuccess("Password changed successfully!");
+      setCpCurrent(""); setCpNew(""); setCpConfirm("");
+      setPassword(cpNew);
+    } catch {
+      setCpError("Something went wrong");
+    } finally {
+      setCpLoading(false);
+    }
+  };
 
   const login = async () => {
     setLoading(true);
@@ -162,6 +194,18 @@ export default function AdminPage() {
             <span className="text-xs font-medium uppercase tracking-wide text-brand-green-dark/50">
               {role}
             </span>
+            {username && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowChangePassword(true); setCpError(""); setCpSuccess(""); }}
+                className="gap-1 text-xs"
+              >
+                <KeyIcon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Change Password</span>
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
@@ -184,6 +228,39 @@ export default function AdminPage() {
         {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} />}
         {section === "management" && <AdminManagement password={password} username={username} role={role} />}
       </div>
+
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-lg font-bold text-brand-green-dark">Change Password</h3>
+              <button type="button" onClick={() => setShowChangePassword(false)} className="rounded-md p-1 text-brand-green-dark/40 hover:text-brand-green-dark">
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
+              <div>
+                <Label htmlFor="cp-current">Current Password</Label>
+                <Input id="cp-current" type="password" value={cpCurrent} onChange={(e) => setCpCurrent(e.target.value)} placeholder="Enter current password" />
+              </div>
+              <div>
+                <Label htmlFor="cp-new">New Password</Label>
+                <Input id="cp-new" type="password" value={cpNew} onChange={(e) => setCpNew(e.target.value)} placeholder="Enter new password" />
+              </div>
+              <div>
+                <Label htmlFor="cp-confirm">Confirm New Password</Label>
+                <Input id="cp-confirm" type="password" value={cpConfirm} onChange={(e) => setCpConfirm(e.target.value)} placeholder="Confirm new password" />
+              </div>
+              {cpError && <p className="text-sm text-red-500">{cpError}</p>}
+              {cpSuccess && <p className="text-sm text-green-600">{cpSuccess}</p>}
+              <Button type="button" variant="cta" className="w-full" onClick={handleChangePassword} disabled={cpLoading}>
+                {cpLoading ? "Saving..." : "Save New Password"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

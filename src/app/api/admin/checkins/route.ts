@@ -663,7 +663,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "createUser") {
       if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
-      const { username: newUsername, displayName, password: userPass, role: userRole, permissions: perms } = rest;
+      const { username: newUsername, displayName, userPassword: userPass, role: userRole, permissions: perms } = rest;
       if (!newUsername || !displayName || !userPass) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
       const existing = await getUserByUsername(newUsername);
       if (existing) return NextResponse.json({ error: "Username already exists" }, { status: 409 });
@@ -675,7 +675,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "updateUser") {
       if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
-      const { userId, displayName, password: userPass, role: userRole, permissions: perms } = rest;
+      const { userId, displayName, userPassword: userPass, role: userRole, permissions: perms } = rest;
       if (!isValidId(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
       const data: any = {};
       if (displayName) data.displayName = displayName;
@@ -693,6 +693,25 @@ export async function POST(req: NextRequest) {
       if (!isValidId(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
       await deleteUserById(userId);
       await addAuditEntry({ username: actingUser, action: "user_deleted", target: `userId:${userId}` });
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Self-service Password Change ---
+
+    if (action === "changeMyPassword") {
+      const { currentPassword, newPassword } = rest;
+      if (!currentPassword || !newPassword) return NextResponse.json({ error: "Current and new password required" }, { status: 400 });
+      if (!username) return NextResponse.json({ error: "Password change only available for DB-based users" }, { status: 403 });
+
+      const user = await getUserByUsername(username);
+      if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+      const valid = await verifyPassword(currentPassword, user.passwordHash);
+      if (!valid) return NextResponse.json({ error: "Current password is incorrect" }, { status: 401 });
+
+      const newHash = await hashPassword(newPassword);
+      await updateUser(user.id, { passwordHash: newHash });
+      await addAuditEntry({ username: actingUser, action: "password_self_change", target: username });
       return NextResponse.json({ success: true });
     }
 

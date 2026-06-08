@@ -82,7 +82,7 @@ export function ManagementUsers({ password, username, role }: { password: string
         permissions: formPermissions,
       };
       if (editingUser) payload.userId = editingUser.id;
-      if (formPassword) payload.password = formPassword;
+      if (formPassword) payload.userPassword = formPassword;
 
       const res = await apiCall(payload);
       if (res.ok) {
