@@ -76,7 +76,7 @@ export function ManagementUsers({ password, username, role }: { password: string
     try {
       const payload: any = {
         action: editingUser ? "updateUser" : "createUser",
-        username: formUsername,
+        newUsername: formUsername,
         displayName: formDisplayName,
         role: formRole,
         permissions: formPermissions,

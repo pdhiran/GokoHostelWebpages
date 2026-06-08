@@ -663,7 +663,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "createUser") {
       if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
-      const { username: newUsername, displayName, userPassword: userPass, role: userRole, permissions: perms } = rest;
+      const { newUsername, displayName, userPassword: userPass, role: userRole, permissions: perms } = rest;
       if (!newUsername || !displayName || !userPass) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
       const existing = await getUserByUsername(newUsername);
       if (existing) return NextResponse.json({ error: "Username already exists" }, { status: 409 });
