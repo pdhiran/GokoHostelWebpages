@@ -35,6 +35,7 @@ interface Order {
   status: string;
   paymentStatus: string;
   paymentMethod: string;
+  paidBy: string;
   cancelledReason: string;
   createdBy: string;
   createdAt: string;
@@ -470,6 +471,7 @@ interface SummaryGroup {
   totalTax: number;
   orderCount: number;
   latestOrderTime: string;
+  earliestOrderTime: string;
 }
 
 function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promise<Response>; onOrderMore: (guest: PrefillGuest) => void }) {
@@ -478,7 +480,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
   const [hostelOrdersMap, setHostelOrdersMap] = useState<Record<number, Order[]>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<SummaryFilter>("all");
-  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   const [loadingOrders, setLoadingOrders] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [btSupported, setBtSupported] = useState(false);
@@ -517,6 +519,9 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
       const hostelLatest = cachedOrders.length > 0
         ? cachedOrders.reduce((max, o) => o.createdAt > max ? o.createdAt : max, "")
         : "";
+      const hostelEarliest = cachedOrders.length > 0
+        ? cachedOrders.reduce((min, o) => !min || o.createdAt < min ? o.createdAt : min, "")
+        : "";
       result.push({
         key: `hostel_${g.checkinId}`,
         guestName: g.name,
@@ -529,6 +534,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
         totalTax: 0,
         orderCount: g.orderCount,
         latestOrderTime: hostelLatest,
+        earliestOrderTime: hostelEarliest,
       });
     }
 
@@ -540,6 +546,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
     }
     for (const [phone, groupOrders] of walkinMap) {
       const latest = groupOrders.reduce((max, o) => o.createdAt > max ? o.createdAt : max, "");
+      const earliest = groupOrders.reduce((min, o) => !min || o.createdAt < min ? o.createdAt : min, "");
       result.push({
         key: `walkin_${phone}`,
         guestName: groupOrders[0].guestName,
@@ -552,6 +559,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
         totalTax: groupOrders.reduce((s, o) => s + o.tax, 0),
         orderCount: groupOrders.length,
         latestOrderTime: latest,
+        earliestOrderTime: earliest,
       });
     }
 
@@ -572,11 +580,19 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
     return groups.filter((g) => g.guestType === filter);
   }, [groups, filter]);
 
-  const expandGroup = async (group: SummaryGroup) => {
-    if (expandedGroup === group.key) { setExpandedGroup(null); return; }
-    setExpandedGroup(group.key);
+  const getGroupOrders = useCallback((group: SummaryGroup): Order[] => {
+    if (group.guestType === "walkin") return group.orders;
+    const checkinId = parseInt(group.key.replace("hostel_", ""), 10);
+    return hostelOrdersMap[checkinId] || [];
+  }, [hostelOrdersMap]);
 
-    if (group.guestType === "hostel" && group.orders.length === 0) {
+  const selectedGroup = selectedGroupKey ? groups.find((g) => g.key === selectedGroupKey) || null : null;
+  const selectedGroupOrders = selectedGroup ? getGroupOrders(selectedGroup) : [];
+
+  const selectGroup = async (group: SummaryGroup) => {
+    setSelectedGroupKey(group.key);
+
+    if (group.guestType === "hostel" && !hostelOrdersMap[parseInt(group.key.replace("hostel_", ""), 10)]) {
       const checkinId = parseInt(group.key.replace("hostel_", ""), 10);
       setLoadingOrders(group.key);
       try {
@@ -591,12 +607,6 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
     }
   };
 
-  const getGroupOrders = (group: SummaryGroup): Order[] => {
-    if (group.guestType === "walkin") return group.orders;
-    const checkinId = parseInt(group.key.replace("hostel_", ""), 10);
-    return hostelOrdersMap[checkinId] || [];
-  };
-
   const markGroupPaid = async (group: SummaryGroup, paymentMethod: string) => {
     const orders = getGroupOrders(group);
     const orderIds = orders.map((o) => o.id);
@@ -606,7 +616,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
       const res = await apiCall({ action: "markOrderPaid", orderIds, paymentMethod });
       if (res.ok) {
         await load();
-        setExpandedGroup(null);
+        setSelectedGroupKey(null);
       }
     } finally {
       setBusy(null);
@@ -718,137 +728,170 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
         </div>
       )}
 
-      <div className="space-y-2">
+      {/* Card Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {filteredGroups.map((group) => {
-          const groupOrders = getGroupOrders(group);
-          const isExpanded = expandedGroup === group.key;
-          const isLoadingThis = loadingOrders === group.key;
-
+          const timeSince = group.earliestOrderTime ? formatTimeSince(group.earliestOrderTime) : "";
           return (
-            <div key={group.key} className="rounded-xl border border-brand-mist bg-white overflow-hidden">
-              {/* Group Header */}
-              <button
-                type="button"
-                onClick={() => expandGroup(group)}
-                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-brand-sand/50"
-              >
-                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1">
-                  <span className="min-w-0 truncate text-sm font-medium text-brand-green-dark">{group.guestName}</span>
-                  {group.guestType === "hostel" ? (
-                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
-                  ) : (
-                    <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>
-                  )}
-                  {group.roomInfo && <span className="min-w-0 truncate text-xs text-brand-green-dark/50">{group.roomInfo}</span>}
-                  {group.contactInfo && <span className="min-w-0 truncate text-xs text-brand-green-dark/50">{group.contactInfo}</span>}
-                  <span className="text-xs text-brand-green-dark/40">({group.orderCount} order{group.orderCount !== 1 ? "s" : ""})</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-brand-green">₹{(group.totalAmount / 100).toFixed(0)}</span>
-                  {isExpanded ? <ChevronDownIcon className="h-4 w-4 text-brand-green-dark/40" /> : <ChevronRightIcon className="h-4 w-4 text-brand-green-dark/40" />}
-                </div>
-              </button>
-
-              {isExpanded && (
-                <div className="border-t border-brand-mist px-4 py-3 space-y-2">
-                  {isLoadingThis ? (
-                    <div className="flex justify-center py-4"><Loader2Icon className="h-5 w-5 animate-spin text-brand-green" /></div>
-                  ) : (
-                    <>
-                      {/* Orders (no per-order payment buttons) */}
-                      {groupOrders.map((order) => (
-                        <div key={order.id} className="rounded-lg border border-brand-mist p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
-                              <StatusBadge status={order.status} />
-                              <span className="text-xs text-brand-green-dark/50">
-                                {new Date(order.createdAt).toLocaleDateString("en-IN")}
-                                {" · "}
-                                {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
-                              </span>
-                            </div>
-                            <span className="text-sm font-semibold">₹{(order.total / 100).toFixed(0)}</span>
-                          </div>
-                          <div className="mt-1 space-y-0.5">
-                            {order.items.filter(i => i.status !== "voided").map((item) => (
-                              <p key={item.id} className="text-xs text-brand-green-dark/60">
-                                {item.quantity}× {item.itemName} — ₹{(item.lineTotal / 100).toFixed(0)}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-
-                      {groupOrders.length === 0 && !isLoadingThis && (
-                        <p className="text-xs text-brand-green-dark/50 text-center py-2">No orders loaded yet</p>
-                      )}
-
-                      {/* Group-level payment and actions */}
-                      {groupOrders.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-2 border-t border-brand-mist pt-3">
-                          <button
-                            type="button"
-                            onClick={() => markGroupPaid(group, "cash")}
-                            disabled={busy === group.key}
-                            className="flex items-center gap-1.5 rounded-md border border-green-500 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
-                          >
-                            <BanknoteIcon className="h-3.5 w-3.5" /> Cash · ₹{(group.totalAmount / 100).toFixed(0)}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => markGroupPaid(group, "online")}
-                            disabled={busy === group.key}
-                            className="flex items-center gap-1.5 rounded-md border border-blue-500 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                          >
-                            <SmartphoneIcon className="h-3.5 w-3.5" /> Online
-                          </button>
-                          {btSupported && (
-                            <button
-                              type="button"
-                              onClick={() => handlePrintGroup(group)}
-                              disabled={printingGroup === group.key}
-                              className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                            >
-                              <PrinterIcon className="h-3.5 w-3.5" />
-                              {printingGroup === group.key ? "Printing..." : "Print Bill"}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handlePdfGroup(group)}
-                            className="flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                          >
-                            <DownloadIcon className="h-3.5 w-3.5" /> PDF
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const checkinId = group.guestType === "hostel"
-                                ? parseInt(group.key.replace("hostel_", ""), 10)
-                                : undefined;
-                              onOrderMore({
-                                guestType: group.guestType,
-                                checkinId,
-                                guestName: group.guestName,
-                                guestPhone: group.contactInfo || undefined,
-                                roomInfo: group.roomInfo || undefined,
-                              });
-                            }}
-                            className="flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                          >
-                            <PlusIcon className="h-3.5 w-3.5" /> Order More
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
+            <button
+              key={group.key}
+              type="button"
+              onClick={() => selectGroup(group)}
+              className={cn(
+                "rounded-xl border border-brand-mist bg-white p-3 text-left transition-shadow hover:shadow-md",
+                group.guestType === "hostel" ? "border-l-[3px] border-l-green-400" : "border-l-[3px] border-l-gray-300"
               )}
-            </div>
+            >
+              <div className="flex items-start justify-between gap-1">
+                <span className="min-w-0 truncate text-sm font-bold text-brand-green-dark">{group.guestName}</span>
+                {group.guestType === "hostel" ? (
+                  <span className="flex-shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>
+                ) : (
+                  <span className="flex-shrink-0 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Walk-in</span>
+                )}
+              </div>
+              {(group.roomInfo || group.contactInfo) && (
+                <p className="mt-0.5 truncate text-xs text-brand-green-dark/50">
+                  {group.roomInfo || group.contactInfo}
+                </p>
+              )}
+              <p className="mt-2 text-lg font-bold text-brand-green">₹{(group.totalAmount / 100).toFixed(0)}</p>
+              <div className="mt-1 flex items-center justify-between text-xs text-brand-green-dark/50">
+                <span>{group.orderCount} order{group.orderCount !== 1 ? "s" : ""}</span>
+                {timeSince && <span className="text-brand-green-dark/40">{timeSince}</span>}
+              </div>
+            </button>
           );
         })}
       </div>
+
+      {/* Slide-over Panel */}
+      {selectedGroup && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedGroupKey(null)} />
+          <div className="relative flex w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-brand-mist px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="min-w-0 truncate text-base font-bold text-brand-green-dark">{selectedGroup.guestName}</h3>
+                  {selectedGroup.guestType === "hostel" ? (
+                    <span className="flex-shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
+                  ) : (
+                    <span className="flex-shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>
+                  )}
+                </div>
+                {(selectedGroup.roomInfo || selectedGroup.contactInfo) && (
+                  <p className="text-xs text-brand-green-dark/50">{[selectedGroup.roomInfo, selectedGroup.contactInfo].filter(Boolean).join(" · ")}</p>
+                )}
+              </div>
+              <button type="button" onClick={() => setSelectedGroupKey(null)} className="flex-shrink-0 rounded-lg p-1.5 hover:bg-brand-sand">
+                <XIcon className="h-5 w-5 text-brand-green-dark/60" />
+              </button>
+            </div>
+
+            {/* Total bar */}
+            <div className="flex items-center justify-between bg-brand-sand/30 px-4 py-2.5">
+              <span className="text-sm text-brand-green-dark/70">{selectedGroup.orderCount} order{selectedGroup.orderCount !== 1 ? "s" : ""}</span>
+              <span className="text-xl font-bold text-brand-green">₹{(selectedGroup.totalAmount / 100).toFixed(0)}</span>
+            </div>
+
+            {/* Orders list */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+              {loadingOrders === selectedGroup.key ? (
+                <div className="flex justify-center py-8"><Loader2Icon className="h-5 w-5 animate-spin text-brand-green" /></div>
+              ) : (
+                <>
+                  {selectedGroupOrders.map((order) => (
+                    <div key={order.id} className="rounded-lg border border-brand-mist p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
+                          <StatusBadge status={order.status} />
+                        </div>
+                        <span className="text-xs text-brand-green-dark/50">
+                          {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 space-y-0.5">
+                        {order.items.filter((i) => i.status !== "voided").map((item) => (
+                          <div key={item.id} className="flex items-center justify-between text-xs text-brand-green-dark/60">
+                            <span>{item.quantity}× {item.itemName}</span>
+                            <span>₹{(item.lineTotal / 100).toFixed(0)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-1 text-right text-sm font-semibold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</div>
+                    </div>
+                  ))}
+                  {selectedGroupOrders.length === 0 && loadingOrders !== selectedGroup.key && (
+                    <p className="text-xs text-brand-green-dark/50 text-center py-4">No orders loaded yet</p>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer action buttons */}
+            {selectedGroupOrders.length > 0 && (
+              <div className="border-t border-brand-mist p-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => markGroupPaid(selectedGroup, "cash")}
+                  disabled={busy === selectedGroup.key}
+                  className="flex items-center gap-1.5 rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                >
+                  <BanknoteIcon className="h-3.5 w-3.5" /> Cash · ₹{(selectedGroup.totalAmount / 100).toFixed(0)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markGroupPaid(selectedGroup, "online")}
+                  disabled={busy === selectedGroup.key}
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  <SmartphoneIcon className="h-3.5 w-3.5" /> Online
+                </button>
+                {btSupported && (
+                  <button
+                    type="button"
+                    onClick={() => handlePrintGroup(selectedGroup)}
+                    disabled={printingGroup === selectedGroup.key}
+                    className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <PrinterIcon className="h-3.5 w-3.5" />
+                    {printingGroup === selectedGroup.key ? "Printing..." : "Print"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handlePdfGroup(selectedGroup)}
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  <DownloadIcon className="h-3.5 w-3.5" /> PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const checkinId = selectedGroup.guestType === "hostel"
+                      ? parseInt(selectedGroup.key.replace("hostel_", ""), 10)
+                      : undefined;
+                    onOrderMore({
+                      guestType: selectedGroup.guestType,
+                      checkinId,
+                      guestName: selectedGroup.guestName,
+                      guestPhone: selectedGroup.contactInfo || undefined,
+                      roomInfo: selectedGroup.roomInfo || undefined,
+                    });
+                    setSelectedGroupKey(null);
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" /> Order More
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1227,6 +1270,9 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   {order.guestType === "walkin" && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>}
                   {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>}
                   <PaymentBadge status={order.paymentStatus} />
+                  {order.paymentStatus === "paid" && order.paymentMethod && (
+                    <span className="text-xs text-brand-green-dark/40">({order.paymentMethod === "cash" ? "Cash" : order.paymentMethod === "online" ? "Online" : order.paymentMethod})</span>
+                  )}
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3">
                   <span className="text-xs text-brand-green-dark/50">{new Date(order.createdAt).toLocaleDateString("en-IN")} {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</span>
@@ -1245,8 +1291,18 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                     </div>
                   ))}
                   <div className="flex justify-between border-t border-brand-mist pt-1 text-xs">
-                    <span>Payment: <PaymentBadge status={order.paymentStatus} /></span>
-                    <span>By: {order.createdBy}</span>
+                    <span>Payment:{" "}
+                      {order.paymentStatus === "paid" && order.paymentMethod
+                        ? <>Paid by {order.paymentMethod === "cash" ? "Cash" : order.paymentMethod === "online" ? "Online" : order.paymentMethod}</>
+                        : <PaymentBadge status={order.paymentStatus} />
+                      }
+                    </span>
+                    <span>
+                      {order.paymentStatus === "paid" && order.paidBy
+                        ? <>Paid by: {order.paidBy}</>
+                        : <>By: {order.createdBy}</>
+                      }
+                    </span>
                   </div>
                   {order.cancelledReason && (
                     <p className="text-xs text-red-500">Cancelled: {order.cancelledReason}</p>
@@ -1390,6 +1446,19 @@ function formatAdminModification(mod: OrderModification): string {
     default:
       return `${actor}: ${mod.action} on ${mod.itemName || "order"}`;
   }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatTimeSince(isoDate: string): string {
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "<1m";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const remainMins = mins % 60;
+  if (remainMins === 0) return `${hrs}h`;
+  return `${hrs}h ${remainMins}m`;
 }
 
 // ─── Shared Components ───────────────────────────────────────────────────────
