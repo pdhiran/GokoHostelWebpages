@@ -441,7 +441,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "getMenu": {
-        const data = await getMenuWithCategories();
+        const data = await getMenuWithCategories(true);
         return NextResponse.json({ role, ...data });
       }
 

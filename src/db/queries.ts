@@ -462,14 +462,17 @@ export async function getMenuItemById(id: number) {
   return rows[0] || null;
 }
 
-export async function getMenuWithCategories() {
+export async function getMenuWithCategories(includeUnavailable = false) {
   const db = getDb();
   const categories = await db.select().from(menuCategories)
     .where(eq(menuCategories.isActive, 1))
     .orderBy(menuCategories.displayOrder);
+  const conditions = includeUnavailable
+    ? eq(menuCategories.isActive, 1)
+    : and(eq(menuItems.isAvailable, 1), eq(menuCategories.isActive, 1));
   const items = await db.select().from(menuItems)
     .innerJoin(menuCategories, eq(menuItems.categoryId, menuCategories.id))
-    .where(and(eq(menuItems.isAvailable, 1), eq(menuCategories.isActive, 1)))
+    .where(conditions)
     .orderBy(menuItems.displayOrder);
   return { categories, items: items.map(r => r.menu_items) };
 }
