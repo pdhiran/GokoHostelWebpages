@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem } from "@/lib/thermalPrint";
@@ -544,6 +544,9 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [busy, setBusy] = useState(false);
   const [printing, setPrinting] = useState<number | null>(null);
+  const [btSupported, setBtSupported] = useState(false);
+
+  useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -651,11 +654,11 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
               onClick={() => expandGuest(g.checkinId)}
               className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-brand-sand/50"
             >
-              <div>
-                <span className="text-sm font-medium text-brand-green-dark">{g.name}</span>
-                <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
-                {g.bedInfo && <span className="ml-2 text-xs text-brand-green-dark/50">{g.bedInfo}</span>}
-                <span className="ml-2 text-xs text-brand-green-dark/40">({g.orderCount} orders)</span>
+              <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1">
+                <span className="min-w-0 truncate text-sm font-medium text-brand-green-dark">{g.name}</span>
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
+                {g.bedInfo && <span className="min-w-0 truncate text-xs text-brand-green-dark/50">{g.bedInfo}</span>}
+                <span className="text-xs text-brand-green-dark/40">({g.orderCount} orders)</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-brand-green">₹{(g.tabTotal / 100).toFixed(0)}</span>
@@ -674,7 +677,11 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
-                            <span className="ml-2 text-xs text-brand-green-dark/50">{new Date(order.createdAt).toLocaleDateString("en-IN")}</span>
+                            <span className="ml-2 text-xs text-brand-green-dark/50">
+                              {new Date(order.createdAt).toLocaleDateString("en-IN")}
+                              {" · "}
+                              {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                            </span>
                           </div>
                           <span className="text-sm font-semibold">₹{(order.total / 100).toFixed(0)}</span>
                         </div>
@@ -688,7 +695,7 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
                             type="button"
                             onClick={() => markPaid([order.id], "cash")}
                             disabled={busy}
-                            className="flex items-center gap-1 rounded-md border border-green-500 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                            className="flex items-center gap-1 rounded-md border border-green-500 bg-green-50 px-2.5 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
                           >
                             <BanknoteIcon className="h-3.5 w-3.5" /> Cash
                           </button>
@@ -696,7 +703,7 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
                             type="button"
                             onClick={() => markPaid([order.id], "online")}
                             disabled={busy}
-                            className="flex items-center gap-1 rounded-md border border-blue-500 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                            className="flex items-center gap-1 rounded-md border border-blue-500 bg-blue-50 px-2.5 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                           >
                             <SmartphoneIcon className="h-3.5 w-3.5" /> Online
                           </button>
@@ -705,7 +712,7 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
                     ))}
 
                     {guestOrders.length > 1 && (
-                      <div className="flex items-center gap-2 border-t border-brand-mist pt-2">
+                      <div className="flex flex-wrap items-center gap-2 border-t border-brand-mist pt-2">
                         <button
                           type="button"
                           onClick={() => markAllPaid(g.checkinId, "cash")}
@@ -787,12 +794,25 @@ function GuestTabs({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
 
 // ─── Walk-in Orders ─────────────────────────────────────────────────────────
 
+interface WalkinGroup {
+  phone: string;
+  guestName: string;
+  orders: Order[];
+  totalAmount: number;
+  totalSubtotal: number;
+  totalTax: number;
+  orderCount: number;
+}
+
 function WalkinOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
+  const [busyGroup, setBusyGroup] = useState<string | null>(null);
   const [btSupported, setBtSupported] = useState(false);
   const [printing, setPrinting] = useState<number | null>(null);
+  const [printingGroup, setPrintingGroup] = useState<string | null>(null);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
   useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
@@ -811,17 +831,66 @@ function WalkinOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }
 
   useEffect(() => { load(); }, [load]);
 
-  const markPaid = async (orderId: number, paymentMethod: string) => {
-    setBusy(orderId);
+  const groups: WalkinGroup[] = useMemo(() => {
+    const map = new Map<string, Order[]>();
+    for (const order of orders) {
+      const key = order.guestPhone || `_no_phone_${order.id}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(order);
+    }
+    return Array.from(map.entries()).map(([phone, groupOrders]) => ({
+      phone,
+      guestName: groupOrders[0].guestName,
+      orders: groupOrders,
+      totalAmount: groupOrders.reduce((s, o) => s + o.total, 0),
+      totalSubtotal: groupOrders.reduce((s, o) => s + o.subtotal, 0),
+      totalTax: groupOrders.reduce((s, o) => s + o.tax, 0),
+      orderCount: groupOrders.length,
+    }));
+  }, [orders]);
+
+  const markPaid = async (orderIds: number[], paymentMethod: string, groupPhone?: string) => {
+    if (groupPhone) setBusyGroup(groupPhone); else setBusy(orderIds[0]);
     try {
-      await apiCall({ action: "markOrderPaid", orderIds: [orderId], paymentMethod });
+      await apiCall({ action: "markOrderPaid", orderIds, paymentMethod });
       await load();
     } finally {
       setBusy(null);
+      setBusyGroup(null);
     }
   };
 
-  const handlePrint = async (order: Order) => {
+  const handlePrintGroup = async (group: WalkinGroup) => {
+    setPrintingGroup(group.phone);
+    try {
+      const allItems: BillItem[] = group.orders.flatMap(o =>
+        o.items.filter(i => i.status !== "voided").map(i => ({
+          name: i.itemName,
+          quantity: i.quantity,
+          price: i.itemPrice,
+          lineTotal: i.lineTotal,
+          status: i.status,
+        }))
+      );
+      await printFoodBill({
+        guestName: group.guestName,
+        guestPhone: group.phone.startsWith("_no_phone_") ? undefined : group.phone,
+        guestType: "walkin",
+        items: allItems,
+        subtotal: group.totalSubtotal,
+        tax: group.totalTax,
+        total: group.totalAmount,
+        taxRate: 5,
+      });
+      alert("Bill printed successfully!");
+    } catch (err: any) {
+      alert(`Print failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setPrintingGroup(null);
+    }
+  };
+
+  const handlePrintOrder = async (order: Order) => {
     setPrinting(order.id);
     try {
       await printFoodBill({
@@ -852,113 +921,161 @@ function WalkinOrders({ apiCall }: { apiCall: (body: any) => Promise<Response> }
 
   if (loading) return <LoadingState />;
 
+  const totalOrders = groups.reduce((s, g) => s + g.orderCount, 0);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-lg font-bold text-brand-green-dark">Walk-in Orders ({orders.length})</h3>
+        <h3 className="font-display text-lg font-bold text-brand-green-dark">Walk-in Orders ({totalOrders})</h3>
         <button type="button" onClick={load} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-brand-green hover:bg-brand-green/[0.06]">
           <RefreshCwIcon className="h-3.5 w-3.5" /> Refresh
         </button>
       </div>
 
-      {orders.length === 0 && (
+      {groups.length === 0 && (
         <div className="rounded-xl border border-brand-mist bg-white p-8 text-center text-sm text-brand-green-dark/50">
           No unpaid walk-in orders
         </div>
       )}
 
       <div className="space-y-2">
-        {orders.map((order) => (
-          <div key={order.id} className="rounded-xl border border-brand-mist bg-white p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
-                <StatusBadge status={order.status} />
-                <span className="text-sm font-medium text-brand-green-dark">{order.guestName}</span>
+        {groups.map((group) => (
+          <div key={group.phone} className="rounded-xl border border-brand-mist bg-white overflow-hidden">
+            {/* Group Header */}
+            <button
+              type="button"
+              onClick={() => setExpandedGroup(expandedGroup === group.phone ? null : group.phone)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-brand-sand/50"
+            >
+              <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1">
+                <span className="min-w-0 truncate text-sm font-medium text-brand-green-dark">{group.guestName}</span>
                 <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>
+                {!group.phone.startsWith("_no_phone_") && (
+                  <span className="min-w-0 truncate text-xs text-brand-green-dark/50">{group.phone}</span>
+                )}
+                <span className="text-xs text-brand-green-dark/40">({group.orderCount} order{group.orderCount !== 1 ? "s" : ""})</span>
               </div>
-              <span className="text-sm font-bold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</span>
-            </div>
-
-            <div className="mt-2 space-y-0.5">
-              {order.items.filter(i => i.status !== "voided").map((item) => (
-                <p key={item.id} className="text-xs text-brand-green-dark/70">
-                  {item.quantity}× {item.itemName} — ₹{(item.lineTotal / 100).toFixed(0)}
-                </p>
-              ))}
-            </div>
-
-            <div className="mt-2 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-brand-green-dark/50">
-                <span>{new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
-                <span>·</span>
-                <PaymentBadge status={order.paymentStatus} />
-              </div>
-
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => markPaid(order.id, "cash")}
-                  disabled={busy === order.id}
-                  className="flex items-center gap-1 rounded-md border border-green-500 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
-                >
-                  <BanknoteIcon className="h-3.5 w-3.5" /> Cash
-                </button>
-                <button
-                  type="button"
-                  onClick={() => markPaid(order.id, "online")}
-                  disabled={busy === order.id}
-                  className="flex items-center gap-1 rounded-md border border-blue-500 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                >
-                  <SmartphoneIcon className="h-3.5 w-3.5" /> Online
-                </button>
-                {btSupported && (
+                <span className="text-sm font-bold text-brand-green">₹{(group.totalAmount / 100).toFixed(0)}</span>
+                {expandedGroup === group.phone ? <ChevronDownIcon className="h-4 w-4 text-brand-green-dark/40" /> : <ChevronRightIcon className="h-4 w-4 text-brand-green-dark/40" />}
+              </div>
+            </button>
+
+            {expandedGroup === group.phone && (
+              <div className="border-t border-brand-mist px-4 py-3 space-y-2">
+                {/* Individual Orders */}
+                {group.orders.map((order) => (
+                  <div key={order.id} className="rounded-lg border border-brand-mist p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
+                        <StatusBadge status={order.status} />
+                        <span className="text-xs text-brand-green-dark/50">
+                          {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                        </span>
+                      </div>
+                      <span className="text-sm font-semibold">₹{(order.total / 100).toFixed(0)}</span>
+                    </div>
+                    <div className="mt-1 space-y-0.5">
+                      {order.items.filter(i => i.status !== "voided").map((item) => (
+                        <p key={item.id} className="text-xs text-brand-green-dark/60">
+                          {item.quantity}× {item.itemName} — ₹{(item.lineTotal / 100).toFixed(0)}
+                        </p>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => markPaid([order.id], "cash")}
+                        disabled={busy === order.id || busyGroup === group.phone}
+                        className="flex items-center gap-1 rounded-md border border-green-500 bg-green-50 px-2.5 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                      >
+                        <BanknoteIcon className="h-3.5 w-3.5" /> Cash
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => markPaid([order.id], "online")}
+                        disabled={busy === order.id || busyGroup === group.phone}
+                        className="flex items-center gap-1 rounded-md border border-blue-500 bg-blue-50 px-2.5 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        <SmartphoneIcon className="h-3.5 w-3.5" /> Online
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Group-level Actions */}
+                {group.orderCount > 1 && (
+                  <div className="flex flex-wrap items-center gap-2 border-t border-brand-mist pt-2">
+                    <button
+                      type="button"
+                      onClick={() => markPaid(group.orders.map(o => o.id), "cash", group.phone)}
+                      disabled={busyGroup === group.phone}
+                      className="flex items-center gap-1.5 rounded-md border border-green-500 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                    >
+                      <BanknoteIcon className="h-3.5 w-3.5" /> Pay All - Cash · ₹{(group.totalAmount / 100).toFixed(0)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => markPaid(group.orders.map(o => o.id), "online", group.phone)}
+                      disabled={busyGroup === group.phone}
+                      className="flex items-center gap-1.5 rounded-md border border-blue-500 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                    >
+                      <SmartphoneIcon className="h-3.5 w-3.5" /> Pay All - Online
+                    </button>
+                  </div>
+                )}
+
+                {/* Print & PDF at group level */}
+                <div className="mt-1 flex items-center gap-2">
+                  {btSupported && (
+                    <button
+                      type="button"
+                      onClick={() => group.orderCount > 1 ? handlePrintGroup(group) : handlePrintOrder(group.orders[0])}
+                      disabled={printingGroup === group.phone || printing === group.orders[0]?.id}
+                      className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <PrinterIcon className="h-3.5 w-3.5" />
+                      {printingGroup === group.phone ? "Printing..." : "Print Bill"}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => handlePrint(order)}
-                    disabled={printing === order.id}
-                    className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    onClick={() => {
+                      const billOrders: BillOrder[] = group.orders.map(o => ({
+                        orderNumber: o.orderNumber,
+                        createdAt: o.createdAt,
+                        items: o.items.filter(i => i.status !== "voided").map(i => ({
+                          itemName: i.itemName,
+                          quantity: i.quantity,
+                          itemPrice: i.itemPrice,
+                          lineTotal: i.lineTotal,
+                          status: i.status,
+                        })),
+                        subtotal: o.subtotal,
+                        tax: o.tax,
+                        total: o.total,
+                        specialInstructions: o.specialInstructions || undefined,
+                      }));
+                      generateGuestBill({
+                        guestName: group.guestName,
+                        guestPhone: group.phone.startsWith("_no_phone_") ? "" : group.phone,
+                        orders: billOrders,
+                        grandSubtotal: group.totalSubtotal,
+                        grandTax: group.totalTax,
+                        grandTotal: group.totalAmount,
+                        taxRate: 5,
+                        billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                      });
+                    }}
+                    className="flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
                   >
-                    <PrinterIcon className="h-3.5 w-3.5" />
-                    {printing === order.id ? "Printing..." : "Print"}
+                    <DownloadIcon className="h-3.5 w-3.5" />
+                    PDF
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const orders: BillOrder[] = [{
-                      orderNumber: order.orderNumber,
-                      createdAt: order.createdAt,
-                      items: order.items.filter(i => i.status !== "voided").map(i => ({
-                        itemName: i.itemName,
-                        quantity: i.quantity,
-                        itemPrice: i.itemPrice,
-                        lineTotal: i.lineTotal,
-                        status: i.status,
-                      })),
-                      subtotal: order.subtotal,
-                      tax: order.tax,
-                      total: order.total,
-                      specialInstructions: order.specialInstructions || undefined,
-                    }];
-                    generateGuestBill({
-                      guestName: order.guestName,
-                      guestPhone: order.guestPhone || "",
-                      orders,
-                      grandSubtotal: order.subtotal,
-                      grandTax: order.tax,
-                      grandTotal: order.total,
-                      taxRate: 5,
-                      billDate: new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
-                    });
-                  }}
-                  className="flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                >
-                  <DownloadIcon className="h-3.5 w-3.5" />
-                  PDF
-                </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
@@ -1307,15 +1424,15 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
                 className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-brand-sand/50"
               >
-                <div className="flex items-center gap-3">
+                <div className="min-w-0 flex flex-wrap items-center gap-1.5">
                   <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                   <StatusBadge status={order.status} />
-                  <span className="text-sm text-brand-green-dark">{order.guestName}</span>
+                  <span className="min-w-0 truncate text-sm text-brand-green-dark">{order.guestName}</span>
                   {order.guestType === "walkin" && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>}
                   {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>}
                   <span className="text-xs text-brand-green-dark/40">{order.guestType === "hostel" ? "🏨" : "🚶"}</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-shrink-0 items-center gap-3">
                   <span className="text-xs text-brand-green-dark/50">{new Date(order.createdAt).toLocaleDateString("en-IN")}</span>
                   <span className="text-sm font-semibold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</span>
                   {expandedOrder === order.id ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}

@@ -375,7 +375,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               <PackageIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Out of Stock</span>
               {unavailableItems.length > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold">
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold">
                   {unavailableItems.length}
                 </span>
               )}
@@ -466,7 +466,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                       key={cat.id}
                       type="button"
                       onClick={() => setSelectedMenuCategory(cat.id)}
-                      className={`flex flex-shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                      className={`flex flex-shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
                         selectedMenuCategory === cat.id
                           ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40"
                           : "bg-slate-700 text-slate-400 hover:bg-slate-600"
@@ -475,7 +475,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                       <span>{cat.icon}</span>
                       <span>{cat.name}</span>
                       {catUnavail > 0 && (
-                        <span className="ml-1 rounded-full bg-red-500/20 px-1.5 py-0.5 text-[10px] font-bold text-red-400">
+                        <span className="ml-1 rounded-full bg-red-500/20 px-1.5 py-0.5 text-xs font-bold text-red-400">
                           {catUnavail}
                         </span>
                       )}
@@ -505,7 +505,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                     <button
                       type="button"
                       onClick={() => toggleAvailability(item.id, item.isAvailable)}
-                      className={`ml-3 flex-shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                      className={`ml-3 flex-shrink-0 rounded-full px-3 py-2 text-sm font-semibold transition-colors ${
                         item.isAvailable
                           ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
                           : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
@@ -880,7 +880,7 @@ function OrderCard({
                 {order.guestName}
               </span>
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                className={`rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${
                   order.guestType === "hostel"
                     ? "bg-blue-500/20 text-blue-400"
                     : "bg-slate-600 text-slate-300"
@@ -888,7 +888,7 @@ function OrderCard({
               >
                 {order.guestType === "hostel" ? "Hostel" : "Walk-in"}
               </span>
-              <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] text-slate-400">
+              <span className="rounded-full bg-slate-700 px-2 py-0.5 text-xs text-slate-400">
                 {order.createdBy === "staff" ? "Staff order" : "Guest order"}
               </span>
             </div>
@@ -910,16 +910,16 @@ function OrderCard({
           {activeItems.map((item) => {
             const itemTags = parseTags(item.tags);
             return (
-            <div key={item.id} className="group flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
+            <div key={item.id} className="flex min-w-0 flex-wrap items-center justify-between gap-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
                 <span className="font-bold text-amber-400">{item.quantity}x</span>
-                <span>{item.itemName}</span>
+                <span className="min-w-0">{item.itemName}</span>
                 {itemTags.length > 0 && (
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     {itemTags.map((tag) => (
                       <span
                         key={tag}
-                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${TAG_COLORS[tag.toLowerCase()] || "bg-slate-600/30 text-slate-400"}`}
+                        className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${TAG_COLORS[tag.toLowerCase()] || "bg-slate-600/30 text-slate-400"}`}
                       >
                         {tagDisplayName(tag)}
                       </span>
@@ -930,10 +930,10 @@ function OrderCard({
               <button
                 type="button"
                 onClick={() => onRejectItem(item)}
-                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-slate-600 opacity-0 transition-all hover:bg-red-500/20 hover:text-red-400 group-hover:opacity-100"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-400 transition-all hover:bg-red-500/20"
                 title="Reject item"
               >
-                <XIcon className="h-3.5 w-3.5" />
+                <XIcon className="h-4 w-4" />
               </button>
             </div>
             );
@@ -947,7 +947,7 @@ function OrderCard({
                 >
                   <span>{item.quantity}x</span>
                   <span>{item.itemName}</span>
-                  <span className="text-[10px] text-red-500/70">REJECTED</span>
+                  <span className="text-xs text-red-500/70">REJECTED</span>
                 </div>
               ))}
             </div>
@@ -980,7 +980,7 @@ function OrderCard({
               try { await onPrintTicket(); } catch {} finally { setPrintLoading(false); }
             }}
             disabled={printLoading}
-            className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-600 px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-slate-700 disabled:opacity-50"
+            className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-600 px-3 py-2.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 disabled:opacity-50"
           >
             <PrinterIcon className="h-3.5 w-3.5" />
             {printLoading ? "Printing..." : "Print Ticket"}

@@ -149,7 +149,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                 <span className="text-xs text-gray-500">{cat.nameKannada}</span>
               )}
               {cat.description && (
-                <span className="line-clamp-2 text-center text-[11px] text-gray-400">
+                <span className="line-clamp-2 text-center text-xs text-gray-400">
                   {cat.description}
                 </span>
               )}
@@ -176,7 +176,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
             setDietFilter("all");
             setCuratedFilter(null);
           }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -204,10 +204,10 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
       </div>
 
       {/* Diet filter */}
-      <div className="mb-2 flex gap-2">
+      <div className="mb-2 flex flex-wrap gap-2">
         <button
           onClick={() => setDietFilter("all")}
-          className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+          className={`rounded-full px-4 py-2 text-xs font-medium transition ${
             dietFilter === "all"
               ? "bg-gray-800 text-white"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -217,7 +217,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
         </button>
         <button
           onClick={() => setDietFilter("veg")}
-          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition ${
             dietFilter === "veg"
               ? "bg-green-600 text-white"
               : "bg-gray-100 text-gray-600 hover:bg-green-50"
@@ -228,7 +228,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
         </button>
         <button
           onClick={() => setDietFilter("nonveg")}
-          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition ${
             dietFilter === "nonveg"
               ? "bg-red-600 text-white"
               : "bg-gray-100 text-gray-600 hover:bg-red-50"
@@ -241,11 +241,11 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
 
       {/* Curated filter chips */}
       {(hasChefSpecial || hasGokoSpecial) && (
-        <div className="mb-4 flex gap-2">
+        <div className="mb-4 flex flex-wrap gap-2">
           {hasChefSpecial && (
             <button
               onClick={() => setCuratedFilter(curatedFilter === "chef-special" ? null : "chef-special")}
-              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+              className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition ${
                 curatedFilter === "chef-special"
                   ? "bg-purple-600 text-white"
                   : "bg-purple-50 text-purple-700 hover:bg-purple-100"
@@ -257,7 +257,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
           {hasGokoSpecial && (
             <button
               onClick={() => setCuratedFilter(curatedFilter === "goko-special" ? null : "goko-special")}
-              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+              className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition ${
                 curatedFilter === "goko-special"
                   ? "bg-indigo-600 text-white"
                   : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
@@ -334,7 +334,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                         <p className="text-xs text-gray-500">{item.nameKannada}</p>
                       )}
                       {item.description && (
-                        <p className="mt-0.5 line-clamp-2 text-[11px] text-gray-400">
+                        <p className="mt-0.5 line-clamp-2 text-xs text-gray-400">
                           {item.description}
                         </p>
                       )}
@@ -357,7 +357,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                             return (
                               <span
                                 key={tag}
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${classes}`}
+                                className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}
                               >
                                 {display}
                               </span>
@@ -381,7 +381,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                           {qty === 0 ? (
                             <button
                               onClick={() => handleAdd(item)}
-                              className="rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:shadow-md"
+                              className="rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
                             >
                               Add
                             </button>
@@ -389,7 +389,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                             <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-1.5 py-0.5">
                               <button
                                 onClick={() => onRemoveFromCart(item.id)}
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-blue-600 transition hover:bg-blue-100"
+                                className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition hover:bg-blue-100"
                               >
                                 −
                               </button>
@@ -398,7 +398,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                               </span>
                               <button
                                 onClick={() => handleAdd(item)}
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-blue-600 transition hover:bg-blue-100"
+                                className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition hover:bg-blue-100"
                               >
                                 +
                               </button>

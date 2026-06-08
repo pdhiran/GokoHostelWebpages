@@ -174,7 +174,7 @@ function OrderStatusContent() {
                     {STATUS_ICONS[step]}
                   </motion.div>
                   <span
-                    className={`mt-2 text-xs font-medium ${
+                    className={`mt-2 text-[10px] font-medium sm:text-xs ${
                       isActive ? "text-blue-600" : "text-gray-400"
                     }`}
                   >
@@ -201,9 +201,9 @@ function OrderStatusContent() {
           <h3 className="mb-3 text-sm font-semibold text-gray-800">Order Details</h3>
           <div className="space-y-2">
             {order.items.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-600">
+              <div key={idx} className="flex items-center justify-between gap-2 text-sm">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 truncate text-gray-600">
                     {item.name} × {item.quantity}
                   </span>
                 </div>

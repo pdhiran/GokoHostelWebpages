@@ -385,7 +385,7 @@ export default function FoodOrderPage() {
                   {guestInfo?.guestType === "hostel" && pastOrders.length > 0 && (
                     <button
                       onClick={() => setShowMyOrders(true)}
-                      className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
+                      className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
                     >
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -496,7 +496,7 @@ export default function FoodOrderPage() {
                   <h2 className="text-lg font-bold text-gray-800">My Orders</h2>
                   <button
                     onClick={() => setShowMyOrders(false)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -590,7 +590,7 @@ function MyOrdersList({ orders, onReorder }: { orders: PastOrder[]; onReorder: (
                   {order.status !== "cancelled" && (
                     <button
                       onClick={() => onReorder(order)}
-                      className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100"
+                      className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-2.5 text-sm font-medium text-blue-600 transition hover:bg-blue-100"
                     >
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

@@ -280,7 +280,7 @@ export function FoodCart({
       <div className="mb-4 flex items-center gap-3">
         <button
           onClick={onBack}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -312,14 +312,14 @@ export function FoodCart({
               <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-1.5 py-0.5">
                 <button
                   onClick={() => onUpdateQuantity(item.menuItemId, -1)}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
                 >
                   −
                 </button>
                 <span className="min-w-[16px] text-center text-sm font-semibold">{item.quantity}</span>
                 <button
                   onClick={() => onUpdateQuantity(item.menuItemId, 1)}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
                 >
                   +
                 </button>
@@ -331,7 +331,7 @@ export function FoodCart({
 
               <button
                 onClick={() => onRemoveItem(item.menuItemId)}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 hover:text-red-500"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
