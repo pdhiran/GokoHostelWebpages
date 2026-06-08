@@ -28,6 +28,18 @@ const PERMISSION_OPTIONS = [
   { key: "canDeleteRecords", label: "Delete records" },
 ];
 
+const FOOD_PERMISSION_OPTIONS = [
+  { key: "canAccessKitchen", label: "Kitchen page access" },
+  { key: "canViewFoodOrders", label: "View food orders" },
+  { key: "canPlaceOrders", label: "Place orders for guests" },
+  { key: "canManageMenu", label: "Manage menu items" },
+  { key: "canManageInventory", label: "Manage inventory / stock" },
+  { key: "canViewTabs", label: "View guest tabs / order summary" },
+  { key: "canMarkPaid", label: "Mark orders as paid" },
+  { key: "canGenerateBills", label: "Generate / print bills" },
+  { key: "canChangeFoodSettings", label: "Change food settings" },
+];
+
 export function ManagementUsers({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { apiCall } = useAdminApi(password, username);
   const [users, setUsers] = useState<User[]>([]);
@@ -192,6 +204,25 @@ export function ManagementUsers({ password, username, role }: { password: string
                 </label>
               ))}
             </div>
+
+            <div className="mt-4 border-t border-brand-mist pt-4">
+              <label className="mb-2 block text-xs font-medium text-brand-green-dark/60">Food &amp; Kitchen Permissions</label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {FOOD_PERMISSION_OPTIONS.map((p) => (
+                  <label key={p.key} className="flex items-center gap-2 rounded-lg border border-brand-mist px-3 py-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={formRole === "manager" || formPermissions[p.key] || false}
+                      disabled={formRole === "manager"}
+                      onChange={(e) => setFormPermissions((prev) => ({ ...prev, [p.key]: e.target.checked }))}
+                      className="rounded border-brand-mist"
+                    />
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {formRole === "manager" && <p className="mt-1 text-[10px] text-brand-green-dark/40">Managers have all permissions by default</p>}
           </div>
 

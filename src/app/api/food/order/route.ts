@@ -11,17 +11,7 @@ import {
   decrementStock,
 } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
-
-function getISTTime(): { hours: number; minutes: number } {
-  const now = new Date();
-  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-  return { hours: ist.getHours(), minutes: ist.getMinutes() };
-}
-
-function timeToMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(":").map(Number);
-  return h * 60 + (m || 0);
-}
+import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
 
 export async function POST(req: NextRequest) {
   try {
@@ -74,23 +64,16 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Kitchen hours check
-    const [openStr, closeStr] = await Promise.all([
-      getSetting("food_kitchen_open"),
-      getSetting("food_kitchen_close"),
-    ]);
-    const kitchenOpen = openStr || "07:00";
-    const kitchenClose = closeStr || "22:00";
-    const { hours, minutes } = getISTTime();
-    const currentMinutes = hours * 60 + minutes;
-    const openMinutes = timeToMinutes(kitchenOpen);
-    const closeMinutes = timeToMinutes(kitchenClose);
+    const kitchenHoursStr = (await getSetting("food_kitchen_hours")) || "08:00-15:00,18:00-23:30";
+    const kitchenStatus = isKitchenOpen(kitchenHoursStr);
 
-    if (currentMinutes < openMinutes || currentMinutes >= closeMinutes) {
+    if (!kitchenStatus.open) {
+      const slots = parseKitchenHours(kitchenHoursStr);
       return NextResponse.json(
         {
           error: "Kitchen is currently closed",
-          message: `Kitchen hours are ${kitchenOpen} - ${kitchenClose} IST`,
-          nextOpen: kitchenOpen,
+          message: `Kitchen hours: ${formatSlotsForDisplay(slots)} IST`,
+          nextOpen: kitchenStatus.nextOpenAt || slots[0]?.open || "08:00",
         },
         { status: 400 }
       );

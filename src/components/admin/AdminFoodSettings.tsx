@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AdminLoading } from "./AdminLoading";
 import { cn } from "@/lib/utils";
-import { SaveIcon, RefreshCwIcon } from "lucide-react";
+import { SaveIcon, RefreshCwIcon, PlusIcon, XIcon } from "lucide-react";
 import type { Role } from "./types";
+import { parseKitchenHours, slotsToString } from "@/lib/kitchenHours";
 
 type FoodSettings = {
   food_kitchen_whatsapp: string;
   food_tax_rate: string;
-  food_kitchen_open: string;
-  food_kitchen_close: string;
+  food_kitchen_hours: string;
   food_tab_limit: string;
   food_kitchen_busy: string;
   food_customer_whatsapp: string;
@@ -23,8 +23,7 @@ type FoodSettings = {
 const DEFAULT_SETTINGS: FoodSettings = {
   food_kitchen_whatsapp: "",
   food_tax_rate: "5",
-  food_kitchen_open: "07:00",
-  food_kitchen_close: "22:00",
+  food_kitchen_hours: "08:00-15:00,18:00-23:30",
   food_tab_limit: "0",
   food_kitchen_busy: "false",
   food_customer_whatsapp: "true",
@@ -67,11 +66,14 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
       if (res.ok) {
         const data = await res.json();
         const s = data.settings || {};
+        let kitchenHours = s.food_kitchen_hours || "";
+        if (!kitchenHours && s.food_kitchen_open && s.food_kitchen_close) {
+          kitchenHours = `${s.food_kitchen_open}-${s.food_kitchen_close}`;
+        }
         const merged: FoodSettings = {
           food_kitchen_whatsapp: s.food_kitchen_whatsapp || DEFAULT_SETTINGS.food_kitchen_whatsapp,
           food_tax_rate: s.food_tax_rate || DEFAULT_SETTINGS.food_tax_rate,
-          food_kitchen_open: s.food_kitchen_open || DEFAULT_SETTINGS.food_kitchen_open,
-          food_kitchen_close: s.food_kitchen_close || DEFAULT_SETTINGS.food_kitchen_close,
+          food_kitchen_hours: kitchenHours || DEFAULT_SETTINGS.food_kitchen_hours,
           food_tab_limit: s.food_tab_limit || DEFAULT_SETTINGS.food_tab_limit,
           food_kitchen_busy: s.food_kitchen_busy || DEFAULT_SETTINGS.food_kitchen_busy,
           food_customer_whatsapp: s.food_customer_whatsapp ?? DEFAULT_SETTINGS.food_customer_whatsapp,
@@ -315,26 +317,62 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
 
           <hr className="border-brand-mist" />
 
-          {/* Kitchen Hours */}
-          <div className="grid gap-1.5 sm:grid-cols-3 sm:items-center">
-            <div>
+          {/* Kitchen Hours - Multiple Slots */}
+          <div className="grid gap-1.5 sm:grid-cols-3 sm:items-start">
+            <div className="pt-1">
               <Label className="text-sm font-medium text-brand-green-dark">Kitchen Hours</Label>
               <p className="text-[11px] text-brand-green-dark/40">Orders only accepted during these hours</p>
             </div>
-            <div className="flex items-center gap-2 sm:col-span-2">
-              <Input
-                type="time"
-                value={settings.food_kitchen_open}
-                onChange={(e) => updateField("food_kitchen_open", e.target.value)}
-                className="w-32"
-              />
-              <span className="text-xs text-brand-green-dark/40">to</span>
-              <Input
-                type="time"
-                value={settings.food_kitchen_close}
-                onChange={(e) => updateField("food_kitchen_close", e.target.value)}
-                className="w-32"
-              />
+            <div className="space-y-2 sm:col-span-2">
+              {parseKitchenHours(settings.food_kitchen_hours).map((slot, idx, arr) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    value={slot.open}
+                    onChange={(e) => {
+                      const slots = parseKitchenHours(settings.food_kitchen_hours);
+                      slots[idx] = { ...slots[idx], open: e.target.value };
+                      updateField("food_kitchen_hours", slotsToString(slots));
+                    }}
+                    className="w-32"
+                  />
+                  <span className="text-xs text-brand-green-dark/40">to</span>
+                  <Input
+                    type="time"
+                    value={slot.close}
+                    onChange={(e) => {
+                      const slots = parseKitchenHours(settings.food_kitchen_hours);
+                      slots[idx] = { ...slots[idx], close: e.target.value };
+                      updateField("food_kitchen_hours", slotsToString(slots));
+                    }}
+                    className="w-32"
+                  />
+                  {arr.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const slots = parseKitchenHours(settings.food_kitchen_hours);
+                        slots.splice(idx, 1);
+                        updateField("food_kitchen_hours", slotsToString(slots));
+                      }}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-400 transition hover:bg-red-50 hover:text-red-600"
+                    >
+                      <XIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const slots = parseKitchenHours(settings.food_kitchen_hours);
+                  slots.push({ open: "08:00", close: "22:00" });
+                  updateField("food_kitchen_hours", slotsToString(slots));
+                }}
+                className="flex items-center gap-1 text-xs font-medium text-brand-green transition hover:text-brand-green-dark"
+              >
+                <PlusIcon className="h-3.5 w-3.5" /> Add Time Slot
+              </button>
             </div>
           </div>
 

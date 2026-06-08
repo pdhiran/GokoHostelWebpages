@@ -354,21 +354,41 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
           ))}
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {categoryItems.map((item) => (
+          {categoryItems.map((item) => {
+            const cartItem = cart.find((c) => c.menuItemId === item.id);
+            const qty = cartItem?.quantity || 0;
+            return (
             <div key={item.id} className="flex items-center justify-between rounded-lg border border-brand-mist p-2.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-brand-green-dark">{item.name}</p>
                 <p className="text-xs text-brand-green-dark/60">₹{(item.price / 100).toFixed(0)}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => addToCart(item)}
-                className="ml-2 flex h-7 w-7 items-center justify-center rounded-md bg-brand-green text-white hover:bg-brand-green/90"
-              >
-                <PlusIcon className="h-4 w-4" />
-              </button>
+              {qty > 0 ? (
+                <div className="ml-2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => updateCartQty(item.id, -1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-md border border-brand-mist text-brand-green-dark hover:bg-gray-100"
+                  >−</button>
+                  <span className="w-7 text-center text-sm font-semibold text-brand-green-dark">{qty}</span>
+                  <button
+                    type="button"
+                    onClick={() => addToCart(item)}
+                    className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-green text-white hover:bg-brand-green/90"
+                  >+</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => addToCart(item)}
+                  className="ml-2 flex h-8 w-8 items-center justify-center rounded-md bg-brand-green text-white hover:bg-brand-green/90"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </button>
+              )}
             </div>
-          ))}
+            );
+          })}
           {categoryItems.length === 0 && (
             <p className="col-span-full text-center text-xs text-brand-green-dark/50 py-4">No items in this category</p>
           )}
@@ -1170,7 +1190,7 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   <span className="min-w-0 truncate text-sm text-brand-green-dark">{order.guestName}</span>
                   {order.guestType === "walkin" && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>}
                   {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>}
-                  <span className="text-xs text-brand-green-dark/40">{order.guestType === "hostel" ? "🏨" : "🚶"}</span>
+                  <PaymentBadge status={order.paymentStatus} />
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3">
                   <span className="text-xs text-brand-green-dark/50">{new Date(order.createdAt).toLocaleDateString("en-IN")}</span>

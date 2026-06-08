@@ -8,6 +8,8 @@ import {
   getActiveMenuCategories,
   addOrderModification,
   updateFoodOrder,
+  updateFoodOrderItemQuantity,
+  deleteFoodOrderItem,
   getSetting,
   setSetting,
   getUserByUsername,
@@ -138,6 +140,57 @@ export async function POST(req: NextRequest) {
       const allItems = await getFoodOrderItems(orderId);
       const activeItems = allItems.filter((i) => i.status !== "voided");
 
+      const subtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+      const taxRateStr = await getSetting("food_tax_rate");
+      const taxRate = Number(taxRateStr) || 5;
+      const tax = Math.round((subtotal * taxRate) / 100);
+      const total = subtotal + tax;
+
+      await updateFoodOrder(orderId, { subtotal, tax, total });
+
+      return NextResponse.json({ success: true, data: { subtotal, tax, total } });
+    }
+
+    if (action === "updateItemQuantity") {
+      const { orderId, orderItemId, newQuantity } = rest;
+      if (!orderId || !orderItemId || newQuantity === undefined) {
+        return NextResponse.json({ error: "Missing orderId, orderItemId, or newQuantity" }, { status: 400 });
+      }
+
+      const allItems = await getFoodOrderItems(orderId);
+      const targetItem = allItems.find((i) => i.id === orderItemId);
+      if (!targetItem) {
+        return NextResponse.json({ error: "Order item not found" }, { status: 404 });
+      }
+
+      const oldQty = targetItem.quantity;
+
+      if (newQuantity <= 0) {
+        await deleteFoodOrderItem(orderItemId);
+        await addOrderModification({
+          orderId,
+          action: "item_removed",
+          itemId: orderItemId,
+          oldValue: String(oldQty),
+          newValue: "0",
+          reason: "Quantity reduced to zero",
+          modifiedBy: role,
+        });
+      } else {
+        await updateFoodOrderItemQuantity(orderItemId, newQuantity, targetItem.itemPrice);
+        await addOrderModification({
+          orderId,
+          action: "quantity_changed",
+          itemId: orderItemId,
+          oldValue: String(oldQty),
+          newValue: String(newQuantity),
+          reason: "",
+          modifiedBy: role,
+        });
+      }
+
+      const updatedItems = await getFoodOrderItems(orderId);
+      const activeItems = updatedItems.filter((i) => i.status !== "voided");
       const subtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
       const taxRateStr = await getSetting("food_tax_rate");
       const taxRate = Number(taxRateStr) || 5;

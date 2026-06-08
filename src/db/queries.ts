@@ -738,6 +738,14 @@ export async function deleteFoodOrderItem(id: number) {
   return db.delete(foodOrderItems).where(eq(foodOrderItems.id, id));
 }
 
+export async function updateFoodOrderItemQuantity(orderItemId: number, newQuantity: number, itemPrice: number) {
+  const db = getDb();
+  return db.update(foodOrderItems).set({
+    quantity: newQuantity,
+    lineTotal: newQuantity * itemPrice,
+  }).where(eq(foodOrderItems.id, orderItemId));
+}
+
 // --- Active Checkins for Food Lookup ---
 
 export async function getActiveCheckins() {

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PhoneEntry, type GuestInfo } from "@/components/food/PhoneEntry";
 import { MenuBrowser, type CartItem } from "@/components/food/MenuBrowser";
 import { FoodCart, type CartItemData, type GuestInfoData } from "@/components/food/FoodCart";
+import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
 
 type View = "loading" | "closed" | "phone" | "menu" | "cart";
 
@@ -25,8 +26,7 @@ interface PastOrder {
 }
 
 interface MenuSettings {
-  kitchenOpen: string;
-  kitchenClose: string;
+  kitchenHours: string;
   isBusy: boolean;
   taxRate: number;
   whatsappNumber: string;
@@ -56,17 +56,6 @@ interface MenuItemData {
   imageUrl: string;
   isAvailable: number;
   displayOrder: number;
-}
-
-function timeToMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(":").map(Number);
-  return h * 60 + (m || 0);
-}
-
-function getISTMinutes(): number {
-  const now = new Date();
-  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-  return ist.getHours() * 60 + ist.getMinutes();
 }
 
 function loadCartFromStorage(): CartItem[] {
@@ -118,11 +107,9 @@ export default function FoodOrderPage() {
       setSettings(data.settings);
 
       const s = data.settings as MenuSettings;
-      const currentMin = getISTMinutes();
-      const openMin = timeToMinutes(s.kitchenOpen);
-      const closeMin = timeToMinutes(s.kitchenClose);
+      const status = isKitchenOpen(s.kitchenHours);
 
-      if (currentMin < openMin || currentMin >= closeMin) {
+      if (!status.open) {
         setView("closed");
       } else {
         setView("phone");
@@ -315,11 +302,18 @@ export default function FoodOrderPage() {
           ) : settings ? (
             <>
               <p className="mt-2 text-gray-600">
-                We&apos;re open from{" "}
-                <span className="font-semibold">{settings.kitchenOpen}</span> to{" "}
-                <span className="font-semibold">{settings.kitchenClose}</span> IST
+                Kitchen hours:{" "}
+                <span className="font-semibold">
+                  {formatSlotsForDisplay(parseKitchenHours(settings.kitchenHours))}
+                </span>{" "}
+                IST
               </p>
-              <p className="mt-1 text-sm text-gray-500">Come back at {settings.kitchenOpen}!</p>
+              {(() => {
+                const status = isKitchenOpen(settings.kitchenHours);
+                return status.nextOpenAt ? (
+                  <p className="mt-1 text-sm text-gray-500">Come back at {status.nextOpenAt}!</p>
+                ) : null;
+              })()}
             </>
           ) : (
             <p className="mt-2 text-sm text-gray-600">Please try again later.</p>

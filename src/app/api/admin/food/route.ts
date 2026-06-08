@@ -48,6 +48,7 @@ async function authenticateUser(password: string, username?: string): Promise<Us
 const FOOD_SETTINGS_KEYS = [
   "food_kitchen_whatsapp",
   "food_tax_rate",
+  "food_kitchen_hours",
   "food_kitchen_open",
   "food_kitchen_close",
   "food_tab_limit",
