@@ -2,7 +2,7 @@ export type Role = "admin" | "manager" | "staff";
 
 export type AdminSection = "dashboard" | "bookings" | "beds" | "timeline" | "records" | "foodOrders" | "management";
 
-export type ManagementTab = "dorms" | "users" | "backup" | "audit" | "logs" | "health" | "history" | "rates" | "menu" | "foodSettings";
+export type ManagementTab = "dorms" | "users" | "backup" | "audit" | "logs" | "health" | "history" | "rates" | "menu" | "foodSettings" | "bulkUpload";
 
 export type BedStatus = "available" | "occupied" | "cleanup";
 
