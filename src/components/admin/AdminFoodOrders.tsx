@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon } from "lucide-react";
+import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon, PencilIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem } from "@/lib/thermalPrint";
 import { generateGuestBill, generateCombinedBill, type CombinedBillData, type BillOrder } from "@/components/admin/FoodBillGenerator";
 import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
@@ -539,6 +539,10 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
   const [btSupported, setBtSupported] = useState(false);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [paymentModalGroup, setPaymentModalGroup] = useState<SummaryGroup | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [voidingItemId, setVoidingItemId] = useState<number | null>(null);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [voidedItemReasons, setVoidedItemReasons] = useState<Record<number, string>>({});
 
   useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
@@ -660,6 +664,63 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
       }
     }
   };
+
+  const refreshAfterEdit = useCallback(async (group: SummaryGroup) => {
+    const [hostelRes, walkinRes] = await Promise.all([
+      apiCall({ action: "getGuestsWithTabs" }),
+      apiCall({ action: "getWalkinOrders" }),
+    ]);
+    if (hostelRes.ok) {
+      const data = await hostelRes.json();
+      setHostelGuests(data.guests || []);
+    }
+    if (walkinRes.ok) {
+      const data = await walkinRes.json();
+      setWalkinOrders(data.orders || []);
+    }
+    if (group.guestType === "hostel") {
+      const checkinId = parseInt(group.key.replace("hostel_", ""), 10);
+      const res = await apiCall({ action: "getGuestTab", checkinId });
+      if (res.ok) {
+        const data = await res.json();
+        setHostelOrdersMap((prev) => ({ ...prev, [checkinId]: data.orders || [] }));
+      }
+    }
+  }, [apiCall]);
+
+  const handleVoidItem = async (orderId: number, itemId: number, reason: string) => {
+    setActionBusy(`void_${itemId}`);
+    try {
+      const res = await apiCall({ action: "voidItem", orderId, orderItemId: itemId, reason });
+      if (res.ok) {
+        setVoidedItemReasons((prev) => ({ ...prev, [itemId]: reason }));
+        setVoidingItemId(null);
+        if (selectedGroup) await refreshAfterEdit(selectedGroup);
+      }
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleQuantityChange = async (orderId: number, itemId: number, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      setVoidingItemId(itemId);
+      return;
+    }
+    setActionBusy(`qty_${itemId}`);
+    try {
+      const res = await apiCall({ action: "updateItemQuantity", orderId, orderItemId: itemId, newQuantity });
+      if (res.ok) {
+        if (selectedGroup) await refreshAfterEdit(selectedGroup);
+      }
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const actualGroupTotal = selectedGroupOrders.length > 0
+    ? selectedGroupOrders.reduce((sum, o) => sum + o.total, 0)
+    : selectedGroup?.totalAmount || 0;
 
   const markGroupPaid = async (group: SummaryGroup, paymentMethod: string, cashReceived: number = 0, changeGiven: number = 0) => {
     const orders = getGroupOrders(group);
@@ -847,7 +908,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
             {/* Total bar */}
             <div className="flex items-center justify-between bg-brand-sand/30 px-4 py-2.5">
               <span className="text-sm text-brand-green-dark/70">{selectedGroup.orderCount} order{selectedGroup.orderCount !== 1 ? "s" : ""}</span>
-              <span className="text-xl font-bold text-brand-green">₹{(selectedGroup.totalAmount / 100).toFixed(0)}</span>
+              <span className="text-xl font-bold text-brand-green">₹{(actualGroupTotal / 100).toFixed(0)}</span>
             </div>
 
             {/* Orders list */}
@@ -856,28 +917,105 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
                 <div className="flex justify-center py-8"><Loader2Icon className="h-5 w-5 animate-spin text-brand-green" /></div>
               ) : (
                 <>
-                  {selectedGroupOrders.map((order) => (
+                  {selectedGroupOrders.map((order) => {
+                    const isEditing = editingOrderId === order.id;
+                    return (
                     <div key={order.id} className="rounded-lg border border-brand-mist p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                           <StatusBadge status={order.status} />
                         </div>
-                        <span className="text-xs text-brand-green-dark/50">
-                          {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-brand-green-dark/50">
+                            {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => { setEditingOrderId(isEditing ? null : order.id); setVoidingItemId(null); }}
+                            className={cn(
+                              "rounded p-1 transition-colors",
+                              isEditing
+                                ? "bg-brand-green/10 text-brand-green"
+                                : "text-brand-green-dark/40 hover:text-brand-green-dark/70 hover:bg-brand-sand"
+                            )}
+                            title="Edit order"
+                          >
+                            <PencilIcon className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-1.5 space-y-0.5">
-                        {order.items.filter((i) => i.status !== "voided").map((item) => (
-                          <div key={item.id} className="flex items-center justify-between text-xs text-brand-green-dark/60">
-                            <span>{item.quantity}× {item.itemName}</span>
-                            <span>₹{(item.lineTotal / 100).toFixed(0)}</span>
+                        {order.items.map((item) => {
+                          const isVoided = item.status === "voided";
+                          const isItemEditing = isEditing && !isVoided;
+                          return (
+                          <div key={item.id}>
+                            {isVoided ? (
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="min-w-0 flex-1">
+                                  <span className="line-through text-brand-green-dark/40">
+                                    {item.quantity}× {item.itemName}
+                                  </span>
+                                  <span className="ml-1.5 inline-block rounded bg-red-100 px-1 py-0.5 text-[10px] font-bold text-red-600">VOIDED</span>
+                                  {voidedItemReasons[item.id] && (
+                                    <span className="ml-1 text-[10px] italic text-red-400">{voidedItemReasons[item.id]}</span>
+                                  )}
+                                </div>
+                                <span className="line-through text-brand-green-dark/30 flex-shrink-0">₹{(item.lineTotal / 100).toFixed(0)}</span>
+                              </div>
+                            ) : isItemEditing ? (
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuantityChange(order.id, item.id, item.quantity - 1)}
+                                    disabled={actionBusy === `qty_${item.id}`}
+                                    className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 disabled:opacity-50"
+                                  >−</button>
+                                  <span className="w-5 text-center font-medium text-brand-green-dark">{item.quantity}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuantityChange(order.id, item.id, item.quantity + 1)}
+                                    disabled={actionBusy === `qty_${item.id}`}
+                                    className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 disabled:opacity-50"
+                                  >+</button>
+                                  <span className="text-brand-green-dark/60">{item.itemName}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-brand-green-dark/60">₹{(item.lineTotal / 100).toFixed(0)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setVoidingItemId(voidingItemId === item.id ? null : item.id)}
+                                    className="flex h-5 w-5 items-center justify-center rounded bg-red-50 text-red-500 hover:bg-red-100"
+                                    title="Void item"
+                                  >
+                                    <XIcon className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-xs text-brand-green-dark/60">
+                                <span>{item.quantity}× {item.itemName}</span>
+                                <span>₹{(item.lineTotal / 100).toFixed(0)}</span>
+                              </div>
+                            )}
+                            {voidingItemId === item.id && (
+                              <VoidReasonPopup
+                                itemName={item.itemName}
+                                onVoid={(reason) => handleVoidItem(order.id, item.id, reason)}
+                                onCancel={() => setVoidingItemId(null)}
+                                busy={actionBusy === `void_${item.id}`}
+                              />
+                            )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       <div className="mt-1 text-right text-sm font-semibold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {selectedGroupOrders.length === 0 && loadingOrders !== selectedGroup.key && (
                     <p className="text-xs text-brand-green-dark/50 text-center py-4">No orders loaded yet</p>
                   )}
@@ -894,7 +1032,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
                   disabled={busy === selectedGroup.key}
                   className="flex items-center gap-1.5 rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
                 >
-                  <BanknoteIcon className="h-3.5 w-3.5" /> Cash · ₹{(selectedGroup.totalAmount / 100).toFixed(0)}
+                  <BanknoteIcon className="h-3.5 w-3.5" /> Cash · ₹{(actualGroupTotal / 100).toFixed(0)}
                 </button>
                 <button
                   type="button"
@@ -950,7 +1088,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
       {/* Payment Modal */}
       {paymentModalGroup && (
         <PaymentModal
-          totalAmount={paymentModalGroup.totalAmount}
+          totalAmount={actualGroupTotal}
           guestName={paymentModalGroup.guestName}
           onConfirm={(method, cashReceived, changeGiven) => {
             markGroupPaid(paymentModalGroup, method, cashReceived, changeGiven);
@@ -959,6 +1097,70 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
           onClose={() => setPaymentModalGroup(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Void Reason Popup ───────────────────────────────────────────────────────
+
+const VOID_REASONS = ["Burnt", "Wrong order", "Guest complaint", "Quality issue", "Other"];
+
+function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
+  itemName: string;
+  onVoid: (reason: string) => void;
+  onCancel: () => void;
+  busy: boolean;
+}) {
+  const [selectedReason, setSelectedReason] = useState<string>("");
+  const [customNotes, setCustomNotes] = useState("");
+
+  const finalReason = selectedReason === "Other"
+    ? customNotes.trim() || "Other"
+    : selectedReason + (customNotes.trim() ? ` — ${customNotes.trim()}` : "");
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-2">
+      <p className="text-xs font-medium text-red-700">Void "{itemName}"?</p>
+      <div className="flex flex-wrap gap-1">
+        {VOID_REASONS.map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setSelectedReason(r)}
+            className={cn(
+              "rounded-full px-2 py-0.5 text-xs transition-colors",
+              selectedReason === r
+                ? "bg-red-500 text-white"
+                : "bg-white border border-red-200 text-red-600 hover:bg-red-100"
+            )}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+      <input
+        className="w-full rounded border border-red-200 bg-white px-2 py-1 text-xs"
+        placeholder="Additional notes (optional)"
+        value={customNotes}
+        onChange={(e) => setCustomNotes(e.target.value)}
+      />
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => onVoid(finalReason)}
+          disabled={busy || !selectedReason}
+          className="rounded-md bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+        >
+          {busy ? "Voiding..." : "Void"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-100"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -1163,6 +1365,7 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [guestTypeFilter, setGuestTypeFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
@@ -1203,6 +1406,7 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
       if (dateTo) params.dateTo = dateTo;
       if (statusFilter) params.status = statusFilter;
       if (guestTypeFilter) params.guestType = guestTypeFilter;
+      if (phoneFilter) params.phone = phoneFilter;
       if (!statusFilter && !dateFrom) params.status = "all_history";
 
       const res = await apiCall(params);
@@ -1213,7 +1417,7 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
     } finally {
       setLoading(false);
     }
-  }, [apiCall, dateFrom, dateTo, statusFilter, guestTypeFilter]);
+  }, [apiCall, dateFrom, dateTo, statusFilter, guestTypeFilter, phoneFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1310,6 +1514,10 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
             <option value="hostel">Hostel</option>
             <option value="walkin">Walk-in</option>
           </select>
+        </div>
+        <div>
+          <label className="mb-0.5 block text-xs text-brand-green-dark/60">Phone</label>
+          <input type="tel" value={phoneFilter} onChange={(e) => setPhoneFilter(e.target.value)} placeholder="Search by phone" className="rounded border border-brand-mist px-2 py-1 text-sm w-36" />
         </div>
       </div>
 

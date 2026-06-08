@@ -323,11 +323,15 @@ function OrderCard({
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle}`}>
               {badgeLabel}
             </span>
-            {variant === "unpaid" && order.status !== "served" && (
-              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
-                {STATUS_LABELS[order.status] || order.status}
-              </span>
-            )}
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              order.status === "served" ? "bg-green-50 text-green-600" :
+              order.status === "ready" ? "bg-emerald-50 text-emerald-600" :
+              order.status === "preparing" ? "bg-blue-50 text-blue-600" :
+              order.status === "cancelled" ? "bg-red-50 text-red-600" :
+              "bg-amber-50 text-amber-600"
+            }`}>
+              {STATUS_LABELS[order.status] || order.status}
+            </span>
           </div>
           <p className="mt-0.5 text-xs text-gray-400">
             {formatDate(order.createdAt)} · {formatTime(order.createdAt)}

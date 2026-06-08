@@ -26,6 +26,9 @@ import {
   deleteOrderItemsByOrderIds,
   decrementStock,
   restoreStock,
+  addStock,
+  updateFoodOrderItemQuantity,
+  deleteFoodOrderItem,
 } from "@/db/queries";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { getDb } from "@/db";
@@ -84,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case "listOrders": {
-        const { status, dateFrom, dateTo, guestType, limit: rawLimit } = rest;
+        const { status, dateFrom, dateTo, guestType, phone, limit: rawLimit } = rest;
         const limitNum = Math.min(Number(rawLimit) || 50, 200);
 
         const db = getDb();
@@ -111,6 +114,7 @@ export async function POST(req: NextRequest) {
         if (guestType) conditions.push(eq(foodOrders.guestType, guestType));
         if (dateFrom) conditions.push(sql`${foodOrders.createdAt} >= ${dateFrom}`);
         if (dateTo) conditions.push(sql`${foodOrders.createdAt} <= ${dateTo + "T23:59:59"}`);
+        if (phone) conditions.push(sql`${foodOrders.guestPhone} LIKE ${"%" + phone + "%"}`);
 
         const orders = conditions.length > 0
           ? await db.select().from(foodOrders).where(and(...conditions)).orderBy(desc(foodOrders.createdAt)).limit(limitNum)
@@ -293,6 +297,7 @@ export async function POST(req: NextRequest) {
         if (!item || item.orderId !== orderId) return NextResponse.json({ error: "Item not found" }, { status: 404 });
 
         await db.update(foodOrderItems).set({ status: "voided" }).where(eq(foodOrderItems.id, orderItemId));
+        await addStock(item.menuItemId, item.quantity);
         await addOrderModification({
           orderId,
           action: "void_item",
