@@ -162,6 +162,9 @@ export async function POST(req: NextRequest) {
         if (!guestName || !items || !Array.isArray(items) || items.length === 0) {
           return NextResponse.json({ error: "guestName and items required" }, { status: 400 });
         }
+        if (guestType === "walkin" && !guestPhone?.trim()) {
+          return NextResponse.json({ error: "Phone number is required for walk-in orders" }, { status: 400 });
+        }
 
         const validatedItems: Array<{ menuItemId: number; itemName: string; itemPrice: number; quantity: number; lineTotal: number }> = [];
         for (const item of items) {

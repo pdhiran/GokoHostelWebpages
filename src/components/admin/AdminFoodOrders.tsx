@@ -168,6 +168,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [guestSearch, setGuestSearch] = useState("");
   const [walkinName, setWalkinName] = useState(prefillGuest?.guestType === "walkin" ? prefillGuest.guestName : "");
+  const [walkinPhone, setWalkinPhone] = useState(prefillGuest?.guestType === "walkin" ? (prefillGuest.guestPhone || "") : "");
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -210,6 +211,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
 
   useEffect(() => {
     if (prefillGuest?.guestType === "walkin") {
+      if (prefillGuest.guestPhone) setWalkinPhone(prefillGuest.guestPhone);
       onPrefillConsumed();
     }
   }, []);
@@ -245,6 +247,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
     setSuccessMsg("");
     const name = guestType === "hostel" ? selectedGuest?.name : walkinName;
     if (!name) { setError("Please select/enter a guest"); return; }
+    if (guestType === "walkin" && !walkinPhone.trim()) { setError("Phone number is required for walk-in orders"); return; }
     if (cart.length === 0) { setError("Cart is empty"); return; }
 
     setSubmitting(true);
@@ -254,6 +257,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
         guestType,
         checkinId: guestType === "hostel" ? selectedGuest?.id : undefined,
         guestName: name,
+        guestPhone: guestType === "walkin" ? walkinPhone.trim() : undefined,
         roomInfo: guestType === "hostel" ? selectedGuest?.bedInfo : undefined,
         items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
         specialInstructions,
@@ -265,6 +269,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
         setSpecialInstructions("");
         setSelectedGuest(null);
         setWalkinName("");
+        setWalkinPhone("");
       } else {
         const data = await res.json();
         setError(data.error || "Failed to place order");
@@ -338,12 +343,24 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
             )}
           </div>
         ) : (
-          <input
-            className="w-full rounded-lg border border-brand-mist px-3 py-2 text-sm"
-            placeholder="Guest name"
-            value={walkinName}
-            onChange={(e) => setWalkinName(e.target.value)}
-          />
+          <div className="space-y-2">
+            <input
+              className="w-full rounded-lg border border-brand-mist px-3 py-2 text-sm"
+              placeholder="Guest name"
+              value={walkinName}
+              onChange={(e) => setWalkinName(e.target.value)}
+            />
+            <div>
+              <label className="mb-0.5 block text-xs font-medium text-brand-green-dark/70">Phone Number *</label>
+              <input
+                className="w-full rounded-lg border border-brand-mist px-3 py-2 text-sm"
+                placeholder="e.g. 9876543210"
+                type="tel"
+                value={walkinPhone}
+                onChange={(e) => setWalkinPhone(e.target.value)}
+              />
+            </div>
+          </div>
         )}
       </div>
 

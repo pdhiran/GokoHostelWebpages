@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { PhoneEntry, type GuestInfo } from "@/components/food/PhoneEntry";
 import { MenuBrowser, type CartItem } from "@/components/food/MenuBrowser";
 import { FoodCart, type CartItemData, type GuestInfoData } from "@/components/food/FoodCart";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
 
-type View = "loading" | "closed" | "phone" | "menu" | "cart";
+type View = "loading" | "phone" | "menu" | "cart";
 
 interface PastOrderItem {
   menuItemId: number;
@@ -74,6 +75,8 @@ function saveCartToStorage(cart: CartItem[]) {
 
 export default function FoodOrderPage() {
   const [view, setView] = useState<View>("loading");
+  const [kitchenClosed, setKitchenClosed] = useState(false);
+  const [kitchenStatus, setKitchenStatus] = useState<{ nextOpenAt?: string } | null>(null);
   const [settings, setSettings] = useState<MenuSettings | null>(null);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [items, setItems] = useState<MenuItemData[]>([]);
@@ -110,13 +113,13 @@ export default function FoodOrderPage() {
       const status = isKitchenOpen(s.kitchenHours);
 
       if (!status.open) {
-        setView("closed");
-      } else {
-        setView("phone");
+        setKitchenClosed(true);
+        setKitchenStatus(status);
       }
+      setView("phone");
     } catch {
       setFetchError("Unable to load menu. Please try again.");
-      setView("closed");
+      setView("phone");
     }
   };
 
@@ -286,47 +289,30 @@ export default function FoodOrderPage() {
     );
   }
 
-  // Kitchen closed state
-  if (view === "closed") {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-6 text-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-sm rounded-2xl bg-white/95 p-8 shadow-xl backdrop-blur-sm"
-        >
-          <span className="text-5xl">🌙</span>
-          <h1 className="mt-4 text-xl font-bold text-gray-800">Kitchen is Closed</h1>
-          {fetchError ? (
-            <p className="mt-2 text-sm text-gray-600">{fetchError}</p>
-          ) : settings ? (
-            <>
-              <p className="mt-2 text-gray-600">
-                Kitchen hours:{" "}
-                <span className="font-semibold">
-                  {formatSlotsForDisplay(parseKitchenHours(settings.kitchenHours))}
-                </span>{" "}
-                IST
-              </p>
-              {(() => {
-                const status = isKitchenOpen(settings.kitchenHours);
-                return status.nextOpenAt ? (
-                  <p className="mt-1 text-sm text-gray-500">Come back at {status.nextOpenAt}!</p>
-                ) : null;
-              })()}
-            </>
-          ) : (
-            <p className="mt-2 text-sm text-gray-600">Please try again later.</p>
-          )}
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400">
+      {/* Kitchen closed banner */}
+      {kitchenClosed && settings && (
+        <motion.div
+          initial={{ y: -40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="sticky top-0 z-40 flex flex-col items-center justify-center gap-0.5 bg-gray-800 px-4 py-2.5 text-center text-white"
+        >
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span>🌙</span>
+            Kitchen is closed
+            {kitchenStatus?.nextOpenAt && (
+              <span>· Opens at {kitchenStatus.nextOpenAt}</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-300">
+            {formatSlotsForDisplay(parseKitchenHours(settings.kitchenHours))} IST
+          </p>
+        </motion.div>
+      )}
+
       {/* Busy banner */}
-      {settings?.isBusy && view !== "phone" && (
+      {settings?.isBusy && !kitchenClosed && view !== "phone" && (
         <motion.div
           initial={{ y: -40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -353,6 +339,14 @@ export default function FoodOrderPage() {
                 onWalkin={handleWalkin}
                 savedPhone={savedPhone || undefined}
               />
+              <div className="mt-4 text-center">
+                <Link
+                  href="/my-bills"
+                  className="text-sm font-medium text-blue-100 transition hover:text-white"
+                >
+                  View my bills →
+                </Link>
+              </div>
             </motion.div>
           )}
 
@@ -376,25 +370,33 @@ export default function FoodOrderPage() {
                       <p className="text-sm text-blue-100">{guestInfo.roomInfo}</p>
                     )}
                   </div>
-                  {guestInfo?.guestType === "hostel" && pastOrders.length > 0 && (
-                    <button
-                      onClick={() => setShowMyOrders(true)}
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href="/my-bills"
                       className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
                     >
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
-                      My Orders
-                    </button>
-                  )}
+                      My Bills
+                    </Link>
+                    {guestInfo?.guestType === "hostel" && pastOrders.length > 0 && (
+                      <button
+                        onClick={() => setShowMyOrders(true)}
+                        className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
+                      >
+                        My Orders
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="rounded-t-3xl bg-gray-50 pt-5">
+              <div className={`rounded-t-3xl bg-gray-50 pt-5 ${kitchenClosed ? "pointer-events-none opacity-50" : ""}`}>
                 <MenuBrowser
                   categories={categories}
                   items={items}
-                  cart={cart}
+                  cart={kitchenClosed ? [] : cart}
                   onAddToCart={handleAddToCart}
                   onRemoveFromCart={handleRemoveFromCart}
                 />
@@ -402,7 +404,7 @@ export default function FoodOrderPage() {
             </motion.div>
           )}
 
-          {view === "cart" && guestInfo && (
+          {view === "cart" && guestInfo && !kitchenClosed && (
             <motion.div
               key="cart"
               initial={{ opacity: 0, x: 50 }}
@@ -428,7 +430,7 @@ export default function FoodOrderPage() {
       </div>
 
       {/* Floating cart button */}
-      {view === "menu" && cartCount > 0 && (
+      {view === "menu" && cartCount > 0 && !kitchenClosed && (
         <motion.button
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
