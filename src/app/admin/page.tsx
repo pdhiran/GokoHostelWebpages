@@ -36,7 +36,7 @@ export default function AdminPage() {
     setCpSuccess("");
     if (!cpNew || !cpCurrent) { setCpError("All fields are required"); return; }
     if (cpNew !== cpConfirm) { setCpError("New passwords do not match"); return; }
-    if (cpNew.length < 4) { setCpError("Password must be at least 4 characters"); return; }
+    if (!cpNew) { setCpError("Password cannot be empty"); return; }
     setCpLoading(true);
     try {
       const res = await fetch("/api/admin/checkins", {
