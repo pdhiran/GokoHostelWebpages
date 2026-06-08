@@ -13,6 +13,9 @@ import {
   getSetting,
   setSetting,
   getUserByUsername,
+  addStock,
+  decrementStock,
+  getMenuItemById,
 } from "@/db/queries";
 import { getDb } from "@/db";
 import { foodOrderItems } from "@/db/schema";
@@ -122,10 +125,17 @@ export async function POST(req: NextRequest) {
 
       const db = getDb();
 
+      const allItemsBefore = await getFoodOrderItems(orderId);
+      const voidedItem = allItemsBefore.find((i) => i.id === orderItemId);
+
       await db
         .update(foodOrderItems)
         .set({ status: "voided" })
         .where(eq(foodOrderItems.id, orderItemId));
+
+      if (voidedItem) {
+        await addStock(voidedItem.menuItemId, voidedItem.quantity);
+      }
 
       await addOrderModification({
         orderId,
@@ -164,6 +174,7 @@ export async function POST(req: NextRequest) {
       }
 
       const oldQty = targetItem.quantity;
+      const qtyDiff = oldQty - (newQuantity > 0 ? newQuantity : 0);
 
       if (newQuantity <= 0) {
         await deleteFoodOrderItem(orderItemId);
@@ -187,6 +198,13 @@ export async function POST(req: NextRequest) {
           reason: "",
           modifiedBy: role,
         });
+      }
+
+      // Restore or decrement inventory based on quantity change
+      if (qtyDiff > 0) {
+        await addStock(targetItem.menuItemId, qtyDiff);
+      } else if (qtyDiff < 0) {
+        await decrementStock(targetItem.menuItemId, Math.abs(qtyDiff));
       }
 
       const updatedItems = await getFoodOrderItems(orderId);
