@@ -74,7 +74,7 @@ export function formatPaise(paise: number): string {
   const rupees = (paise / 100).toFixed(2);
   const [whole, decimal] = rupees.split(".");
   const withCommas = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `\u20B9${withCommas}.${decimal}`;
+  return `Rs.${withCommas}.${decimal}`;
 }
 
 function generateBillNumber(): string {
@@ -159,8 +159,8 @@ function drawTableHeader(doc: jsPDF, y: number): number {
   doc.rect(MARGIN_LEFT, y - 4, CONTENT_WIDTH, 7, "F");
   doc.text("Item", COL_ITEM + 2, y);
   doc.text("Qty", COL_QTY, y, { align: "center" });
-  doc.text("Unit (\u20B9)", COL_UNIT, y, { align: "right" });
-  doc.text("Total (\u20B9)", PAGE_WIDTH - MARGIN_RIGHT - 2, y, { align: "right" });
+  doc.text("Unit (Rs.)", COL_UNIT, y, { align: "right" });
+  doc.text("Total (Rs.)", PAGE_WIDTH - MARGIN_RIGHT - 2, y, { align: "right" });
   doc.setFont("helvetica", "normal");
   return y + 6;
 }
@@ -181,8 +181,8 @@ function drawItemRow(doc: jsPDF, y: number, item: BillOrderItem): number {
   doc.text(lines, COL_ITEM + 2, y);
 
   doc.text(String(item.quantity), COL_QTY, y, { align: "center" });
-  doc.text(formatPaise(item.itemPrice).slice(1), COL_UNIT, y, { align: "right" });
-  doc.text(formatPaise(item.lineTotal).slice(1), PAGE_WIDTH - MARGIN_RIGHT - 2, y, { align: "right" });
+  doc.text(formatPaise(item.itemPrice), COL_UNIT, y, { align: "right" });
+  doc.text(formatPaise(item.lineTotal), PAGE_WIDTH - MARGIN_RIGHT - 2, y, { align: "right" });
 
   if (isVoided) {
     const textWidth = doc.getTextWidth(lines[0]);
