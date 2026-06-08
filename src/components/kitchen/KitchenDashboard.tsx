@@ -20,6 +20,9 @@ import {
   PrinterIcon,
   PlusIcon,
   MinusIcon,
+  PencilIcon,
+  SaveIcon,
+  HistoryIcon,
 } from "lucide-react";
 import { isBluetoothSupported, printOrderTicket } from "@/lib/thermalPrint";
 
@@ -50,6 +53,21 @@ interface Order {
   createdBy: string;
   createdAt: string;
   items: OrderItem[];
+  hasModifications?: boolean;
+}
+
+interface OrderModification {
+  action: string;
+  itemName: string;
+  oldValue: string;
+  newValue: string;
+  modifiedBy: string;
+  createdAt: string;
+}
+
+interface LocalItemChange {
+  originalQty: number;
+  newQty: number;
 }
 
 interface MenuItem {
@@ -130,6 +148,16 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
   const [rejectCustom, setRejectCustom] = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
   const [btSupported, setBtSupported] = useState(false);
+
+  // Edit mode state
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [editedItems, setEditedItems] = useState<Map<number, Map<number, LocalItemChange>>>(new Map());
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Modification history state
+  const [showModHistory, setShowModHistory] = useState<number | null>(null);
+  const [modHistory, setModHistory] = useState<OrderModification[]>([]);
+  const [modHistoryLoading, setModHistoryLoading] = useState(false);
 
   const fetchingRef = useRef(false);
   const prevPlacedCountRef = useRef(0);
@@ -272,37 +300,6 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     }
   };
 
-  const handleUpdateQuantity = async (orderId: number, item: OrderItem, delta: number) => {
-    const newQty = item.quantity + delta;
-    try {
-      await api("updateItemQuantity", {
-        orderId,
-        orderItemId: item.id,
-        newQuantity: newQty,
-      });
-      if (newQty <= 0) {
-        setOrders((prev) =>
-          prev.map((o) => {
-            if (o.id !== orderId) return o;
-            return { ...o, items: o.items.filter((i) => i.id !== item.id) };
-          })
-        );
-      } else {
-        setOrders((prev) =>
-          prev.map((o) => {
-            if (o.id !== orderId) return o;
-            return {
-              ...o,
-              items: o.items.map((i) =>
-                i.id === item.id ? { ...i, quantity: newQty, lineTotal: newQty * i.itemPrice } : i
-              ),
-            };
-          })
-        );
-      }
-      fetchOrders();
-    } catch {}
-  };
 
   const toggleBusy = async () => {
     const newBusy = !isBusy;
@@ -310,6 +307,84 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
       await api("toggleBusy", { isBusy: newBusy });
       setIsBusy(newBusy);
     } catch {}
+  };
+
+  const startEditing = (orderId: number) => {
+    if (editingOrderId !== null && editingOrderId !== orderId) {
+      cancelEditing();
+    }
+    setEditingOrderId(orderId);
+    setEditedItems(new Map());
+  };
+
+  const cancelEditing = () => {
+    setEditingOrderId(null);
+    setEditedItems(new Map());
+  };
+
+  const handleEditQuantity = (orderId: number, item: OrderItem, delta: number) => {
+    setEditedItems((prev) => {
+      const newMap = new Map(prev);
+      const orderChanges = new Map(newMap.get(orderId) || new Map());
+      const existing = orderChanges.get(item.id);
+      const originalQty = existing ? existing.originalQty : item.quantity;
+      const currentQty = existing ? existing.newQty : item.quantity;
+      const newQty = Math.max(0, currentQty + delta);
+      if (newQty === originalQty) {
+        orderChanges.delete(item.id);
+      } else {
+        orderChanges.set(item.id, { originalQty, newQty });
+      }
+      if (orderChanges.size === 0) {
+        newMap.delete(orderId);
+      } else {
+        newMap.set(orderId, orderChanges);
+      }
+      return newMap;
+    });
+  };
+
+  const saveEditing = async () => {
+    if (editingOrderId === null) return;
+    const changes = editedItems.get(editingOrderId);
+    if (!changes || changes.size === 0) {
+      cancelEditing();
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      for (const [itemId, change] of changes) {
+        await api("updateItemQuantity", {
+          orderId: editingOrderId,
+          orderItemId: itemId,
+          newQuantity: change.newQty,
+        });
+      }
+      await fetchOrders();
+    } catch {} finally {
+      setSavingEdit(false);
+      cancelEditing();
+    }
+  };
+
+  const fetchModificationHistory = async (orderId: number) => {
+    if (showModHistory === orderId) {
+      setShowModHistory(null);
+      return;
+    }
+    setShowModHistory(orderId);
+    setModHistoryLoading(true);
+    try {
+      const data = await api("getOrderModifications", { orderId });
+      if (data.success) {
+        setModHistory(data.data.modifications || []);
+      }
+    } catch {
+      setModHistory([]);
+    } finally {
+      setModHistoryLoading(false);
+    }
   };
 
   const handlePrintTicket = async (order: Order) => {
@@ -662,8 +737,18 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             onRejectItem={(orderId, item) =>
               setRejectModal({ orderId, orderItemId: item.id, itemName: item.itemName })
             }
-            onUpdateQuantity={handleUpdateQuantity}
+            onUpdateQuantity={handleEditQuantity}
             onPrintTicket={btSupported ? handlePrintTicket : undefined}
+            editingOrderId={editingOrderId}
+            editedItems={editedItems}
+            onStartEdit={startEditing}
+            onCancelEdit={cancelEditing}
+            onSaveEdit={saveEditing}
+            savingEdit={savingEdit}
+            showModHistory={showModHistory}
+            modHistory={modHistory}
+            modHistoryLoading={modHistoryLoading}
+            onToggleModHistory={fetchModificationHistory}
           />
           <OrderColumn
             title="Preparing"
@@ -675,7 +760,17 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             onRejectItem={(orderId, item) =>
               setRejectModal({ orderId, orderItemId: item.id, itemName: item.itemName })
             }
-            onUpdateQuantity={handleUpdateQuantity}
+            onUpdateQuantity={handleEditQuantity}
+            editingOrderId={editingOrderId}
+            editedItems={editedItems}
+            onStartEdit={startEditing}
+            onCancelEdit={cancelEditing}
+            onSaveEdit={saveEditing}
+            savingEdit={savingEdit}
+            showModHistory={showModHistory}
+            modHistory={modHistory}
+            modHistoryLoading={modHistoryLoading}
+            onToggleModHistory={fetchModificationHistory}
           />
           <OrderColumn
             title="Ready for Pickup"
@@ -687,7 +782,17 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             onRejectItem={(orderId, item) =>
               setRejectModal({ orderId, orderItemId: item.id, itemName: item.itemName })
             }
-            onUpdateQuantity={handleUpdateQuantity}
+            onUpdateQuantity={handleEditQuantity}
+            editingOrderId={editingOrderId}
+            editedItems={editedItems}
+            onStartEdit={startEditing}
+            onCancelEdit={cancelEditing}
+            onSaveEdit={saveEditing}
+            savingEdit={savingEdit}
+            showModHistory={showModHistory}
+            modHistory={modHistory}
+            modHistoryLoading={modHistoryLoading}
+            onToggleModHistory={fetchModificationHistory}
           />
         </div>
 
@@ -704,8 +809,18 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               onRejectItem={(orderId, item) =>
                 setRejectModal({ orderId, orderItemId: item.id, itemName: item.itemName })
               }
-              onUpdateQuantity={handleUpdateQuantity}
+              onUpdateQuantity={handleEditQuantity}
               onPrintTicket={btSupported ? handlePrintTicket : undefined}
+              editingOrderId={editingOrderId}
+              editedItems={editedItems}
+              onStartEdit={startEditing}
+              onCancelEdit={cancelEditing}
+              onSaveEdit={saveEditing}
+              savingEdit={savingEdit}
+              showModHistory={showModHistory}
+              modHistory={modHistory}
+              modHistoryLoading={modHistoryLoading}
+              onToggleModHistory={fetchModificationHistory}
             />
           )}
           {mobileTab === "preparing" && (
@@ -719,7 +834,17 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               onRejectItem={(orderId, item) =>
                 setRejectModal({ orderId, orderItemId: item.id, itemName: item.itemName })
               }
-              onUpdateQuantity={handleUpdateQuantity}
+              onUpdateQuantity={handleEditQuantity}
+              editingOrderId={editingOrderId}
+              editedItems={editedItems}
+              onStartEdit={startEditing}
+              onCancelEdit={cancelEditing}
+              onSaveEdit={saveEditing}
+              savingEdit={savingEdit}
+              showModHistory={showModHistory}
+              modHistory={modHistory}
+              modHistoryLoading={modHistoryLoading}
+              onToggleModHistory={fetchModificationHistory}
             />
           )}
           {mobileTab === "ready" && (
@@ -733,7 +858,17 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               onRejectItem={(orderId, item) =>
                 setRejectModal({ orderId, orderItemId: item.id, itemName: item.itemName })
               }
-              onUpdateQuantity={handleUpdateQuantity}
+              onUpdateQuantity={handleEditQuantity}
+              editingOrderId={editingOrderId}
+              editedItems={editedItems}
+              onStartEdit={startEditing}
+              onCancelEdit={cancelEditing}
+              onSaveEdit={saveEditing}
+              savingEdit={savingEdit}
+              showModHistory={showModHistory}
+              modHistory={modHistory}
+              modHistoryLoading={modHistoryLoading}
+              onToggleModHistory={fetchModificationHistory}
             />
           )}
         </div>
@@ -839,6 +974,16 @@ function OrderColumn({
   onRejectItem,
   onUpdateQuantity,
   onPrintTicket,
+  editingOrderId,
+  editedItems,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  savingEdit,
+  showModHistory,
+  modHistory,
+  modHistoryLoading,
+  onToggleModHistory,
 }: {
   title: string;
   orders: Order[];
@@ -849,6 +994,16 @@ function OrderColumn({
   onRejectItem: (orderId: number, item: OrderItem) => void;
   onUpdateQuantity: (orderId: number, item: OrderItem, delta: number) => void;
   onPrintTicket?: (order: Order) => Promise<void>;
+  editingOrderId: number | null;
+  editedItems: Map<number, Map<number, LocalItemChange>>;
+  onStartEdit: (orderId: number) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  savingEdit: boolean;
+  showModHistory: number | null;
+  modHistory: OrderModification[];
+  modHistoryLoading: boolean;
+  onToggleModHistory: (orderId: number) => void;
 }) {
   const borderColor =
     color === "amber"
@@ -898,6 +1053,16 @@ function OrderColumn({
               onUpdateQuantity={(item, delta) => onUpdateQuantity(order.id, item, delta)}
               isReadyColumn={color === "emerald"}
               onPrintTicket={onPrintTicket ? () => onPrintTicket(order) : undefined}
+              isEditing={editingOrderId === order.id}
+              editedItemChanges={editedItems.get(order.id)}
+              onStartEdit={() => onStartEdit(order.id)}
+              onCancelEdit={onCancelEdit}
+              onSaveEdit={onSaveEdit}
+              savingEdit={savingEdit}
+              showModHistory={showModHistory === order.id}
+              modHistory={showModHistory === order.id ? modHistory : []}
+              modHistoryLoading={modHistoryLoading && showModHistory === order.id}
+              onToggleModHistory={() => onToggleModHistory(order.id)}
             />
           ))}
         </AnimatePresence>
@@ -922,6 +1087,16 @@ function OrderCard({
   onUpdateQuantity,
   isReadyColumn,
   onPrintTicket,
+  isEditing,
+  editedItemChanges,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  savingEdit,
+  showModHistory,
+  modHistory,
+  modHistoryLoading,
+  onToggleModHistory,
 }: {
   order: Order;
   borderColor: string;
@@ -932,6 +1107,16 @@ function OrderCard({
   onUpdateQuantity: (item: OrderItem, delta: number) => void;
   isReadyColumn: boolean;
   onPrintTicket?: () => Promise<void>;
+  isEditing: boolean;
+  editedItemChanges?: Map<number, LocalItemChange>;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  savingEdit: boolean;
+  showModHistory: boolean;
+  modHistory: OrderModification[];
+  modHistoryLoading: boolean;
+  onToggleModHistory: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [printLoading, setPrintLoading] = useState(false);
@@ -946,6 +1131,20 @@ function OrderCard({
   const activeItems = order.items.filter((i) => i.status !== "voided");
   const voidedItems = order.items.filter((i) => i.status === "voided");
 
+  const getDisplayQty = (item: OrderItem) => {
+    if (!isEditing || !editedItemChanges) return item.quantity;
+    const change = editedItemChanges.get(item.id);
+    return change ? change.newQty : item.quantity;
+  };
+
+  const createdByLabel = order.createdBy.startsWith("staff:")
+    ? `Ordered by: ${order.createdBy}`
+    : order.createdBy === "admin" || order.createdBy === "Admin"
+      ? "Ordered by: Admin"
+      : order.createdBy === "guest"
+        ? "Ordered by: Guest"
+        : `Ordered by: ${order.createdBy}`;
+
   return (
     <motion.div
       layout
@@ -959,9 +1158,26 @@ function OrderCard({
         {/* Header row */}
         <div className="mb-3 flex items-start justify-between">
           <div>
-            <span className="text-xl font-bold tracking-tight text-gray-900">
-              #{order.orderNumber}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-bold tracking-tight text-gray-900">
+                #{order.orderNumber}
+              </span>
+              {order.hasModifications && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                  Modified
+                </span>
+              )}
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={onStartEdit}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700"
+                  title="Edit order"
+                >
+                  <PencilIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-gray-600">
                 {order.guestName}
@@ -975,8 +1191,8 @@ function OrderCard({
               >
                 {order.guestType === "hostel" ? "Hostel" : "Walk-in"}
               </span>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                {order.createdBy === "staff" ? "Staff order" : "Guest order"}
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+                {createdByLabel}
               </span>
             </div>
           </div>
@@ -996,29 +1212,36 @@ function OrderCard({
         <div className="mb-3 space-y-1">
           {activeItems.map((item) => {
             const itemTags = parseTags(item.tags);
+            const displayQty = getDisplayQty(item);
             return (
             <div key={item.id} className="flex min-w-0 flex-wrap items-center justify-between gap-1">
               <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-                <div className="flex items-center gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => onUpdateQuantity(item, -1)}
-                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
-                    title="Decrease quantity"
-                  >
-                    <MinusIcon className="h-3 w-3" />
-                  </button>
+                {isEditing ? (
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => onUpdateQuantity(item, -1)}
+                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+                      title="Decrease quantity"
+                    >
+                      <MinusIcon className="h-3 w-3" />
+                    </button>
+                    <span className={`min-w-[1.5rem] text-center font-bold ${displayQty !== item.quantity ? "text-orange-600" : "text-amber-600"}`}>
+                      {displayQty}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onUpdateQuantity(item, 1)}
+                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+                      title="Increase quantity"
+                    >
+                      <PlusIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
                   <span className="min-w-[1.5rem] text-center font-bold text-amber-600">{item.quantity}</span>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateQuantity(item, 1)}
-                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
-                    title="Increase quantity"
-                  >
-                    <PlusIcon className="h-3 w-3" />
-                  </button>
-                </div>
-                <span className="min-w-0 text-gray-800">{item.itemName}</span>
+                )}
+                <span className={`min-w-0 text-gray-800 ${displayQty === 0 ? "line-through opacity-50" : ""}`}>{item.itemName}</span>
                 {itemTags.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {itemTags.map((tag) => (
@@ -1032,14 +1255,16 @@ function OrderCard({
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => onRejectItem(item)}
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-50 text-red-500 transition-all hover:bg-red-100"
-                title="Reject item"
-              >
-                <XIcon className="h-4 w-4" />
-              </button>
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={() => onRejectItem(item)}
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-50 text-red-500 transition-all hover:bg-red-100"
+                  title="Reject item"
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+              )}
             </div>
             );
           })}
@@ -1059,6 +1284,29 @@ function OrderCard({
           )}
         </div>
 
+        {/* Edit mode: Save/Cancel bar */}
+        {isEditing && (
+          <div className="mb-3 flex gap-2">
+            <button
+              type="button"
+              onClick={onSaveEdit}
+              disabled={savingEdit}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+            >
+              <SaveIcon className="h-3.5 w-3.5" />
+              {savingEdit ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              disabled={savingEdit}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {/* Special instructions */}
         {order.specialInstructions && (
           <div className="mb-3 rounded-lg bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
@@ -1076,8 +1324,46 @@ function OrderCard({
           </div>
         )}
 
+        {/* Modification History toggle */}
+        {order.hasModifications && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={onToggleModHistory}
+              className="flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-800"
+            >
+              <HistoryIcon className="h-3.5 w-3.5" />
+              {showModHistory ? "Hide" : "Show"} Modification History
+              {showModHistory ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />}
+            </button>
+            {showModHistory && (
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/50 p-2">
+                {modHistoryLoading ? (
+                  <p className="text-xs text-gray-500">Loading...</p>
+                ) : modHistory.length === 0 ? (
+                  <p className="text-xs text-gray-500">No modifications found</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {modHistory.map((mod, idx) => (
+                      <div key={idx} className="flex flex-col gap-0.5 border-b border-amber-100 pb-1.5 last:border-0 last:pb-0">
+                        <span className="text-xs text-gray-800">
+                          {formatModification(mod)}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {new Date(mod.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                          {" · "}{mod.modifiedBy}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Print ticket button */}
-        {onPrintTicket && (
+        {onPrintTicket && !isEditing && (
           <button
             type="button"
             onClick={async () => {
@@ -1093,25 +1379,43 @@ function OrderCard({
         )}
 
         {/* Action button */}
-        <button
-          type="button"
-          onClick={handleAction}
-          disabled={loading}
-          className={`w-full rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide transition-all active:scale-[0.98] disabled:opacity-50 ${actionColor}`}
-          style={{ minHeight: 48 }}
-        >
-          {loading ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              Updating...
-            </span>
-          ) : (
-            actionLabel
-          )}
-        </button>
+        {!isEditing && (
+          <button
+            type="button"
+            onClick={handleAction}
+            disabled={loading}
+            className={`w-full rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide transition-all active:scale-[0.98] disabled:opacity-50 ${actionColor}`}
+            style={{ minHeight: 48 }}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Updating...
+              </span>
+            ) : (
+              actionLabel
+            )}
+          </button>
+        )}
       </div>
     </motion.div>
   );
+}
+
+function formatModification(mod: OrderModification): string {
+  const actor = mod.modifiedBy.charAt(0).toUpperCase() + mod.modifiedBy.slice(1);
+  switch (mod.action) {
+    case "quantity_changed":
+      return `${actor} changed ${mod.itemName} qty from ${mod.oldValue} to ${mod.newValue}`;
+    case "item_removed":
+      return `${actor} removed ${mod.itemName}`;
+    case "item_voided":
+      return `${actor} voided ${mod.itemName}`;
+    case "discount":
+      return `${actor} applied discount: ${mod.oldValue} → ${mod.newValue}`;
+    default:
+      return `${actor}: ${mod.action} on ${mod.itemName || "order"}`;
+  }
 }
 
 /* ——— Time Badge ——— */

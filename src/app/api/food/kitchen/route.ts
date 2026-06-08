@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getActiveFoodOrders,
   getFoodOrderItems,
+  getOrderModifications,
   updateFoodOrderStatus,
   toggleMenuItemAvailability,
   getAllMenuItems,
@@ -18,8 +19,8 @@ import {
   getMenuItemById,
 } from "@/db/queries";
 import { getDb } from "@/db";
-import { foodOrderItems } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { foodOrderItems, orderModifications } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 type UserRole = "admin" | "manager" | "staff";
 
@@ -65,11 +66,20 @@ export async function POST(req: NextRequest) {
       const orders = await getActiveFoodOrders();
       const allItems = await getAllMenuItems();
       const menuItemTags = new Map(allItems.map((m) => [m.id, m.tags || "[]"]));
+
+      const db = getDb();
+      const modCounts = await db.select({
+        orderId: orderModifications.orderId,
+        count: sql<number>`COUNT(*)`,
+      }).from(orderModifications).groupBy(orderModifications.orderId);
+      const modCountMap = new Map(modCounts.map((r) => [r.orderId, r.count]));
+
       const ordersWithItems = await Promise.all(
         orders.map(async (order) => {
           const items = await getFoodOrderItems(order.id);
           return {
             ...order,
+            hasModifications: (modCountMap.get(order.id) || 0) > 0,
             items: items.map((i) => ({
               id: i.id,
               menuItemId: i.menuItemId,
@@ -248,6 +258,34 @@ export async function POST(req: NextRequest) {
           })),
         },
       });
+    }
+
+    if (action === "getOrderModifications") {
+      const { orderId } = rest;
+      if (!orderId) {
+        return NextResponse.json({ error: "Missing orderId" }, { status: 400 });
+      }
+
+      const modifications = await getOrderModifications(orderId);
+      const allItems = await getAllMenuItems();
+      const itemNameMap = new Map(allItems.map((m) => [m.id, m.name]));
+
+      const db = getDb();
+      const orderItemRows = await db.select({ id: foodOrderItems.id, itemName: foodOrderItems.itemName })
+        .from(foodOrderItems)
+        .where(eq(foodOrderItems.orderId, orderId));
+      const orderItemNameMap = new Map(orderItemRows.map((r) => [r.id, r.itemName]));
+
+      const formatted = modifications.map((m) => ({
+        action: m.action,
+        itemName: m.itemId ? (orderItemNameMap.get(m.itemId) || itemNameMap.get(m.itemId) || `Item #${m.itemId}`) : "",
+        oldValue: m.oldValue || "",
+        newValue: m.newValue || "",
+        modifiedBy: m.modifiedBy,
+        createdAt: m.createdAt,
+      }));
+
+      return NextResponse.json({ success: true, data: { modifications: formatted } });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

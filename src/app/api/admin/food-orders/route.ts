@@ -29,7 +29,7 @@ import {
 } from "@/db/queries";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { getDb } from "@/db";
-import { foodOrders, foodOrderItems, checkins } from "@/db/schema";
+import { foodOrders, foodOrderItems, checkins, orderModifications } from "@/db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 
 type UserRole = "admin" | "manager" | "staff";
@@ -87,18 +87,25 @@ export async function POST(req: NextRequest) {
         const { status, dateFrom, dateTo, guestType, limit: rawLimit } = rest;
         const limitNum = Math.min(Number(rawLimit) || 50, 200);
 
+        const db = getDb();
+        const modCounts = await db.select({
+          orderId: orderModifications.orderId,
+          count: sql<number>`COUNT(*)`,
+        }).from(orderModifications).groupBy(orderModifications.orderId);
+        const modCountMap = new Map(modCounts.map((r) => [r.orderId, r.count]));
+
         if (status === "active" || (!status && !dateFrom)) {
           const orders = await getActiveFoodOrders();
           const withItems = await Promise.all(
             orders.map(async (o) => ({
               ...o,
+              hasModifications: (modCountMap.get(o.id) || 0) > 0,
               items: await getFoodOrderItems(o.id),
             }))
           );
           return NextResponse.json({ role, orders: withItems });
         }
 
-        const db = getDb();
         const conditions: any[] = [];
         if (status && status !== "all_history") conditions.push(eq(foodOrders.status, status));
         if (guestType) conditions.push(eq(foodOrders.guestType, guestType));
@@ -112,6 +119,7 @@ export async function POST(req: NextRequest) {
         const withItems = await Promise.all(
           orders.map(async (o) => ({
             ...o,
+            hasModifications: (modCountMap.get(o.id) || 0) > 0,
             items: await getFoodOrderItems(o.id),
           }))
         );
@@ -492,6 +500,29 @@ export async function POST(req: NextRequest) {
           ordersCleanedCount: orderIds.length,
           itemsDeletedCount: itemsDeleted,
         });
+      }
+
+      case "getOrderModifications": {
+        const { orderId } = rest;
+        if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+
+        const modifications = await getOrderModifications(orderId);
+        const db = getDb();
+        const orderItemRows = await db.select({ id: foodOrderItems.id, itemName: foodOrderItems.itemName })
+          .from(foodOrderItems)
+          .where(eq(foodOrderItems.orderId, orderId));
+        const orderItemNameMap = new Map(orderItemRows.map((r) => [r.id, r.itemName]));
+
+        const formatted = modifications.map((m) => ({
+          action: m.action,
+          itemName: m.itemId ? (orderItemNameMap.get(m.itemId) || `Item #${m.itemId}`) : "",
+          oldValue: m.oldValue || "",
+          newValue: m.newValue || "",
+          modifiedBy: m.modifiedBy,
+          createdAt: m.createdAt,
+        }));
+
+        return NextResponse.json({ role, modifications: formatted });
       }
 
       default:

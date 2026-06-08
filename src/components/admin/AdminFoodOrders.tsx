@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon } from "lucide-react";
+import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem } from "@/lib/thermalPrint";
 import { generateGuestBill, generateCombinedBill, type CombinedBillData, type BillOrder } from "@/components/admin/FoodBillGenerator";
 import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
@@ -40,6 +40,16 @@ interface Order {
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
+  hasModifications?: boolean;
+}
+
+interface OrderModification {
+  action: string;
+  itemName: string;
+  oldValue: string;
+  newValue: string;
+  modifiedBy: string;
+  createdAt: string;
 }
 
 interface Guest {
@@ -1049,8 +1059,31 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   const [cleanupResult, setCleanupResult] = useState("");
   const [btSupported, setBtSupported] = useState(false);
   const [printing, setPrinting] = useState<number | null>(null);
+  const [modHistoryOrder, setModHistoryOrder] = useState<number | null>(null);
+  const [modHistory, setModHistory] = useState<OrderModification[]>([]);
+  const [modHistoryLoading, setModHistoryLoading] = useState(false);
 
   useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
+
+  const fetchModHistory = async (orderId: number) => {
+    if (modHistoryOrder === orderId) {
+      setModHistoryOrder(null);
+      return;
+    }
+    setModHistoryOrder(orderId);
+    setModHistoryLoading(true);
+    try {
+      const res = await apiCall({ action: "getOrderModifications", orderId });
+      if (res.ok) {
+        const data = await res.json();
+        setModHistory(data.modifications || []);
+      }
+    } catch {
+      setModHistory([]);
+    } finally {
+      setModHistoryLoading(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1187,13 +1220,16 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 <div className="min-w-0 flex flex-wrap items-center gap-1.5">
                   <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                   <StatusBadge status={order.status} />
+                  {order.hasModifications && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Modified</span>
+                  )}
                   <span className="min-w-0 truncate text-sm text-brand-green-dark">{order.guestName}</span>
                   {order.guestType === "walkin" && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>}
                   {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>}
                   <PaymentBadge status={order.paymentStatus} />
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3">
-                  <span className="text-xs text-brand-green-dark/50">{new Date(order.createdAt).toLocaleDateString("en-IN")}</span>
+                  <span className="text-xs text-brand-green-dark/50">{new Date(order.createdAt).toLocaleDateString("en-IN")} {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</span>
                   <span className="text-sm font-semibold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</span>
                   {expandedOrder === order.id ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
                 </div>
@@ -1215,6 +1251,44 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   {order.cancelledReason && (
                     <p className="text-xs text-red-500">Cancelled: {order.cancelledReason}</p>
                   )}
+
+                  {/* Modification History */}
+                  {order.hasModifications && (
+                    <div className="border-t border-brand-mist pt-2">
+                      <button
+                        type="button"
+                        onClick={() => fetchModHistory(order.id)}
+                        className="flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-800"
+                      >
+                        <HistoryIcon className="h-3.5 w-3.5" />
+                        {modHistoryOrder === order.id ? "Hide" : "Show"} Modification History
+                      </button>
+                      {modHistoryOrder === order.id && (
+                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/50 p-2.5">
+                          {modHistoryLoading ? (
+                            <p className="text-xs text-gray-500">Loading...</p>
+                          ) : modHistory.length === 0 ? (
+                            <p className="text-xs text-gray-500">No modifications found</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {modHistory.map((mod, idx) => (
+                                <div key={idx} className="flex flex-col gap-0.5 border-b border-amber-100 pb-1.5 last:border-0 last:pb-0">
+                                  <span className="text-xs text-gray-800">
+                                    {formatAdminModification(mod)}
+                                  </span>
+                                  <span className="text-xs text-gray-400">
+                                    {new Date(mod.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                                    {" · "}{mod.modifiedBy}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2 border-t border-brand-mist pt-2">
                     {btSupported && (
                       <button
@@ -1298,6 +1372,24 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
       )}
     </div>
   );
+}
+
+function formatAdminModification(mod: OrderModification): string {
+  const actor = mod.modifiedBy.charAt(0).toUpperCase() + mod.modifiedBy.slice(1);
+  switch (mod.action) {
+    case "quantity_changed":
+      return `${actor} changed ${mod.itemName} qty from ${mod.oldValue} to ${mod.newValue}`;
+    case "item_removed":
+      return `${actor} removed ${mod.itemName}`;
+    case "item_voided":
+      return `${actor} voided ${mod.itemName}`;
+    case "void_item":
+      return `${actor} voided ${mod.itemName}`;
+    case "discount":
+      return `${actor} applied discount: ${mod.oldValue} → ${mod.newValue}`;
+    default:
+      return `${actor}: ${mod.action} on ${mod.itemName || "order"}`;
+  }
 }
 
 // ─── Shared Components ───────────────────────────────────────────────────────
