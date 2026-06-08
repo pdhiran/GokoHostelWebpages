@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { Suspense } from "react";
 
 interface BillItem {
   menuItemId: number;
@@ -59,8 +61,12 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-export default function MyBillsPage() {
+function MyBillsContent() {
+  const searchParams = useSearchParams();
+  const phoneParam = searchParams.get("phone") || "";
+
   const [phone, setPhone] = useState(() => {
+    if (phoneParam) return phoneParam;
     if (typeof window !== "undefined") {
       return localStorage.getItem("gokoFoodPhone") || "";
     }
@@ -115,6 +121,17 @@ export default function MyBillsPage() {
       return next;
     });
   };
+
+  useEffect(() => {
+    if (phoneParam && !submitted) {
+      const digits = phoneParam.replace(/\D/g, "");
+      if (digits.length >= 7) {
+        setPhone(digits);
+        setSubmitted(true);
+        fetchBills(digits);
+      }
+    }
+  }, [phoneParam]);
 
   const handleChangeNumber = () => {
     setPhone("");
@@ -398,5 +415,13 @@ function OrderCard({
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+export default function MyBillsPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 to-blue-400"><p className="text-white">Loading...</p></div>}>
+      <MyBillsContent />
+    </Suspense>
   );
 }

@@ -341,7 +341,7 @@ export default function FoodOrderPage() {
               />
               <div className="mt-4 text-center">
                 <Link
-                  href="/my-bills"
+                  href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
                   className="text-sm font-medium text-blue-100 transition hover:text-white"
                 >
                   View my bills →
@@ -372,7 +372,7 @@ export default function FoodOrderPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Link
-                      href="/my-bills"
+                      href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
                       className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
                     >
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
