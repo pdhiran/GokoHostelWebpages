@@ -170,7 +170,7 @@ export function FoodCart({
               Track your order
             </a>
             <a
-              href="/food-order"
+              href="/food-order?reorder=1"
               className="block w-full rounded-xl border border-gray-200 py-3 text-center font-medium text-gray-700 transition hover:bg-gray-50"
             >
               Place another order

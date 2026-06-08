@@ -89,12 +89,19 @@ export default function FoodOrderPage() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [reorderToast, setReorderToast] = useState("");
 
+  const [autoReorder, setAutoReorder] = useState(false);
+
   useEffect(() => {
     const stored = loadCartFromStorage();
     if (stored.length > 0) setCart(stored);
 
     const phone = localStorage.getItem("gokoFoodPhone") || null;
     setSavedPhone(phone);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("reorder") === "1" && phone) {
+      setAutoReorder(true);
+    }
 
     fetchMenu();
   }, []);
@@ -164,6 +171,25 @@ export default function FoodOrderPage() {
     });
     setView("menu");
   }, []);
+
+  useEffect(() => {
+    if (autoReorder && view === "phone" && savedPhone) {
+      setAutoReorder(false);
+      fetch(`/api/food/lookup?phone=${savedPhone}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.found && data.guests?.length === 1) {
+            const g = data.guests[0];
+            handleIdentified({ name: g.name, phone: g.phone, checkinId: g.checkinId, guestType: "hostel", roomInfo: g.roomInfo || "" });
+          } else if (data.found && data.guests?.length > 1) {
+            handleIdentified(data.guests[0]);
+          } else {
+            handleWalkin(savedPhone);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [autoReorder, view, savedPhone, handleIdentified, handleWalkin]);
 
   const handleReorder = useCallback((order: PastOrder) => {
     const skipped: string[] = [];

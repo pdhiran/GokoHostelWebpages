@@ -238,7 +238,7 @@ function OrderStatusContent() {
         {/* Action */}
         <div className="mt-6 text-center">
           <a
-            href="/food-order"
+            href="/food-order?reorder=1"
             className="inline-block rounded-xl bg-white/20 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/30"
           >
             Place another order
