@@ -369,12 +369,18 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
             const cartItem = cart.find((c) => c.menuItemId === item.id);
             const qty = cartItem?.quantity || 0;
             return (
-            <div key={item.id} className="flex items-center justify-between rounded-lg border border-brand-mist p-2.5">
+            <div key={item.id} className={cn("flex items-center justify-between rounded-lg border border-brand-mist p-2.5", item.isAvailable === 0 && "opacity-50")}>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-brand-green-dark">{item.name}</p>
-                <p className="text-xs text-brand-green-dark/60">₹{(item.price / 100).toFixed(0)}</p>
+                {item.isAvailable === 0 ? (
+                  <p className="text-xs font-medium text-red-500">Out of Stock</p>
+                ) : (
+                  <p className="text-xs text-brand-green-dark/60">₹{(item.price / 100).toFixed(0)}</p>
+                )}
               </div>
-              {qty > 0 ? (
+              {item.isAvailable === 0 ? (
+                <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600">Unavailable</span>
+              ) : qty > 0 ? (
                 <div className="ml-2 flex items-center gap-1">
                   <button
                     type="button"

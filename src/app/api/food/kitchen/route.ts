@@ -33,18 +33,18 @@ async function hashPassword(password: string): Promise<string> {
     .join("");
 }
 
-async function authenticateKitchen(password: string): Promise<UserRole | null> {
+async function authenticateKitchen(password: string): Promise<{ role: UserRole; displayName: string } | null> {
   if (!password) return null;
 
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return "admin";
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return "manager";
+  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", displayName: "Admin" };
+  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", displayName: "Manager" };
 
   try {
     const allUsers = await import("@/db/queries").then((m) => m.getAllUsers());
     for (const user of allUsers) {
       const computed = await hashPassword(password);
       if (computed === user.passwordHash) {
-        return (user.role as UserRole) || "staff";
+        return { role: (user.role as UserRole) || "staff", displayName: user.displayName || user.username };
       }
     }
   } catch {}
@@ -57,10 +57,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { password, action, ...rest } = body;
 
-    const role = await authenticateKitchen(password);
-    if (!role) {
+    const auth = await authenticateKitchen(password);
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { role, displayName: actorName } = auth;
 
     if (action === "listOrders") {
       const orders = await getActiveFoodOrders();
@@ -154,7 +155,7 @@ export async function POST(req: NextRequest) {
         oldValue: "active",
         newValue: "voided",
         reason: reason || "",
-        modifiedBy: role,
+        modifiedBy: actorName,
       });
 
       const allItems = await getFoodOrderItems(orderId);
@@ -195,7 +196,7 @@ export async function POST(req: NextRequest) {
           oldValue: String(oldQty),
           newValue: "0",
           reason: "Quantity reduced to zero",
-          modifiedBy: role,
+          modifiedBy: actorName,
         });
       } else {
         await updateFoodOrderItemQuantity(orderItemId, newQuantity, targetItem.itemPrice);
@@ -206,7 +207,7 @@ export async function POST(req: NextRequest) {
           oldValue: String(oldQty),
           newValue: String(newQuantity),
           reason: "",
-          modifiedBy: role,
+          modifiedBy: actorName,
         });
       }
 
