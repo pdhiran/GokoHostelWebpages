@@ -36,6 +36,8 @@ interface Order {
   paymentStatus: string;
   paymentMethod: string;
   paidBy: string;
+  cashReceived: number;
+  changeGiven: number;
   cancelledReason: string;
   createdBy: string;
   createdAt: string;
@@ -69,6 +71,7 @@ interface GuestWithTab {
   bedInfo: string;
   tabTotal: number;
   orderCount: number;
+  latestOrderTime: string;
 }
 
 interface MenuItem {
@@ -178,6 +181,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
   const [successMsg, setSuccessMsg] = useState("");
   const [error, setError] = useState("");
   const [loadingMenu, setLoadingMenu] = useState(true);
+  const [menuSearch, setMenuSearch] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -220,7 +224,17 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
     (g) => g.name.toLowerCase().includes(guestSearch.toLowerCase()) || g.contact.includes(guestSearch)
   );
 
+  const isSearching = menuSearch.trim().length > 0;
+  const searchResults = useMemo(() => {
+    if (!isSearching) return [];
+    const q = menuSearch.toLowerCase().trim();
+    return menuItems.filter(
+      (i) => i.name.toLowerCase().includes(q) || (i.nameKannada && i.nameKannada.toLowerCase().includes(q))
+    );
+  }, [menuItems, menuSearch, isSearching]);
+
   const categoryItems = menuItems.filter((i) => i.categoryId === selectedCategory);
+  const displayItems = isSearching ? searchResults : categoryItems;
 
   const addToCart = (item: MenuItem) => {
     setCart((prev) => {
@@ -366,23 +380,39 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
 
       {/* Menu Browser */}
       <div className="rounded-xl border border-brand-mist bg-white p-4">
-        <div className="mb-3 flex flex-wrap gap-1">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => setSelectedCategory(cat.id)}
-              className={cn(
-                "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                selectedCategory === cat.id ? "bg-brand-green text-white" : "bg-brand-sand text-brand-green-dark/70 hover:bg-brand-mist"
-              )}
-            >
-              {cat.icon} {cat.name}
+        <div className="relative mb-3">
+          <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-brand-green-dark/40" />
+          <input
+            className="w-full rounded-lg border border-brand-mist pl-9 pr-8 py-2 text-sm"
+            placeholder="Search menu items..."
+            value={menuSearch}
+            onChange={(e) => setMenuSearch(e.target.value)}
+          />
+          {menuSearch && (
+            <button type="button" onClick={() => setMenuSearch("")} className="absolute right-2.5 top-2.5 text-brand-green-dark/40 hover:text-brand-green-dark/70">
+              <XIcon className="h-4 w-4" />
             </button>
-          ))}
+          )}
         </div>
+        {!isSearching && (
+          <div className="mb-3 flex flex-wrap gap-1">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={cn(
+                  "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  selectedCategory === cat.id ? "bg-brand-green text-white" : "bg-brand-sand text-brand-green-dark/70 hover:bg-brand-mist"
+                )}
+              >
+                {cat.icon} {cat.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {categoryItems.map((item) => {
+          {displayItems.map((item) => {
             const cartItem = cart.find((c) => c.menuItemId === item.id);
             const qty = cartItem?.quantity || 0;
             return (
@@ -423,8 +453,8 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
             </div>
             );
           })}
-          {categoryItems.length === 0 && (
-            <p className="col-span-full text-center text-xs text-brand-green-dark/50 py-4">No items in this category</p>
+          {displayItems.length === 0 && (
+            <p className="col-span-full text-center text-xs text-brand-green-dark/50 py-4">{isSearching ? "No matching items" : "No items in this category"}</p>
           )}
         </div>
       </div>
@@ -508,6 +538,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
   const [busy, setBusy] = useState<string | null>(null);
   const [btSupported, setBtSupported] = useState(false);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
+  const [paymentModalGroup, setPaymentModalGroup] = useState<SummaryGroup | null>(null);
 
   useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
@@ -541,10 +572,10 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
       const cachedOrders = hostelOrdersMap[g.checkinId] || [];
       const hostelLatest = cachedOrders.length > 0
         ? cachedOrders.reduce((max, o) => o.createdAt > max ? o.createdAt : max, "")
-        : "";
+        : g.latestOrderTime || "";
       const hostelEarliest = cachedOrders.length > 0
         ? cachedOrders.reduce((min, o) => !min || o.createdAt < min ? o.createdAt : min, "")
-        : "";
+        : g.latestOrderTime || "";
       result.push({
         key: `hostel_${g.checkinId}`,
         guestName: g.name,
@@ -630,13 +661,13 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
     }
   };
 
-  const markGroupPaid = async (group: SummaryGroup, paymentMethod: string) => {
+  const markGroupPaid = async (group: SummaryGroup, paymentMethod: string, cashReceived: number = 0, changeGiven: number = 0) => {
     const orders = getGroupOrders(group);
     const orderIds = orders.map((o) => o.id);
     if (orderIds.length === 0) return;
     setBusy(group.key);
     try {
-      const res = await apiCall({ action: "markOrderPaid", orderIds, paymentMethod });
+      const res = await apiCall({ action: "markOrderPaid", orderIds, paymentMethod, cashReceived, changeGiven });
       if (res.ok) {
         await load();
         setSelectedGroupKey(null);
@@ -859,7 +890,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
               <div className="border-t border-brand-mist p-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => markGroupPaid(selectedGroup, "cash")}
+                  onClick={() => setPaymentModalGroup(selectedGroup)}
                   disabled={busy === selectedGroup.key}
                   className="flex items-center gap-1.5 rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
                 >
@@ -867,7 +898,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
                 </button>
                 <button
                   type="button"
-                  onClick={() => markGroupPaid(selectedGroup, "online")}
+                  onClick={() => setPaymentModalGroup(selectedGroup)}
                   disabled={busy === selectedGroup.key}
                   className="flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                 >
@@ -914,6 +945,19 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
             )}
           </div>
         </div>
+      )}
+
+      {/* Payment Modal */}
+      {paymentModalGroup && (
+        <PaymentModal
+          totalAmount={paymentModalGroup.totalAmount}
+          guestName={paymentModalGroup.guestName}
+          onConfirm={(method, cashReceived, changeGiven) => {
+            markGroupPaid(paymentModalGroup, method, cashReceived, changeGiven);
+            setPaymentModalGroup(null);
+          }}
+          onClose={() => setPaymentModalGroup(null)}
+        />
       )}
     </div>
   );
@@ -1294,7 +1338,7 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>}
                   <PaymentBadge status={order.paymentStatus} />
                   {order.paymentStatus === "paid" && order.paymentMethod && (
-                    <span className="text-xs text-brand-green-dark/40">({order.paymentMethod === "cash" ? "Cash" : order.paymentMethod === "online" ? "Online" : order.paymentMethod})</span>
+                    <span className="text-xs text-brand-green-dark/40">({order.paymentMethod === "cash" ? "Cash" : order.paymentMethod === "online" ? "Online" : order.paymentMethod === "split" ? "Split" : order.paymentMethod})</span>
                   )}
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3">
@@ -1316,7 +1360,7 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   <div className="flex justify-between border-t border-brand-mist pt-1 text-xs">
                     <span>Payment:{" "}
                       {order.paymentStatus === "paid" && order.paymentMethod
-                        ? <>Paid by {order.paymentMethod === "cash" ? "Cash" : order.paymentMethod === "online" ? "Online" : order.paymentMethod}</>
+                        ? <PaymentDetailLabel method={order.paymentMethod} total={order.total} cashReceived={order.cashReceived} changeGiven={order.changeGiven} />
                         : <PaymentBadge status={order.paymentStatus} />
                       }
                     </span>
@@ -1464,11 +1508,220 @@ function formatAdminModification(mod: OrderModification): string {
       return `${actor} voided ${mod.itemName}`;
     case "void_item":
       return `${actor} voided ${mod.itemName}`;
+    case "item_added":
+      return `${actor} added ${mod.itemName} x${mod.newValue}`;
     case "discount":
       return `${actor} applied discount: ${mod.oldValue} → ${mod.newValue}`;
     default:
       return `${actor}: ${mod.action} on ${mod.itemName || "order"}`;
   }
+}
+
+// ─── Payment Modal ───────────────────────────────────────────────────────────
+
+type PaymentTab = "cash" | "online" | "split";
+
+function PaymentModal({
+  totalAmount,
+  guestName,
+  onConfirm,
+  onClose,
+}: {
+  totalAmount: number;
+  guestName: string;
+  onConfirm: (method: string, cashReceived: number, changeGiven: number) => void;
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<PaymentTab>("cash");
+  const [cashInput, setCashInput] = useState((totalAmount / 100).toString());
+  const [splitCash, setSplitCash] = useState("");
+  const [splitOnline, setSplitOnline] = useState((totalAmount / 100).toString());
+  const [saving, setSaving] = useState(false);
+
+  const totalRupees = totalAmount / 100;
+
+  const cashValue = Number(cashInput) || 0;
+  const changeDue = cashValue - totalRupees;
+
+  const splitCashVal = Number(splitCash) || 0;
+  const splitOnlineVal = Number(splitOnline) || 0;
+  const splitTotal = splitCashVal + splitOnlineVal;
+
+  useEffect(() => {
+    const online = totalRupees - splitCashVal;
+    setSplitOnline(online > 0 ? online.toString() : "0");
+  }, [splitCash, totalRupees]);
+
+  const handleSave = () => {
+    setSaving(true);
+    if (activeTab === "cash") {
+      const received = Math.round(cashValue * 100);
+      const change = changeDue > 0 ? Math.round(changeDue * 100) : 0;
+      onConfirm("cash", received, change);
+    } else if (activeTab === "online") {
+      onConfirm("online", 0, 0);
+    } else {
+      const cashPaise = Math.round(splitCashVal * 100);
+      const onlinePaise = Math.round(splitOnlineVal * 100);
+      onConfirm("split", cashPaise, 0);
+    }
+  };
+
+  const canSave = (() => {
+    if (saving) return false;
+    if (activeTab === "cash") return cashValue > 0;
+    if (activeTab === "online") return true;
+    if (activeTab === "split") return splitCashVal > 0 && splitOnlineVal > 0 && splitTotal >= totalRupees;
+    return false;
+  })();
+
+  const tabs: { id: PaymentTab; label: string; icon: React.ReactNode }[] = [
+    { id: "cash", label: "Cash", icon: <BanknoteIcon className="h-4 w-4" /> },
+    { id: "online", label: "Online", icon: <SmartphoneIcon className="h-4 w-4" /> },
+    { id: "split", label: "Split", icon: <><BanknoteIcon className="h-3.5 w-3.5" /><span className="text-[10px]">+</span><SmartphoneIcon className="h-3.5 w-3.5" /></> },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
+          <div>
+            <h3 className="text-base font-bold text-brand-green-dark">Record Payment</h3>
+            <p className="text-xs text-brand-green-dark/50">{guestName}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-brand-sand">
+            <XIcon className="h-5 w-5 text-brand-green-dark/60" />
+          </button>
+        </div>
+
+        {/* Bill Total */}
+        <div className="bg-brand-sand/40 px-5 py-3 text-center">
+          <p className="text-xs text-brand-green-dark/60">Bill Total</p>
+          <p className="text-2xl font-bold text-brand-green">₹{totalRupees.toFixed(0)}</p>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-brand-mist px-5 pt-3 pb-0">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-t-lg px-4 py-2 text-sm font-medium transition-colors",
+                activeTab === t.id
+                  ? "border-b-2 border-brand-green bg-brand-green/[0.06] text-brand-green"
+                  : "text-brand-green-dark/50 hover:text-brand-green-dark/70"
+              )}
+            >
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        <div className="px-5 py-4">
+          {activeTab === "cash" && (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Cash Received (₹)</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="w-full rounded-lg border border-brand-mist px-3 py-2.5 text-lg font-semibold text-brand-green-dark focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
+                  value={cashInput}
+                  onChange={(e) => setCashInput(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              {cashValue > 0 && changeDue > 0 && (
+                <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2">
+                  <p className="text-sm font-semibold text-green-700">Change Due: ₹{changeDue.toFixed(0)}</p>
+                </div>
+              )}
+              {cashValue > 0 && changeDue < 0 && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 space-y-1">
+                  <p className="text-sm font-semibold text-red-600">Remaining: ₹{Math.abs(changeDue).toFixed(0)}</p>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab("split"); setSplitCash(cashInput); }}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Record remaining as Online
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "online" && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-4 text-center">
+              <SmartphoneIcon className="mx-auto mb-2 h-8 w-8 text-blue-500" />
+              <p className="text-sm text-blue-800">
+                Mark <span className="font-bold">₹{totalRupees.toFixed(0)}</span> as paid online?
+              </p>
+            </div>
+          )}
+
+          {activeTab === "split" && (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Cash Amount (₹)</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="w-full rounded-lg border border-brand-mist px-3 py-2.5 text-base font-semibold text-brand-green-dark focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
+                  value={splitCash}
+                  onChange={(e) => setSplitCash(e.target.value)}
+                  placeholder="0"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Online Amount (₹)</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="w-full rounded-lg border border-brand-mist px-3 py-2.5 text-base font-semibold text-brand-green-dark focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
+                  value={splitOnline}
+                  onChange={(e) => setSplitOnline(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+              <div className={cn(
+                "rounded-lg px-3 py-2 text-sm font-medium",
+                splitTotal >= totalRupees ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-600"
+              )}>
+                Total: ₹{splitTotal.toFixed(0)} / ₹{totalRupees.toFixed(0)}
+                {splitTotal < totalRupees && <span className="ml-1 text-xs">(₹{(totalRupees - splitTotal).toFixed(0)} short)</span>}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-2 border-t border-brand-mist px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-brand-mist px-4 py-2.5 text-sm font-medium text-brand-green-dark/70 hover:bg-brand-sand"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave}
+            className="flex-1 rounded-lg bg-brand-green px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-green/90 disabled:opacity-40"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1485,6 +1738,24 @@ function formatTimeSince(isoDate: string): string {
 }
 
 // ─── Shared Components ───────────────────────────────────────────────────────
+
+function PaymentDetailLabel({ method, total, cashReceived, changeGiven }: { method: string; total: number; cashReceived: number; changeGiven: number }) {
+  const fmt = (paise: number) => `₹${(paise / 100).toFixed(0)}`;
+  if (method === "cash") {
+    if (cashReceived > 0) {
+      return <span className="text-green-700">Cash — Received {fmt(cashReceived)}{changeGiven > 0 ? `, Change ${fmt(changeGiven)}` : ""}</span>;
+    }
+    return <span className="text-green-700">Cash — {fmt(total)}</span>;
+  }
+  if (method === "online") {
+    return <span className="text-blue-700">Online — {fmt(total)}</span>;
+  }
+  if (method === "split") {
+    const onlinePart = total - (cashReceived - (changeGiven || 0));
+    return <span className="text-purple-700">Split — Cash {fmt(cashReceived)}{changeGiven > 0 ? ` (change ${fmt(changeGiven)})` : ""} + Online {fmt(onlinePart > 0 ? onlinePart : total - cashReceived)}</span>;
+  }
+  return <span>{method}</span>;
+}
 
 function LoadingState() {
   return (

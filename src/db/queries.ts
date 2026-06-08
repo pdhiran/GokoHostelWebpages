@@ -624,12 +624,15 @@ export async function updateFoodOrderStatus(id: number, status: string, cancelle
 
 export async function updateFoodOrderPayment(id: number, data: {
   paymentStatus: string; paymentMethod?: string; paidBy?: string;
+  cashReceived?: number; changeGiven?: number;
 }) {
   const db = getDb();
   return db.update(foodOrders).set({
     paymentStatus: data.paymentStatus,
     paymentMethod: data.paymentMethod || "",
     paidBy: data.paidBy || "",
+    cashReceived: data.cashReceived ?? 0,
+    changeGiven: data.changeGiven ?? 0,
     updatedAt: new Date().toISOString(),
   }).where(eq(foodOrders.id, id));
 }

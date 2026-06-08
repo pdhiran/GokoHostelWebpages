@@ -1,0 +1,2 @@
+ALTER TABLE food_orders ADD COLUMN cash_received INTEGER DEFAULT 0;
+ALTER TABLE food_orders ADD COLUMN change_given INTEGER DEFAULT 0;

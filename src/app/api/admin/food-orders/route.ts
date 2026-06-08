@@ -259,7 +259,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "markOrderPaid": {
-        const { orderIds, paymentMethod, paidBy } = rest;
+        const { orderIds, paymentMethod, paidBy, cashReceived, changeGiven } = rest;
         if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
           return NextResponse.json({ error: "orderIds required" }, { status: 400 });
         }
@@ -270,13 +270,15 @@ export async function POST(req: NextRequest) {
             paymentStatus: "paid",
             paymentMethod,
             paidBy: paidBy || actorName,
+            cashReceived: cashReceived ?? 0,
+            changeGiven: changeGiven ?? 0,
           });
         }
         await addAuditEntry({
           username: actorName,
           action: "food_order_paid",
           target: `orders:${orderIds.join(",")}`,
-          details: `Marked paid via ${paymentMethod}`,
+          details: `Marked paid via ${paymentMethod}${cashReceived ? `, cash received ₹${(cashReceived / 100).toFixed(0)}` : ""}${changeGiven ? `, change ₹${(changeGiven / 100).toFixed(0)}` : ""}`,
         });
         return NextResponse.json({ success: true, role });
       }
@@ -397,6 +399,7 @@ export async function POST(req: NextRequest) {
           checkinId: foodOrders.checkinId,
           tabTotal: sql<number>`SUM(${foodOrders.total})`,
           orderCount: sql<number>`COUNT(*)`,
+          latestOrderTime: sql<string>`MAX(${foodOrders.createdAt})`,
         }).from(foodOrders)
           .where(eq(foodOrders.paymentStatus, "on_tab"))
           .groupBy(foodOrders.checkinId);
@@ -420,6 +423,7 @@ export async function POST(req: NextRequest) {
             bedInfo: bed ? `${bed.dormName} - Bed ${bed.bedId}` : "",
             tabTotal: row.tabTotal,
             orderCount: row.orderCount,
+            latestOrderTime: row.latestOrderTime || "",
           });
         }
         return NextResponse.json({ role, guests: guestsWithTabs });

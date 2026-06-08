@@ -231,6 +231,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, data: { subtotal, tax, total } });
     }
 
+    if (action === "addItemToOrder") {
+      const { orderId, menuItemId, quantity } = rest;
+      if (!orderId || !menuItemId || !quantity) {
+        return NextResponse.json({ error: "Missing orderId, menuItemId, or quantity" }, { status: 400 });
+      }
+
+      const menuItem = await getMenuItemById(menuItemId);
+      if (!menuItem) {
+        return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
+      }
+      if (!menuItem.isAvailable) {
+        return NextResponse.json({ error: "Menu item is not available" }, { status: 400 });
+      }
+
+      const db = getDb();
+      const lineTotal = menuItem.price * quantity;
+
+      await db.insert(foodOrderItems).values({
+        orderId,
+        menuItemId: menuItem.id,
+        itemName: menuItem.name,
+        itemPrice: menuItem.price,
+        quantity,
+        lineTotal,
+        status: "active",
+      });
+
+      await decrementStock(menuItem.id, quantity);
+
+      await addOrderModification({
+        orderId,
+        action: "item_added",
+        itemId: menuItem.id,
+        oldValue: "",
+        newValue: `${quantity}`,
+        reason: `Added ${menuItem.name} x${quantity}`,
+        modifiedBy: actorName,
+      });
+
+      const updatedItems = await getFoodOrderItems(orderId);
+      const activeItems = updatedItems.filter((i) => i.status !== "voided");
+      const subtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+      const taxRateStr = await getSetting("food_tax_rate");
+      const taxRate = Number(taxRateStr) || 5;
+      const tax = Math.round((subtotal * taxRate) / 100);
+      const total = subtotal + tax;
+
+      await updateFoodOrder(orderId, { subtotal, tax, total });
+
+      return NextResponse.json({ success: true, data: { subtotal, tax, total, itemName: menuItem.name } });
+    }
+
     if (action === "toggleBusy") {
       const { isBusy } = rest;
       await setSetting("food_kitchen_busy", isBusy ? "true" : "false");

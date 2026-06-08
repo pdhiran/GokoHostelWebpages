@@ -344,6 +344,15 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     });
   };
 
+  const addItemToOrder = async (orderId: number, menuItemId: number, quantity: number) => {
+    try {
+      const data = await api("addItemToOrder", { orderId, menuItemId, quantity });
+      if (data.success) {
+        await fetchOrders();
+      }
+    } catch {}
+  };
+
   const saveEditing = async () => {
     if (editingOrderId === null) return;
     const changes = editedItems.get(editingOrderId);
@@ -749,6 +758,9 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             modHistory={modHistory}
             modHistoryLoading={modHistoryLoading}
             onToggleModHistory={fetchModificationHistory}
+            menuItems={menuItems}
+            menuCategories={kitchenCategories}
+            onAddItemToOrder={addItemToOrder}
           />
           <OrderColumn
             title="Preparing"
@@ -771,6 +783,9 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             modHistory={modHistory}
             modHistoryLoading={modHistoryLoading}
             onToggleModHistory={fetchModificationHistory}
+            menuItems={menuItems}
+            menuCategories={kitchenCategories}
+            onAddItemToOrder={addItemToOrder}
           />
           <OrderColumn
             title="Ready for Pickup"
@@ -793,6 +808,9 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             modHistory={modHistory}
             modHistoryLoading={modHistoryLoading}
             onToggleModHistory={fetchModificationHistory}
+            menuItems={menuItems}
+            menuCategories={kitchenCategories}
+            onAddItemToOrder={addItemToOrder}
           />
         </div>
 
@@ -821,6 +839,9 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               modHistory={modHistory}
               modHistoryLoading={modHistoryLoading}
               onToggleModHistory={fetchModificationHistory}
+              menuItems={menuItems}
+              menuCategories={kitchenCategories}
+              onAddItemToOrder={addItemToOrder}
             />
           )}
           {mobileTab === "preparing" && (
@@ -845,6 +866,9 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               modHistory={modHistory}
               modHistoryLoading={modHistoryLoading}
               onToggleModHistory={fetchModificationHistory}
+              menuItems={menuItems}
+              menuCategories={kitchenCategories}
+              onAddItemToOrder={addItemToOrder}
             />
           )}
           {mobileTab === "ready" && (
@@ -869,6 +893,9 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               modHistory={modHistory}
               modHistoryLoading={modHistoryLoading}
               onToggleModHistory={fetchModificationHistory}
+              menuItems={menuItems}
+              menuCategories={kitchenCategories}
+              onAddItemToOrder={addItemToOrder}
             />
           )}
         </div>
@@ -984,6 +1011,9 @@ function OrderColumn({
   modHistory,
   modHistoryLoading,
   onToggleModHistory,
+  menuItems,
+  menuCategories,
+  onAddItemToOrder,
 }: {
   title: string;
   orders: Order[];
@@ -1004,6 +1034,9 @@ function OrderColumn({
   modHistory: OrderModification[];
   modHistoryLoading: boolean;
   onToggleModHistory: (orderId: number) => void;
+  menuItems: MenuItem[];
+  menuCategories: KitchenCategory[];
+  onAddItemToOrder: (orderId: number, menuItemId: number, quantity: number) => Promise<void>;
 }) {
   const borderColor =
     color === "amber"
@@ -1063,6 +1096,9 @@ function OrderColumn({
               modHistory={showModHistory === order.id ? modHistory : []}
               modHistoryLoading={modHistoryLoading && showModHistory === order.id}
               onToggleModHistory={() => onToggleModHistory(order.id)}
+              menuItems={menuItems}
+              menuCategories={menuCategories}
+              onAddItemToOrder={(menuItemId, qty) => onAddItemToOrder(order.id, menuItemId, qty)}
             />
           ))}
         </AnimatePresence>
@@ -1097,6 +1133,9 @@ function OrderCard({
   modHistory,
   modHistoryLoading,
   onToggleModHistory,
+  menuItems,
+  menuCategories,
+  onAddItemToOrder,
 }: {
   order: Order;
   borderColor: string;
@@ -1117,9 +1156,41 @@ function OrderCard({
   modHistory: OrderModification[];
   modHistoryLoading: boolean;
   onToggleModHistory: () => void;
+  menuItems: MenuItem[];
+  menuCategories: KitchenCategory[];
+  onAddItemToOrder: (menuItemId: number, quantity: number) => Promise<void>;
 }) {
   const [loading, setLoading] = useState(false);
   const [printLoading, setPrintLoading] = useState(false);
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [addItemSearch, setAddItemSearch] = useState("");
+  const [addItemCategory, setAddItemCategory] = useState<number | null>(null);
+  const [addingItem, setAddingItem] = useState(false);
+
+  const addItemResults = useMemo(() => {
+    if (!showAddItem) return [];
+    const available = menuItems.filter((m) => m.isAvailable === 1);
+    if (addItemSearch.trim()) {
+      const q = addItemSearch.toLowerCase().trim();
+      return available.filter(
+        (m) => m.name.toLowerCase().includes(q) || (m.nameKannada && m.nameKannada.toLowerCase().includes(q))
+      );
+    }
+    if (addItemCategory) return available.filter((m) => m.categoryId === addItemCategory);
+    return available;
+  }, [showAddItem, menuItems, addItemSearch, addItemCategory]);
+
+  const handleAddItem = async (item: MenuItem) => {
+    setAddingItem(true);
+    try {
+      await onAddItemToOrder(item.id, 1);
+      setShowAddItem(false);
+      setAddItemSearch("");
+      setAddItemCategory(null);
+    } finally {
+      setAddingItem(false);
+    }
+  };
 
   const handleAction = async () => {
     setLoading(true);
@@ -1284,27 +1355,93 @@ function OrderCard({
           )}
         </div>
 
-        {/* Edit mode: Save/Cancel bar */}
+        {/* Edit mode: Add Item + Save/Cancel bar */}
         {isEditing && (
-          <div className="mb-3 flex gap-2">
-            <button
-              type="button"
-              onClick={onSaveEdit}
-              disabled={savingEdit}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
-            >
-              <SaveIcon className="h-3.5 w-3.5" />
-              {savingEdit ? "Saving..." : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={onCancelEdit}
-              disabled={savingEdit}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
+          <>
+            {!showAddItem ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddItem(true);
+                  if (menuCategories.length > 0 && !addItemCategory) setAddItemCategory(menuCategories[0].id);
+                }}
+                className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-emerald-400 hover:text-emerald-600"
+              >
+                <PlusIcon className="h-4 w-4" /> Add Item
+              </button>
+            ) : (
+              <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-emerald-700">Add Item to Order</span>
+                  <button type="button" onClick={() => { setShowAddItem(false); setAddItemSearch(""); setAddItemCategory(null); }} className="text-gray-400 hover:text-gray-600">
+                    <XIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={addItemSearch}
+                  onChange={(e) => setAddItemSearch(e.target.value)}
+                  placeholder="Search menu items..."
+                  className="mb-2 w-full rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-emerald-300 focus:ring-1 focus:ring-emerald-200"
+                />
+                {!addItemSearch.trim() && (
+                  <div className="mb-2 flex flex-wrap gap-1">
+                    {menuCategories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setAddItemCategory(cat.id)}
+                        className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                          addItemCategory === cat.id
+                            ? "bg-emerald-600 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
+                      >
+                        {cat.icon} {cat.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {addItemResults.length === 0 ? (
+                    <p className="py-2 text-center text-xs text-gray-400">No items found</p>
+                  ) : (
+                    addItemResults.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled={addingItem}
+                        onClick={() => handleAddItem(item)}
+                        className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        <span className="text-gray-800">{item.name}</span>
+                        <span className="flex-shrink-0 text-xs text-gray-500">₹{(item.price / 100).toFixed(0)}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="mb-3 flex gap-2">
+              <button
+                type="button"
+                onClick={onSaveEdit}
+                disabled={savingEdit}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+              >
+                <SaveIcon className="h-3.5 w-3.5" />
+                {savingEdit ? "Saving..." : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                disabled={savingEdit}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
         )}
 
         {/* Special instructions */}
@@ -1411,6 +1548,8 @@ function formatModification(mod: OrderModification): string {
       return `${actor} removed ${mod.itemName}`;
     case "item_voided":
       return `${actor} voided ${mod.itemName}`;
+    case "item_added":
+      return `${actor} added ${mod.itemName} x${mod.newValue}`;
     case "discount":
       return `${actor} applied discount: ${mod.oldValue} → ${mod.newValue}`;
     default:

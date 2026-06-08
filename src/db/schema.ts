@@ -208,6 +208,8 @@ export const foodOrders = sqliteTable("food_orders", {
   paymentStatus: text("payment_status").notNull().default("pending"),
   paymentMethod: text("payment_method").default(""),
   paidBy: text("paid_by").default(""),
+  cashReceived: integer("cash_received").default(0),
+  changeGiven: integer("change_given").default(0),
   cancelledReason: text("cancelled_reason").default(""),
   cancelledAt: text("cancelled_at").default(""),
   createdBy: text("created_by").notNull().default("guest"),
