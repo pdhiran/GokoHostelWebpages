@@ -166,6 +166,7 @@ export const menuCategories = sqliteTable("menu_categories", {
   description: text("description").default(""),
   displayOrder: integer("display_order").notNull().default(0),
   isActive: integer("is_active").notNull().default(1),
+  trackInventoryDefault: integer("track_inventory_default").notNull().default(0),
 });
 
 export const menuItems = sqliteTable("menu_items", {
@@ -181,6 +182,9 @@ export const menuItems = sqliteTable("menu_items", {
   imageUrl: text("image_url").default(""),
   isAvailable: integer("is_available").notNull().default(1),
   displayOrder: integer("display_order").notNull().default(0),
+  trackInventory: integer("track_inventory").notNull().default(0),
+  stockQuantity: integer("stock_quantity").notNull().default(0),
+  lowStockThreshold: integer("low_stock_threshold").notNull().default(5),
 }, (table) => [
   index("idx_menu_items_category").on(table.categoryId),
   index("idx_menu_items_available").on(table.isAvailable),

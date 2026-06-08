@@ -4,6 +4,7 @@ import {
   getAllMenuItems, addMenuItem, updateMenuItem, deleteMenuItem,
   toggleMenuItemAvailability, getMenuItemsByCategory,
   getSetting, setSetting,
+  addStock as addStockQuery, getLowStockItems as getLowStockItemsQuery,
 } from "@/db/queries";
 import { getUserByUsername } from "@/db/queries";
 
@@ -131,7 +132,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "addMenuItem": {
-        const { categoryId, name, nameKannada, description, price, priceText, tags, ingredients, imageUrl, displayOrder } = params;
+        const { categoryId, name, nameKannada, description, price, priceText, tags, ingredients, imageUrl, displayOrder, trackInventory, stockQuantity, lowStockThreshold } = params;
         if (!categoryId || !name?.trim()) return NextResponse.json({ error: "categoryId and name are required" }, { status: 400 });
         if (typeof price !== "number" || price < 0) return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
         await addMenuItem({
@@ -145,6 +146,9 @@ export async function POST(req: NextRequest) {
           ingredients: typeof ingredients === "string" ? ingredients : JSON.stringify(ingredients || []),
           imageUrl: imageUrl || "",
           displayOrder: displayOrder ?? 0,
+          trackInventory: trackInventory ?? 0,
+          stockQuantity: stockQuantity ?? 0,
+          lowStockThreshold: lowStockThreshold ?? 5,
         });
         return NextResponse.json({ ok: true });
       }
@@ -180,6 +184,19 @@ export async function POST(req: NextRequest) {
           await toggleMenuItemAvailability(item.id, isAvailable ? 1 : 0);
         }
         return NextResponse.json({ ok: true, updated: items.length });
+      }
+
+      // --- Inventory ---
+      case "addStock": {
+        const { menuItemId, quantity } = params;
+        if (!menuItemId || !quantity || quantity < 1) return NextResponse.json({ error: "menuItemId and positive quantity required" }, { status: 400 });
+        await addStockQuery(menuItemId, quantity);
+        return NextResponse.json({ ok: true });
+      }
+
+      case "getLowStockItems": {
+        const lowStockItems = await getLowStockItemsQuery();
+        return NextResponse.json({ items: lowStockItems });
       }
 
       // --- Food Settings ---

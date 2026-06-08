@@ -25,6 +25,9 @@ interface MenuItem {
   imageUrl: string;
   isAvailable: number;
   displayOrder: number;
+  trackInventory?: number;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
 }
 
 export interface CartItem {
@@ -285,6 +288,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
               const tags = parseTags(item.tags);
               const isUnavailable = item.isAvailable !== 1 || item.price <= 0;
               const qty = getCartQuantity(item.id);
+              const showLowStock = !isUnavailable && item.trackInventory && item.stockQuantity != null && item.lowStockThreshold != null && item.stockQuantity <= item.lowStockThreshold && item.stockQuantity > 0;
 
               return (
                 <motion.div
@@ -368,13 +372,20 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                     </div>
 
                     <div className="mt-2 flex items-center justify-between">
-                      <span className="text-sm font-bold text-gray-800">
-                        {isUnavailable ? (
-                          <span className="text-gray-400">Unavailable</span>
-                        ) : (
-                          formatPrice(item.price)
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-800">
+                          {isUnavailable ? (
+                            <span className="text-gray-400">Unavailable</span>
+                          ) : (
+                            formatPrice(item.price)
+                          )}
+                        </span>
+                        {showLowStock && (
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">
+                            {item.stockQuantity} left
+                          </span>
                         )}
-                      </span>
+                      </div>
 
                       {!isUnavailable && (
                         <>

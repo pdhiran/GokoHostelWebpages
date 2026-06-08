@@ -8,7 +8,7 @@ import { AdminLoading } from "./AdminLoading";
 import { cn } from "@/lib/utils";
 import {
   PlusIcon, Trash2Icon, PencilIcon, CheckIcon, XIcon,
-  ChevronDownIcon, ToggleLeftIcon, ToggleRightIcon,
+  ChevronDownIcon, ToggleLeftIcon, ToggleRightIcon, PackagePlusIcon,
 } from "lucide-react";
 import type { Role } from "./types";
 
@@ -21,6 +21,7 @@ type Category = {
   displayOrder: number;
   isActive: number;
   itemCount: number;
+  trackInventoryDefault: number;
 };
 
 type MenuItem = {
@@ -37,6 +38,9 @@ type MenuItem = {
   imageUrl: string;
   isAvailable: number;
   displayOrder: number;
+  trackInventory: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
 };
 
 type CategoryForm = {
@@ -45,6 +49,7 @@ type CategoryForm = {
   icon: string;
   description: string;
   displayOrder: string;
+  trackInventoryDefault: boolean;
 };
 
 type ItemForm = {
@@ -66,15 +71,19 @@ type ItemForm = {
   customTags: string[];
   ingredients: string;
   displayOrder: string;
+  trackInventory: boolean;
+  stockQuantity: string;
+  lowStockThreshold: string;
 };
 
-const emptyCategoryForm: CategoryForm = { name: "", nameKannada: "", icon: "🍽️", description: "", displayOrder: "0" };
+const emptyCategoryForm: CategoryForm = { name: "", nameKannada: "", icon: "🍽️", description: "", displayOrder: "0", trackInventoryDefault: false };
 const emptyItemForm: ItemForm = {
   categoryId: "", name: "", nameKannada: "", description: "",
   priceDisplay: "", priceText: "", tagVeg: false, tagNonVeg: false, tagSpicy: false,
   tagSeafood: false, tagChicken: false, tagMutton: false, tagEgg: false,
   tagChefSpecial: false, tagGokoSpecial: false, customTags: [],
   ingredients: "", displayOrder: "0",
+  trackInventory: false, stockQuantity: "0", lowStockThreshold: "5",
 };
 
 function parseTags(tagsJson: string): string[] {
@@ -107,6 +116,8 @@ export function AdminMenuManagement({ password, username, role }: { password: st
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [itemForm, setItemForm] = useState<ItemForm>({ ...emptyItemForm });
+  const [addStockItemId, setAddStockItemId] = useState<number | null>(null);
+  const [addStockQty, setAddStockQty] = useState("");
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -159,6 +170,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
       icon: cat.icon,
       description: cat.description || "",
       displayOrder: String(cat.displayOrder),
+      trackInventoryDefault: !!cat.trackInventoryDefault,
     });
     setEditingCategoryId(cat.id);
     setShowCategoryForm(true);
@@ -174,6 +186,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         icon: categoryForm.icon.trim() || "🍽️",
         description: categoryForm.description.trim(),
         displayOrder: parseInt(categoryForm.displayOrder) || 0,
+        trackInventoryDefault: categoryForm.trackInventoryDefault ? 1 : 0,
       };
       const res = editingCategoryId
         ? await apiCall({ action: "updateCategory", id: editingCategoryId, ...payload })
@@ -213,9 +226,12 @@ export function AdminMenuManagement({ password, username, role }: { password: st
 
   // --- Item CRUD ---
   const openAddItem = () => {
+    const catId = selectedCategoryId || categories[0]?.id;
+    const cat = categories.find((c) => c.id === catId);
     setItemForm({
       ...emptyItemForm,
-      categoryId: selectedCategoryId ? String(selectedCategoryId) : (categories[0]?.id ? String(categories[0].id) : ""),
+      categoryId: catId ? String(catId) : "",
+      trackInventory: !!cat?.trackInventoryDefault,
     });
     setEditingItemId(null);
     setShowItemForm(true);
@@ -244,6 +260,9 @@ export function AdminMenuManagement({ password, username, role }: { password: st
       customTags: custom,
       ingredients: parseIngredients(item.ingredients).join(", "),
       displayOrder: String(item.displayOrder),
+      trackInventory: !!item.trackInventory,
+      stockQuantity: String(item.stockQuantity || 0),
+      lowStockThreshold: String(item.lowStockThreshold || 5),
     });
     setEditingItemId(item.id);
     setShowItemForm(true);
@@ -284,6 +303,9 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         tags: JSON.stringify(tags),
         ingredients: JSON.stringify(ingredientsArr),
         displayOrder: parseInt(itemForm.displayOrder) || 0,
+        trackInventory: itemForm.trackInventory ? 1 : 0,
+        stockQuantity: parseInt(itemForm.stockQuantity) || 0,
+        lowStockThreshold: parseInt(itemForm.lowStockThreshold) || 5,
       };
 
       const res = editingItemId
@@ -322,6 +344,23 @@ export function AdminMenuManagement({ password, username, role }: { password: st
     try {
       await apiCall({ action: "bulkToggleAvailability", categoryId, isAvailable: available });
       await loadItems();
+    } finally { setSaving(false); }
+  };
+
+  const handleAddStock = async (menuItemId: number) => {
+    const qty = parseInt(addStockQty);
+    if (!qty || qty < 1) { alert("Enter a valid quantity"); return; }
+    setSaving(true);
+    try {
+      const res = await apiCall({ action: "addStock", menuItemId, quantity: qty });
+      if (res.ok) {
+        setAddStockItemId(null);
+        setAddStockQty("");
+        await loadItems();
+      } else {
+        const d = await res.json();
+        alert(d.error || "Failed to add stock");
+      }
     } finally { setSaving(false); }
   };
 
@@ -371,6 +410,10 @@ export function AdminMenuManagement({ password, username, role }: { password: st
               <div>
                 <Label className="text-xs">Display Order</Label>
                 <Input type="number" value={categoryForm.displayOrder} onChange={(e) => setCategoryForm({ ...categoryForm, displayOrder: e.target.value })} className="mt-1" />
+              </div>
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <input type="checkbox" id="catTrackInv" checked={categoryForm.trackInventoryDefault} onChange={(e) => setCategoryForm({ ...categoryForm, trackInventoryDefault: e.target.checked })} className="rounded" />
+                <Label htmlFor="catTrackInv" className="text-xs cursor-pointer">Default Inventory Tracking — new items auto-enable inventory</Label>
               </div>
             </div>
             <div className="mt-4 flex gap-2">
@@ -619,6 +662,25 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                 <Input type="number" value={itemForm.displayOrder} onChange={(e) => setItemForm({ ...itemForm, displayOrder: e.target.value })} className="mt-1 text-xs" />
                 <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Optional. Items with 0 display in default order.</p>
               </div>
+              {/* Inventory Tracking */}
+              <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-brand-mist bg-brand-sand/20 p-3">
+                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                  <input type="checkbox" checked={itemForm.trackInventory} onChange={(e) => setItemForm({ ...itemForm, trackInventory: e.target.checked })} className="rounded" />
+                  Track Inventory
+                </label>
+                {itemForm.trackInventory && (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-xs">Stock Quantity</Label>
+                      <Input type="number" min="0" value={itemForm.stockQuantity} onChange={(e) => setItemForm({ ...itemForm, stockQuantity: e.target.value })} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Low Stock Threshold</Label>
+                      <Input type="number" min="0" value={itemForm.lowStockThreshold} onChange={(e) => setItemForm({ ...itemForm, lowStockThreshold: e.target.value })} className="mt-1" />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="mt-4 flex gap-2">
               <Button type="button" variant="cta" size="sm" onClick={saveItem} disabled={saving}>
@@ -655,10 +717,24 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                 <tbody>
                   {filteredItems.map((item) => {
                     const tags = parseTags(item.tags);
+                    const isLowStock = item.trackInventory && item.stockQuantity <= item.lowStockThreshold;
+                    const isZeroStock = item.trackInventory && item.stockQuantity === 0;
                     return (
                       <tr key={item.id} className={cn("border-b border-brand-mist/50 last:border-0", !item.isAvailable && "opacity-60")}>
                         <td className="py-2.5 pr-3">
-                          <div className="font-medium text-brand-green-dark">{item.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-brand-green-dark">{item.name}</span>
+                            {item.trackInventory ? (
+                              <span className={cn(
+                                "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                                isZeroStock ? "bg-red-100 text-red-700" :
+                                isLowStock ? "bg-orange-100 text-orange-700" :
+                                "bg-green-100 text-green-700"
+                              )}>
+                                {item.stockQuantity} in stock
+                              </span>
+                            ) : null}
+                          </div>
                           {item.nameKannada && <div className="text-xs text-brand-green-dark/50">{item.nameKannada}</div>}
                         </td>
                         <td className="py-2.5 pr-3 text-xs text-brand-green-dark/60">{item.categoryName}</td>
@@ -699,6 +775,23 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                         </td>
                         <td className="py-2.5 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {item.trackInventory && (
+                              addStockItemId === item.id ? (
+                                <div className="flex items-center gap-1">
+                                  <Input type="number" min="1" value={addStockQty} onChange={(e) => setAddStockQty(e.target.value)} className="h-7 w-16 text-xs" placeholder="Qty" autoFocus />
+                                  <button type="button" onClick={() => handleAddStock(item.id)} className="rounded p-1 text-green-600 hover:bg-green-50" title="Confirm" disabled={saving}>
+                                    <CheckIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button type="button" onClick={() => { setAddStockItemId(null); setAddStockQty(""); }} className="rounded p-1 text-gray-400 hover:bg-gray-50" title="Cancel">
+                                    <XIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button type="button" onClick={() => { setAddStockItemId(item.id); setAddStockQty(""); }} className="rounded p-1 text-brand-green-dark/40 hover:bg-green-50 hover:text-green-600" title="Add Stock">
+                                  <PackagePlusIcon className="h-3.5 w-3.5" />
+                                </button>
+                              )
+                            )}
                             <button type="button" onClick={() => toggleItemAvailability(item)} className="rounded p-1 text-brand-green-dark/40 hover:bg-brand-sand/50 hover:text-brand-green-dark" title="Toggle availability">
                               {item.isAvailable ? <ToggleRightIcon className="h-4 w-4 text-green-600" /> : <ToggleLeftIcon className="h-4 w-4" />}
                             </button>

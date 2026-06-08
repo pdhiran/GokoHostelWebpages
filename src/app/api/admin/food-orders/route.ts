@@ -24,6 +24,8 @@ import {
   getSetting,
   getOrdersForCleanup,
   deleteOrderItemsByOrderIds,
+  decrementStock,
+  restoreStock,
 } from "@/db/queries";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { getDb } from "@/db";
@@ -133,6 +135,11 @@ export async function POST(req: NextRequest) {
         if (!validStatuses.includes(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
 
         await updateFoodOrderStatus(orderId, status, cancelledReason);
+
+        if (status === "cancelled") {
+          await restoreStock(orderId);
+        }
+
         await addAuditEntry({
           username: actorName,
           action: "food_order_status",
@@ -153,12 +160,17 @@ export async function POST(req: NextRequest) {
           const menuItem = await getMenuItemById(item.menuItemId);
           if (!menuItem) return NextResponse.json({ error: `Menu item #${item.menuItemId} not found` }, { status: 400 });
           if (menuItem.price <= 0) return NextResponse.json({ error: `"${menuItem.name}" has invalid price` }, { status: 400 });
+          const qty = item.quantity || 1;
+          if (menuItem.trackInventory && menuItem.stockQuantity < qty) {
+            const left = menuItem.stockQuantity;
+            return NextResponse.json({ error: left === 0 ? `"${menuItem.name}" is out of stock` : `"${menuItem.name}" only has ${left} left in stock` }, { status: 400 });
+          }
           validatedItems.push({
             menuItemId: menuItem.id,
             itemName: menuItem.name,
             itemPrice: menuItem.price,
-            quantity: item.quantity || 1,
-            lineTotal: menuItem.price * (item.quantity || 1),
+            quantity: qty,
+            lineTotal: menuItem.price * qty,
           });
         }
 
@@ -210,6 +222,11 @@ export async function POST(req: NextRequest) {
         }
 
         await addFoodOrderItems(validatedItems.map((v) => ({ orderId: order.id, ...v })));
+
+        for (const v of validatedItems) {
+          await decrementStock(v.menuItemId, v.quantity);
+        }
+
         await addAuditEntry({
           username: actorName,
           action: "food_order_placed",

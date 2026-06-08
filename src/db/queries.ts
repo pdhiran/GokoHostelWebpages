@@ -447,6 +447,9 @@ export async function getAvailableMenuItems() {
     imageUrl: menuItems.imageUrl,
     isAvailable: menuItems.isAvailable,
     displayOrder: menuItems.displayOrder,
+    trackInventory: menuItems.trackInventory,
+    stockQuantity: menuItems.stockQuantity,
+    lowStockThreshold: menuItems.lowStockThreshold,
   }).from(menuItems)
     .innerJoin(menuCategories, eq(menuItems.categoryId, menuCategories.id))
     .where(and(eq(menuItems.isAvailable, 1), eq(menuCategories.isActive, 1)))
@@ -487,6 +490,7 @@ export async function addMenuItem(data: {
   categoryId: number; name: string; nameKannada?: string; description?: string;
   price: number; priceText?: string; tags?: string; ingredients?: string;
   imageUrl?: string; isAvailable?: number; displayOrder?: number;
+  trackInventory?: number; stockQuantity?: number; lowStockThreshold?: number;
 }) {
   const db = getDb();
   return db.insert(menuItems).values({
@@ -501,6 +505,9 @@ export async function addMenuItem(data: {
     imageUrl: data.imageUrl || "",
     isAvailable: data.isAvailable ?? 1,
     displayOrder: data.displayOrder || 0,
+    trackInventory: data.trackInventory ?? 0,
+    stockQuantity: data.stockQuantity ?? 0,
+    lowStockThreshold: data.lowStockThreshold ?? 5,
   });
 }
 
@@ -733,6 +740,62 @@ export async function deleteFoodOrderItem(id: number) {
 export async function getActiveCheckins() {
   const db = getDb();
   return db.select().from(checkins).where(eq(checkins.status, "active"));
+}
+
+// --- Inventory ---
+
+export async function decrementStock(menuItemId: number, quantity: number) {
+  const db = getDb();
+  const item = await db.select().from(menuItems).where(eq(menuItems.id, menuItemId)).limit(1);
+  if (!item[0] || !item[0].trackInventory) return;
+
+  const newQty = Math.max(0, item[0].stockQuantity - quantity);
+  const updates: any = { stockQuantity: newQty };
+
+  if (newQty === 0) {
+    updates.isAvailable = 0;
+  }
+
+  await db.update(menuItems).set(updates).where(eq(menuItems.id, menuItemId));
+}
+
+export async function addStock(menuItemId: number, quantity: number) {
+  const db = getDb();
+  const item = await db.select().from(menuItems).where(eq(menuItems.id, menuItemId)).limit(1);
+  if (!item[0]) return;
+
+  const newQty = item[0].stockQuantity + quantity;
+  await db.update(menuItems).set({
+    stockQuantity: newQty,
+    isAvailable: 1,
+  }).where(eq(menuItems.id, menuItemId));
+}
+
+export async function restoreStock(orderId: number) {
+  const db = getDb();
+  const items = await db.select().from(foodOrderItems)
+    .where(and(eq(foodOrderItems.orderId, orderId), sql`${foodOrderItems.status} != 'voided'`));
+
+  for (const item of items) {
+    const menuItem = await db.select().from(menuItems).where(eq(menuItems.id, item.menuItemId)).limit(1);
+    if (!menuItem[0] || !menuItem[0].trackInventory) continue;
+
+    const newQty = menuItem[0].stockQuantity + item.quantity;
+    await db.update(menuItems).set({
+      stockQuantity: newQty,
+      isAvailable: 1,
+    }).where(eq(menuItems.id, item.menuItemId));
+  }
+}
+
+export async function getLowStockItems() {
+  const db = getDb();
+  return db.select().from(menuItems)
+    .where(and(
+      eq(menuItems.trackInventory, 1),
+      sql`${menuItems.stockQuantity} <= ${menuItems.lowStockThreshold}`
+    ))
+    .orderBy(menuItems.stockQuantity);
 }
 
 // --- Data Retention / Cleanup ---

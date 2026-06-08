@@ -8,6 +8,7 @@ import {
   createFoodOrder,
   addFoodOrderItems,
   getActiveCheckins,
+  decrementStock,
 } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 
@@ -133,6 +134,13 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+      if (menuItem.trackInventory && menuItem.stockQuantity < item.quantity) {
+        const left = menuItem.stockQuantity;
+        return NextResponse.json(
+          { error: left === 0 ? `"${menuItem.name}" is out of stock` : `"${menuItem.name}" only has ${left} left in stock` },
+          { status: 400 }
+        );
+      }
       validatedItems.push({
         menuItemId: menuItem.id,
         itemName: menuItem.name,
@@ -227,6 +235,11 @@ export async function POST(req: NextRequest) {
         lineTotal: v.lineTotal,
       }))
     );
+
+    // 8b. Decrement stock for inventory-tracked items
+    for (const v of validatedItems) {
+      await decrementStock(v.menuItemId, v.quantity);
+    }
 
     // 9. Return success
     return NextResponse.json({

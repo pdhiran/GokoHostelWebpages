@@ -58,6 +58,9 @@ interface MenuItem {
   isAvailable: number;
   categoryId: number;
   tags: string;
+  trackInventory: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
 }
 
 interface KitchenCategory {
@@ -316,6 +319,11 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     [menuItems]
   );
 
+  const lowStockItems = useMemo(
+    () => menuItems.filter((m) => m.trackInventory && m.stockQuantity <= m.lowStockThreshold && m.stockQuantity > 0),
+    [menuItems]
+  );
+
   const categoryMenuItems = useMemo(
     () => selectedMenuCategory ? menuItems.filter((m) => m.categoryId === selectedMenuCategory) : [],
     [menuItems, selectedMenuCategory]
@@ -455,6 +463,29 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                   )}
                 </h3>
               </div>
+              {/* Low Stock Alert */}
+              {lowStockItems.length > 0 && (
+                <div className="mb-4 rounded-lg border border-orange-500/30 bg-orange-500/10 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-orange-400">
+                    <AlertTriangleIcon className="h-4 w-4" />
+                    Low Stock ({lowStockItems.length})
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {lowStockItems.map((item) => (
+                      <span
+                        key={item.id}
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          item.stockQuantity <= 1
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-orange-500/20 text-orange-400"
+                        }`}
+                      >
+                        {item.name} — <span className="font-bold">{item.stockQuantity}</span> left
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* Category selector */}
               <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
                 {kitchenCategories.map((cat) => {
@@ -485,12 +516,14 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               </div>
               {/* Items in selected category */}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {categoryMenuItems.map((item) => (
+                {categoryMenuItems.map((item) => {
+                  const isLow = item.trackInventory && item.stockQuantity <= item.lowStockThreshold;
+                  return (
                   <div
                     key={item.id}
                     className={`flex items-center justify-between rounded-lg px-3 py-2 ${
                       item.isAvailable
-                        ? "bg-slate-700/50"
+                        ? isLow ? "bg-orange-900/20 ring-1 ring-orange-500/30" : "bg-slate-700/50"
                         : "bg-red-900/20 ring-1 ring-red-500/30"
                     }`}
                   >
@@ -499,6 +532,14 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                       {item.nameKannada && (
                         <p className="truncate text-xs text-slate-400">
                           {item.nameKannada}
+                        </p>
+                      )}
+                      {item.trackInventory && (
+                        <p className={`text-xs font-medium ${
+                          item.stockQuantity === 0 ? "text-red-400" :
+                          isLow ? "text-orange-400" : "text-slate-400"
+                        }`}>
+                          Stock: {item.stockQuantity}
                         </p>
                       )}
                     </div>
@@ -514,7 +555,8 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                       {item.isAvailable ? "Available" : "Out of Stock"}
                     </button>
                   </div>
-                ))}
+                  );
+                })}
                 {categoryMenuItems.length === 0 && (
                   <p className="col-span-full py-4 text-center text-sm text-slate-500">
                     {kitchenCategories.length === 0 ? "No categories found" : "No items in this category"}
