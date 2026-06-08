@@ -192,7 +192,7 @@ export default function AdminPage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium uppercase tracking-wide text-brand-green-dark/50">
-              {role}
+              {username ? `${username} · ${role}` : role}
             </span>
             {username && (
               <Button
