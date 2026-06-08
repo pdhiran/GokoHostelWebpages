@@ -1120,7 +1120,7 @@ function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
 
   return (
     <div className="mt-1.5 rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-2">
-      <p className="text-xs font-medium text-red-700">Void "{itemName}"?</p>
+      <p className="text-xs font-medium text-red-700">Void &quot;{itemName}&quot;?</p>
       <div className="flex flex-wrap gap-1">
         {VOID_REASONS.map((r) => (
           <button
