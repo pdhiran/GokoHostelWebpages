@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,8 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [section, setSection] = useState<AdminSection>("dashboard");
   const [selectedRole, setSelectedRole] = useState<"admin" | "manager" | null>(null);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [autoLogging, setAutoLogging] = useState(true);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [cpCurrent, setCpCurrent] = useState("");
   const [cpNew, setCpNew] = useState("");
@@ -49,12 +51,46 @@ export default function AdminPage() {
       setCpSuccess("Password changed successfully!");
       setCpCurrent(""); setCpNew(""); setCpConfirm("");
       setPassword(cpNew);
+      if (rememberMe) {
+        localStorage.setItem("gokoAdminSession", JSON.stringify({ password: cpNew, username: username || "" }));
+      }
     } catch {
       setCpError("Something went wrong");
     } finally {
       setCpLoading(false);
     }
   };
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("gokoAdminSession");
+      if (saved) {
+        const session = JSON.parse(saved);
+        if (session.password) {
+          setPassword(session.password);
+          setUsername(session.username || "");
+          setRememberMe(true);
+          const body: any = { password: session.password, action: "list" };
+          if (session.username) body.username = session.username;
+          fetch("/api/admin/checkins", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }).then(async (res) => {
+            if (res.ok) {
+              const data = await res.json();
+              setRole(data.role);
+            } else {
+              localStorage.removeItem("gokoAdminSession");
+            }
+            setAutoLogging(false);
+          }).catch(() => { setAutoLogging(false); });
+          return;
+        }
+      }
+    } catch {}
+    setAutoLogging(false);
+  }, []);
 
   const login = async () => {
     setLoading(true);
@@ -72,12 +108,32 @@ export default function AdminPage() {
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setRole(data.role);
+      if (rememberMe) {
+        localStorage.setItem("gokoAdminSession", JSON.stringify({ password, username: username || "" }));
+      }
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  const handleLogout = () => {
+    setRole(null);
+    setPassword("");
+    setUsername("");
+    setSection("dashboard");
+    setSelectedRole(null);
+    localStorage.removeItem("gokoAdminSession");
+  };
+
+  if (autoLogging) {
+    return (
+      <section className="flex min-h-screen items-center justify-center bg-brand-sand">
+        <p className="text-sm text-brand-green-dark/50">Loading...</p>
+      </section>
+    );
+  }
 
   if (!role) {
     return (
@@ -140,6 +196,10 @@ export default function AdminPage() {
                 />
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
+              <label className="flex items-center gap-2 text-sm text-brand-green-dark/70">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-brand-mist" />
+                Keep me signed in
+              </label>
               <Button type="submit" variant="cta" className="w-full" disabled={loading || !password || (selectedRole === "manager" && !username)}>
                 {loading ? "Verifying..." : "Login"}
               </Button>
@@ -210,7 +270,7 @@ export default function AdminPage() {
               type="button"
               variant="ghost"
               size="icon-sm"
-              onClick={() => { setRole(null); setPassword(""); setSection("dashboard"); }}
+              onClick={handleLogout}
             >
               <LogOutIcon className="h-4 w-4" />
             </Button>
