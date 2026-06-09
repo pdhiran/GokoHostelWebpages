@@ -323,19 +323,15 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         const data = await res.json();
         setCart([]);
         setSpecialInstructions("");
-        if (guestType === "table") {
-          // Keep table selected, store session ID for grouping future orders
-          if (!tableSessionId && tablePhone) setTableSessionId(tablePhone);
-          setSuccessMsg(`Order ${data.orderNumber} placed! Total: ₹${(data.total / 100).toFixed(0)}`);
+        setSelectedGuest(null);
+        setWalkinName("");
+        setWalkinPhone("");
+        setTableGuestName("");
+        setSelectedTable(null);
+        if (onOrderPlaced) {
+          onOrderPlaced();
         } else {
-          setSelectedGuest(null);
-          setWalkinName("");
-          setWalkinPhone("");
-          if (onOrderPlaced) {
-            onOrderPlaced();
-          } else {
-            setSuccessMsg(`Order ${data.orderNumber} placed! Total: ₹${(data.total / 100).toFixed(0)}`);
-          }
+          setSuccessMsg(`Order ${data.orderNumber} placed! Total: ₹${(data.total / 100).toFixed(0)}`);
         }
       } else {
         const data = await res.json().catch(() => ({}));
