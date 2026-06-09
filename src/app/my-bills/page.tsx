@@ -252,7 +252,7 @@ function MyBillsContent() {
                   {unpaidTotal > 0 && (
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-amber-500" />
-                      <span className="text-sm font-semibold text-amber-700">₹{Math.round(unpaidTotal / 100)} unpaid</span>
+                      <span className="text-sm font-semibold text-amber-700">₹{Math.round(totalSpent / 100) - Math.round(paidTotal / 100)} unpaid</span>
                     </div>
                   )}
                   {unpaidTotal === 0 && paidTotal > 0 && (
@@ -268,7 +268,7 @@ function MyBillsContent() {
                 <div className="mb-3 flex items-center justify-between px-1">
                   <h2 className="text-lg font-bold text-white">Unpaid Bills</h2>
                   <span className="rounded-full bg-amber-400/90 px-3 py-1 text-sm font-bold text-amber-900">
-                    ₹{Math.round(unpaidTotal / 100)}
+                    ₹{Math.round(totalSpent / 100) - Math.round(paidTotal / 100)}
                   </span>
                 </div>
                 <div className="space-y-3">

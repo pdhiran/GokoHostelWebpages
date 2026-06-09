@@ -1821,7 +1821,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
                   <p className="text-xs text-green-600">{fmt(group.paidAmount)} paid</p>
                 )}
                 {group.pendingAmount > 0 && (
-                  <p className="text-xs font-semibold text-red-600">{fmt(group.pendingAmount)} pending</p>
+                  <p className="text-xs font-semibold text-red-600">₹{Math.round(group.totalAmount / 100) - Math.round(group.paidAmount / 100)} pending</p>
                 )}
                 {allPaid && (
                   <p className="text-xs font-semibold text-green-600">All paid</p>
