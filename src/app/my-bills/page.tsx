@@ -246,8 +246,8 @@ function MyBillsContent() {
               </button>
             </div>
 
-            {/* Total Summary */}
-            {(unpaidOrders.length > 0 || paidOrders.length > 0) && (
+            {/* Total Summary - current stay only */}
+            {(currentUnpaid.length > 0 || currentPaid.length > 0) && (
               <div className="mb-4 rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-600">Total Spent</span>
