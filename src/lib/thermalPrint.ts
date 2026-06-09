@@ -178,7 +178,7 @@ export interface OrderTicketData {
   guestName: string;
   guestType: string;
   roomInfo?: string;
-  items: Array<{ name: string; quantity: number }>;
+  items: Array<{ name: string; nameKannada?: string; quantity: number }>;
   specialInstructions?: string;
   createdAt: string;
 }
@@ -268,6 +268,9 @@ export async function printOrderTicket(data: OrderTicketData): Promise<void> {
     parts.push(BOLD_ON);
     parts.push(line(`  ${item.quantity}x ${item.name}`));
     parts.push(BOLD_OFF);
+    if (item.nameKannada) {
+      parts.push(line(`     ${item.nameKannada}`));
+    }
   }
 
   if (data.specialInstructions) {

@@ -403,10 +403,10 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
         guestName: order.guestName,
         guestType: order.guestType,
         roomInfo: order.roomInfo || undefined,
-        items: order.items.filter(i => i.status !== "voided").map(i => ({
-          name: i.itemName,
-          quantity: i.quantity,
-        })),
+        items: order.items.filter(i => i.status !== "voided").map(i => {
+          const mi = menuItems.find(m => m.id === i.menuItemId);
+          return { name: i.itemName, nameKannada: mi?.nameKannada || undefined, quantity: i.quantity };
+        }),
         specialInstructions: order.specialInstructions || undefined,
         createdAt: order.createdAt,
       });
