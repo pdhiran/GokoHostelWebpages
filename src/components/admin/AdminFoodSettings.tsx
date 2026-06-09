@@ -473,7 +473,16 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             <div className="sm:col-span-2">
               <button
                 type="button"
-                onClick={() => updateField("food_confirm_with_guest", settings.food_confirm_with_guest === "true" ? "false" : "true")}
+                onClick={async () => {
+                  const newValue = settings.food_confirm_with_guest === "true" ? "false" : "true";
+                  setSaving(true);
+                  try {
+                    const res = await apiCall({ action: "updateFoodSettings", settings: { food_confirm_with_guest: newValue } });
+                    if (res.ok) { setSettings((prev) => ({ ...prev, food_confirm_with_guest: newValue })); setSavedSettings((prev) => ({ ...prev, food_confirm_with_guest: newValue })); }
+                    else { const d = await res.json().catch(() => ({})); alert(d.error || "Failed to toggle"); }
+                  } finally { setSaving(false); }
+                }}
+                disabled={saving}
                 className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", settings.food_confirm_with_guest === "true" ? "bg-brand-green" : "bg-brand-green-dark/20")}
               >
                 <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", settings.food_confirm_with_guest === "true" ? "translate-x-5" : "translate-x-0.5")} />
@@ -511,7 +520,15 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             <div className="sm:col-span-2">
               <button
                 type="button"
-                onClick={() => updateField("food_kannada_kitchen_print", settings.food_kannada_kitchen_print === "true" ? "false" : "true")}
+                onClick={async () => {
+                  const newValue = settings.food_kannada_kitchen_print === "true" ? "false" : "true";
+                  setSaving(true);
+                  try {
+                    const res = await apiCall({ action: "updateFoodSettings", settings: { food_kannada_kitchen_print: newValue } });
+                    if (res.ok) { setSettings((prev) => ({ ...prev, food_kannada_kitchen_print: newValue })); setSavedSettings((prev) => ({ ...prev, food_kannada_kitchen_print: newValue })); }
+                  } finally { setSaving(false); }
+                }}
+                disabled={saving}
                 className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", settings.food_kannada_kitchen_print === "true" ? "bg-brand-green" : "bg-brand-green-dark/20")}
               >
                 <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", settings.food_kannada_kitchen_print === "true" ? "translate-x-5" : "translate-x-0.5")} />
@@ -528,7 +545,15 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             <div className="sm:col-span-2">
               <button
                 type="button"
-                onClick={() => updateField("food_kannada_kitchen_display", settings.food_kannada_kitchen_display === "true" ? "false" : "true")}
+                onClick={async () => {
+                  const newValue = settings.food_kannada_kitchen_display === "true" ? "false" : "true";
+                  setSaving(true);
+                  try {
+                    const res = await apiCall({ action: "updateFoodSettings", settings: { food_kannada_kitchen_display: newValue } });
+                    if (res.ok) { setSettings((prev) => ({ ...prev, food_kannada_kitchen_display: newValue })); setSavedSettings((prev) => ({ ...prev, food_kannada_kitchen_display: newValue })); }
+                  } finally { setSaving(false); }
+                }}
+                disabled={saving}
                 className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", settings.food_kannada_kitchen_display === "true" ? "bg-brand-green" : "bg-brand-green-dark/20")}
               >
                 <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", settings.food_kannada_kitchen_display === "true" ? "translate-x-5" : "translate-x-0.5")} />
