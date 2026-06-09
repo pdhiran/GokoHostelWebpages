@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "placeOrderForGuest": {
-        const { guestType, checkinId, guestName, guestPhone, roomInfo, items, specialInstructions } = rest;
+        const { guestType, checkinId, guestName, guestPhone, roomInfo, existingOrderId, items, specialInstructions } = rest;
         if (!guestName || !items || !Array.isArray(items) || items.length === 0) {
           return NextResponse.json({ error: "guestName and items required" }, { status: 400 });
         }
@@ -198,16 +198,30 @@ export async function POST(req: NextRequest) {
         // For table orders, check for existing unpaid order and append items
         if (isTableOrder) {
           const db = getDb();
-          const trimmedRoom = roomInfo.trim();
-          const existingOrders = await db.select().from(foodOrders)
-            .where(and(
-              sql`TRIM(${foodOrders.roomInfo}) = ${trimmedRoom}`,
-              eq(foodOrders.guestType, "walkin"),
-              sql`${foodOrders.paymentStatus} != 'paid'`,
-              sql`${foodOrders.status} != 'cancelled'`
-            ))
-            .orderBy(desc(foodOrders.createdAt))
-            .limit(1);
+          let existingOrders: any[] = [];
+
+          if (existingOrderId) {
+            existingOrders = await db.select().from(foodOrders)
+              .where(and(
+                eq(foodOrders.id, existingOrderId),
+                sql`${foodOrders.paymentStatus} != 'paid'`,
+                sql`${foodOrders.status} != 'cancelled'`
+              ))
+              .limit(1);
+          }
+
+          if (existingOrders.length === 0) {
+            const trimmedRoom = roomInfo.trim();
+            existingOrders = await db.select().from(foodOrders)
+              .where(and(
+                sql`TRIM(${foodOrders.roomInfo}) = ${trimmedRoom}`,
+                eq(foodOrders.guestType, "walkin"),
+                sql`${foodOrders.paymentStatus} != 'paid'`,
+                sql`${foodOrders.status} != 'cancelled'`
+              ))
+              .orderBy(desc(foodOrders.createdAt))
+              .limit(1);
+          }
 
           if (existingOrders.length > 0) {
             const existing = existingOrders[0];

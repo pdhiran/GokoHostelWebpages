@@ -107,6 +107,7 @@ interface PrefillGuest {
   guestName: string;
   guestPhone?: string;
   roomInfo?: string;
+  existingOrderId?: number;
 }
 
 export function AdminFoodOrders({ password, username, role }: { password: string; username?: string; role: Role }) {
@@ -170,6 +171,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
   const [cafeTableCount, setCafeTableCount] = useState(0);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [tableGuestName, setTableGuestName] = useState("");
+  const [existingOrderId, setExistingOrderId] = useState<number | undefined>(prefillGuest?.existingOrderId);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [guestSearch, setGuestSearch] = useState("");
@@ -213,7 +215,19 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
           setGuests(data.guests || []);
           if (prefillGuest?.guestType === "hostel" && prefillGuest.checkinId) {
             const match = (data.guests as Guest[]).find((g) => g.id === prefillGuest.checkinId);
-            if (match) setSelectedGuest(match);
+            if (match) {
+              setSelectedGuest(match);
+            } else {
+              // Checked-out guest: create a synthetic guest entry from prefill data
+              setSelectedGuest({
+                id: prefillGuest.checkinId,
+                name: prefillGuest.guestName,
+                contact: prefillGuest.guestPhone || "",
+                arrivalDate: "",
+                stayingDays: "",
+                bedInfo: prefillGuest.roomInfo || "",
+              });
+            }
             onPrefillConsumed();
           }
         }
@@ -229,6 +243,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         setSelectedTable(parseInt(tableNum, 10));
         setTableGuestName(prefillGuest.guestName || `Table ${tableNum}`);
       }
+      if (prefillGuest.existingOrderId) setExistingOrderId(prefillGuest.existingOrderId);
       onPrefillConsumed();
     }
   }, [prefillGuest]);
@@ -297,6 +312,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         guestName: name,
         guestPhone: guestType === "walkin" ? walkinPhone.trim() : undefined,
         roomInfo: guestType === "hostel" ? selectedGuest?.bedInfo : guestType === "table" ? `Table ${selectedTable}` : undefined,
+        existingOrderId: guestType === "table" ? existingOrderId : undefined,
         items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
         specialInstructions,
       });
@@ -309,6 +325,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         setWalkinPhone("");
         setTableGuestName("");
         setSelectedTable(null);
+        setExistingOrderId(undefined);
         if (onOrderPlaced) {
           onOrderPlaced();
         } else {
@@ -1200,12 +1217,14 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
                       ? parseInt(selectedGroup.key.replace("hostel_", ""), 10)
                       : undefined;
                     const isTable = selectedGroup.roomInfo && /^Table \d+$/i.test(selectedGroup.roomInfo);
+                    const tableOrderId = isTable && selectedGroupOrders.length > 0 ? selectedGroupOrders[0].id : undefined;
                     onOrderMore({
                       guestType: isTable ? "table" : selectedGroup.guestType,
                       checkinId,
                       guestName: selectedGroup.guestName,
                       guestPhone: selectedGroup.contactInfo || undefined,
                       roomInfo: selectedGroup.roomInfo || undefined,
+                      existingOrderId: tableOrderId,
                     });
                     setSelectedGroupKey(null);
                   }}
