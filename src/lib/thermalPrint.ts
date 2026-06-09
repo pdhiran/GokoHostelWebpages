@@ -210,13 +210,6 @@ export async function printFoodBill(data: BillData): Promise<void> {
     parts.push(line(`Room: ${data.roomInfo}`));
   }
 
-  const badge = data.guestType === "hostel" ? "Goko Guest" : "Walk-in";
-  parts.push(line(`Type: ${badge}`));
-
-  if (data.guestPhone) {
-    parts.push(line(`Phone: ${data.guestPhone}`));
-  }
-
   parts.push(line(separator("-")));
   parts.push(BOLD_ON, line(twoColumn("Item       Qty", "Amount")), BOLD_OFF);
   parts.push(line(separator("-")));
@@ -266,14 +259,8 @@ export async function printOrderTicket(data: OrderTicketData): Promise<void> {
     line(separator("=")),
     ALIGN_LEFT,
     line(`Guest: ${data.guestName}`),
-    line(`Type: ${data.guestType === "hostel" ? "Goko Guest" : "Walk-in"}`),
+    line(`Time: ${time}`),
   ];
-
-  if (data.roomInfo) {
-    parts.push(line(`Room: ${data.roomInfo}`));
-  }
-
-  parts.push(line(`Time: ${time}`));
   parts.push(line(separator("-")));
   parts.push(BOLD_ON, line("ITEMS:"), BOLD_OFF);
 
