@@ -195,36 +195,33 @@ export async function POST(req: NextRequest) {
         const taxRateStr = await getSetting("food_tax_rate");
         const taxRate = Number(taxRateStr) || 5;
 
-        // For table orders, check for existing unpaid order and append items
-        if (isTableOrder) {
+        // For table orders or explicit order ID, append items to existing order
+        if (existingOrderId || isTableOrder) {
           const db = getDb();
-          let existingOrders: any[] = [];
+          let existing: any = null;
 
           if (existingOrderId) {
-            existingOrders = await db.select().from(foodOrders)
-              .where(and(
-                eq(foodOrders.id, existingOrderId),
-                sql`${foodOrders.paymentStatus} != 'paid'`,
-                sql`${foodOrders.status} != 'cancelled'`
-              ))
-              .limit(1);
+            const rows = await db.select().from(foodOrders).where(eq(foodOrders.id, existingOrderId)).limit(1);
+            if (rows.length > 0 && rows[0].paymentStatus !== "paid" && rows[0].status !== "cancelled") {
+              existing = rows[0];
+            }
           }
 
-          if (existingOrders.length === 0) {
+          if (!existing && isTableOrder) {
             const trimmedRoom = roomInfo.trim();
-            existingOrders = await db.select().from(foodOrders)
+            const rows = await db.select().from(foodOrders)
               .where(and(
-                sql`TRIM(${foodOrders.roomInfo}) = ${trimmedRoom}`,
+                sql`LOWER(TRIM(${foodOrders.roomInfo})) = LOWER(${trimmedRoom})`,
                 eq(foodOrders.guestType, "walkin"),
                 sql`${foodOrders.paymentStatus} != 'paid'`,
                 sql`${foodOrders.status} != 'cancelled'`
               ))
               .orderBy(desc(foodOrders.createdAt))
               .limit(1);
+            if (rows.length > 0) existing = rows[0];
           }
 
-          if (existingOrders.length > 0) {
-            const existing = existingOrders[0];
+          if (existing) {
             await addFoodOrderItems(validatedItems.map((v) => ({ orderId: existing.id, ...v })));
             for (const v of validatedItems) {
               await decrementStock(v.menuItemId, v.quantity);
@@ -241,7 +238,7 @@ export async function POST(req: NextRequest) {
               username: actorName,
               action: "food_order_placed",
               target: `order:${existing.id}`,
-              details: `Added items to ${roomInfo} (${guestName}), new total ₹${(updatedTotal / 100).toFixed(0)}`,
+              details: `Added items to ${roomInfo || `order #${existing.orderNumber}`} (${guestName}), new total ₹${(updatedTotal / 100).toFixed(0)}`,
             });
             return NextResponse.json({ success: true, role, orderId: existing.id, orderNumber: existing.orderNumber, total: updatedTotal });
           }
@@ -604,6 +601,48 @@ export async function POST(req: NextRequest) {
         }));
 
         return NextResponse.json({ role, modifications: formatted });
+      }
+
+      case "addItemsToOrder": {
+        const { orderId, items: addItems } = rest;
+        if (!orderId || !addItems || !Array.isArray(addItems) || addItems.length === 0) {
+          return NextResponse.json({ error: "orderId and items required" }, { status: 400 });
+        }
+        const targetOrder = await getFoodOrderById(orderId);
+        if (!targetOrder) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        if (targetOrder.paymentStatus === "paid") return NextResponse.json({ error: "Cannot add items to a paid order" }, { status: 400 });
+        if (targetOrder.status === "cancelled") return NextResponse.json({ error: "Cannot add items to a cancelled order" }, { status: 400 });
+
+        const addValidated: Array<{ menuItemId: number; itemName: string; itemPrice: number; quantity: number; lineTotal: number }> = [];
+        for (const item of addItems) {
+          const menuItem = await getMenuItemById(item.menuItemId);
+          if (!menuItem) return NextResponse.json({ error: `Menu item #${item.menuItemId} not found` }, { status: 400 });
+          const qty = item.quantity || 1;
+          if (menuItem.trackInventory && menuItem.stockQuantity < qty) {
+            return NextResponse.json({ error: `"${menuItem.name}" only has ${menuItem.stockQuantity} left` }, { status: 400 });
+          }
+          addValidated.push({ menuItemId: menuItem.id, itemName: menuItem.name, itemPrice: menuItem.price, quantity: qty, lineTotal: menuItem.price * qty });
+        }
+
+        await addFoodOrderItems(addValidated.map((v) => ({ orderId: targetOrder.id, ...v })));
+        for (const v of addValidated) await decrementStock(v.menuItemId, v.quantity);
+
+        const allOrderItems = await getFoodOrderItems(targetOrder.id);
+        const active = allOrderItems.filter(i => i.status !== "voided");
+        const newSub = active.reduce((s, i) => s + i.lineTotal, 0);
+        const addTaxStr = await getSetting("food_tax_rate");
+        const addTaxRate = Number(addTaxStr) || 5;
+        const newTax = Math.round((newSub * addTaxRate) / 100);
+        const newTotal = newSub + newTax;
+        await updateFoodOrder(targetOrder.id, { subtotal: newSub, tax: newTax, total: newTotal });
+
+        await addAuditEntry({
+          username: actorName,
+          action: "food_order_placed",
+          target: `order:${targetOrder.id}`,
+          details: `Added ${addValidated.length} item(s) to order ${targetOrder.orderNumber}, new total ₹${(newTotal / 100).toFixed(0)}`,
+        });
+        return NextResponse.json({ success: true, role, orderId: targetOrder.id, orderNumber: targetOrder.orderNumber, total: newTotal });
       }
 
       case "getGuestAllOrders": {

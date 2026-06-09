@@ -305,17 +305,24 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
 
     setSubmitting(true);
     try {
-      const res = await apiCall({
-        action: "placeOrderForGuest",
-        guestType: guestType === "table" ? "walkin" : guestType,
-        checkinId: guestType === "hostel" ? selectedGuest?.id : undefined,
-        guestName: name,
-        guestPhone: guestType === "walkin" ? walkinPhone.trim() : undefined,
-        roomInfo: guestType === "hostel" ? selectedGuest?.bedInfo : guestType === "table" ? `Table ${selectedTable}` : undefined,
-        existingOrderId: guestType === "table" ? existingOrderId : undefined,
-        items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
-        specialInstructions,
-      });
+      // For table "Order More" with existing order, use direct addItemsToOrder
+      const useDirectAdd = guestType === "table" && existingOrderId;
+      const res = useDirectAdd
+        ? await apiCall({
+            action: "addItemsToOrder",
+            orderId: existingOrderId,
+            items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
+          })
+        : await apiCall({
+            action: "placeOrderForGuest",
+            guestType: guestType === "table" ? "walkin" : guestType,
+            checkinId: guestType === "hostel" ? selectedGuest?.id : undefined,
+            guestName: name,
+            guestPhone: guestType === "walkin" ? walkinPhone.trim() : undefined,
+            roomInfo: guestType === "hostel" ? selectedGuest?.bedInfo : guestType === "table" ? `Table ${selectedTable}` : undefined,
+            items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
+            specialInstructions,
+          });
       if (res.ok) {
         const data = await res.json();
         setCart([]);
