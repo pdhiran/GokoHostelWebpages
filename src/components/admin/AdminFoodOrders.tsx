@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon, PencilIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem } from "@/lib/thermalPrint";
@@ -155,8 +155,8 @@ export function AdminFoodOrders({ password, username, role }: { password: string
           <KitchenDashboard password={password} onLogout={() => {}} />
         </div>
       )}
-      {tab === "place" && <PlaceOrder apiCall={apiCall} prefillGuest={prefillGuest} onPrefillConsumed={() => setPrefillGuest(null)} />}
-      {tab === "summary" && <OrderSummary apiCall={apiCall} onOrderMore={(guest) => { setPrefillGuest(guest); setTab("place"); }} />}
+      {tab === "place" && <PlaceOrder apiCall={apiCall} prefillGuest={prefillGuest} onPrefillConsumed={() => setPrefillGuest(null)} onOrderPlaced={() => setTab("summary")} />}
+      {tab === "summary" && <OrderSummary apiCall={apiCall} onOrderMore={(guest) => { setPrefillGuest(guest); setTab("place"); }} onAddNewOrder={() => setTab("place")} />}
       {tab === "combined" && <CombinedBill apiCall={apiCall} />}
       {tab === "payment" && <PaymentSummary apiCall={apiCall} />}
     </div>
@@ -165,8 +165,11 @@ export function AdminFoodOrders({ password, username, role }: { password: string
 
 // ─── Place Order ─────────────────────────────────────────────────────────────
 
-function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (body: any) => Promise<Response>; prefillGuest: PrefillGuest | null; onPrefillConsumed: () => void }) {
-  const [guestType, setGuestType] = useState<"hostel" | "walkin">(prefillGuest?.guestType || "hostel");
+function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }: { apiCall: (body: any) => Promise<Response>; prefillGuest: PrefillGuest | null; onPrefillConsumed: () => void; onOrderPlaced?: () => void }) {
+  const [guestType, setGuestType] = useState<"hostel" | "walkin" | "table">(prefillGuest?.guestType || "hostel");
+  const [cafeTableCount, setCafeTableCount] = useState(6);
+  const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const [tableGuestName, setTableGuestName] = useState("");
   const [guests, setGuests] = useState<Guest[]>([]);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [guestSearch, setGuestSearch] = useState("");
@@ -182,15 +185,21 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
   const [error, setError] = useState("");
   const [loadingMenu, setLoadingMenu] = useState(true);
   const [menuSearch, setMenuSearch] = useState("");
+  const [confirmWithGuest, setConfirmWithGuest] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const cartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     (async () => {
-      const res = await apiCall({ action: "getMenu" });
-      if (res.ok) {
-        const data = await res.json();
+      const menuRes = await apiCall({ action: "getMenu" });
+      if (menuRes.ok) {
+        const data = await menuRes.json();
         setCategories(data.categories || []);
         setMenuItems(data.items || []);
         if (data.categories?.length > 0) setSelectedCategory(data.categories[0].id);
+        const tables = parseInt(data.cafeTableCount) || 0;
+        if (tables > 0) setCafeTableCount(tables);
+        setConfirmWithGuest(data.confirmWithGuest === true);
       }
       setLoadingMenu(false);
     })();
@@ -259,31 +268,40 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
   const submit = async () => {
     setError("");
     setSuccessMsg("");
-    const name = guestType === "hostel" ? selectedGuest?.name : walkinName;
-    if (!name) { setError("Please select/enter a guest"); return; }
+    let name: string | undefined;
+    if (guestType === "hostel") name = selectedGuest?.name;
+    else if (guestType === "table") name = tableGuestName || (selectedTable ? `Table ${selectedTable}` : undefined);
+    else name = walkinName;
+    if (!name) { setError(guestType === "table" ? "Please select a table" : "Please select/enter a guest"); return; }
     if (guestType === "walkin" && !walkinPhone.trim()) { setError("Phone number is required for walk-in orders"); return; }
+    if (guestType === "table" && !selectedTable) { setError("Please select a table"); return; }
     if (cart.length === 0) { setError("Cart is empty"); return; }
 
     setSubmitting(true);
     try {
       const res = await apiCall({
         action: "placeOrderForGuest",
-        guestType,
+        guestType: guestType === "table" ? "walkin" : guestType,
         checkinId: guestType === "hostel" ? selectedGuest?.id : undefined,
         guestName: name,
         guestPhone: guestType === "walkin" ? walkinPhone.trim() : undefined,
-        roomInfo: guestType === "hostel" ? selectedGuest?.bedInfo : undefined,
+        roomInfo: guestType === "hostel" ? selectedGuest?.bedInfo : guestType === "table" ? `Table ${selectedTable}` : undefined,
         items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
         specialInstructions,
       });
       if (res.ok) {
         const data = await res.json();
-        setSuccessMsg(`Order ${data.orderNumber} placed! Total: ₹${(data.total / 100).toFixed(0)}`);
         setCart([]);
         setSpecialInstructions("");
         setSelectedGuest(null);
         setWalkinName("");
         setWalkinPhone("");
+        setTableGuestName("");
+        if (onOrderPlaced) {
+          onOrderPlaced();
+        } else {
+          setSuccessMsg(`Order ${data.orderNumber} placed! Total: ₹${(data.total / 100).toFixed(0)}`);
+        }
       } else {
         const data = await res.json();
         setError(data.error || "Failed to place order");
@@ -300,26 +318,67 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
       <h3 className="font-display text-lg font-bold text-brand-green-dark">Place Order</h3>
 
       {/* Guest Type Toggle */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => { setGuestType("hostel"); setSelectedGuest(null); }}
+          onClick={() => { setGuestType("hostel"); setSelectedGuest(null); setSelectedTable(null); }}
           className={cn("rounded-lg px-4 py-2 text-sm font-medium transition-colors", guestType === "hostel" ? "bg-brand-green text-white" : "border border-brand-mist text-brand-green-dark/70")}
         >
           🏨 Hostel Guest
         </button>
         <button
           type="button"
-          onClick={() => { setGuestType("walkin"); setSelectedGuest(null); }}
+          onClick={() => { setGuestType("walkin"); setSelectedGuest(null); setSelectedTable(null); }}
           className={cn("rounded-lg px-4 py-2 text-sm font-medium transition-colors", guestType === "walkin" ? "bg-brand-green text-white" : "border border-brand-mist text-brand-green-dark/70")}
         >
           🚶 Walk-in
         </button>
+        {cafeTableCount > 0 && (
+          <button
+            type="button"
+            onClick={() => { setGuestType("table"); setSelectedGuest(null); }}
+            className={cn("rounded-lg px-4 py-2 text-sm font-medium transition-colors", guestType === "table" ? "bg-brand-green text-white" : "border border-brand-mist text-brand-green-dark/70")}
+          >
+            🪑 Cafe Table
+          </button>
+        )}
       </div>
 
       {/* Guest Selection */}
       <div className="rounded-xl border border-brand-mist bg-white p-4">
-        {guestType === "hostel" ? (
+        {guestType === "table" ? (
+          <div>
+            <p className="mb-2 text-xs font-medium text-brand-green-dark/70">Select table:</p>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: cafeTableCount }, (_, i) => i + 1).map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => { setSelectedTable(num); setTableGuestName(`Table ${num}`); }}
+                  className={cn(
+                    "flex h-12 w-12 items-center justify-center rounded-lg text-sm font-bold transition-colors",
+                    selectedTable === num
+                      ? "bg-brand-green text-white shadow-md"
+                      : "border border-brand-mist text-brand-green-dark hover:bg-brand-green/[0.06]"
+                  )}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+            {selectedTable && (
+              <div className="mt-3">
+                <label className="mb-0.5 block text-xs font-medium text-brand-green-dark/70">Guest name (optional)</label>
+                <input
+                  className="w-full rounded-lg border border-brand-mist px-3 py-2 text-sm"
+                  placeholder={`Table ${selectedTable}`}
+                  value={tableGuestName}
+                  onChange={(e) => setTableGuestName(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        ) : guestType === "hostel" ? (
           <div>
             <div className="relative">
               <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-brand-green-dark/40" />
@@ -461,7 +520,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
 
       {/* Cart */}
       {cart.length > 0 && (
-        <div className="rounded-xl border border-brand-mist bg-white p-4">
+        <div ref={cartRef} className="rounded-xl border border-brand-mist bg-white p-4">
           <h4 className="mb-2 text-sm font-bold text-brand-green-dark">Cart ({cart.length} items)</h4>
           <div className="space-y-2">
             {cart.map((c) => (
@@ -496,12 +555,66 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed }: { apiCall: (bo
           {successMsg && <p className="mt-2 text-xs text-green-600">{successMsg}</p>}
           <button
             type="button"
-            onClick={submit}
+            onClick={() => { if (confirmWithGuest) setShowConfirmDialog(true); else submit(); }}
             disabled={submitting}
             className="mt-3 w-full rounded-lg bg-brand-green px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-green/90 disabled:opacity-50"
           >
             {submitting ? "Placing..." : `Place Order · ₹${(cartGrandTotal / 100).toFixed(0)}`}
           </button>
+        </div>
+      )}
+
+      {/* Floating Done button - scrolls to cart */}
+      {cart.length > 0 && (
+        <button
+          type="button"
+          onClick={() => cartRef.current?.scrollIntoView({ behavior: "smooth" })}
+          className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg hover:bg-brand-green/90"
+          title="Go to cart"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+        </button>
+      )}
+
+      {/* Confirm with guest dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowConfirmDialog(false)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-base font-bold text-brand-green-dark">Confirmed with guest?</h3>
+            <p className="mt-2 text-sm text-brand-green-dark/70">
+              Please confirm the order items with the guest before placing.
+            </p>
+            <div className="mt-3 rounded-lg bg-brand-sand/50 p-3 text-sm">
+              {cart.map((c) => (
+                <div key={c.menuItemId} className="flex justify-between text-brand-green-dark/70">
+                  <span>{c.quantity}× {c.name}</span>
+                  <span>₹{((c.price * c.quantity) / 100).toFixed(0)}</span>
+                </div>
+              ))}
+              <div className="mt-1 border-t border-brand-mist pt-1 flex justify-between font-bold text-brand-green-dark">
+                <span>Total</span>
+                <span>₹{(cartGrandTotal / 100).toFixed(0)}</span>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowConfirmDialog(false); submit(); }}
+                disabled={submitting}
+                className="flex-1 rounded-lg bg-brand-green px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-green/90 disabled:opacity-50"
+              >
+                {submitting ? "Placing..." : "Yes, Place Order"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowConfirmDialog(false)}
+                className="flex-1 rounded-lg border border-brand-mist px-4 py-2.5 text-sm font-medium text-brand-green-dark/70 hover:bg-brand-sand"
+              >
+                Go Back
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -527,7 +640,7 @@ interface SummaryGroup {
   earliestOrderTime: string;
 }
 
-function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promise<Response>; onOrderMore: (guest: PrefillGuest) => void }) {
+function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body: any) => Promise<Response>; onOrderMore: (guest: PrefillGuest) => void; onAddNewOrder?: () => void }) {
   const [hostelGuests, setHostelGuests] = useState<GuestWithTab[]>([]);
   const [walkinOrders, setWalkinOrders] = useState<Order[]>([]);
   const [hostelOrdersMap, setHostelOrdersMap] = useState<Record<number, Order[]>>({});
@@ -645,7 +758,9 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
   }, [hostelOrdersMap]);
 
   const selectedGroup = selectedGroupKey ? groups.find((g) => g.key === selectedGroupKey) || null : null;
-  const selectedGroupOrders = selectedGroup ? getGroupOrders(selectedGroup) : [];
+  const selectedGroupOrders = selectedGroup
+    ? [...getGroupOrders(selectedGroup)].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    : [];
 
   const selectGroup = async (group: SummaryGroup) => {
     setSelectedGroupKey(group.key);
@@ -928,6 +1043,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-brand-green-dark/50">
+                            {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}{" "}
                             {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
                           </span>
                           <button
@@ -957,7 +1073,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
                                   <span className="line-through text-brand-green-dark/40">
                                     {item.quantity}× {item.itemName}
                                   </span>
-                                  <span className="ml-1.5 inline-block rounded bg-red-100 px-1 py-0.5 text-[10px] font-bold text-red-600">VOIDED</span>
+                                  <span className="ml-1.5 inline-block rounded bg-red-100 px-1 py-0.5 text-[10px] font-bold text-red-600">CANCELLED</span>
                                   {voidedItemReasons[item.id] && (
                                     <span className="ml-1 text-[10px] italic text-red-400">{voidedItemReasons[item.id]}</span>
                                   )}
@@ -988,7 +1104,7 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
                                     type="button"
                                     onClick={() => setVoidingItemId(voidingItemId === item.id ? null : item.id)}
                                     className="flex h-5 w-5 items-center justify-center rounded bg-red-50 text-red-500 hover:bg-red-100"
-                                    title="Void item"
+                                    title="Cancel item"
                                   >
                                     <XIcon className="h-3 w-3" />
                                   </button>
@@ -1012,7 +1128,10 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
                           );
                         })}
                       </div>
-                      <div className="mt-1 text-right text-sm font-semibold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span className="text-[10px] text-brand-green-dark/40">by {order.createdBy || "guest"}</span>
+                        <span className="text-sm font-semibold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</span>
+                      </div>
                     </div>
                     );
                   })}
@@ -1097,13 +1216,24 @@ function OrderSummary({ apiCall, onOrderMore }: { apiCall: (body: any) => Promis
           onClose={() => setPaymentModalGroup(null)}
         />
       )}
+
+      {/* Floating Add New Order button */}
+      {onAddNewOrder && !selectedGroup && (
+        <button
+          type="button"
+          onClick={onAddNewOrder}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-2xl bg-brand-green px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-brand-green/90"
+        >
+          <PlusIcon className="h-5 w-5" /> Add New Order
+        </button>
+      )}
     </div>
   );
 }
 
 // ─── Void Reason Popup ───────────────────────────────────────────────────────
 
-const VOID_REASONS = ["Burnt", "Wrong order", "Guest complaint", "Quality issue", "Other"];
+const VOID_REASONS = ["Burnt", "Wrong order", "Guest complaint", "Quality issue", "Out of stock", "Other"];
 
 function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
   itemName: string;
@@ -1120,7 +1250,7 @@ function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
 
   return (
     <div className="mt-1.5 rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-2">
-      <p className="text-xs font-medium text-red-700">Void &quot;{itemName}&quot;?</p>
+      <p className="text-xs font-medium text-red-700">Cancel &quot;{itemName}&quot;?</p>
       <div className="flex flex-wrap gap-1">
         {VOID_REASONS.map((r) => (
           <button
@@ -1151,7 +1281,7 @@ function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
           disabled={busy || !selectedReason}
           className="rounded-md bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
         >
-          {busy ? "Voiding..." : "Void"}
+          {busy ? "Cancelling..." : "Cancel Item"}
         </button>
         <button
           type="button"
@@ -1636,8 +1766,11 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {filteredGroups.map((group) => {
+      {(() => {
+        const pendingGroups = filteredGroups.filter((g) => g.pendingAmount > 0);
+        const paidGroups = filteredGroups.filter((g) => g.pendingAmount <= 0);
+
+        const renderCard = (group: PaymentGroup) => {
           const allPaid = group.pendingAmount <= 0 && group.paidAmount > 0;
           return (
             <button
@@ -1683,8 +1816,29 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
               </div>
             </button>
           );
-        })}
-      </div>
+        };
+
+        return (
+          <>
+            {pendingGroups.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-600">Pending ({pendingGroups.length})</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {pendingGroups.map(renderCard)}
+                </div>
+              </div>
+            )}
+            {paidGroups.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-green-600">All Paid ({paidGroups.length})</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {paidGroups.map(renderCard)}
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Slide-over Panel */}
       {selectedGroup && (
@@ -2223,9 +2377,9 @@ export function formatAdminModification(mod: OrderModification): string {
     case "item_removed":
       return `${actor} removed ${mod.itemName}`;
     case "item_voided":
-      return `${actor} voided ${mod.itemName}`;
+      return `${actor} cancelled ${mod.itemName}`;
     case "void_item":
-      return `${actor} voided ${mod.itemName}`;
+      return `${actor} cancelled ${mod.itemName}`;
     case "item_added":
       return `${actor} added ${mod.itemName} x${mod.newValue}`;
     case "discount":

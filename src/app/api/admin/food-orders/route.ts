@@ -167,7 +167,8 @@ export async function POST(req: NextRequest) {
         if (!guestName || !items || !Array.isArray(items) || items.length === 0) {
           return NextResponse.json({ error: "guestName and items required" }, { status: 400 });
         }
-        if (guestType === "walkin" && !guestPhone?.trim()) {
+        const isTableOrder = roomInfo && /^Table \d+$/i.test(roomInfo);
+        if (guestType === "walkin" && !guestPhone?.trim() && !isTableOrder) {
           return NextResponse.json({ error: "Phone number is required for walk-in orders" }, { status: 400 });
         }
 
@@ -190,9 +191,48 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        const subtotal = validatedItems.reduce((sum, i) => sum + i.lineTotal, 0);
+        const newItemsSubtotal = validatedItems.reduce((sum, i) => sum + i.lineTotal, 0);
         const taxRateStr = await getSetting("food_tax_rate");
         const taxRate = Number(taxRateStr) || 5;
+
+        // For table orders, check for existing unpaid order and append items
+        if (isTableOrder) {
+          const db = getDb();
+          const existingOrders = await db.select().from(foodOrders)
+            .where(and(
+              eq(foodOrders.roomInfo, roomInfo),
+              eq(foodOrders.guestType, "walkin"),
+              sql`${foodOrders.paymentStatus} != 'paid'`,
+              sql`${foodOrders.status} != 'cancelled'`
+            ))
+            .orderBy(desc(foodOrders.createdAt))
+            .limit(1);
+
+          if (existingOrders.length > 0) {
+            const existing = existingOrders[0];
+            await addFoodOrderItems(validatedItems.map((v) => ({ orderId: existing.id, ...v })));
+            for (const v of validatedItems) {
+              await decrementStock(v.menuItemId, v.quantity);
+            }
+
+            const allItems = await getFoodOrderItems(existing.id);
+            const activeItems = allItems.filter(i => i.status !== "voided");
+            const updatedSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+            const updatedTax = Math.round((updatedSubtotal * taxRate) / 100);
+            const updatedTotal = updatedSubtotal + updatedTax;
+            await updateFoodOrder(existing.id, { subtotal: updatedSubtotal, tax: updatedTax, total: updatedTotal, guestName });
+
+            await addAuditEntry({
+              username: actorName,
+              action: "food_order_placed",
+              target: `order:${existing.id}`,
+              details: `Added items to ${roomInfo} (${guestName}), new total ₹${(updatedTotal / 100).toFixed(0)}`,
+            });
+            return NextResponse.json({ success: true, role, orderId: existing.id, orderNumber: existing.orderNumber, total: updatedTotal });
+          }
+        }
+
+        const subtotal = newItemsSubtotal;
         const tax = Math.round((subtotal * taxRate) / 100);
         const total = subtotal + tax;
 
@@ -463,7 +503,11 @@ export async function POST(req: NextRequest) {
 
       case "getMenu": {
         const data = await getMenuWithCategories(true);
-        return NextResponse.json({ role, ...data });
+        const cafeTablesStr = await getSetting("food_cafe_tables");
+        const cafeTableCount = parseInt(cafeTablesStr || "6") || 0;
+        const confirmStr = await getSetting("food_confirm_with_guest");
+        const confirmWithGuest = confirmStr === "true";
+        return NextResponse.json({ role, ...data, cafeTableCount, confirmWithGuest });
       }
 
       case "getWalkinOrders": {

@@ -53,6 +53,8 @@ const FOOD_SETTINGS_KEYS = [
   "food_kitchen_close",
   "food_tab_limit",
   "food_checkout_grace_days",
+  "food_cafe_tables",
+  "food_confirm_with_guest",
   "food_kitchen_busy",
   "food_customer_whatsapp",
   "food_show_out_of_stock",
