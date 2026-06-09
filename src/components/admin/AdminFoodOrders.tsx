@@ -1889,7 +1889,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-green-600">Paid: {fmt(actualGroupPaid)}</span>
                 {actualGroupPending > 0 && (
-                  <span className="font-semibold text-red-600">Pending: {fmt(actualGroupPending)}</span>
+                  <span className="font-semibold text-red-600">Pending: ₹{Math.round(actualGroupTotal / 100) - Math.round(actualGroupPaid / 100)}</span>
                 )}
                 {actualGroupPending <= 0 && actualGroupPaid > 0 && (
                   <span className="font-semibold text-green-600">All Paid</span>
@@ -2646,8 +2646,12 @@ export function PaymentDetailLabel({ method, total, cashReceived, changeGiven }:
     return <span className="text-blue-700">Online — {fmt(total)}</span>;
   }
   if (method === "split") {
-    const onlinePart = total - (cashReceived - (changeGiven || 0));
-    return <span className="text-purple-700">Split — Cash {fmt(cashReceived)}{changeGiven > 0 ? ` (change ${fmt(changeGiven)})` : ""} + Online {fmt(onlinePart > 0 ? onlinePart : total - cashReceived)}</span>;
+    const cashAfterChange = cashReceived - (changeGiven || 0);
+    const onlinePart = total - cashAfterChange;
+    if (onlinePart <= 0) {
+      return <span className="text-green-700">Cash — Received {fmt(cashReceived)}{changeGiven > 0 ? `, Change ${fmt(changeGiven)}` : ""}</span>;
+    }
+    return <span className="text-purple-700">Split — Cash {fmt(cashAfterChange)} + Online {fmt(onlinePart)}</span>;
   }
   return <span>{method}</span>;
 }
