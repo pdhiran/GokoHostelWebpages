@@ -198,9 +198,10 @@ export async function POST(req: NextRequest) {
         // For table orders, check for existing unpaid order and append items
         if (isTableOrder) {
           const db = getDb();
+          const trimmedRoom = roomInfo.trim();
           const existingOrders = await db.select().from(foodOrders)
             .where(and(
-              eq(foodOrders.roomInfo, roomInfo),
+              sql`TRIM(${foodOrders.roomInfo}) = ${trimmedRoom}`,
               eq(foodOrders.guestType, "walkin"),
               sql`${foodOrders.paymentStatus} != 'paid'`,
               sql`${foodOrders.status} != 'cancelled'`
@@ -236,6 +237,15 @@ export async function POST(req: NextRequest) {
         const tax = Math.round((subtotal * taxRate) / 100);
         const total = subtotal + tax;
 
+        // Generate a stable session ID for new table orders (format: T{num}-{YYYYMMDD}{HHmmss})
+        let resolvedPhone = normalizePhone(guestPhone || "");
+        if (isTableOrder) {
+          const tableNum = roomInfo.match(/\d+/)?.[0] || "0";
+          const now = new Date();
+          const pad = (n: number) => String(n).padStart(2, "0");
+          resolvedPhone = `T${tableNum}-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        }
+
         let orderNumber = await getNextOrderNumber();
         let order: any;
         try {
@@ -244,7 +254,7 @@ export async function POST(req: NextRequest) {
             guestType: guestType || "walkin",
             checkinId: checkinId || undefined,
             guestName,
-            guestPhone: normalizePhone(guestPhone || ""),
+            guestPhone: resolvedPhone,
             roomInfo: roomInfo || "",
             specialInstructions: specialInstructions || "",
             subtotal,
@@ -262,7 +272,7 @@ export async function POST(req: NextRequest) {
               guestType: guestType || "walkin",
               checkinId: checkinId || undefined,
               guestName,
-              guestPhone: normalizePhone(guestPhone || ""),
+              guestPhone: resolvedPhone,
               roomInfo: roomInfo || "",
               specialInstructions: specialInstructions || "",
               subtotal,

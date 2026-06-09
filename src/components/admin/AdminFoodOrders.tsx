@@ -223,6 +223,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
 
   useEffect(() => {
     if (prefillGuest?.guestType === "table") {
+      setGuestType("table");
       const tableNum = prefillGuest.roomInfo?.match(/Table (\d+)/i)?.[1];
       if (tableNum) {
         setSelectedTable(parseInt(tableNum, 10));
