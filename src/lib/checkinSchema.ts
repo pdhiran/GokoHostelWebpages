@@ -19,10 +19,15 @@ export const checkinSchema = z
     bookingId: z.string().optional(),
     arrivalDate: z.string().min(1, "Arrival date is required"),
     arrivalTime: z.string().min(1, "Arrival time is required"),
-    name: z
+    firstName: z
       .string()
-      .min(2, "Name must be at least 2 characters")
-      .max(100, "Name is too long")
+      .min(2, "First name must be at least 2 characters")
+      .max(50, "First name is too long")
+      .regex(nameChars, "Only letters, spaces, hyphens, and apostrophes allowed"),
+    lastName: z
+      .string()
+      .min(2, "Last name must be at least 2 characters")
+      .max(50, "Last name is too long")
       .regex(nameChars, "Only letters, spaces, hyphens, and apostrophes allowed"),
     numberOfPersons: z
       .string()

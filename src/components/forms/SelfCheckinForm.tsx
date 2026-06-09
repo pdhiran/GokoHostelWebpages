@@ -320,7 +320,8 @@ export function SelfCheckinForm() {
       bookingId: "",
       arrivalDate: date,
       arrivalTime: time,
-      name: "",
+      firstName: "",
+      lastName: "",
       numberOfPersons: "",
       contactNumber: "",
       stayingDays: "",
@@ -372,10 +373,15 @@ export function SelfCheckinForm() {
           } catch { /* ignore parse errors */ }
         }
 
+        const nameParts = (d.name || "").trim().split(/\s+/);
+        const prefillFirst = nameParts[0] || "";
+        const prefillLast = nameParts.slice(1).join(" ") || "";
+
         reset({
           arrivalDate: nowDate,
           arrivalTime: nowTime,
-          name: d.name,
+          firstName: prefillFirst,
+          lastName: prefillLast,
           numberOfPersons: "",
           contactNumber: d.contactNumber,
           stayingDays: "",
@@ -458,7 +464,9 @@ export function SelfCheckinForm() {
     setIdServerError(false);
     try {
       const idType = watch("idType");
-      const guestName = watch("name");
+      const fn = watch("firstName");
+      const ln = watch("lastName");
+      const guestName = [fn, ln].filter(Boolean).join(" ").trim() || undefined;
       const formData = new FormData();
       idFiles.forEach((doc) => formData.append("file", doc.file));
       formData.append("category", "id");
@@ -579,7 +587,7 @@ export function SelfCheckinForm() {
       if (data.bookingId) formData.append("bookingId", data.bookingId);
       formData.append("arrivalDate", data.arrivalDate);
       formData.append("arrivalTime", data.arrivalTime);
-      formData.append("name", data.name);
+      formData.append("name", `${data.firstName.trim()} ${data.lastName.trim()}`);
       formData.append("numberOfPersons", data.numberOfPersons);
       formData.append("contactNumber", data.contactNumber);
       formData.append("stayingDays", data.stayingDays);
@@ -891,18 +899,33 @@ export function SelfCheckinForm() {
         </div>
 
         {/* Name */}
-        <div>
-          <Label htmlFor="name">Full name <span className="text-brand-red">*</span></Label>
-          <Input
-            id="name"
-            placeholder="Enter your full name"
-            {...register("name")}
-            className={cn(errors.name && "border-red-400")}
-            autoComplete="name"
-          />
-          {errors.name && (
-            <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>
-          )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="firstName">First name <span className="text-brand-red">*</span></Label>
+            <Input
+              id="firstName"
+              placeholder="First name"
+              {...register("firstName")}
+              className={cn(errors.firstName && "border-red-400")}
+              autoComplete="given-name"
+            />
+            {errors.firstName && (
+              <p className="mt-1 text-xs text-red-500">{errors.firstName.message}</p>
+            )}
+          </div>
+          <div>
+            <Label htmlFor="lastName">Last name <span className="text-brand-red">*</span></Label>
+            <Input
+              id="lastName"
+              placeholder="Last name"
+              {...register("lastName")}
+              className={cn(errors.lastName && "border-red-400")}
+              autoComplete="family-name"
+            />
+            {errors.lastName && (
+              <p className="mt-1 text-xs text-red-500">{errors.lastName.message}</p>
+            )}
+          </div>
         </div>
 
         {/* Number of persons & Staying days */}
