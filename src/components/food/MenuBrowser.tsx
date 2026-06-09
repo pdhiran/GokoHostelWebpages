@@ -371,7 +371,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                       )}
                     </div>
 
-                    <div className="mt-2 flex items-center justify-between">
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-gray-800">
                           {isUnavailable ? (

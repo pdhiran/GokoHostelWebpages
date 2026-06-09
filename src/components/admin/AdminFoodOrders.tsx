@@ -325,7 +325,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
   if (loadingMenu) return <LoadingState />;
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", cart.length > 0 && "pb-20")}>
       <h3 className="font-display text-lg font-bold text-brand-green-dark">Place Order</h3>
 
       {/* Guest Type Toggle */}
@@ -536,7 +536,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
           <div className="space-y-2">
             {cart.map((c) => (
               <div key={c.menuItemId} className="flex items-center justify-between">
-                <span className="text-sm text-brand-green-dark">{c.name}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-brand-green-dark">{c.name}</span>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => updateCartQty(c.menuItemId, -1)} className="h-6 w-6 rounded border border-brand-mist flex items-center justify-center">
                     <MinusIcon className="h-3 w-3" />
@@ -936,7 +936,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
   if (loading) return <LoadingState />;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-20">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-lg font-bold text-brand-green-dark">Order Summary ({filteredGroups.length})</h3>
         <button type="button" onClick={load} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-brand-green hover:bg-brand-green/[0.06]">
@@ -1012,7 +1012,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
       {selectedGroup && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedGroupKey(null)} />
-          <div className="relative flex w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+          <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-brand-mist px-4 py-3">
               <div className="min-w-0 flex-1">
@@ -1040,7 +1040,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
             </div>
 
             {/* Orders list */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {loadingOrders === selectedGroup.key ? (
                 <div className="flex justify-center py-8"><Loader2Icon className="h-5 w-5 animate-spin text-brand-green" /></div>
               ) : (
@@ -1049,7 +1049,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
                     const isEditing = editingOrderId === order.id;
                     return (
                     <div key={order.id} className="rounded-lg border border-brand-mist p-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                           <StatusBadge status={order.status} />
@@ -1109,7 +1109,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
                                     disabled={actionBusy === `qty_${item.id}`}
                                     className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 disabled:opacity-50"
                                   >+</button>
-                                  <span className="text-brand-green-dark/60">{item.itemName}</span>
+                                  <span className="min-w-0 truncate text-brand-green-dark/60">{item.itemName}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-brand-green-dark/60">₹{(item.lineTotal / 100).toFixed(0)}</span>
@@ -1860,7 +1860,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       {selectedGroup && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => { setSelectedGroupKey(null); setPaymentEditOrder(null); setRevertConfirmOrder(null); }} />
-          <div className="relative flex w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+          <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between border-b border-brand-mist px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -1898,15 +1898,15 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
             </div>
 
             {/* Orders list */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {loadingOrders === selectedGroup.key ? (
                 <div className="flex justify-center py-8"><Loader2Icon className="h-5 w-5 animate-spin text-brand-green" /></div>
               ) : (
                 <>
                   {selectedOrders.map((order) => (
                     <div key={order.id} className={cn("rounded-lg border p-3", order.paymentStatus === "paid" ? "border-green-200 bg-green-50/30" : "border-brand-mist")}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <div className="flex flex-wrap items-center gap-1">
                           <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                           <StatusBadge status={order.status} />
                           <PaymentBadge status={order.paymentStatus} />
@@ -1925,7 +1925,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
                       </div>
 
                       {/* Payment details */}
-                      <div className="mt-2 flex items-center justify-between border-t border-brand-mist/50 pt-2 text-xs">
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 border-t border-brand-mist/50 pt-2 text-xs">
                         <span>
                           {order.paymentStatus === "paid" && order.paymentMethod ? (
                             <PaymentDetailLabel method={order.paymentMethod} total={order.total} cashReceived={order.cashReceived} changeGiven={order.changeGiven} />
@@ -1940,7 +1940,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
 
                       {/* Actions */}
                       {order.status !== "cancelled" && (
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
                           {order.paymentStatus !== "paid" ? (
                             <button
                               type="button"
@@ -2229,10 +2229,11 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                     <span className="text-xs text-brand-green-dark/40">({order.paymentMethod === "cash" ? "Cash" : order.paymentMethod === "online" ? "Online" : order.paymentMethod === "split" ? "Split" : order.paymentMethod})</span>
                   )}
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-3">
-                  <span className="text-xs text-brand-green-dark/50">{new Date(order.createdAt).toLocaleDateString("en-IN")} {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="hidden text-xs text-brand-green-dark/50 sm:inline">{new Date(order.createdAt).toLocaleDateString("en-IN")}</span>
+                  <span className="text-xs text-brand-green-dark/50">{new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}</span>
                   <span className="text-sm font-semibold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</span>
-                  {expandedOrder === order.id ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
+                  {expandedOrder === order.id ? <ChevronDownIcon className="h-4 w-4 flex-shrink-0" /> : <ChevronRightIcon className="h-4 w-4 flex-shrink-0" />}
                 </div>
               </button>
               {expandedOrder === order.id && (
@@ -2245,7 +2246,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                       <span className={cn(item.status === "voided" && "line-through opacity-50")}>₹{(item.lineTotal / 100).toFixed(0)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between border-t border-brand-mist pt-1 text-xs">
+                  <div className="flex flex-wrap justify-between gap-x-3 border-t border-brand-mist pt-1 text-xs">
                     <span>Payment:{" "}
                       {order.paymentStatus === "paid" && order.paymentMethod
                         ? <PaymentDetailLabel method={order.paymentMethod} total={order.total} cashReceived={order.cashReceived} changeGiven={order.changeGiven} />

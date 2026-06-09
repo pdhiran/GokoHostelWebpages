@@ -362,7 +362,7 @@ function OrderCard({
         className="flex w-full items-center justify-between px-4 py-3.5 text-left"
       >
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-mono text-sm font-bold text-gray-700">
               #{order.orderNumber}
             </span>
@@ -410,11 +410,11 @@ function OrderCard({
             <div className="border-t border-gray-100 px-4 pb-4 pt-3">
               <div className="space-y-1.5">
                 {order.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">
+                  <div key={idx} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-gray-600">
                       {item.quantity}× {item.name}
                     </span>
-                    <span className="text-gray-500">₹{Math.round(item.lineTotal / 100)}</span>
+                    <span className="flex-shrink-0 text-gray-500">₹{Math.round(item.lineTotal / 100)}</span>
                   </div>
                 ))}
               </div>

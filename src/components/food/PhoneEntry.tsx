@@ -215,7 +215,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="truncate font-medium text-gray-800">{g.name}</p>
+                        <p className="min-w-0 flex-1 truncate font-medium text-gray-800">{g.name}</p>
                         {g.checkedOut && (
                           <span className="flex-shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">Checked out</span>
                         )}

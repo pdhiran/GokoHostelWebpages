@@ -342,7 +342,7 @@ export default function FoodOrderPage() {
         <motion.div
           initial={{ y: -40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="sticky top-0 z-40 flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-white"
+          className="sticky top-0 z-40 flex flex-wrap items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -385,8 +385,8 @@ export default function FoodOrderPage() {
             >
               {/* Header */}
               <div className="mb-4 px-4">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <h1 className="text-lg font-bold text-white">
                       {guestInfo?.guestType === "hostel"
                         ? `Hi, ${guestInfo.name?.split(" ")[0]}! 👋`
@@ -399,7 +399,7 @@ export default function FoodOrderPage() {
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
-                      className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
+                      className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
                     >
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -409,7 +409,7 @@ export default function FoodOrderPage() {
                     {guestInfo?.guestType === "hostel" && pastOrders.length > 0 && (
                       <button
                         onClick={() => setShowMyOrders(true)}
-                        className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
+                        className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
                       >
                         My Orders
                       </button>
@@ -487,7 +487,7 @@ export default function FoodOrderPage() {
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
-            className="fixed bottom-20 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg"
+            className="fixed bottom-20 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg max-w-[calc(100vw-2rem)] break-words text-center"
           >
             {reorderToast}
           </motion.div>
