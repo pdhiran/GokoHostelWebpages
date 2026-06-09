@@ -26,6 +26,7 @@ interface BillOrder {
   paymentStatus: string;
   paymentMethod: string | null;
   createdAt: string;
+  checkinId: number | null;
   items: BillItem[];
 }
 
@@ -77,6 +78,8 @@ function MyBillsContent() {
   const [error, setError] = useState("");
   const [unpaidOrders, setUnpaidOrders] = useState<BillOrder[]>([]);
   const [paidOrders, setPaidOrders] = useState<BillOrder[]>([]);
+  const [latestCheckinId, setLatestCheckinId] = useState<number | null>(null);
+  const [showPastStays, setShowPastStays] = useState(false);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   const fetchBills = useCallback(async (phoneDigits: string) => {
@@ -88,6 +91,7 @@ function MyBillsContent() {
       const data = await res.json();
       setUnpaidOrders(data.unpaidOrders || []);
       setPaidOrders(data.paidOrders || []);
+      setLatestCheckinId(data.latestCheckinId || null);
       setSubmitted(true);
     } catch {
       setError("Unable to load bills. Please try again.");
@@ -142,8 +146,15 @@ function MyBillsContent() {
     localStorage.removeItem("gokoFoodPhone");
   };
 
-  const unpaidTotal = unpaidOrders.reduce((sum, o) => sum + o.total, 0);
-  const paidTotal = paidOrders.reduce((sum, o) => sum + o.total, 0);
+  const isCurrentStay = (o: BillOrder) => !latestCheckinId || o.checkinId === latestCheckinId || !o.checkinId;
+  const currentUnpaid = unpaidOrders.filter(isCurrentStay);
+  const currentPaid = paidOrders.filter(isCurrentStay);
+  const pastUnpaid = unpaidOrders.filter(o => !isCurrentStay(o));
+  const pastPaid = paidOrders.filter(o => !isCurrentStay(o));
+  const hasPastStays = pastUnpaid.length > 0 || pastPaid.length > 0;
+
+  const unpaidTotal = currentUnpaid.reduce((sum, o) => sum + o.total, 0);
+  const paidTotal = currentPaid.reduce((sum, o) => sum + o.total, 0);
   const totalSpent = unpaidTotal + paidTotal;
 
   return (
@@ -262,8 +273,8 @@ function MyBillsContent() {
               </div>
             )}
 
-            {/* Unpaid Bills */}
-            {unpaidOrders.length > 0 && (
+            {/* Current Stay - Unpaid Bills */}
+            {currentUnpaid.length > 0 && (
               <div className="mb-6">
                 <div className="mb-3 flex items-center justify-between px-1">
                   <h2 className="text-lg font-bold text-white">Unpaid Bills</h2>
@@ -272,7 +283,7 @@ function MyBillsContent() {
                   </span>
                 </div>
                 <div className="space-y-3">
-                  {unpaidOrders.map((order) => (
+                  {currentUnpaid.map((order) => (
                     <OrderCard
                       key={order.orderNumber}
                       order={order}
@@ -285,14 +296,14 @@ function MyBillsContent() {
               </div>
             )}
 
-            {/* Paid Bills */}
-            {paidOrders.length > 0 && (
+            {/* Current Stay - Paid Bills */}
+            {currentPaid.length > 0 && (
               <div className="mb-6">
                 <div className="mb-3 px-1">
-                  <h2 className="text-lg font-bold text-white/80">Past Bills</h2>
+                  <h2 className="text-lg font-bold text-white/80">Paid Bills</h2>
                 </div>
                 <div className="space-y-3">
-                  {paidOrders.map((order) => (
+                  {currentPaid.map((order) => (
                     <OrderCard
                       key={order.orderNumber}
                       order={order}
@@ -305,8 +316,46 @@ function MyBillsContent() {
               </div>
             )}
 
+            {/* Past Stays */}
+            {hasPastStays && (
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={() => setShowPastStays(!showPastStays)}
+                  className="mb-3 flex items-center gap-2 px-1 text-sm font-medium text-blue-100 hover:text-white"
+                >
+                  <svg className={`h-4 w-4 transition-transform ${showPastStays ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  Past Stays ({pastUnpaid.length + pastPaid.length} orders)
+                </button>
+                {showPastStays && (
+                  <div className="space-y-3">
+                    {pastUnpaid.map((order) => (
+                      <OrderCard
+                        key={order.orderNumber}
+                        order={order}
+                        variant="unpaid"
+                        expanded={expandedOrders.has(order.orderNumber)}
+                        onToggle={() => toggleOrder(order.orderNumber)}
+                      />
+                    ))}
+                    {pastPaid.map((order) => (
+                      <OrderCard
+                        key={order.orderNumber}
+                        order={order}
+                        variant="paid"
+                        expanded={expandedOrders.has(order.orderNumber)}
+                        onToggle={() => toggleOrder(order.orderNumber)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* No orders */}
-            {unpaidOrders.length === 0 && paidOrders.length === 0 && (
+            {currentUnpaid.length === 0 && currentPaid.length === 0 && !hasPastStays && (
               <div className="rounded-2xl bg-white/95 p-8 text-center shadow-xl backdrop-blur-sm">
                 <span className="text-4xl">📭</span>
                 <p className="mt-3 text-gray-600">No bills found for this number</p>

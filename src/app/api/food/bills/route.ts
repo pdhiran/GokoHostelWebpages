@@ -32,22 +32,29 @@ export async function GET(req: NextRequest) {
       paymentStatus: string;
       paymentMethod: string | null;
       createdAt: string;
+      checkinId: number | null;
     }> = [];
 
     // 1) Hostel guest orders via all checkins (active + checked out)
     const db = getDb();
-    const allCheckins = await db.select().from(checkins).where(
-      and(eq(checkins.contact, normalized))
-    );
-    // Also check with phonesMatch for format variations
+    const allCheckinRows = await db.select().from(checkins).where(eq(checkins.contact, normalized));
     const activeCheckinsList = await getActiveCheckins();
-    const matchedCheckins = new Map<number, boolean>();
-    for (const c of allCheckins) matchedCheckins.set(c.id, true);
+    const matchedCheckinIds = new Map<number, { id: number; status: string; arrivalDate: string }>();
+    for (const c of allCheckinRows) matchedCheckinIds.set(c.id, { id: c.id, status: c.status, arrivalDate: c.arrivalDate });
     for (const c of activeCheckinsList) {
-      if (phonesMatch(c.contact, normalized)) matchedCheckins.set(c.id, true);
+      if (phonesMatch(c.contact, normalized) && !matchedCheckinIds.has(c.id))
+        matchedCheckinIds.set(c.id, { id: c.id, status: c.status, arrivalDate: c.arrivalDate });
     }
 
-    for (const checkinId of matchedCheckins.keys()) {
+    // Find latest checkin (active preferred, then most recent by arrival date)
+    let latestCheckinId: number | null = null;
+    let latestDate = "";
+    for (const c of matchedCheckinIds.values()) {
+      if (c.status === "active") { latestCheckinId = c.id; break; }
+      if (c.arrivalDate > latestDate) { latestDate = c.arrivalDate; latestCheckinId = c.id; }
+    }
+
+    for (const checkinId of matchedCheckinIds.keys()) {
       const orders = await getGuestAllFoodOrders(checkinId);
       for (const o of orders) {
         if (!orderMap.has(o.id)) {
@@ -65,6 +72,7 @@ export async function GET(req: NextRequest) {
             paymentStatus: o.paymentStatus,
             paymentMethod: o.paymentMethod,
             createdAt: o.createdAt,
+            checkinId: o.checkinId,
           });
         }
       }
@@ -94,6 +102,7 @@ export async function GET(req: NextRequest) {
         paymentStatus: o.paymentStatus,
         paymentMethod: o.paymentMethod,
         createdAt: o.createdAt,
+        checkinId: null,
       });
     }
 
@@ -113,6 +122,7 @@ export async function GET(req: NextRequest) {
           paymentStatus: o.paymentStatus,
           paymentMethod: o.paymentMethod,
           createdAt: o.createdAt,
+          checkinId: o.checkinId,
           items: items.map((i) => ({
             menuItemId: i.menuItemId,
             name: i.itemName,
@@ -131,7 +141,7 @@ export async function GET(req: NextRequest) {
       (o) => o.paymentStatus === "paid"
     );
 
-    return NextResponse.json({ unpaidOrders, paidOrders });
+    return NextResponse.json({ unpaidOrders, paidOrders, latestCheckinId });
   } catch (error: any) {
     console.error("Bills API error:", error?.message || error);
     return NextResponse.json({ error: "Failed to fetch bills" }, { status: 500 });
