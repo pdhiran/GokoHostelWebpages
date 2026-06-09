@@ -8,9 +8,9 @@ import { generateGuestBill, generateCombinedBill, type CombinedBillData, type Bi
 import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
 import type { Role } from "./types";
 
-type FoodTab = "active" | "place" | "summary" | "combined" | "history";
+type FoodTab = "summary" | "place" | "combined" | "payment" | "active";
 
-interface OrderItem {
+export interface OrderItem {
   id: number;
   menuItemId: number;
   itemName: string;
@@ -20,7 +20,7 @@ interface OrderItem {
   status: string;
 }
 
-interface Order {
+export interface Order {
   id: number;
   orderNumber: string;
   guestType: string;
@@ -46,7 +46,7 @@ interface Order {
   hasModifications?: boolean;
 }
 
-interface OrderModification {
+export interface OrderModification {
   action: string;
   itemName: string;
   oldValue: string;
@@ -110,7 +110,7 @@ interface PrefillGuest {
 }
 
 export function AdminFoodOrders({ password, username, role }: { password: string; username?: string; role: Role }) {
-  const [tab, setTab] = useState<FoodTab>("active");
+  const [tab, setTab] = useState<FoodTab>("summary");
   const [prefillGuest, setPrefillGuest] = useState<PrefillGuest | null>(null);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
@@ -125,11 +125,11 @@ export function AdminFoodOrders({ password, username, role }: { password: string
   }, [password, username]);
 
   const TABS: { id: FoodTab; label: string }[] = [
-    { id: "active", label: "Active Orders" },
-    { id: "place", label: "Place Order" },
     { id: "summary", label: "Order Summary" },
+    { id: "place", label: "Place Order" },
     { id: "combined", label: "Combined Bill" },
-    { id: "history", label: "Order History" },
+    { id: "payment", label: "Payment Summary" },
+    { id: "active", label: "Active Orders" },
   ];
 
   return (
@@ -158,7 +158,7 @@ export function AdminFoodOrders({ password, username, role }: { password: string
       {tab === "place" && <PlaceOrder apiCall={apiCall} prefillGuest={prefillGuest} onPrefillConsumed={() => setPrefillGuest(null)} />}
       {tab === "summary" && <OrderSummary apiCall={apiCall} onOrderMore={(guest) => { setPrefillGuest(guest); setTab("place"); }} />}
       {tab === "combined" && <CombinedBill apiCall={apiCall} />}
-      {tab === "history" && <OrderHistory apiCall={apiCall} />}
+      {tab === "payment" && <PaymentSummary apiCall={apiCall} />}
     </div>
   );
 }
@@ -1356,9 +1356,519 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   );
 }
 
+// ─── Payment Summary ─────────────────────────────────────────────────────────
+
+type PaymentFilter = "all" | "hostel" | "walkin";
+
+interface PaymentGroup {
+  key: string;
+  guestName: string;
+  guestType: "hostel" | "walkin";
+  contactInfo: string;
+  roomInfo: string;
+  orders: Order[];
+  totalAmount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  cashPaid: number;
+  onlinePaid: number;
+  orderCount: number;
+  latestOrderTime: string;
+}
+
+function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [hostelGuestInfo, setHostelGuestInfo] = useState<Map<number, GuestWithTab>>(new Map());
+  const [detailOrders, setDetailOrders] = useState<Record<string, Order[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<PaymentFilter>("all");
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+  const [loadingOrders, setLoadingOrders] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [paymentEditOrder, setPaymentEditOrder] = useState<Order | null>(null);
+  const [revertConfirmOrder, setRevertConfirmOrder] = useState<Order | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [hostelRes, ordersRes] = await Promise.all([
+        apiCall({ action: "getGuestsWithTabs" }),
+        apiCall({ action: "listOrders", status: "all_history", limit: 200 }),
+      ]);
+      if (hostelRes.ok) {
+        const data = await hostelRes.json();
+        const map = new Map<number, GuestWithTab>();
+        for (const g of (data.guests || []) as GuestWithTab[]) map.set(g.checkinId, g);
+        setHostelGuestInfo(map);
+      }
+      if (ordersRes.ok) {
+        const data = await ordersRes.json();
+        setAllOrders(data.orders || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [apiCall]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const groups: PaymentGroup[] = useMemo(() => {
+    const result: PaymentGroup[] = [];
+
+    const hostelMap = new Map<number, Order[]>();
+    const walkinMap = new Map<string, Order[]>();
+
+    for (const order of allOrders) {
+      if (order.status === "cancelled") continue;
+      if (order.guestType === "hostel" && order.checkinId) {
+        if (!hostelMap.has(order.checkinId)) hostelMap.set(order.checkinId, []);
+        hostelMap.get(order.checkinId)!.push(order);
+      } else {
+        const key = order.guestPhone || `_no_phone_${order.id}`;
+        if (!walkinMap.has(key)) walkinMap.set(key, []);
+        walkinMap.get(key)!.push(order);
+      }
+    }
+
+    for (const [checkinId, orders] of hostelMap) {
+      const guestInfo = hostelGuestInfo.get(checkinId);
+      const overrideOrders = detailOrders[`hostel_${checkinId}`];
+      const effectiveOrders = overrideOrders || orders;
+      const nonCancelled = effectiveOrders.filter(o => o.status !== "cancelled");
+      const paidAmt = nonCancelled.filter(o => o.paymentStatus === "paid").reduce((s, o) => s + o.total, 0);
+      const pendingAmt = nonCancelled.filter(o => o.paymentStatus !== "paid").reduce((s, o) => s + o.total, 0);
+      const cashAmt = nonCancelled.filter(o => o.paymentStatus === "paid" && o.paymentMethod === "cash").reduce((s, o) => s + o.total, 0);
+      const onlineAmt = nonCancelled.filter(o => o.paymentStatus === "paid" && (o.paymentMethod === "online" || o.paymentMethod === "split")).reduce((s, o) => s + o.total, 0);
+      const totalAmt = nonCancelled.reduce((s, o) => s + o.total, 0);
+      result.push({
+        key: `hostel_${checkinId}`,
+        guestName: guestInfo?.name || orders[0].guestName,
+        guestType: "hostel",
+        contactInfo: guestInfo?.contact || orders[0].guestPhone,
+        roomInfo: guestInfo?.bedInfo || orders[0].roomInfo,
+        orders: effectiveOrders,
+        totalAmount: totalAmt,
+        paidAmount: paidAmt,
+        pendingAmount: pendingAmt,
+        cashPaid: cashAmt,
+        onlinePaid: onlineAmt,
+        orderCount: nonCancelled.length,
+        latestOrderTime: nonCancelled.reduce((max, o) => o.createdAt > max ? o.createdAt : max, ""),
+      });
+    }
+
+    for (const [phone, orders] of walkinMap) {
+      const overrideOrders = detailOrders[`walkin_${phone}`];
+      const effectiveOrders = overrideOrders || orders;
+      const nonCancelled = effectiveOrders.filter(o => o.status !== "cancelled");
+      const paidAmt = nonCancelled.filter(o => o.paymentStatus === "paid").reduce((s, o) => s + o.total, 0);
+      const pendingAmt = nonCancelled.filter(o => o.paymentStatus !== "paid").reduce((s, o) => s + o.total, 0);
+      const cashAmt = nonCancelled.filter(o => o.paymentStatus === "paid" && o.paymentMethod === "cash").reduce((s, o) => s + o.total, 0);
+      const onlineAmt = nonCancelled.filter(o => o.paymentStatus === "paid" && (o.paymentMethod === "online" || o.paymentMethod === "split")).reduce((s, o) => s + o.total, 0);
+      const totalAmt = nonCancelled.reduce((s, o) => s + o.total, 0);
+      result.push({
+        key: `walkin_${phone}`,
+        guestName: effectiveOrders[0].guestName,
+        guestType: "walkin",
+        contactInfo: phone.startsWith("_no_phone_") ? "" : phone,
+        roomInfo: "",
+        orders: effectiveOrders,
+        totalAmount: totalAmt,
+        paidAmount: paidAmt,
+        pendingAmount: pendingAmt,
+        cashPaid: cashAmt,
+        onlinePaid: onlineAmt,
+        orderCount: nonCancelled.length,
+        latestOrderTime: nonCancelled.reduce((max, o) => o.createdAt > max ? o.createdAt : max, ""),
+      });
+    }
+
+    result.sort((a, b) => {
+      if (a.pendingAmount > 0 && b.pendingAmount <= 0) return -1;
+      if (a.pendingAmount <= 0 && b.pendingAmount > 0) return 1;
+      return (b.latestOrderTime || "").localeCompare(a.latestOrderTime || "");
+    });
+
+    return result;
+  }, [allOrders, hostelGuestInfo, detailOrders]);
+
+  const filteredGroups = useMemo(() => {
+    if (filter === "all") return groups;
+    return groups.filter((g) => g.guestType === filter);
+  }, [groups, filter]);
+
+  const selectedGroup = selectedGroupKey ? groups.find((g) => g.key === selectedGroupKey) || null : null;
+  const selectedOrders = selectedGroup ? selectedGroup.orders : [];
+
+  const selectGroup = async (group: PaymentGroup) => {
+    setSelectedGroupKey(group.key);
+    if (group.guestType === "hostel" && !detailOrders[group.key]) {
+      const checkinId = parseInt(group.key.replace("hostel_", ""), 10);
+      setLoadingOrders(group.key);
+      try {
+        const res = await apiCall({ action: "getGuestAllOrders", checkinId });
+        if (res.ok) {
+          const data = await res.json();
+          setDetailOrders((prev) => ({ ...prev, [group.key]: data.orders || [] }));
+        }
+      } finally {
+        setLoadingOrders(null);
+      }
+    }
+  };
+
+  const refreshGroupOrders = useCallback(async (group: PaymentGroup) => {
+    if (group.guestType === "hostel") {
+      const checkinId = parseInt(group.key.replace("hostel_", ""), 10);
+      const res = await apiCall({ action: "getGuestAllOrders", checkinId });
+      if (res.ok) {
+        const data = await res.json();
+        setDetailOrders((prev) => ({ ...prev, [group.key]: data.orders || [] }));
+      }
+    }
+    const ordersRes = await apiCall({ action: "listOrders", status: "all_history", limit: 200 });
+    if (ordersRes.ok) {
+      const data = await ordersRes.json();
+      setAllOrders(data.orders || []);
+    }
+  }, [apiCall]);
+
+  const handleMarkPaid = async (order: Order, method: string, cashReceived: number = 0, changeGiven: number = 0) => {
+    setBusy(true);
+    try {
+      const res = await apiCall({
+        action: "updatePaymentDetails",
+        orderId: order.id,
+        paymentStatus: "paid",
+        paymentMethod: method,
+        cashReceived,
+        changeGiven,
+      });
+      if (res.ok && selectedGroup) {
+        setPaymentEditOrder(null);
+        await refreshGroupOrders(selectedGroup);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRevertToPending = async (order: Order) => {
+    setBusy(true);
+    try {
+      const res = await apiCall({
+        action: "updatePaymentDetails",
+        orderId: order.id,
+        paymentStatus: order.guestType === "hostel" && order.checkinId ? "on_tab" : "pending",
+        paymentMethod: "",
+        cashReceived: 0,
+        changeGiven: 0,
+      });
+      if (res.ok && selectedGroup) {
+        setRevertConfirmOrder(null);
+        await refreshGroupOrders(selectedGroup);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUpdatePayment = async (order: Order, updates: { paymentMethod?: string; cashReceived?: number; changeGiven?: number }) => {
+    setBusy(true);
+    try {
+      const res = await apiCall({
+        action: "updatePaymentDetails",
+        orderId: order.id,
+        ...updates,
+      });
+      if (res.ok && selectedGroup) {
+        await refreshGroupOrders(selectedGroup);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fmt = (paise: number) => `₹${(paise / 100).toFixed(0)}`;
+
+  const actualGroupTotal = selectedOrders.length > 0
+    ? selectedOrders.reduce((sum, o) => sum + o.total, 0)
+    : selectedGroup?.totalAmount || 0;
+  const actualGroupPaid = selectedOrders.length > 0
+    ? selectedOrders.filter(o => o.paymentStatus === "paid").reduce((sum, o) => sum + o.total, 0)
+    : selectedGroup?.paidAmount || 0;
+  const actualGroupPending = actualGroupTotal - actualGroupPaid;
+
+  if (loading) return <LoadingState />;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-lg font-bold text-brand-green-dark">Payment Summary ({filteredGroups.length})</h3>
+        <button type="button" onClick={load} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-brand-green hover:bg-brand-green/[0.06]">
+          <RefreshCwIcon className="h-3.5 w-3.5" /> Refresh
+        </button>
+      </div>
+
+      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white p-1">
+        {([
+          { id: "all" as PaymentFilter, label: "All" },
+          { id: "hostel" as PaymentFilter, label: "Goko Guest" },
+          { id: "walkin" as PaymentFilter, label: "Walk-in" },
+        ]).map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setFilter(f.id)}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              filter === f.id ? "bg-brand-green text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {filteredGroups.length === 0 && (
+        <div className="rounded-xl border border-brand-mist bg-white p-8 text-center text-sm text-brand-green-dark/50">
+          No orders found
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {filteredGroups.map((group) => {
+          const allPaid = group.pendingAmount <= 0 && group.paidAmount > 0;
+          return (
+            <button
+              key={group.key}
+              type="button"
+              onClick={() => selectGroup(group)}
+              className={cn(
+                "rounded-xl border bg-white p-3 text-left transition-shadow hover:shadow-md",
+                allPaid
+                  ? "border-brand-mist border-l-[3px] border-l-green-400"
+                  : group.pendingAmount > 0
+                    ? "border-brand-mist border-l-[3px] border-l-red-400"
+                    : "border-brand-mist border-l-[3px] border-l-gray-300"
+              )}
+            >
+              <div className="flex items-start justify-between gap-1">
+                <span className="min-w-0 truncate text-sm font-bold text-brand-green-dark">{group.guestName}</span>
+                {group.guestType === "hostel" ? (
+                  <span className="flex-shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>
+                ) : (
+                  <span className="flex-shrink-0 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Walk-in</span>
+                )}
+              </div>
+              {(group.roomInfo || group.contactInfo) && (
+                <p className="mt-0.5 truncate text-xs text-brand-green-dark/50">
+                  {group.roomInfo || group.contactInfo}
+                </p>
+              )}
+              <p className="mt-2 text-lg font-bold text-brand-green">{fmt(group.totalAmount)}</p>
+              <div className="mt-1 space-y-0.5">
+                {group.paidAmount > 0 && (
+                  <p className="text-xs text-green-600">{fmt(group.paidAmount)} paid</p>
+                )}
+                {group.pendingAmount > 0 && (
+                  <p className="text-xs font-semibold text-red-600">{fmt(group.pendingAmount)} pending</p>
+                )}
+                {allPaid && (
+                  <p className="text-xs font-semibold text-green-600">All paid</p>
+                )}
+              </div>
+              <div className="mt-1 text-xs text-brand-green-dark/40">
+                {group.orderCount} order{group.orderCount !== 1 ? "s" : ""}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Slide-over Panel */}
+      {selectedGroup && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => { setSelectedGroupKey(null); setPaymentEditOrder(null); setRevertConfirmOrder(null); }} />
+          <div className="relative flex w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+            <div className="flex items-center justify-between border-b border-brand-mist px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="min-w-0 truncate text-base font-bold text-brand-green-dark">{selectedGroup.guestName}</h3>
+                  {selectedGroup.guestType === "hostel" ? (
+                    <span className="flex-shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
+                  ) : (
+                    <span className="flex-shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>
+                  )}
+                </div>
+                {(selectedGroup.roomInfo || selectedGroup.contactInfo) && (
+                  <p className="text-xs text-brand-green-dark/50">{[selectedGroup.roomInfo, selectedGroup.contactInfo].filter(Boolean).join(" · ")}</p>
+                )}
+              </div>
+              <button type="button" onClick={() => { setSelectedGroupKey(null); setPaymentEditOrder(null); setRevertConfirmOrder(null); }} className="flex-shrink-0 rounded-lg p-1.5 hover:bg-brand-sand">
+                <XIcon className="h-5 w-5 text-brand-green-dark/60" />
+              </button>
+            </div>
+
+            {/* Payment totals bar */}
+            <div className="bg-brand-sand/30 px-4 py-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-brand-green-dark/70">Total</span>
+                <span className="text-xl font-bold text-brand-green">{fmt(actualGroupTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-green-600">Paid: {fmt(actualGroupPaid)}</span>
+                {actualGroupPending > 0 && (
+                  <span className="font-semibold text-red-600">Pending: {fmt(actualGroupPending)}</span>
+                )}
+                {actualGroupPending <= 0 && actualGroupPaid > 0 && (
+                  <span className="font-semibold text-green-600">All Paid</span>
+                )}
+              </div>
+            </div>
+
+            {/* Orders list */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+              {loadingOrders === selectedGroup.key ? (
+                <div className="flex justify-center py-8"><Loader2Icon className="h-5 w-5 animate-spin text-brand-green" /></div>
+              ) : (
+                <>
+                  {selectedOrders.map((order) => (
+                    <div key={order.id} className={cn("rounded-lg border p-3", order.paymentStatus === "paid" ? "border-green-200 bg-green-50/30" : "border-brand-mist")}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
+                          <StatusBadge status={order.status} />
+                          <PaymentBadge status={order.paymentStatus} />
+                        </div>
+                        <span className="text-sm font-semibold text-brand-green-dark">{fmt(order.total)}</span>
+                      </div>
+
+                      {/* Items (read-only) */}
+                      <div className="mt-1.5 space-y-0.5">
+                        {order.items.map((item) => (
+                          <div key={item.id} className={cn("flex items-center justify-between text-xs text-brand-green-dark/60", item.status === "voided" && "line-through opacity-50")}>
+                            <span>{item.quantity}× {item.itemName}</span>
+                            <span>{fmt(item.lineTotal)}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Payment details */}
+                      <div className="mt-2 flex items-center justify-between border-t border-brand-mist/50 pt-2 text-xs">
+                        <span>
+                          {order.paymentStatus === "paid" && order.paymentMethod ? (
+                            <PaymentDetailLabel method={order.paymentMethod} total={order.total} cashReceived={order.cashReceived} changeGiven={order.changeGiven} />
+                          ) : (
+                            <PaymentBadge status={order.paymentStatus} />
+                          )}
+                        </span>
+                        <span className="text-brand-green-dark/40">
+                          {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                        </span>
+                      </div>
+
+                      {/* Actions */}
+                      {order.status !== "cancelled" && (
+                        <div className="mt-2 flex items-center gap-2">
+                          {order.paymentStatus !== "paid" ? (
+                            <button
+                              type="button"
+                              onClick={() => setPaymentEditOrder(order)}
+                              disabled={busy}
+                              className="flex items-center gap-1 rounded-md bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-200 disabled:opacity-50"
+                            >
+                              <BanknoteIcon className="h-3 w-3" /> Mark Paid
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setPaymentEditOrder(order)}
+                                disabled={busy}
+                                className="flex items-center gap-1 rounded-md border border-brand-mist px-2.5 py-1 text-xs font-medium text-brand-green-dark/70 hover:bg-brand-sand disabled:opacity-50"
+                              >
+                                <PencilIcon className="h-3 w-3" /> Edit Payment
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRevertConfirmOrder(order)}
+                                disabled={busy}
+                                className="flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Revert to Pending
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {selectedOrders.length === 0 && loadingOrders !== selectedGroup.key && (
+                    <p className="text-xs text-brand-green-dark/50 text-center py-4">No orders loaded yet. Click to load.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal for marking paid */}
+      {paymentEditOrder && (
+        <PaymentModal
+          totalAmount={paymentEditOrder.total}
+          guestName={selectedGroup?.guestName || ""}
+          initialMethod={paymentEditOrder.paymentStatus === "paid" ? (paymentEditOrder.paymentMethod || "cash") : "cash"}
+          initialCash={paymentEditOrder.paymentStatus === "paid" ? paymentEditOrder.cashReceived : 0}
+          onConfirm={(method, cashReceived, changeGiven) => {
+            if (paymentEditOrder.paymentStatus === "paid") {
+              handleUpdatePayment(paymentEditOrder, { paymentMethod: method, cashReceived, changeGiven });
+            } else {
+              handleMarkPaid(paymentEditOrder, method, cashReceived, changeGiven);
+            }
+            setPaymentEditOrder(null);
+          }}
+          onClose={() => setPaymentEditOrder(null)}
+        />
+      )}
+
+      {/* Revert confirmation */}
+      {revertConfirmOrder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setRevertConfirmOrder(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-base font-bold text-brand-green-dark">Revert to Pending?</h3>
+            <p className="mt-2 text-sm text-brand-green-dark/70">
+              This will mark order <span className="font-mono font-bold">{revertConfirmOrder.orderNumber}</span> ({fmt(revertConfirmOrder.total)}) as unpaid. This action will be logged.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleRevertToPending(revertConfirmOrder)}
+                disabled={busy}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {busy ? "Reverting..." : "Yes, Revert"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRevertConfirmOrder(null)}
+                className="flex-1 rounded-lg border border-brand-mist px-4 py-2.5 text-sm font-medium text-brand-green-dark/70 hover:bg-brand-sand"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Order History ───────────────────────────────────────────────────────────
 
-function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
+export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
@@ -1705,7 +2215,7 @@ function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   );
 }
 
-function formatAdminModification(mod: OrderModification): string {
+export function formatAdminModification(mod: OrderModification): string {
   const actor = mod.modifiedBy.charAt(0).toUpperCase() + mod.modifiedBy.slice(1);
   switch (mod.action) {
     case "quantity_changed":
@@ -1732,16 +2242,22 @@ type PaymentTab = "cash" | "online" | "split";
 function PaymentModal({
   totalAmount,
   guestName,
+  initialMethod,
+  initialCash,
   onConfirm,
   onClose,
 }: {
   totalAmount: number;
   guestName: string;
+  initialMethod?: string;
+  initialCash?: number;
   onConfirm: (method: string, cashReceived: number, changeGiven: number) => void;
   onClose: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<PaymentTab>("cash");
-  const [cashInput, setCashInput] = useState((totalAmount / 100).toString());
+  const defaultTab: PaymentTab = initialMethod === "online" ? "online" : initialMethod === "split" ? "split" : "cash";
+  const [activeTab, setActiveTab] = useState<PaymentTab>(defaultTab);
+  const defaultCash = initialCash && initialCash > 0 ? (initialCash / 100).toString() : (totalAmount / 100).toString();
+  const [cashInput, setCashInput] = useState(defaultCash);
   const [splitCash, setSplitCash] = useState("");
   const [splitOnline, setSplitOnline] = useState((totalAmount / 100).toString());
   const [saving, setSaving] = useState(false);
@@ -1947,7 +2463,7 @@ function formatTimeSince(isoDate: string): string {
 
 // ─── Shared Components ───────────────────────────────────────────────────────
 
-function PaymentDetailLabel({ method, total, cashReceived, changeGiven }: { method: string; total: number; cashReceived: number; changeGiven: number }) {
+export function PaymentDetailLabel({ method, total, cashReceived, changeGiven }: { method: string; total: number; cashReceived: number; changeGiven: number }) {
   const fmt = (paise: number) => `₹${(paise / 100).toFixed(0)}`;
   if (method === "cash") {
     if (cashReceived > 0) {
@@ -1965,7 +2481,7 @@ function PaymentDetailLabel({ method, total, cashReceived, changeGiven }: { meth
   return <span>{method}</span>;
 }
 
-function LoadingState() {
+export function LoadingState() {
   return (
     <div className="flex items-center justify-center py-12">
       <Loader2Icon className="h-6 w-6 animate-spin text-brand-green" />
@@ -1973,7 +2489,7 @@ function LoadingState() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     placed: "bg-yellow-100 text-yellow-700",
     preparing: "bg-blue-100 text-blue-700",
@@ -1988,7 +2504,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function PaymentBadge({ status }: { status: string }) {
+export function PaymentBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     pending: "text-yellow-600",
     on_tab: "text-blue-600",

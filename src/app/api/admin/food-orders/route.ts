@@ -16,6 +16,7 @@ import {
   getMenuWithCategories,
   getGuestFoodTab,
   getGuestTabTotal,
+  getGuestAllFoodOrders,
   getFoodOrdersByCheckinIds,
   getActiveCheckins,
   getAllBeds,
@@ -535,6 +536,64 @@ export async function POST(req: NextRequest) {
         }));
 
         return NextResponse.json({ role, modifications: formatted });
+      }
+
+      case "getGuestAllOrders": {
+        const { checkinId } = rest;
+        if (!checkinId) return NextResponse.json({ error: "checkinId required" }, { status: 400 });
+        const orders = await getGuestAllFoodOrders(checkinId);
+        const withItems = await Promise.all(
+          orders.map(async (o) => ({ ...o, items: await getFoodOrderItems(o.id) }))
+        );
+        return NextResponse.json({ role, orders: withItems });
+      }
+
+      case "updatePaymentDetails": {
+        const { orderId, paymentStatus: newPaymentStatus, paymentMethod: newPaymentMethod, cashReceived: newCashReceived, changeGiven: newChangeGiven } = rest;
+        if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+
+        const order = await getFoodOrderById(orderId);
+        if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+        const changes: string[] = [];
+        const fmt = (paise: number) => `₹${(paise / 100).toFixed(0)}`;
+
+        if (newPaymentStatus !== undefined && newPaymentStatus !== order.paymentStatus) {
+          changes.push(`Status: ${order.paymentStatus} → ${newPaymentStatus}`);
+        }
+        if (newPaymentMethod !== undefined && newPaymentMethod !== order.paymentMethod) {
+          changes.push(`Method: ${order.paymentMethod || "none"} → ${newPaymentMethod}`);
+        }
+        if (newCashReceived !== undefined && newCashReceived !== order.cashReceived) {
+          changes.push(`Cash received: ${fmt(order.cashReceived ?? 0)} → ${fmt(newCashReceived)}`);
+        }
+        if (newChangeGiven !== undefined && newChangeGiven !== order.changeGiven) {
+          changes.push(`Change given: ${fmt(order.changeGiven ?? 0)} → ${fmt(newChangeGiven)}`);
+        }
+
+        if (changes.length === 0) {
+          return NextResponse.json({ success: true, role, message: "No changes" });
+        }
+
+        const updateData: Record<string, any> = { updatedAt: new Date().toISOString() };
+        if (newPaymentStatus !== undefined) updateData.paymentStatus = newPaymentStatus;
+        if (newPaymentMethod !== undefined) updateData.paymentMethod = newPaymentMethod;
+        if (newCashReceived !== undefined) updateData.cashReceived = newCashReceived;
+        if (newChangeGiven !== undefined) updateData.changeGiven = newChangeGiven;
+        if (newPaymentStatus === "paid" && !order.paidBy) updateData.paidBy = actorName;
+        if (newPaymentStatus && newPaymentStatus !== "paid" && order.paymentStatus === "paid") updateData.paidBy = "";
+
+        const db = getDb();
+        await db.update(foodOrders).set(updateData).where(eq(foodOrders.id, orderId));
+
+        await addAuditEntry({
+          username: actorName,
+          action: "food_payment_modified",
+          target: `order:${orderId}`,
+          details: `Order ${order.orderNumber}: ${changes.join(", ")}`,
+        });
+
+        return NextResponse.json({ success: true, role });
       }
 
       default:

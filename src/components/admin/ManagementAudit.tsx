@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DownloadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { OrderHistory } from "./AdminFoodOrders";
 import type { Role } from "./types";
+
+type AuditSubTab = "room" | "food";
 
 type AuditEntry = {
   id: number;
@@ -19,6 +22,47 @@ type AuditEntry = {
 };
 
 export function ManagementAudit({ password, username, role }: { password: string; username?: string; role: Role }) {
+  const [subTab, setSubTab] = useState<AuditSubTab>("room");
+
+  const foodApiCall = useCallback(async (body: Record<string, any>) => {
+    const payload: Record<string, any> = { password, ...body };
+    if (username) payload.username = username;
+    const res = await fetch("/api/admin/food-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res;
+  }, [password, username]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white p-1">
+        {([
+          { id: "room" as AuditSubTab, label: "Room & General" },
+          { id: "food" as AuditSubTab, label: "Food Orders" },
+        ]).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setSubTab(t.id)}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              subTab === t.id ? "bg-brand-green text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "room" && <RoomAuditTrail password={password} username={username} role={role} />}
+      {subTab === "food" && <OrderHistory apiCall={foodApiCall} />}
+    </div>
+  );
+}
+
+function RoomAuditTrail({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { apiCall } = useAdminApi(password, username);
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +119,6 @@ export function ManagementAudit({ password, username, role }: { password: string
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-48" />
         <select value={filterAction} onChange={(e) => setFilterAction(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">
@@ -89,7 +132,6 @@ export function ManagementAudit({ password, username, role }: { password: string
         <span className="ml-auto self-center text-xs text-brand-green-dark/50">{filtered.length} entries</span>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-sm">
         <table className="w-full min-w-[700px] text-left text-sm">
           <thead>

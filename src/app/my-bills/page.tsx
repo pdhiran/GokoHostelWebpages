@@ -143,6 +143,8 @@ function MyBillsContent() {
   };
 
   const unpaidTotal = unpaidOrders.reduce((sum, o) => sum + o.total, 0);
+  const paidTotal = paidOrders.reduce((sum, o) => sum + o.total, 0);
+  const totalSpent = unpaidTotal + paidTotal;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400">
@@ -232,6 +234,33 @@ function MyBillsContent() {
                 Change
               </button>
             </div>
+
+            {/* Total Summary */}
+            {(unpaidOrders.length > 0 || paidOrders.length > 0) && (
+              <div className="mb-4 rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Total Spent</span>
+                  <span className="text-xl font-bold text-gray-800">₹{Math.round(totalSpent / 100)}</span>
+                </div>
+                <div className="mt-2 flex items-center gap-4 border-t border-gray-100 pt-2">
+                  {paidTotal > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                      <span className="text-sm text-green-700">₹{Math.round(paidTotal / 100)} paid</span>
+                    </div>
+                  )}
+                  {unpaidTotal > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 rounded-full bg-amber-500" />
+                      <span className="text-sm font-semibold text-amber-700">₹{Math.round(unpaidTotal / 100)} unpaid</span>
+                    </div>
+                  )}
+                  {unpaidTotal === 0 && paidTotal > 0 && (
+                    <span className="text-sm font-semibold text-green-600">All paid</span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Unpaid Bills */}
             {unpaidOrders.length > 0 && (
