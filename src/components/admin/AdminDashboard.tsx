@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon } from "lucide-react";
 import type { Role, AdminSection } from "./types";
 
 export function AdminDashboard({
@@ -55,13 +55,50 @@ export function AdminDashboard({
     } finally { setTogglingValidation(false); }
   };
 
-  const checkoutBed = async (bedIdx: number) => {
-    if (!confirm("Checkout this guest?")) return;
+  const [checkoutModal, setCheckoutModal] = useState<{
+    bedIdx: number; name: string; pendingTab: number; pendingOrders: number; checkinId: number | null; contact: string;
+  } | null>(null);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+
+  const foodApiCall = useCallback(async (body: Record<string, any>) => {
+    const payload: Record<string, any> = { password, ...body };
+    if (username) payload.username = username;
+    return fetch("/api/admin/food-orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  }, [password, username]);
+
+  const handleCheckoutClick = (co: typeof todayCheckouts[0]) => {
+    if (co.pendingTab > 0) {
+      setCheckoutModal({ bedIdx: co.bedIdx, name: co.name, pendingTab: co.pendingTab, pendingOrders: co.pendingOrders, checkinId: co.checkinId, contact: co.contact });
+    } else {
+      doCheckout(co.bedIdx);
+    }
+  };
+
+  const doCheckout = async (bedIdx: number) => {
     setBusyIdx(bedIdx);
+    setCheckoutBusy(true);
     try {
       const res = await apiCall({ action: "checkoutBed", bedId: bedIdx });
-      if (res.ok) await loadDashboard();
-    } finally { setBusyIdx(null); }
+      if (res.ok) { setCheckoutModal(null); await loadDashboard(); }
+    } finally { setBusyIdx(null); setCheckoutBusy(false); }
+  };
+
+  const handleCheckoutWithPayment = async (method: string) => {
+    if (!checkoutModal || !checkoutModal.checkinId) return;
+    setCheckoutBusy(true);
+    try {
+      const tabRes = await foodApiCall({ action: "getGuestTab", checkinId: checkoutModal.checkinId });
+      if (tabRes.ok) {
+        const tabData = await tabRes.json();
+        const orderIds = (tabData.orders || []).map((o: any) => o.id);
+        if (orderIds.length > 0) {
+          await foodApiCall({ action: "markOrderPaid", orderIds, paymentMethod: method });
+        }
+      }
+      await doCheckout(checkoutModal.bedIdx);
+    } catch {
+      setCheckoutBusy(false);
+    }
   };
 
   const today = new Date().toISOString().split("T")[0];
@@ -145,7 +182,7 @@ export function AdminDashboard({
                     <span className="font-medium text-brand-green-dark">{co.name}</span>
                     <span className="ml-2 text-xs text-brand-green-dark/50">{co.dorm} / {co.bedId}</span>
                   </div>
-                  <button type="button" onClick={() => checkoutBed(co.bedIdx)} disabled={busyIdx === co.bedIdx}
+                  <button type="button" onClick={() => handleCheckoutClick(co)} disabled={busyIdx === co.bedIdx}
                     className="flex items-center gap-1 rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200 disabled:opacity-50">
                     {busyIdx === co.bedIdx ? <Loader2Icon className="h-3 w-3 animate-spin" /> : <LogOutIcon className="h-3 w-3" />}
                     Checkout
@@ -255,6 +292,63 @@ export function AdminDashboard({
           <span className={cn("text-xs font-semibold", validationOn ? "text-brand-green" : "text-brand-green-dark/40")}>
             {togglingValidation ? "..." : validationOn ? "ON" : "OFF"}
           </span>
+        </div>
+      )}
+
+      {/* Checkout confirmation modal */}
+      {checkoutModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => !checkoutBusy && setCheckoutModal(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
+              <div>
+                <h3 className="text-base font-bold text-brand-green-dark">Checkout {checkoutModal.name}</h3>
+                <p className="text-xs text-brand-green-dark/50">Unpaid food tab</p>
+              </div>
+              <button type="button" onClick={() => !checkoutBusy && setCheckoutModal(null)} className="rounded-lg p-1.5 hover:bg-brand-sand">
+                <XIcon className="h-5 w-5 text-brand-green-dark/60" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center">
+                <p className="text-sm text-red-800">This guest has an unpaid food tab of</p>
+                <p className="mt-1 text-2xl font-bold text-red-700">₹{(checkoutModal.pendingTab / 100).toFixed(0)}</p>
+                <p className="mt-1 text-xs text-red-600">{checkoutModal.pendingOrders} unpaid order{checkoutModal.pendingOrders !== 1 ? "s" : ""}</p>
+              </div>
+
+              <p className="mt-4 text-sm font-medium text-brand-green-dark">Record payment & checkout:</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCheckoutWithPayment("cash")}
+                  disabled={checkoutBusy}
+                  className="flex items-center gap-1.5 rounded-lg border border-green-500 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                >
+                  <BanknoteIcon className="h-4 w-4" /> Pay Cash & Checkout
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCheckoutWithPayment("online")}
+                  disabled={checkoutBusy}
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  <SmartphoneIcon className="h-4 w-4" /> Pay Online & Checkout
+                </button>
+              </div>
+
+              <div className="mt-4 border-t border-brand-mist pt-3">
+                <button
+                  type="button"
+                  onClick={() => doCheckout(checkoutModal.bedIdx)}
+                  disabled={checkoutBusy}
+                  className="w-full rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {checkoutBusy ? "Processing..." : "Checkout without payment"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
