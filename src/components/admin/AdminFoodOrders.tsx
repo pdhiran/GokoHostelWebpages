@@ -102,7 +102,7 @@ interface CartItem {
 }
 
 interface PrefillGuest {
-  guestType: "hostel" | "walkin";
+  guestType: "hostel" | "walkin" | "table";
   checkinId?: number;
   guestName: string;
   guestPhone?: string;
@@ -220,6 +220,17 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
       })();
     }
   }, [guestType, apiCall]);
+
+  useEffect(() => {
+    if (prefillGuest?.guestType === "table") {
+      const tableNum = prefillGuest.roomInfo?.match(/Table (\d+)/i)?.[1];
+      if (tableNum) {
+        setSelectedTable(parseInt(tableNum, 10));
+        setTableGuestName(prefillGuest.guestName || `Table ${tableNum}`);
+      }
+      onPrefillConsumed();
+    }
+  }, [prefillGuest]);
 
   useEffect(() => {
     if (prefillGuest?.guestType === "walkin") {
@@ -711,19 +722,21 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
 
     const walkinMap = new Map<string, Order[]>();
     for (const order of walkinOrders) {
-      const key = order.guestPhone || `_no_phone_${order.id}`;
+      const isTable = order.roomInfo && /^Table \d+$/i.test(order.roomInfo);
+      const key = isTable ? `table_${order.roomInfo}` : (order.guestPhone || `_no_phone_${order.id}`);
       if (!walkinMap.has(key)) walkinMap.set(key, []);
       walkinMap.get(key)!.push(order);
     }
-    for (const [phone, groupOrders] of walkinMap) {
+    for (const [groupKey, groupOrders] of walkinMap) {
       const latest = groupOrders.reduce((max, o) => o.createdAt > max ? o.createdAt : max, "");
       const earliest = groupOrders.reduce((min, o) => !min || o.createdAt < min ? o.createdAt : min, "");
+      const isTableGroup = groupKey.startsWith("table_");
       result.push({
-        key: `walkin_${phone}`,
+        key: `walkin_${groupKey}`,
         guestName: groupOrders[0].guestName,
         guestType: "walkin",
-        contactInfo: phone.startsWith("_no_phone_") ? "" : phone,
-        roomInfo: "",
+        contactInfo: isTableGroup ? "" : (groupKey.startsWith("_no_phone_") ? "" : groupKey),
+        roomInfo: isTableGroup ? groupOrders[0].roomInfo : "",
         orders: groupOrders,
         totalAmount: groupOrders.reduce((s, o) => s + o.total, 0),
         totalSubtotal: groupOrders.reduce((s, o) => s + o.subtotal, 0),
@@ -1185,8 +1198,9 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
                     const checkinId = selectedGroup.guestType === "hostel"
                       ? parseInt(selectedGroup.key.replace("hostel_", ""), 10)
                       : undefined;
+                    const isTable = selectedGroup.roomInfo && /^Table \d+$/i.test(selectedGroup.roomInfo);
                     onOrderMore({
-                      guestType: selectedGroup.guestType,
+                      guestType: isTable ? "table" : selectedGroup.guestType,
                       checkinId,
                       guestName: selectedGroup.guestName,
                       guestPhone: selectedGroup.contactInfo || undefined,
@@ -1554,7 +1568,8 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
         if (!hostelMap.has(order.checkinId)) hostelMap.set(order.checkinId, []);
         hostelMap.get(order.checkinId)!.push(order);
       } else {
-        const key = order.guestPhone || `_no_phone_${order.id}`;
+        const isTable = order.roomInfo && /^Table \d+$/i.test(order.roomInfo);
+        const key = isTable ? `table_${order.roomInfo}` : (order.guestPhone || `_no_phone_${order.id}`);
         if (!walkinMap.has(key)) walkinMap.set(key, []);
         walkinMap.get(key)!.push(order);
       }
@@ -1587,8 +1602,8 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       });
     }
 
-    for (const [phone, orders] of walkinMap) {
-      const overrideOrders = detailOrders[`walkin_${phone}`];
+    for (const [groupKey, orders] of walkinMap) {
+      const overrideOrders = detailOrders[`walkin_${groupKey}`];
       const effectiveOrders = overrideOrders || orders;
       const nonCancelled = effectiveOrders.filter(o => o.status !== "cancelled");
       const paidAmt = nonCancelled.filter(o => o.paymentStatus === "paid").reduce((s, o) => s + o.total, 0);
@@ -1596,12 +1611,13 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       const cashAmt = nonCancelled.filter(o => o.paymentStatus === "paid" && o.paymentMethod === "cash").reduce((s, o) => s + o.total, 0);
       const onlineAmt = nonCancelled.filter(o => o.paymentStatus === "paid" && (o.paymentMethod === "online" || o.paymentMethod === "split")).reduce((s, o) => s + o.total, 0);
       const totalAmt = nonCancelled.reduce((s, o) => s + o.total, 0);
+      const isTableGroup = groupKey.startsWith("table_");
       result.push({
-        key: `walkin_${phone}`,
+        key: `walkin_${groupKey}`,
         guestName: effectiveOrders[0].guestName,
         guestType: "walkin",
-        contactInfo: phone.startsWith("_no_phone_") ? "" : phone,
-        roomInfo: "",
+        contactInfo: isTableGroup ? "" : (groupKey.startsWith("_no_phone_") ? "" : groupKey),
+        roomInfo: isTableGroup ? effectiveOrders[0].roomInfo : "",
         orders: effectiveOrders,
         totalAmount: totalAmt,
         paidAmount: paidAmt,
