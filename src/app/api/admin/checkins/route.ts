@@ -13,7 +13,7 @@ import {
   addAuditEntry, getAuditEntries,
   addSystemLog, getSystemLogs,
 } from "@/db/queries";
-import { beds, checkins } from "@/db/schema";
+import { beds, checkins, foodOrders } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 type UserRole = "admin" | "manager" | "staff";
@@ -419,8 +419,53 @@ export async function POST(req: NextRequest) {
       const available = allBeds.filter((b) => b.status === "available").length;
       const cleanup = allBeds.filter((b) => b.status === "cleanup").length;
 
-      const todayCheckoutBeds = allBeds.filter((b) => b.status === "occupied" && b.expectedCheckout && b.expectedCheckout <= today)
-        .map((b) => ({ name: b.guestName || "", contact: b.guestContact || "", bedId: b.bedId, dorm: b.dormName, bedIdx: b.id, expectedCheckout: b.expectedCheckout || "" }));
+      const checkoutBeds = allBeds.filter((b) => b.status === "occupied" && b.expectedCheckout && b.expectedCheckout <= today);
+
+      const activeCheckins = allCheckins.filter((r) => r.status === "active");
+      const contactToCheckinId = new Map<string, number>();
+      for (const c of activeCheckins) {
+        if (c.contact) contactToCheckinId.set(c.contact, c.id);
+      }
+
+      const todayCheckoutBeds = await Promise.all(checkoutBeds.map(async (b) => {
+        const checkinId = b.guestContact ? contactToCheckinId.get(b.guestContact) : undefined;
+        let pendingTab = 0;
+        let paidTotal = 0;
+        let totalOrders = 0;
+        let pendingOrders = 0;
+        if (checkinId) {
+          const db = getDb();
+          const tabRows = await db.select({
+            paymentStatus: foodOrders.paymentStatus,
+            total: sql<number>`COALESCE(SUM(${foodOrders.total}), 0)`,
+            count: sql<number>`COUNT(*)`,
+          }).from(foodOrders)
+            .where(eq(foodOrders.checkinId, checkinId))
+            .groupBy(foodOrders.paymentStatus);
+          for (const row of tabRows) {
+            totalOrders += row.count;
+            if (row.paymentStatus === "on_tab" || row.paymentStatus === "pending") {
+              pendingTab += row.total;
+              pendingOrders += row.count;
+            } else if (row.paymentStatus === "paid") {
+              paidTotal += row.total;
+            }
+          }
+        }
+        return {
+          name: b.guestName || "",
+          contact: b.guestContact || "",
+          bedId: b.bedId,
+          dorm: b.dormName,
+          bedIdx: b.id,
+          expectedCheckout: b.expectedCheckout || "",
+          pendingTab,
+          paidTotal,
+          totalOrders,
+          pendingOrders,
+          checkinId: checkinId || null,
+        };
+      }));
 
       const assignedContacts = new Map<string, string>();
       for (const b of allBeds) {

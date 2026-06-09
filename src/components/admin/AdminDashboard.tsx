@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon } from "lucide-react";
 import type { Role, AdminSection } from "./types";
 
 export function AdminDashboard({
@@ -20,7 +20,10 @@ export function AdminDashboard({
 }) {
   const { apiCall } = useAdminApi(password, username);
   const [todayCheckins, setTodayCheckins] = useState<{ row: string[]; assignedBed: string | null }[]>([]);
-  const [todayCheckouts, setTodayCheckouts] = useState<{ name: string; contact: string; bedId: string; dorm: string; bedIdx: number; expectedCheckout: string }[]>([]);
+  const [todayCheckouts, setTodayCheckouts] = useState<{
+    name: string; contact: string; bedId: string; dorm: string; bedIdx: number; expectedCheckout: string;
+    pendingTab: number; paidTotal: number; totalOrders: number; pendingOrders: number; checkinId: number | null;
+  }[]>([]);
   const [stats, setStats] = useState({ total: 0, occupied: 0, available: 0, cleanup: 0 });
   const [validationOn, setValidationOn] = useState(true);
   const [togglingValidation, setTogglingValidation] = useState(false);
@@ -136,16 +139,43 @@ export function AdminDashboard({
           </div>
           <div className="mt-2 space-y-2">
             {todayCheckouts.map((co, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
-                <div>
-                  <span className="font-medium text-brand-green-dark">{co.name}</span>
-                  <span className="ml-2 text-xs text-brand-green-dark/50">{co.dorm} / {co.bedId}</span>
+              <div key={i} className="rounded-lg bg-white px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-brand-green-dark">{co.name}</span>
+                    <span className="ml-2 text-xs text-brand-green-dark/50">{co.dorm} / {co.bedId}</span>
+                  </div>
+                  <button type="button" onClick={() => checkoutBed(co.bedIdx)} disabled={busyIdx === co.bedIdx}
+                    className="flex items-center gap-1 rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200 disabled:opacity-50">
+                    {busyIdx === co.bedIdx ? <Loader2Icon className="h-3 w-3 animate-spin" /> : <LogOutIcon className="h-3 w-3" />}
+                    Checkout
+                  </button>
                 </div>
-                <button type="button" onClick={() => checkoutBed(co.bedIdx)} disabled={busyIdx === co.bedIdx}
-                  className="flex items-center gap-1 rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200 disabled:opacity-50">
-                  {busyIdx === co.bedIdx ? <Loader2Icon className="h-3 w-3 animate-spin" /> : <LogOutIcon className="h-3 w-3" />}
-                  Checkout
-                </button>
+                {co.totalOrders > 0 && (
+                  <div className="mt-1.5 flex items-center gap-3 text-xs">
+                    {co.pendingTab > 0 ? (
+                      <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
+                        ₹{(co.pendingTab / 100).toFixed(0)} pending
+                        <span className="font-normal text-red-500">({co.pendingOrders} order{co.pendingOrders !== 1 ? "s" : ""})</span>
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-700">All paid</span>
+                    )}
+                    {co.paidTotal > 0 && (
+                      <span className="text-brand-green-dark/40">₹{(co.paidTotal / 100).toFixed(0)} paid</span>
+                    )}
+                    {co.contact && (
+                      <a
+                        href={`/my-bills?phone=${encodeURIComponent(co.contact)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-auto flex items-center gap-1 font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        View Bills <ExternalLinkIcon className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

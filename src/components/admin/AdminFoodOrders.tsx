@@ -1777,7 +1777,7 @@ function PaymentModal({
 
   const canSave = (() => {
     if (saving) return false;
-    if (activeTab === "cash") return cashValue > 0;
+    if (activeTab === "cash") return cashValue >= totalRupees;
     if (activeTab === "online") return true;
     if (activeTab === "split") return splitCashVal > 0 && splitOnlineVal > 0 && splitTotal >= totalRupees;
     return false;
