@@ -147,10 +147,22 @@ export async function POST(req: NextRequest) {
         const validStatuses = ["pending_approval", "placed", "preparing", "ready", "served", "cancelled"];
         if (!validStatuses.includes(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
 
+        const prevOrder = await getFoodOrderById(orderId);
         await updateFoodOrderStatus(orderId, status, cancelledReason);
 
         if (status === "cancelled") {
           await restoreStock(orderId);
+        }
+
+        if (prevOrder?.status === "pending_approval" && (status === "placed" || status === "cancelled")) {
+          await addOrderModification({
+            orderId,
+            action: status === "placed" ? "order_approved" : "order_rejected",
+            oldValue: "pending_approval",
+            newValue: status,
+            reason: status === "cancelled" ? (cancelledReason || "Rejected by staff") : "",
+            modifiedBy: actorName,
+          });
         }
 
         await addAuditEntry({

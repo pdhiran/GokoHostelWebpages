@@ -1638,6 +1638,10 @@ function formatModification(mod: OrderModification): string {
       return `${actor} added ${mod.itemName} x${mod.newValue}`;
     case "discount":
       return `${actor} applied discount: ${mod.oldValue} → ${mod.newValue}`;
+    case "order_approved":
+      return `${actor} approved this order`;
+    case "order_rejected":
+      return `${actor} rejected this order`;
     default:
       return `${actor}: ${mod.action} on ${mod.itemName || "order"}`;
   }
