@@ -536,7 +536,7 @@ export async function createFoodOrder(data: {
   checkinId?: number; guestName: string; guestPhone?: string;
   roomInfo?: string; tableNumber?: string; specialInstructions?: string;
   subtotal: number; tax: number; total: number;
-  paymentStatus?: string; createdBy?: string;
+  status?: string; paymentStatus?: string; createdBy?: string;
 }) {
   const db = getDb();
   const now = new Date().toISOString();
@@ -553,7 +553,7 @@ export async function createFoodOrder(data: {
     subtotal: data.subtotal,
     tax: data.tax,
     total: data.total,
-    status: "placed",
+    status: data.status || "placed",
     paymentStatus: data.paymentStatus || "pending",
     createdBy: data.createdBy || "guest",
     createdAt: now,

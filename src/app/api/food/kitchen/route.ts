@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Missing orderId or status" }, { status: 400 });
       }
 
-      const validStatuses = ["placed", "preparing", "ready", "served", "cancelled"];
+      const validStatuses = ["pending_approval", "placed", "preparing", "ready", "served", "cancelled"];
       if (!validStatuses.includes(status)) {
         return NextResponse.json({ error: "Invalid status" }, { status: 400 });
       }

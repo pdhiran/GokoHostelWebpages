@@ -419,6 +419,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     }
   };
 
+  const pendingApprovalOrders = useMemo(() => orders.filter((o) => o.status === "pending_approval"), [orders]);
   const placedOrders = useMemo(() => orders.filter((o) => o.status === "placed"), [orders]);
   const preparingOrders = useMemo(() => orders.filter((o) => o.status === "preparing"), [orders]);
   const readyOrders = useMemo(() => orders.filter((o) => o.status === "ready"), [orders]);
@@ -746,6 +747,62 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+      )}
+
+      {/* Pending Approval */}
+      {pendingApprovalOrders.length > 0 && (
+        <div className="mx-4 mb-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-lg">⏳</span>
+            <h3 className="font-bold text-amber-800">Pending Approval ({pendingApprovalOrders.length})</h3>
+          </div>
+          <div className="space-y-3">
+            {pendingApprovalOrders.map((order) => {
+              const elapsed = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
+              const elapsedStr = elapsed < 1 ? "<1m" : elapsed < 60 ? `${elapsed}m` : `${Math.floor(elapsed / 60)}h ${elapsed % 60}m`;
+              return (
+                <div key={order.id} className="rounded-lg border border-amber-200 bg-white p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-mono text-sm font-bold text-amber-700">#{order.orderNumber}</span>
+                      <span className="ml-2 text-sm font-medium text-gray-800">{order.guestName}</span>
+                      {order.guestType === "hostel" && <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>}
+                      {order.roomInfo && <span className="ml-1.5 text-xs text-gray-400">{order.roomInfo}</span>}
+                    </div>
+                    <span className="text-xs text-amber-600">{elapsedStr} ago</span>
+                  </div>
+                  <div className="mt-2 space-y-0.5">
+                    {order.items.filter(i => i.status !== "voided").map((item) => (
+                      <div key={item.id} className="text-sm text-gray-700">
+                        <span className="font-medium">{item.quantity}x</span> {item.itemName}
+                        {kannadaDisplayEnabled && (() => { const mi = menuItems.find(m => m.id === item.menuItemId); return mi?.nameKannada ? <span className="ml-1 text-xs text-gray-400">{mi.nameKannada}</span> : null; })()}
+                      </div>
+                    ))}
+                  </div>
+                  {order.specialInstructions && (
+                    <p className="mt-1 text-xs italic text-gray-500">{order.specialInstructions}</p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateStatus(order.id, "placed")}
+                      className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateStatus(order.id, "cancelled")}
+                      className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

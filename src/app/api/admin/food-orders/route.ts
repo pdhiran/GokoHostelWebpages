@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
       case "updateOrderStatus": {
         const { orderId, status, cancelledReason } = rest;
         if (!orderId || !status) return NextResponse.json({ error: "orderId and status required" }, { status: 400 });
-        const validStatuses = ["placed", "preparing", "ready", "served", "cancelled"];
+        const validStatuses = ["pending_approval", "placed", "preparing", "ready", "served", "cancelled"];
         if (!validStatuses.includes(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
 
         await updateFoodOrderStatus(orderId, status, cancelledReason);

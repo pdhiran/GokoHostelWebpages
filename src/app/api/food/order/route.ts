@@ -170,6 +170,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 6-7. Generate order number and create order (with retry on race condition)
+    const isGuestOrder = !createdBy || createdBy === "guest";
+    const requireApproval = isGuestOrder && (await getSetting("food_confirm_with_guest")) === "true";
+    const initialStatus = requireApproval ? "pending_approval" : "placed";
+
     let orderNumber = await getNextOrderNumber();
     let order: any;
 
@@ -187,6 +191,7 @@ export async function POST(req: NextRequest) {
         subtotal,
         tax,
         total,
+        status: initialStatus,
         paymentStatus: guestType === "hostel" && checkinId ? "on_tab" : "pending",
         createdBy: createdBy || "guest",
       });
@@ -207,6 +212,7 @@ export async function POST(req: NextRequest) {
           subtotal,
           tax,
           total,
+          status: initialStatus,
           paymentStatus: guestType === "hostel" && checkinId ? "on_tab" : "pending",
           createdBy: createdBy || "guest",
         });

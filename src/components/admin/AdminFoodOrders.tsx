@@ -2873,15 +2873,17 @@ export function LoadingState() {
 
 export function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
+    pending_approval: "bg-amber-100 text-amber-700",
     placed: "bg-yellow-100 text-yellow-700",
     preparing: "bg-blue-100 text-blue-700",
     ready: "bg-green-100 text-green-700",
     served: "bg-gray-100 text-gray-600",
     cancelled: "bg-red-100 text-red-600",
   };
+  const labels: Record<string, string> = { pending_approval: "awaiting approval" };
   return (
     <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", colors[status] || "bg-gray-100 text-gray-600")}>
-      {status}
+      {labels[status] || status}
     </span>
   );
 }

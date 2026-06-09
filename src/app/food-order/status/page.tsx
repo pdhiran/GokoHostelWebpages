@@ -23,14 +23,16 @@ interface OrderData {
   createdAt: string;
 }
 
-const STATUS_STEPS = ["placed", "preparing", "ready", "served"] as const;
+const STATUS_STEPS = ["pending_approval", "placed", "preparing", "ready", "served"] as const;
 const STATUS_LABELS: Record<string, string> = {
+  pending_approval: "Confirming",
   placed: "Placed",
   preparing: "Preparing",
   ready: "Ready",
   served: "Served",
 };
 const STATUS_ICONS: Record<string, string> = {
+  pending_approval: "⏳",
   placed: "📋",
   preparing: "👨‍🍳",
   ready: "✅",
@@ -187,6 +189,7 @@ function OrderStatusContent() {
 
           <div className="mt-5 rounded-xl bg-blue-50 p-3 text-center">
             <p className="text-sm font-medium text-blue-800">
+              {order.status === "pending_approval" && "Waiting for staff to confirm your order"}
               {order.status === "placed" && "Your order has been received"}
               {order.status === "preparing" && "The kitchen is preparing your food"}
               {order.status === "ready" && "Your order is ready for pickup!"}
