@@ -419,6 +419,12 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
   const preparingOrders = useMemo(() => orders.filter((o) => o.status === "preparing"), [orders]);
   const readyOrders = useMemo(() => orders.filter((o) => o.status === "ready"), [orders]);
 
+  const kannadaLookup = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const mi of menuItems) { if (mi.nameKannada) m.set(mi.name, mi.nameKannada); }
+    return m;
+  }, [menuItems]);
+
   const demandSummary = useMemo(() => {
     const map = new Map<string, number>();
     for (const order of placedOrders) {
@@ -429,8 +435,8 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     }
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
-      .map(([name, qty]) => ({ name, qty }));
-  }, [placedOrders]);
+      .map(([name, qty]) => ({ name, nameKannada: kannadaLookup.get(name) || "", qty }));
+  }, [placedOrders, kannadaLookup]);
 
   const unavailableItems = useMemo(
     () => menuItems.filter((m) => m.isAvailable === 0),
@@ -720,6 +726,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                     >
                       <span className="font-bold text-amber-600">{d.qty}x</span>{" "}
                       {d.name}
+                      {d.nameKannada && <span className="ml-1 text-xs text-gray-400">{d.nameKannada}</span>}
                     </span>
                   ))}
                   {demandSummary.length === 0 && (
@@ -1201,6 +1208,11 @@ function OrderCard({
   const elapsed = useElapsed(order.createdAt);
   const activeItems = order.items.filter((i) => i.status !== "voided");
   const voidedItems = order.items.filter((i) => i.status === "voided");
+  const kannadaMap = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const mi of menuItems) { if (mi.nameKannada) m.set(mi.id, mi.nameKannada); }
+    return m;
+  }, [menuItems]);
 
   const getDisplayQty = (item: OrderItem) => {
     if (!isEditing || !editedItemChanges) return item.quantity;
@@ -1312,7 +1324,12 @@ function OrderCard({
                 ) : (
                   <span className="min-w-[1.5rem] text-center font-bold text-amber-600">{item.quantity}</span>
                 )}
-                <span className={`min-w-0 text-gray-800 ${displayQty === 0 ? "line-through opacity-50" : ""}`}>{item.itemName}</span>
+                <span className={`min-w-0 text-gray-800 ${displayQty === 0 ? "line-through opacity-50" : ""}`}>
+                  {item.itemName}
+                  {kannadaMap.get(item.menuItemId) && (
+                    <span className="ml-1.5 text-xs text-gray-400">{kannadaMap.get(item.menuItemId)}</span>
+                  )}
+                </span>
                 {itemTags.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {itemTags.map((tag) => (
@@ -1347,7 +1364,7 @@ function OrderCard({
                   className="flex items-center gap-2 text-sm text-gray-400 line-through"
                 >
                   <span>{item.quantity}x</span>
-                  <span>{item.itemName}</span>
+                  <span>{item.itemName}{kannadaMap.get(item.menuItemId) ? ` ${kannadaMap.get(item.menuItemId)}` : ""}</span>
                   <span className="text-xs text-red-400">REJECTED</span>
                 </div>
               ))}
