@@ -15,7 +15,7 @@ import { BOOKING_PLATFORMS } from "@/lib/checkinSchema";
 const TEXT_FIELDS = [
   { index: 1, label: "Arrival Date", type: "date" },
   { index: 2, label: "Arrival Time", type: "time" },
-  { index: 3, label: "Name", type: "text" },
+  { index: 3, label: "Name", type: "name_split" },
   { index: 4, label: "Persons", type: "text" },
   { index: 5, label: "Contact", type: "tel" },
   { index: 6, label: "Days", type: "text" },
@@ -64,9 +64,13 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [showAddForm, setShowAddForm] = useState(false);
   const [newEntry, setNewEntry] = useState<string[]>(getDefaults());
   const [newIdFiles, setNewIdFiles] = useState<File[]>([]);
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
   const [showPastForm, setShowPastForm] = useState(false);
   const [pastEntry, setPastEntry] = useState<string[]>(getDefaults());
   const [pastIdFiles, setPastIdFiles] = useState<File[]>([]);
+  const [pastFirstName, setPastFirstName] = useState("");
+  const [pastLastName, setPastLastName] = useState("");
   const [pastCheckoutDate, setPastCheckoutDate] = useState("");
   const [newFormCFields, setNewFormCFields] = useState<Record<string, string>>({});
   const [pastFormCFields, setPastFormCFields] = useState<Record<string, string>>({});
@@ -76,6 +80,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [pastBookingId, setPastBookingId] = useState("");
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editEntry, setEditEntry] = useState<string[]>(Array(17).fill(""));
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
   const [editIdFiles, setEditIdFiles] = useState<File[]>([]);
   const [editVisaFiles, setEditVisaFiles] = useState<File[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -162,6 +168,9 @@ export function AdminRecords({ password, username, role }: { password: string; u
     const padded = Array(17).fill("").map((_, i) => rows[rowIndex][i] || "");
     setEditEntry(padded);
     setEditIndex(rowIndex);
+    const nameParts = (padded[3] || "").trim().split(/\s+/);
+    setEditFirstName(nameParts[0] || "");
+    setEditLastName(nameParts.slice(1).join(" ") || "");
     setEditIdFiles([]);
     setEditVisaFiles([]);
   };
@@ -171,6 +180,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
     setLoading(true);
     try {
       const updated = [...editEntry];
+      updated[3] = `${editFirstName.trim()} ${editLastName.trim()}`.trim();
       const doUpload = async (files: File[], guestName: string, type: string) => {
         const links: string[] = [];
         for (const file of files) {
@@ -191,7 +201,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
   };
 
   const addEntry = async () => {
-    if (!newEntry[3]) { alert("Name is required"); return; }
+    if (!newFirstName.trim() || !newLastName.trim()) { alert("First name and last name are required"); return; }
+    newEntry[3] = `${newFirstName.trim()} ${newLastName.trim()}`;
     setLoading(true);
     try {
       const entry = [...newEntry]; entry[0] = new Date().toISOString();
@@ -220,12 +231,13 @@ export function AdminRecords({ password, username, role }: { password: string; u
       const isForeigner = newEntry[8] && newEntry[8] !== "India";
       const formCData = isForeigner ? JSON.stringify(newFormCFields) : undefined;
       const res = await apiCall({ action: "add", entry, formCData, bookingPlatform: newBookingPlatform, bookingId: newBookingId });
-      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewIdFiles([]); setNewFormCFields({}); setNewBookingPlatform(""); setNewBookingId(""); refresh(); }
+      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewFirstName(""); setNewLastName(""); setNewIdFiles([]); setNewFormCFields({}); setNewBookingPlatform(""); setNewBookingId(""); refresh(); }
     } finally { setLoading(false); }
   };
 
   const addPastEntry = async () => {
-    if (!pastEntry[3]) { alert("Name is required"); return; }
+    if (!pastFirstName.trim() || !pastLastName.trim()) { alert("First name and last name are required"); return; }
+    pastEntry[3] = `${pastFirstName.trim()} ${pastLastName.trim()}`;
     if (!pastEntry[1]) { alert("Arrival date is required for past records"); return; }
     if (pastCheckoutDate && pastCheckoutDate < pastEntry[1]) { alert("Checkout date must be on or after arrival date"); return; }
     setLoading(true);
@@ -256,7 +268,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
       const isForeigner = pastEntry[8] && pastEntry[8] !== "India";
       const formCData = isForeigner ? JSON.stringify(pastFormCFields) : undefined;
       const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate, formCData, bookingPlatform: pastBookingPlatform, bookingId: pastBookingId });
-      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastIdFiles([]); setPastCheckoutDate(""); setPastFormCFields({}); setPastBookingPlatform(""); setPastBookingId(""); refresh(); }
+      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastFirstName(""); setPastLastName(""); setPastIdFiles([]); setPastCheckoutDate(""); setPastFormCFields({}); setPastBookingPlatform(""); setPastBookingId(""); refresh(); }
       else { const errData = await res.json().catch(() => ({})); alert(errData.error || "Failed to save past record"); }
     } finally { setLoading(false); }
   };
@@ -406,6 +418,18 @@ export function AdminRecords({ password, username, role }: { password: string; u
           <h3 className="font-display text-lg font-bold text-brand-green">Add manual entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {TEXT_FIELDS.map((field) => (
+              field.type === "name_split" ? (
+                <div key={field.index} className="sm:col-span-2 md:col-span-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">First Name</Label>
+                    <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="First name" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Last Name</Label>
+                    <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Last name" className="mt-1" />
+                  </div>
+                </div>
+              ) : (
               <div key={field.index}>
                 <Label className="text-xs">{field.label}</Label>
                 {field.type === "select" ? (
@@ -421,6 +445,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                   <Input type={field.type} value={newEntry[field.index]} onChange={(e) => { const u = [...newEntry]; u[field.index] = e.target.value; setNewEntry(u); }} placeholder={field.label} className="mt-1" />
                 )}
               </div>
+              )
             ))}
             <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-brand-mist bg-brand-sand/20 p-3">
               <p className="mb-2 text-xs font-semibold text-brand-green-dark">Booking details</p>
@@ -514,6 +539,18 @@ export function AdminRecords({ password, username, role }: { password: string; u
           <p className="mt-1 text-xs text-amber-700">This record is for archival purposes only — no bed assignment needed.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {TEXT_FIELDS.map((field) => (
+              field.type === "name_split" ? (
+                <div key={field.index} className="sm:col-span-2 md:col-span-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">First Name</Label>
+                    <Input value={pastFirstName} onChange={(e) => setPastFirstName(e.target.value)} placeholder="First name" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Last Name</Label>
+                    <Input value={pastLastName} onChange={(e) => setPastLastName(e.target.value)} placeholder="Last name" className="mt-1" />
+                  </div>
+                </div>
+              ) : (
               <div key={field.index}>
                 <Label className="text-xs">{field.label}</Label>
                 {field.type === "select" ? (
@@ -529,6 +566,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                   <Input type={field.type} value={pastEntry[field.index]} onChange={(e) => { const u = [...pastEntry]; u[field.index] = e.target.value; setPastEntry(u); }} placeholder={field.label} className="mt-1" />
                 )}
               </div>
+              )
             ))}
             <div>
               <Label className="text-xs">Checkout Date</Label>
@@ -625,6 +663,18 @@ export function AdminRecords({ password, username, role }: { password: string; u
           <h3 className="font-display text-lg font-bold text-brand-green">Edit entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {CHECKIN_COLUMNS.map((col, i) => (
+              col === "Name" ? (
+                <div key={col} className="sm:col-span-2 md:col-span-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">First Name</Label>
+                    <Input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} placeholder="First name" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Last Name</Label>
+                    <Input value={editLastName} onChange={(e) => setEditLastName(e.target.value)} placeholder="Last name" className="mt-1" />
+                  </div>
+                </div>
+              ) : (
               <div key={col}>
                 <Label className="text-xs">{col}</Label>
                 {col === "ID Card" || col === "Visa" ? (
@@ -640,6 +690,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                   <Input value={editEntry[i]} onChange={(e) => { const u = [...editEntry]; u[i] = e.target.value; setEditEntry(u); }} placeholder={col} className="mt-1" />
                 )}
               </div>
+              )
             ))}
           </div>
           <div className="mt-4 flex gap-2">

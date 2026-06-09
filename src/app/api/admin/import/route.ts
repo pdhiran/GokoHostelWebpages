@@ -8,7 +8,8 @@ import { getMonthKey, addSystemLog } from "@/db/queries";
 const MAX_ROWS = 500;
 
 const TEMPLATE_COLUMNS = [
-  { header: "name", description: "Guest full name (required)" },
+  { header: "first_name", description: "Guest first name (required)" },
+  { header: "last_name", description: "Guest last name (required)" },
   { header: "contact", description: "Phone number (required) - format as text in Excel" },
   { header: "arrival_date", description: "YYYY-MM-DD (required)" },
   { header: "arrival_time", description: "HH:MM" },
@@ -220,8 +221,12 @@ export async function POST(req: NextRequest) {
         const row = batch[j];
 
         try {
-          // Extract and validate required fields
-          const name = cellToString(row.name);
+          const firstName = cellToString(row.first_name);
+          const lastName = cellToString(row.last_name);
+          const legacyName = cellToString(row.name);
+          const name = firstName && lastName
+            ? `${firstName} ${lastName}`
+            : firstName || lastName || legacyName;
           const rawContact = cellToString(row.contact);
           const contact = normalizeContact(rawContact);
           const arrivalDate = parseDate(row.arrival_date);

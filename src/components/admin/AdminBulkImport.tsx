@@ -421,7 +421,7 @@ export function AdminBulkImport({
           <li>Download the template, fill your data under the column headings</li>
           <li>For ID photos, paste the Google Drive URL in the id_card_link column</li>
           <li>Multiple photo links can be separated with a pipe character ( | )</li>
-          <li>Required fields: name, contact, arrival_date</li>
+          <li>Required fields: first_name, last_name, contact, arrival_date</li>
           <li>Historical records default to &quot;checked_out&quot; status</li>
           <li>
             <strong>Safe retries:</strong> Re-uploading the same file skips
