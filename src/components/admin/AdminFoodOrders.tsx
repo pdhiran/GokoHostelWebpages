@@ -675,6 +675,8 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
   const [hostelGuests, setHostelGuests] = useState<GuestWithTab[]>([]);
   const [walkinOrders, setWalkinOrders] = useState<Order[]>([]);
   const [hostelOrdersMap, setHostelOrdersMap] = useState<Record<number, Order[]>>({});
+  const [pendingApprovalOrders, setPendingApprovalOrders] = useState<Order[]>([]);
+  const [approvingId, setApprovingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<SummaryFilter>("all");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
@@ -693,9 +695,10 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [hostelRes, walkinRes] = await Promise.all([
+      const [hostelRes, walkinRes, activeRes] = await Promise.all([
         apiCall({ action: "getGuestsWithTabs" }),
         apiCall({ action: "getWalkinOrders" }),
+        apiCall({ action: "listOrders", status: "active" }),
       ]);
       if (hostelRes.ok) {
         const data = await hostelRes.json();
@@ -706,10 +709,30 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
         const data = await walkinRes.json();
         setWalkinOrders(data.orders || []);
       }
+      if (activeRes.ok) {
+        const data = await activeRes.json();
+        setPendingApprovalOrders((data.orders || []).filter((o: Order) => o.status === "pending_approval"));
+      }
     } finally {
       setLoading(false);
     }
   }, [apiCall]);
+
+  const handleApproveOrder = async (orderId: number) => {
+    setApprovingId(orderId);
+    try {
+      const res = await apiCall({ action: "updateOrderStatus", orderId, status: "placed" });
+      if (res.ok) await load();
+    } finally { setApprovingId(null); }
+  };
+
+  const handleRejectOrder = async (orderId: number) => {
+    setApprovingId(orderId);
+    try {
+      const res = await apiCall({ action: "updateOrderStatus", orderId, status: "cancelled", cancelledReason: "Rejected by staff" });
+      if (res.ok) await load();
+    } finally { setApprovingId(null); }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -985,7 +1008,41 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
         ))}
       </div>
 
-      {filteredGroups.length === 0 && (
+      {/* Pending Approval */}
+      {pendingApprovalOrders.length > 0 && (
+        <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Pending Approval ({pendingApprovalOrders.length})</p>
+          <div className="space-y-2">
+            {pendingApprovalOrders.map((order) => (
+              <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-xs font-bold text-amber-700">{order.orderNumber}</span>
+                    <span className="text-sm font-medium text-brand-green-dark">{order.guestName}</span>
+                    {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>}
+                  </div>
+                  <p className="text-xs text-brand-green-dark/50">
+                    {order.items.filter(i => i.status !== "voided").map(i => `${i.quantity}× ${i.itemName}`).join(", ")}
+                    <span className="ml-2 font-medium text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => handleApproveOrder(order.id)} disabled={approvingId === order.id}
+                    className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50">
+                    {approvingId === order.id ? "..." : "Approve"}
+                  </button>
+                  <button type="button" onClick={() => handleRejectOrder(order.id)} disabled={approvingId === order.id}
+                    className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {filteredGroups.length === 0 && pendingApprovalOrders.length === 0 && (
         <div className="rounded-xl border border-brand-mist bg-white p-8 text-center text-sm text-brand-green-dark/50">
           No unpaid orders
         </div>

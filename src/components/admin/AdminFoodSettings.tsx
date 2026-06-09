@@ -21,6 +21,7 @@ type FoodSettings = {
   food_payment_history_days: string;
   food_kannada_kitchen_print: string;
   food_kannada_kitchen_display: string;
+  food_approval_in_kitchen: string;
   food_kitchen_busy: string;
   food_customer_whatsapp: string;
   food_show_out_of_stock: string;
@@ -37,6 +38,7 @@ const DEFAULT_SETTINGS: FoodSettings = {
   food_payment_history_days: "7",
   food_kannada_kitchen_print: "true",
   food_kannada_kitchen_display: "true",
+  food_approval_in_kitchen: "false",
   food_kitchen_busy: "false",
   food_customer_whatsapp: "true",
   food_show_out_of_stock: "false",
@@ -93,6 +95,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
           food_payment_history_days: s.food_payment_history_days || DEFAULT_SETTINGS.food_payment_history_days,
           food_kannada_kitchen_print: s.food_kannada_kitchen_print ?? DEFAULT_SETTINGS.food_kannada_kitchen_print,
           food_kannada_kitchen_display: s.food_kannada_kitchen_display ?? DEFAULT_SETTINGS.food_kannada_kitchen_display,
+          food_approval_in_kitchen: s.food_approval_in_kitchen ?? DEFAULT_SETTINGS.food_approval_in_kitchen,
           food_kitchen_busy: s.food_kitchen_busy || DEFAULT_SETTINGS.food_kitchen_busy,
           food_customer_whatsapp: s.food_customer_whatsapp ?? DEFAULT_SETTINGS.food_customer_whatsapp,
           food_show_out_of_stock: s.food_show_out_of_stock ?? DEFAULT_SETTINGS.food_show_out_of_stock,
@@ -557,6 +560,31 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
                 className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", settings.food_kannada_kitchen_display === "true" ? "bg-brand-green" : "bg-brand-green-dark/20")}
               >
                 <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", settings.food_kannada_kitchen_display === "true" ? "translate-x-5" : "translate-x-0.5")} />
+              </button>
+            </div>
+          </div>
+
+          {/* Approval in Kitchen */}
+          <div className="grid gap-1.5 sm:grid-cols-3 sm:items-center">
+            <div>
+              <Label className="text-sm font-medium text-brand-green-dark">Order Approval in Kitchen</Label>
+              <p className="text-[11px] text-brand-green-dark/40">Allow kitchen staff to approve/reject guest orders (otherwise only from admin Order Summary)</p>
+            </div>
+            <div className="sm:col-span-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  const newValue = settings.food_approval_in_kitchen === "true" ? "false" : "true";
+                  setSaving(true);
+                  try {
+                    const res = await apiCall({ action: "updateFoodSettings", settings: { food_approval_in_kitchen: newValue } });
+                    if (res.ok) { setSettings((prev) => ({ ...prev, food_approval_in_kitchen: newValue })); setSavedSettings((prev) => ({ ...prev, food_approval_in_kitchen: newValue })); }
+                  } finally { setSaving(false); }
+                }}
+                disabled={saving}
+                className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", settings.food_approval_in_kitchen === "true" ? "bg-brand-green" : "bg-brand-green-dark/20")}
+              >
+                <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", settings.food_approval_in_kitchen === "true" ? "translate-x-5" : "translate-x-0.5")} />
               </button>
             </div>
           </div>

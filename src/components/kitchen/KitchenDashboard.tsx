@@ -134,6 +134,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
   const [kitchenCategories, setKitchenCategories] = useState<KitchenCategory[]>([]);
   const [kannadaPrintEnabled, setKannadaPrintEnabled] = useState(true);
   const [kannadaDisplayEnabled, setKannadaDisplayEnabled] = useState(true);
+  const [approvalInKitchen, setApprovalInKitchen] = useState(false);
   const [selectedMenuCategory, setSelectedMenuCategory] = useState<number | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("new");
@@ -232,6 +233,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
         setKitchenCategories(data.data.categories);
         if (data.data.kannadaPrint !== undefined) setKannadaPrintEnabled(data.data.kannadaPrint);
         if (data.data.kannadaDisplay !== undefined) setKannadaDisplayEnabled(data.data.kannadaDisplay);
+        if (data.data.approvalInKitchen !== undefined) setApprovalInKitchen(data.data.approvalInKitchen);
         setSelectedMenuCategory((prev) => {
           if (!prev && data.data.categories.length > 0) {
             return data.data.categories[0].id;
@@ -751,7 +753,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
       )}
 
       {/* Pending Approval */}
-      {pendingApprovalOrders.length > 0 && (
+      {approvalInKitchen && pendingApprovalOrders.length > 0 && (
         <div className="mx-4 mb-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
           <div className="mb-3 flex items-center gap-2">
             <span className="text-lg">⏳</span>

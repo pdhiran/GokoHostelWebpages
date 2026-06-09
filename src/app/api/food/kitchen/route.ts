@@ -294,6 +294,7 @@ export async function POST(req: NextRequest) {
       const categories = await getActiveMenuCategories();
       const kannadaPrint = (await getSetting("food_kannada_kitchen_print")) !== "false";
       const kannadaDisplay = (await getSetting("food_kannada_kitchen_display")) !== "false";
+      const approvalInKitchen = (await getSetting("food_approval_in_kitchen")) === "true";
       return NextResponse.json({
         success: true,
         data: {
@@ -313,6 +314,7 @@ export async function POST(req: NextRequest) {
           })),
           kannadaPrint,
           kannadaDisplay,
+          approvalInKitchen,
         },
       });
     }
