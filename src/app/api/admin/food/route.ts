@@ -56,6 +56,8 @@ const FOOD_SETTINGS_KEYS = [
   "food_cafe_tables",
   "food_confirm_with_guest",
   "food_payment_history_days",
+  "food_kannada_kitchen_print",
+  "food_kannada_kitchen_display",
   "food_kitchen_busy",
   "food_customer_whatsapp",
   "food_show_out_of_stock",

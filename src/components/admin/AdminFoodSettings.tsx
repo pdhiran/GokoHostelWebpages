@@ -19,6 +19,8 @@ type FoodSettings = {
   food_cafe_tables: string;
   food_confirm_with_guest: string;
   food_payment_history_days: string;
+  food_kannada_kitchen_print: string;
+  food_kannada_kitchen_display: string;
   food_kitchen_busy: string;
   food_customer_whatsapp: string;
   food_show_out_of_stock: string;
@@ -33,6 +35,8 @@ const DEFAULT_SETTINGS: FoodSettings = {
   food_cafe_tables: "6",
   food_confirm_with_guest: "false",
   food_payment_history_days: "7",
+  food_kannada_kitchen_print: "true",
+  food_kannada_kitchen_display: "true",
   food_kitchen_busy: "false",
   food_customer_whatsapp: "true",
   food_show_out_of_stock: "false",
@@ -87,6 +91,8 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
           food_cafe_tables: s.food_cafe_tables || DEFAULT_SETTINGS.food_cafe_tables,
           food_confirm_with_guest: s.food_confirm_with_guest ?? DEFAULT_SETTINGS.food_confirm_with_guest,
           food_payment_history_days: s.food_payment_history_days || DEFAULT_SETTINGS.food_payment_history_days,
+          food_kannada_kitchen_print: s.food_kannada_kitchen_print ?? DEFAULT_SETTINGS.food_kannada_kitchen_print,
+          food_kannada_kitchen_display: s.food_kannada_kitchen_display ?? DEFAULT_SETTINGS.food_kannada_kitchen_display,
           food_kitchen_busy: s.food_kitchen_busy || DEFAULT_SETTINGS.food_kitchen_busy,
           food_customer_whatsapp: s.food_customer_whatsapp ?? DEFAULT_SETTINGS.food_customer_whatsapp,
           food_show_out_of_stock: s.food_show_out_of_stock ?? DEFAULT_SETTINGS.food_show_out_of_stock,
@@ -493,6 +499,40 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
                 />
                 <span className="text-sm text-brand-green-dark/50">days</span>
               </div>
+            </div>
+          </div>
+
+          {/* Kannada in Kitchen Print */}
+          <div className="grid gap-1.5 sm:grid-cols-3 sm:items-center">
+            <div>
+              <Label className="text-sm font-medium text-brand-green-dark">Kannada on Kitchen Ticket</Label>
+              <p className="text-[11px] text-brand-green-dark/40">Print Kannada menu names on thermal kitchen tickets</p>
+            </div>
+            <div className="sm:col-span-2">
+              <button
+                type="button"
+                onClick={() => updateField("food_kannada_kitchen_print", settings.food_kannada_kitchen_print === "true" ? "false" : "true")}
+                className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", settings.food_kannada_kitchen_print === "true" ? "bg-brand-green" : "bg-brand-green-dark/20")}
+              >
+                <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", settings.food_kannada_kitchen_print === "true" ? "translate-x-5" : "translate-x-0.5")} />
+              </button>
+            </div>
+          </div>
+
+          {/* Kannada in Kitchen Display */}
+          <div className="grid gap-1.5 sm:grid-cols-3 sm:items-center">
+            <div>
+              <Label className="text-sm font-medium text-brand-green-dark">Kannada on Screen</Label>
+              <p className="text-[11px] text-brand-green-dark/40">Show Kannada menu names in Active Orders and Kitchen page</p>
+            </div>
+            <div className="sm:col-span-2">
+              <button
+                type="button"
+                onClick={() => updateField("food_kannada_kitchen_display", settings.food_kannada_kitchen_display === "true" ? "false" : "true")}
+                className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", settings.food_kannada_kitchen_display === "true" ? "bg-brand-green" : "bg-brand-green-dark/20")}
+              >
+                <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", settings.food_kannada_kitchen_display === "true" ? "translate-x-5" : "translate-x-0.5")} />
+              </button>
             </div>
           </div>
         </div>

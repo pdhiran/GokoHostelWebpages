@@ -292,6 +292,8 @@ export async function POST(req: NextRequest) {
     if (action === "getMenuItems") {
       const items = await getAllMenuItems();
       const categories = await getActiveMenuCategories();
+      const kannadaPrint = (await getSetting("food_kannada_kitchen_print")) !== "false";
+      const kannadaDisplay = (await getSetting("food_kannada_kitchen_display")) !== "false";
       return NextResponse.json({
         success: true,
         data: {
@@ -309,6 +311,8 @@ export async function POST(req: NextRequest) {
             name: c.name,
             icon: c.icon,
           })),
+          kannadaPrint,
+          kannadaDisplay,
         },
       });
     }

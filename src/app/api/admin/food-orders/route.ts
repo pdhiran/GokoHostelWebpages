@@ -477,7 +477,9 @@ export async function POST(req: NextRequest) {
         const confirmWithGuest = confirmStr === "true";
         const histDaysStr = await getSetting("food_payment_history_days");
         const paymentHistoryDays = parseInt(histDaysStr || "7") || 7;
-        return NextResponse.json({ role, ...data, cafeTableCount, confirmWithGuest, paymentHistoryDays });
+        const kannadaPrint = (await getSetting("food_kannada_kitchen_print")) !== "false";
+        const kannadaDisplay = (await getSetting("food_kannada_kitchen_display")) !== "false";
+        return NextResponse.json({ role, ...data, cafeTableCount, confirmWithGuest, paymentHistoryDays, kannadaPrint, kannadaDisplay });
       }
 
       case "getWalkinOrders": {

@@ -132,6 +132,8 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [kitchenCategories, setKitchenCategories] = useState<KitchenCategory[]>([]);
+  const [kannadaPrintEnabled, setKannadaPrintEnabled] = useState(true);
+  const [kannadaDisplayEnabled, setKannadaDisplayEnabled] = useState(true);
   const [selectedMenuCategory, setSelectedMenuCategory] = useState<number | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("new");
@@ -228,6 +230,8 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
       if (data.success) {
         setMenuItems(data.data.items);
         setKitchenCategories(data.data.categories);
+        if (data.data.kannadaPrint !== undefined) setKannadaPrintEnabled(data.data.kannadaPrint);
+        if (data.data.kannadaDisplay !== undefined) setKannadaDisplayEnabled(data.data.kannadaDisplay);
         setSelectedMenuCategory((prev) => {
           if (!prev && data.data.categories.length > 0) {
             return data.data.categories[0].id;
@@ -404,7 +408,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
         guestType: order.guestType,
         roomInfo: order.roomInfo || undefined,
         items: order.items.filter(i => i.status !== "voided").map(i => {
-          const mi = menuItems.find(m => m.id === i.menuItemId);
+          const mi = kannadaPrintEnabled ? menuItems.find(m => m.id === i.menuItemId) : undefined;
           return { name: i.itemName, nameKannada: mi?.nameKannada || undefined, quantity: i.quantity };
         }),
         specialInstructions: order.specialInstructions || undefined,
@@ -419,11 +423,17 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
   const preparingOrders = useMemo(() => orders.filter((o) => o.status === "preparing"), [orders]);
   const readyOrders = useMemo(() => orders.filter((o) => o.status === "ready"), [orders]);
 
+  const displayMenuItems = useMemo(() => {
+    if (kannadaDisplayEnabled) return menuItems;
+    return menuItems.map(mi => ({ ...mi, nameKannada: "" }));
+  }, [menuItems, kannadaDisplayEnabled]);
+
   const kannadaLookup = useMemo(() => {
+    if (!kannadaDisplayEnabled) return new Map<string, string>();
     const m = new Map<string, string>();
     for (const mi of menuItems) { if (mi.nameKannada) m.set(mi.name, mi.nameKannada); }
     return m;
-  }, [menuItems]);
+  }, [menuItems, kannadaDisplayEnabled]);
 
   const demandSummary = useMemo(() => {
     const map = new Map<string, number>();
@@ -765,7 +775,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             modHistory={modHistory}
             modHistoryLoading={modHistoryLoading}
             onToggleModHistory={fetchModificationHistory}
-            menuItems={menuItems}
+            menuItems={displayMenuItems}
             menuCategories={kitchenCategories}
             onAddItemToOrder={addItemToOrder}
           />
@@ -790,7 +800,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             modHistory={modHistory}
             modHistoryLoading={modHistoryLoading}
             onToggleModHistory={fetchModificationHistory}
-            menuItems={menuItems}
+            menuItems={displayMenuItems}
             menuCategories={kitchenCategories}
             onAddItemToOrder={addItemToOrder}
           />
@@ -815,7 +825,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             modHistory={modHistory}
             modHistoryLoading={modHistoryLoading}
             onToggleModHistory={fetchModificationHistory}
-            menuItems={menuItems}
+            menuItems={displayMenuItems}
             menuCategories={kitchenCategories}
             onAddItemToOrder={addItemToOrder}
           />
@@ -846,7 +856,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               modHistory={modHistory}
               modHistoryLoading={modHistoryLoading}
               onToggleModHistory={fetchModificationHistory}
-              menuItems={menuItems}
+              menuItems={displayMenuItems}
               menuCategories={kitchenCategories}
               onAddItemToOrder={addItemToOrder}
             />
@@ -873,7 +883,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               modHistory={modHistory}
               modHistoryLoading={modHistoryLoading}
               onToggleModHistory={fetchModificationHistory}
-              menuItems={menuItems}
+              menuItems={displayMenuItems}
               menuCategories={kitchenCategories}
               onAddItemToOrder={addItemToOrder}
             />
@@ -900,7 +910,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               modHistory={modHistory}
               modHistoryLoading={modHistoryLoading}
               onToggleModHistory={fetchModificationHistory}
-              menuItems={menuItems}
+              menuItems={displayMenuItems}
               menuCategories={kitchenCategories}
               onAddItemToOrder={addItemToOrder}
             />
