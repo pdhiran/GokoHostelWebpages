@@ -107,7 +107,6 @@ interface PrefillGuest {
   guestName: string;
   guestPhone?: string;
   roomInfo?: string;
-  existingOrderId?: number;
 }
 
 export function AdminFoodOrders({ password, username, role }: { password: string; username?: string; role: Role }) {
@@ -171,7 +170,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
   const [cafeTableCount, setCafeTableCount] = useState(0);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [tableGuestName, setTableGuestName] = useState("");
-  const [existingOrderId, setExistingOrderId] = useState<number | undefined>(prefillGuest?.existingOrderId);
+  const [tableSessionId, setTableSessionId] = useState("");
   const [guests, setGuests] = useState<Guest[]>([]);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [guestSearch, setGuestSearch] = useState("");
@@ -243,7 +242,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         setSelectedTable(parseInt(tableNum, 10));
         setTableGuestName(prefillGuest.guestName || `Table ${tableNum}`);
       }
-      if (prefillGuest.existingOrderId) setExistingOrderId(prefillGuest.existingOrderId);
+      if (prefillGuest.guestPhone) setTableSessionId(prefillGuest.guestPhone);
       onPrefillConsumed();
     }
   }, [prefillGuest]);
@@ -305,41 +304,41 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
 
     setSubmitting(true);
     try {
-      // For table "Order More" with existing order, use direct addItemsToOrder
-      const useDirectAdd = guestType === "table" && existingOrderId;
-      const res = useDirectAdd
-        ? await apiCall({
-            action: "addItemsToOrder",
-            orderId: existingOrderId,
-            items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
-          })
-        : await apiCall({
-            action: "placeOrderForGuest",
-            guestType: guestType === "table" ? "walkin" : guestType,
-            checkinId: guestType === "hostel" ? selectedGuest?.id : undefined,
-            guestName: name,
-            guestPhone: guestType === "walkin" ? walkinPhone.trim() : undefined,
-            roomInfo: guestType === "hostel" ? selectedGuest?.bedInfo : guestType === "table" ? `Table ${selectedTable}` : undefined,
-            items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
-            specialInstructions,
-          });
+      // Table orders are walkin orders with table name + auto-generated session ID as phone
+      const tablePhone = guestType === "table"
+        ? (tableSessionId || `${Date.now()}`)
+        : undefined;
+
+      const res = await apiCall({
+        action: "placeOrderForGuest",
+        guestType: guestType === "table" ? "walkin" : guestType,
+        checkinId: guestType === "hostel" ? selectedGuest?.id : undefined,
+        guestName: name,
+        guestPhone: guestType === "walkin" ? walkinPhone.trim() : guestType === "table" ? tablePhone : undefined,
+        roomInfo: guestType === "hostel" ? selectedGuest?.bedInfo : guestType === "table" ? `Table ${selectedTable}` : undefined,
+        items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
+        specialInstructions,
+      });
       if (res.ok) {
         const data = await res.json();
         setCart([]);
         setSpecialInstructions("");
-        setSelectedGuest(null);
-        setWalkinName("");
-        setWalkinPhone("");
-        setTableGuestName("");
-        setSelectedTable(null);
-        setExistingOrderId(undefined);
-        if (onOrderPlaced) {
-          onOrderPlaced();
-        } else {
+        if (guestType === "table") {
+          // Keep table selected, store session ID for grouping future orders
+          if (!tableSessionId && tablePhone) setTableSessionId(tablePhone);
           setSuccessMsg(`Order ${data.orderNumber} placed! Total: ₹${(data.total / 100).toFixed(0)}`);
+        } else {
+          setSelectedGuest(null);
+          setWalkinName("");
+          setWalkinPhone("");
+          if (onOrderPlaced) {
+            onOrderPlaced();
+          } else {
+            setSuccessMsg(`Order ${data.orderNumber} placed! Total: ₹${(data.total / 100).toFixed(0)}`);
+          }
         }
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         setError(data.error || "Failed to place order");
       }
     } finally {
@@ -1224,14 +1223,13 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
                       ? parseInt(selectedGroup.key.replace("hostel_", ""), 10)
                       : undefined;
                     const isTable = selectedGroup.roomInfo && /^Table \d+$/i.test(selectedGroup.roomInfo);
-                    const tableOrderId = isTable && selectedGroupOrders.length > 0 ? selectedGroupOrders[0].id : undefined;
+                    const tablePhone = isTable && selectedGroupOrders.length > 0 ? selectedGroupOrders[0].guestPhone : undefined;
                     onOrderMore({
                       guestType: isTable ? "table" : selectedGroup.guestType,
                       checkinId,
                       guestName: selectedGroup.guestName,
-                      guestPhone: selectedGroup.contactInfo || undefined,
+                      guestPhone: isTable ? tablePhone : (selectedGroup.contactInfo || undefined),
                       roomInfo: selectedGroup.roomInfo || undefined,
-                      existingOrderId: tableOrderId,
                     });
                     setSelectedGroupKey(null);
                   }}
