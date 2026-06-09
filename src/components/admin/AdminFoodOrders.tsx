@@ -167,7 +167,7 @@ export function AdminFoodOrders({ password, username, role }: { password: string
 
 function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }: { apiCall: (body: any) => Promise<Response>; prefillGuest: PrefillGuest | null; onPrefillConsumed: () => void; onOrderPlaced?: () => void }) {
   const [guestType, setGuestType] = useState<"hostel" | "walkin" | "table">(prefillGuest?.guestType || "hostel");
-  const [cafeTableCount, setCafeTableCount] = useState(6);
+  const [cafeTableCount, setCafeTableCount] = useState(0);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [tableGuestName, setTableGuestName] = useState("");
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -197,8 +197,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         setCategories(data.categories || []);
         setMenuItems(data.items || []);
         if (data.categories?.length > 0) setSelectedCategory(data.categories[0].id);
-        const tables = parseInt(data.cafeTableCount) || 0;
-        if (tables > 0) setCafeTableCount(tables);
+        setCafeTableCount(parseInt(data.cafeTableCount) || 0);
         setConfirmWithGuest(data.confirmWithGuest === true);
       }
       setLoadingMenu(false);
@@ -297,6 +296,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         setWalkinName("");
         setWalkinPhone("");
         setTableGuestName("");
+        setSelectedTable(null);
         if (onOrderPlaced) {
           onOrderPlaced();
         } else {
@@ -1768,7 +1768,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
 
       {(() => {
         const pendingGroups = filteredGroups.filter((g) => g.pendingAmount > 0);
-        const paidGroups = filteredGroups.filter((g) => g.pendingAmount <= 0);
+        const paidGroups = filteredGroups.filter((g) => g.pendingAmount <= 0 && g.paidAmount > 0);
 
         const renderCard = (group: PaymentGroup) => {
           const allPaid = group.pendingAmount <= 0 && group.paidAmount > 0;
