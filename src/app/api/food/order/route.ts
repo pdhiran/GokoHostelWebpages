@@ -8,6 +8,7 @@ import {
   createFoodOrder,
   addFoodOrderItems,
   getActiveCheckins,
+  getRecentlyCheckedOutGuests,
   decrementStock,
 } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
@@ -40,12 +41,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Verify hostel guest: phone must match the checkin's contact
+    // Verify hostel guest: phone must match an active or recently checked-out checkin
     if (guestType === "hostel" && checkinId && guestPhone) {
       const activeCheckins = await getActiveCheckins();
-      const checkin = activeCheckins.find((c) => c.id === checkinId);
+      let checkin = activeCheckins.find((c) => c.id === checkinId);
       if (!checkin || !phonesMatch(checkin.contact, guestPhone)) {
-        return NextResponse.json({ error: "Guest verification failed" }, { status: 403 });
+        const graceDaysStr = await getSetting("food_checkout_grace_days");
+        const graceDays = Number(graceDaysStr) || 10;
+        if (graceDays > 0) {
+          const checkedOut = await getRecentlyCheckedOutGuests(graceDays);
+          checkin = checkedOut.find((c) => c.id === checkinId);
+        }
+        if (!checkin || !phonesMatch(checkin.contact, guestPhone)) {
+          return NextResponse.json({ error: "Guest verification failed" }, { status: 403 });
+        }
       }
     }
 

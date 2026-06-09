@@ -756,6 +756,20 @@ export async function getActiveCheckins() {
   return db.select().from(checkins).where(eq(checkins.status, "active"));
 }
 
+export async function getRecentlyCheckedOutGuests(graceDays: number) {
+  if (graceDays <= 0) return [];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - graceDays);
+  const cutoffStr = cutoff.toISOString();
+  const db = getDb();
+  return db.select().from(checkins).where(
+    and(
+      eq(checkins.status, "checked_out"),
+      sql`${checkins.checkedOutAt} >= ${cutoffStr}`
+    )
+  );
+}
+
 // --- Inventory ---
 
 export async function decrementStock(menuItemId: number, quantity: number) {

@@ -15,6 +15,7 @@ type FoodSettings = {
   food_tax_rate: string;
   food_kitchen_hours: string;
   food_tab_limit: string;
+  food_checkout_grace_days: string;
   food_kitchen_busy: string;
   food_customer_whatsapp: string;
   food_show_out_of_stock: string;
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS: FoodSettings = {
   food_tax_rate: "5",
   food_kitchen_hours: "08:00-15:00,18:00-23:30",
   food_tab_limit: "0",
+  food_checkout_grace_days: "10",
   food_kitchen_busy: "false",
   food_customer_whatsapp: "true",
   food_show_out_of_stock: "false",
@@ -75,6 +77,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
           food_tax_rate: s.food_tax_rate || DEFAULT_SETTINGS.food_tax_rate,
           food_kitchen_hours: kitchenHours || DEFAULT_SETTINGS.food_kitchen_hours,
           food_tab_limit: s.food_tab_limit || DEFAULT_SETTINGS.food_tab_limit,
+          food_checkout_grace_days: s.food_checkout_grace_days || DEFAULT_SETTINGS.food_checkout_grace_days,
           food_kitchen_busy: s.food_kitchen_busy || DEFAULT_SETTINGS.food_kitchen_busy,
           food_customer_whatsapp: s.food_customer_whatsapp ?? DEFAULT_SETTINGS.food_customer_whatsapp,
           food_show_out_of_stock: s.food_show_out_of_stock ?? DEFAULT_SETTINGS.food_show_out_of_stock,
@@ -401,6 +404,27 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
                   Stored as {settings.food_tab_limit} paise
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Checkout Grace Period */}
+          <div className="grid gap-1.5 sm:grid-cols-3 sm:items-center">
+            <div>
+              <Label className="text-sm font-medium text-brand-green-dark">Post-checkout Food Ordering</Label>
+              <p className="text-[11px] text-brand-green-dark/40">Days after checkout a guest can still order on their tab (0 = disabled)</p>
+            </div>
+            <div className="sm:col-span-2">
+              <div className="flex items-center gap-2 max-w-[160px]">
+                <Input
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="90"
+                  value={settings.food_checkout_grace_days}
+                  onChange={(e) => updateField("food_checkout_grace_days", e.target.value)}
+                />
+                <span className="text-sm text-brand-green-dark/50">days</span>
+              </div>
             </div>
           </div>
         </div>
