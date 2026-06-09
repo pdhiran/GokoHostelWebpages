@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getActiveCheckins, getGuestAllFoodOrders, getFoodOrderItems } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { getDb } from "@/db/index";
-import { foodOrders } from "@/db/schema";
+import { foodOrders, checkins } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
@@ -34,11 +34,21 @@ export async function GET(req: NextRequest) {
       createdAt: string;
     }> = [];
 
-    // 1) Hostel guest orders via active checkins
-    const activeCheckins = await getActiveCheckins();
-    for (const checkin of activeCheckins) {
-      if (!phonesMatch(checkin.contact, normalized)) continue;
-      const orders = await getGuestAllFoodOrders(checkin.id);
+    // 1) Hostel guest orders via all checkins (active + checked out)
+    const db = getDb();
+    const allCheckins = await db.select().from(checkins).where(
+      and(eq(checkins.contact, normalized))
+    );
+    // Also check with phonesMatch for format variations
+    const activeCheckinsList = await getActiveCheckins();
+    const matchedCheckins = new Map<number, boolean>();
+    for (const c of allCheckins) matchedCheckins.set(c.id, true);
+    for (const c of activeCheckinsList) {
+      if (phonesMatch(c.contact, normalized)) matchedCheckins.set(c.id, true);
+    }
+
+    for (const checkinId of matchedCheckins.keys()) {
+      const orders = await getGuestAllFoodOrders(checkinId);
       for (const o of orders) {
         if (!orderMap.has(o.id)) {
           orderMap.set(o.id, true);
@@ -61,7 +71,6 @@ export async function GET(req: NextRequest) {
     }
 
     // 2) Walk-in orders by phone match
-    const db = getDb();
     const walkinRows = await db
       .select()
       .from(foodOrders)
