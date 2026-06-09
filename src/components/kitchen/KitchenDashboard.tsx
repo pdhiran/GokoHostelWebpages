@@ -1547,7 +1547,7 @@ function formatModification(mod: OrderModification): string {
     case "item_removed":
       return `${actor} removed ${mod.itemName}`;
     case "item_voided":
-      return `${actor} voided ${mod.itemName}`;
+      return `${actor} cancelled ${mod.itemName}`;
     case "item_added":
       return `${actor} added ${mod.itemName} x${mod.newValue}`;
     case "discount":

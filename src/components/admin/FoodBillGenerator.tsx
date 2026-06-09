@@ -174,7 +174,7 @@ function drawItemRow(doc: jsPDF, y: number, item: BillOrderItem): number {
     doc.setTextColor(160, 160, 160);
   }
 
-  const nameText = isVoided ? `${item.itemName} (VOIDED)` : item.itemName;
+  const nameText = isVoided ? `${item.itemName} (CANCELLED)` : item.itemName;
 
   const maxNameWidth = COL_QTY - COL_ITEM - 8;
   const lines = doc.splitTextToSize(nameText, maxNameWidth);

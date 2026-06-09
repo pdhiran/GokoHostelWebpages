@@ -362,7 +362,7 @@ export async function POST(req: NextRequest) {
           username: actorName,
           action: "food_item_voided",
           target: `order:${orderId}/item:${orderItemId}`,
-          details: `Voided ${item.itemName}${reason ? `: ${reason}` : ""}`,
+          details: `Cancelled ${item.itemName}${reason ? `: ${reason}` : ""}`,
         });
         return NextResponse.json({ success: true, role, newTotal });
       }
