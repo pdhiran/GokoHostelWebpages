@@ -1552,13 +1552,16 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
   const [busy, setBusy] = useState(false);
   const [paymentEditOrder, setPaymentEditOrder] = useState<Order | null>(null);
   const [revertConfirmOrder, setRevertConfirmOrder] = useState<Order | null>(null);
+  const [paidVisibilityDays, setPaidVisibilityDays] = useState(7);
+  const [showHistory, setShowHistory] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [hostelRes, ordersRes] = await Promise.all([
+      const [hostelRes, ordersRes, menuRes] = await Promise.all([
         apiCall({ action: "getGuestsWithTabs" }),
         apiCall({ action: "listOrders", status: "all_history", limit: 200 }),
+        apiCall({ action: "getMenu" }),
       ]);
       if (hostelRes.ok) {
         const data = await hostelRes.json();
@@ -1569,6 +1572,10 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       if (ordersRes.ok) {
         const data = await ordersRes.json();
         setAllOrders(data.orders || []);
+      }
+      if (menuRes.ok) {
+        const data = await menuRes.json();
+        setPaidVisibilityDays(parseInt(data.paymentHistoryDays) || 7);
       }
     } finally {
       setLoading(false);
@@ -1770,11 +1777,16 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-lg font-bold text-brand-green-dark">Payment Summary ({filteredGroups.length})</h3>
-        <button type="button" onClick={load} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-brand-green hover:bg-brand-green/[0.06]">
-          <RefreshCwIcon className="h-3.5 w-3.5" /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setShowHistory(true)} className="flex items-center gap-1 rounded-lg border border-brand-mist px-3 py-1.5 text-sm text-brand-green-dark/70 hover:bg-brand-sand">
+            <HistoryIcon className="h-3.5 w-3.5" /> Payment History
+          </button>
+          <button type="button" onClick={load} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-brand-green hover:bg-brand-green/[0.06]">
+            <RefreshCwIcon className="h-3.5 w-3.5" /> Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-1 rounded-lg border border-brand-mist bg-white p-1">
@@ -1805,7 +1817,10 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
 
       {(() => {
         const pendingGroups = filteredGroups.filter((g) => g.pendingAmount > 0);
-        const paidGroups = filteredGroups.filter((g) => g.pendingAmount <= 0 && g.paidAmount > 0);
+        const paidCutoff = new Date();
+        paidCutoff.setDate(paidCutoff.getDate() - paidVisibilityDays);
+        const paidCutoffStr = paidCutoff.toISOString();
+        const paidGroups = filteredGroups.filter((g) => g.pendingAmount <= 0 && g.paidAmount > 0 && g.latestOrderTime >= paidCutoffStr);
 
         const renderCard = (group: PaymentGroup) => {
           const allPaid = group.pendingAmount <= 0 && group.paidAmount > 0;
@@ -2025,6 +2040,11 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       )}
 
       {/* Revert confirmation */}
+      {/* Payment History */}
+      {showHistory && (
+        <PaymentHistoryPanel apiCall={apiCall} onClose={() => setShowHistory(false)} />
+      )}
+
       {revertConfirmOrder && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setRevertConfirmOrder(null)} />
@@ -2053,6 +2073,172 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Payment History Panel ────────────────────────────────────────────────────
+
+type HistoryRange = "7" | "15" | "30" | "custom";
+
+function PaymentHistoryPanel({ apiCall, onClose }: { apiCall: (body: any) => Promise<Response>; onClose: () => void }) {
+  const [range, setRange] = useState<HistoryRange>("7");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const getDateRange = useCallback(() => {
+    if (range === "custom") return { from: customFrom, to: customTo };
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - parseInt(range));
+    return { from: from.toISOString().split("T")[0], to: to.toISOString().split("T")[0] };
+  }, [range, customFrom, customTo]);
+
+  const loadHistory = useCallback(async () => {
+    const { from, to } = getDateRange();
+    if (!from || !to) return;
+    setLoading(true);
+    try {
+      const res = await apiCall({ action: "listOrders", dateFrom: from, dateTo: to, limit: 200 });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data.orders || []);
+      }
+    } finally { setLoading(false); }
+  }, [apiCall, getDateRange]);
+
+  useEffect(() => { if (range !== "custom") loadHistory(); }, [range]);
+
+  const fmt = (paise: number) => `₹${Math.round(paise / 100)}`;
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { guestName: string; guestType: string; orders: Order[]; total: number; paid: number; pending: number }>();
+    for (const o of orders) {
+      if (o.status === "cancelled") continue;
+      const isTable = o.roomInfo && /^Table \d+$/i.test(o.roomInfo);
+      const key = o.guestType === "hostel" && o.checkinId
+        ? `hostel_${o.checkinId}`
+        : isTable ? `table_${o.roomInfo}` : (o.guestPhone || `_${o.id}`);
+      if (!map.has(key)) map.set(key, { guestName: o.guestName, guestType: o.guestType, orders: [], total: 0, paid: 0, pending: 0 });
+      const g = map.get(key)!;
+      g.orders.push(o);
+      g.total += o.total;
+      if (o.paymentStatus === "paid") g.paid += o.total;
+      else g.pending += o.total;
+    }
+    return [...map.values()].sort((a, b) => {
+      const aTime = a.orders[0]?.createdAt || "";
+      const bTime = b.orders[0]?.createdAt || "";
+      return bTime.localeCompare(aTime);
+    });
+  }, [orders]);
+
+  const totalAll = orders.filter(o => o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
+  const totalPaid = orders.filter(o => o.paymentStatus === "paid" && o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
+  const totalPending = totalAll - totalPaid;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative flex h-full w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+        <div className="flex items-center justify-between border-b border-brand-mist px-4 py-3">
+          <h3 className="text-base font-bold text-brand-green-dark">Payment History</h3>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-brand-sand">
+            <XIcon className="h-5 w-5 text-brand-green-dark/60" />
+          </button>
+        </div>
+
+        <div className="border-b border-brand-mist px-4 py-3 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {([
+              { id: "7" as HistoryRange, label: "7 days" },
+              { id: "15" as HistoryRange, label: "15 days" },
+              { id: "30" as HistoryRange, label: "30 days" },
+              { id: "custom" as HistoryRange, label: "Custom" },
+            ]).map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setRange(r.id)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  range === r.id ? "bg-brand-green text-white" : "border border-brand-mist text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          {range === "custom" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="rounded-md border border-brand-mist px-2 py-1.5 text-sm" />
+              <span className="text-xs text-brand-green-dark/50">to</span>
+              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="rounded-md border border-brand-mist px-2 py-1.5 text-sm" />
+              <button type="button" onClick={loadHistory} disabled={!customFrom || !customTo || loading} className="rounded-md bg-brand-green px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-green/90 disabled:opacity-50">
+                Search
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Summary bar */}
+        {orders.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-brand-sand/30 px-4 py-2.5 text-xs">
+            <span className="font-medium text-brand-green-dark">{orders.length} orders · {grouped.length} guests</span>
+            <div className="flex items-center gap-3">
+              <span className="text-brand-green-dark">Total: {fmt(totalAll)}</span>
+              <span className="text-green-600">Paid: {fmt(totalPaid)}</span>
+              {totalPending > 0 && <span className="font-semibold text-red-600">Pending: {fmt(totalPending)}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2Icon className="h-5 w-5 animate-spin text-brand-green" /></div>
+          ) : grouped.length === 0 ? (
+            <p className="py-8 text-center text-sm text-brand-green-dark/50">No orders found for this period</p>
+          ) : (
+            grouped.map((g, idx) => (
+              <div key={idx} className="rounded-lg border border-brand-mist p-3">
+                <div className="flex flex-wrap items-center justify-between gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-brand-green-dark">{g.guestName}</span>
+                    {g.guestType === "hostel" ? (
+                      <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>
+                    ) : (
+                      <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Walk-in</span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-brand-green">{fmt(g.total)}</span>
+                </div>
+                <div className="mt-1 flex items-center gap-3 text-xs">
+                  <span className="text-brand-green-dark/50">{g.orders.length} order{g.orders.length !== 1 ? "s" : ""}</span>
+                  {g.paid > 0 && <span className="text-green-600">{fmt(g.paid)} paid</span>}
+                  {g.pending > 0 && <span className="font-semibold text-red-600">{fmt(g.pending)} pending</span>}
+                </div>
+                <div className="mt-2 space-y-1">
+                  {g.orders.map((o) => (
+                    <div key={o.id} className="flex flex-wrap items-center justify-between gap-1 rounded bg-brand-sand/30 px-2 py-1 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-brand-green">{o.orderNumber}</span>
+                        <PaymentBadge status={o.paymentStatus} />
+                      </div>
+                      <div className="flex items-center gap-2 text-brand-green-dark/50">
+                        <span>{new Date(o.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}</span>
+                        <span className="font-medium text-brand-green-dark">{fmt(o.total)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

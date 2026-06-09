@@ -475,7 +475,9 @@ export async function POST(req: NextRequest) {
         const cafeTableCount = parseInt(cafeTablesStr || "6") || 0;
         const confirmStr = await getSetting("food_confirm_with_guest");
         const confirmWithGuest = confirmStr === "true";
-        return NextResponse.json({ role, ...data, cafeTableCount, confirmWithGuest });
+        const histDaysStr = await getSetting("food_payment_history_days");
+        const paymentHistoryDays = parseInt(histDaysStr || "7") || 7;
+        return NextResponse.json({ role, ...data, cafeTableCount, confirmWithGuest, paymentHistoryDays });
       }
 
       case "getWalkinOrders": {

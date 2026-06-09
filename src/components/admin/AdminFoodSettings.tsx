@@ -18,6 +18,7 @@ type FoodSettings = {
   food_checkout_grace_days: string;
   food_cafe_tables: string;
   food_confirm_with_guest: string;
+  food_payment_history_days: string;
   food_kitchen_busy: string;
   food_customer_whatsapp: string;
   food_show_out_of_stock: string;
@@ -31,6 +32,7 @@ const DEFAULT_SETTINGS: FoodSettings = {
   food_checkout_grace_days: "10",
   food_cafe_tables: "6",
   food_confirm_with_guest: "false",
+  food_payment_history_days: "7",
   food_kitchen_busy: "false",
   food_customer_whatsapp: "true",
   food_show_out_of_stock: "false",
@@ -84,6 +86,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
           food_checkout_grace_days: s.food_checkout_grace_days || DEFAULT_SETTINGS.food_checkout_grace_days,
           food_cafe_tables: s.food_cafe_tables || DEFAULT_SETTINGS.food_cafe_tables,
           food_confirm_with_guest: s.food_confirm_with_guest ?? DEFAULT_SETTINGS.food_confirm_with_guest,
+          food_payment_history_days: s.food_payment_history_days || DEFAULT_SETTINGS.food_payment_history_days,
           food_kitchen_busy: s.food_kitchen_busy || DEFAULT_SETTINGS.food_kitchen_busy,
           food_customer_whatsapp: s.food_customer_whatsapp ?? DEFAULT_SETTINGS.food_customer_whatsapp,
           food_show_out_of_stock: s.food_show_out_of_stock ?? DEFAULT_SETTINGS.food_show_out_of_stock,
@@ -469,6 +472,27 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
               >
                 <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", settings.food_confirm_with_guest === "true" ? "translate-x-5" : "translate-x-0.5")} />
               </button>
+            </div>
+          </div>
+
+          {/* Payment History Visibility */}
+          <div className="grid gap-1.5 sm:grid-cols-3 sm:items-center">
+            <div>
+              <Label className="text-sm font-medium text-brand-green-dark">Paid Orders Visibility</Label>
+              <p className="text-[11px] text-brand-green-dark/40">How many days of paid orders to show in Payment Summary (unpaid always visible)</p>
+            </div>
+            <div className="sm:col-span-2">
+              <div className="flex items-center gap-2 max-w-[160px]">
+                <Input
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="90"
+                  value={settings.food_payment_history_days}
+                  onChange={(e) => updateField("food_payment_history_days", e.target.value)}
+                />
+                <span className="text-sm text-brand-green-dark/50">days</span>
+              </div>
             </div>
           </div>
         </div>
