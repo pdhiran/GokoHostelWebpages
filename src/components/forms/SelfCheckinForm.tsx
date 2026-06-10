@@ -596,6 +596,7 @@ export function SelfCheckinForm() {
       formData.append("emergencyName", data.emergencyName);
       formData.append("emergencyPhone", data.emergencyPhone);
       formData.append("idType", data.idType);
+      if (data.dob) formData.append("dob", data.dob);
 
       if (idFiles.length > 0) {
         idFiles.forEach((doc) => {
@@ -926,6 +927,17 @@ export function SelfCheckinForm() {
               <p className="mt-1 text-xs text-red-500">{errors.lastName.message}</p>
             )}
           </div>
+        </div>
+
+        {/* Date of Birth */}
+        <div>
+          <Label htmlFor="dob">Date of Birth</Label>
+          <Input
+            id="dob"
+            type="date"
+            {...register("dob")}
+            className="mt-1"
+          />
         </div>
 
         {/* Number of persons & Staying days */}

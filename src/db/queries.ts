@@ -16,6 +16,7 @@ export async function addCheckin(data: {
   idType: string; idCardLink: string; visaLink: string; verified: string;
   formCData?: string; createdMonth: string;
   bookingPlatform?: string; bookingId?: string;
+  dob?: string; dobFromId?: string;
 }) {
   const db = getDb();
   return db.insert(checkins).values(data);
@@ -24,6 +25,11 @@ export async function addCheckin(data: {
 export async function updateCheckin(id: number, data: Partial<typeof checkins.$inferInsert>) {
   const db = getDb();
   return db.update(checkins).set(data).where(eq(checkins.id, id));
+}
+
+export async function markVibeMatched(id: number) {
+  const db = getDb();
+  return db.update(checkins).set({ vibeMatched: 1 }).where(eq(checkins.id, id));
 }
 
 export async function deleteCheckin(id: number) {
@@ -610,6 +616,20 @@ export async function getFoodOrderByIdempotencyKey(key: string) {
 export async function getFoodOrderItems(orderId: number) {
   const db = getDb();
   return db.select().from(foodOrderItems).where(eq(foodOrderItems.orderId, orderId));
+}
+
+export async function areAllOrderItemsInventory(orderId: number): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .select({ trackInventory: menuItems.trackInventory })
+    .from(foodOrderItems)
+    .innerJoin(menuItems, eq(foodOrderItems.menuItemId, menuItems.id))
+    .where(and(
+      eq(foodOrderItems.orderId, orderId),
+      sql`${foodOrderItems.status} != 'voided'`
+    ));
+  if (rows.length === 0) return false;
+  return rows.every((r) => !!r.trackInventory);
 }
 
 export async function updateFoodOrderStatus(id: number, status: string, cancelledReason?: string) {

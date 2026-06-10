@@ -17,6 +17,8 @@ import {
   addStock,
   decrementStock,
   getMenuItemById,
+  getFoodOrderById,
+  areAllOrderItemsInventory,
 } from "@/db/queries";
 import { getDb } from "@/db";
 import { foodOrderItems, orderModifications } from "@/db/schema";
@@ -114,7 +116,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid status" }, { status: 400 });
       }
 
-      await updateFoodOrderStatus(orderId, status);
+      let finalStatus = status;
+      if (status === "placed") {
+        const prevOrder = await getFoodOrderById(orderId);
+        if (prevOrder?.status === "pending_approval") {
+          const allInventory = await areAllOrderItemsInventory(orderId);
+          if (allInventory) finalStatus = "ready";
+        }
+      }
+
+      await updateFoodOrderStatus(orderId, finalStatus);
       return NextResponse.json({ success: true });
     }
 

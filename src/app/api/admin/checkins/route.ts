@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { driveDeleteFile } from "@/lib/googleApiFetch";
 import { getDb } from "@/db";
 import {
-  getCheckinsByMonth, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths,
+  getCheckinsByMonth, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
   getAllBeds, getBedById, updateBedStatus, getAllDorms, getDormByName, addDorm, addBed, deleteBed, deleteDormAndBeds,
   logBedHistoryEntry, getBedHistoryAll, deleteBedHistoryEntry,
   getSetting, setSetting,
@@ -113,13 +113,14 @@ export async function POST(req: NextRequest) {
         r.emergencyPhone, r.bookingPlatform || "", r.bookingId || "",
         r.idType, r.idCardLink, r.visaLink, r.verified,
         String(r.id), r.status || "active", r.checkedOutAt || "",
+        r.dob || "", String(r.vibeMatched || 0), r.dobFromId || "",
       ]);
       const months = await getCheckinMonths();
       return NextResponse.json({ rows, role, tabs: months, currentTab: tabName });
     }
 
     if (action === "add") {
-      const { entry, formCData, bookingPlatform, bookingId: rawBookingId } = rest;
+      const { entry, formCData, bookingPlatform, bookingId: rawBookingId, dob: addDob } = rest;
       if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
 
       const e = Array.isArray(entry) ? entry : [];
@@ -139,6 +140,7 @@ export async function POST(req: NextRequest) {
         formCData: formCData || "", createdMonth: getMonthKey(),
         bookingPlatform: platform,
         bookingId: finalBookingId,
+        dob: addDob || "",
       });
       await addAuditEntry({ username: actingUser, action: "checkin_add", target: e[3] || "unknown" });
       addSystemLog({ level: "info", source: "admin-api", message: `Check-in added: ${e[3] || "unknown"} by ${actingUser}` }).catch(() => {});
@@ -147,7 +149,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "addPast") {
       if (role !== "admin") return NextResponse.json({ error: "Only admin can add past records" }, { status: 403 });
-      const { entry, checkoutDate, formCData, bookingPlatform, bookingId: rawBookingId } = rest;
+      const { entry, checkoutDate, formCData, bookingPlatform, bookingId: rawBookingId, dob: pastDob } = rest;
       if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
 
       const e = Array.isArray(entry) ? entry : [];
@@ -173,6 +175,7 @@ export async function POST(req: NextRequest) {
         formCData: formCData || "",
         bookingPlatform: pastPlatform,
         bookingId: finalBookingId,
+        dob: pastDob || "",
         createdMonth: monthKey,
       });
       await addAuditEntry({ username: actingUser, action: "past_checkin_add", target: e[3] || "unknown" });
@@ -389,6 +392,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "markVibeMatched") {
+      const { checkinId } = rest;
+      if (!isValidId(checkinId)) return NextResponse.json({ error: "Invalid checkin ID" }, { status: 400 });
+      await markVibeMatched(checkinId);
+      await addAuditEntry({ username: actingUser, action: "vibe_matched", target: `checkin:${checkinId}` });
+      return NextResponse.json({ success: true });
+    }
+
     // --- Bed History ---
 
     if (action === "getBedHistory") {
@@ -475,15 +486,22 @@ export async function POST(req: NextRequest) {
       const todayCheckinsWithBed = todayCheckins.map((r) => ({
         row: [r.submittedAt, r.arrivalDate, r.arrivalTime, r.name, r.persons, r.contact, r.stayingDays, r.comingFrom, r.nationality, r.emergencyName, r.emergencyPhone, r.idType, r.idCardLink, r.visaLink, r.verified, String(r.id)],
         assignedBed: assignedContacts.get(r.contact) || null,
+        dob: r.dob || "",
+        dobFromId: r.dobFromId || "",
+        vibeMatched: r.vibeMatched || 0,
       }));
 
       const validationEnabled = (await getSetting("image_validation")) !== "off";
+      const guestMinAge = Number(await getSetting("guest_min_age")) || 18;
+      const guestMaxAge = Number(await getSetting("guest_max_age")) || 40;
 
       return NextResponse.json({
         todayCheckins: todayCheckinsWithBed,
         todayCheckouts: todayCheckoutBeds,
         stats: { total, occupied, available, cleanup },
         validationEnabled,
+        guestMinAge,
+        guestMaxAge,
         role,
       });
     }

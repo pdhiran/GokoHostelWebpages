@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
     let validationFailed = false;
     let passportOcrText = "";
     let visaOcrText = "";
+    let idOcrText = "";
 
     const reusingPrevId = idImages.length === 0 && !!prevIdCardLink;
     const reusingPrevVisa = visaImages.length === 0 && !!prevVisaLink;
@@ -111,8 +112,11 @@ export async function POST(req: NextRequest) {
       try {
         const idValidation = await validateFile(idImages[0], "id", idType, name);
         serverVisionCalls++;
-        if (idValidation.ocrText && idType === "passport") {
-          passportOcrText = idValidation.ocrText;
+        if (idValidation.ocrText) {
+          idOcrText = idValidation.ocrText;
+          if (idType === "passport") {
+            passportOcrText = idValidation.ocrText;
+          }
         }
         if (!idValidation.valid) {
           return NextResponse.json({ error: idValidation.message, field: "idImages" }, { status: 422 });
@@ -204,6 +208,25 @@ export async function POST(req: NextRequest) {
       ? generateBookingId()
       : rawBookingId;
 
+    const formDob = (formData.get("dob") as string) || "";
+
+    let ocrDob = "";
+    if (idOcrText) {
+      try {
+        const { parseDobFromOcr } = await import("@/lib/parseDob");
+        ocrDob = parseDobFromOcr(idOcrText, idType) || "";
+      } catch {}
+    }
+    if (!ocrDob && isForeigner && passportOcrText) {
+      try {
+        const { parseDobFromOcr } = await import("@/lib/parseDob");
+        ocrDob = parseDobFromOcr(passportOcrText, "passport") || "";
+      } catch {}
+    }
+
+    const dob = formDob || ocrDob;
+    const dobFromId = ocrDob;
+
     await addCheckin({
       submittedAt,
       arrivalDate,
@@ -224,6 +247,8 @@ export async function POST(req: NextRequest) {
       createdMonth: getMonthKey(),
       bookingPlatform,
       bookingId: finalBookingId,
+      dob,
+      dobFromId,
     });
 
     const newUploads = (reusingPrevId ? 0 : idImages.length) + (reusingPrevVisa ? 0 : visaImages.length);

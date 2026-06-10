@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExternalLinkIcon, Trash2Icon, PlusIcon, UploadIcon, PencilIcon, ShieldCheckIcon, ShieldAlertIcon, Loader2Icon, XIcon, FileTextIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { CHECKIN_COLUMNS, type Role } from "./types";
@@ -76,8 +77,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [pastFormCFields, setPastFormCFields] = useState<Record<string, string>>({});
   const [newBookingPlatform, setNewBookingPlatform] = useState("");
   const [newBookingId, setNewBookingId] = useState("");
+  const [newDob, setNewDob] = useState("");
   const [pastBookingPlatform, setPastBookingPlatform] = useState("");
   const [pastBookingId, setPastBookingId] = useState("");
+  const [pastDob, setPastDob] = useState("");
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editEntry, setEditEntry] = useState<string[]>(Array(17).fill(""));
   const [editFirstName, setEditFirstName] = useState("");
@@ -103,6 +106,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [frroSettingsOpen, setFrroSettingsOpen] = useState(false);
   const [frroSubmitting, setFrroSubmitting] = useState(false);
   const [frroStatus, setFrroStatus] = useState("");
+  const [ageRange, setAgeRange] = useState({ min: 18, max: 40 });
+  const [vibeMatchingId, setVibeMatchingId] = useState<number | null>(null);
 
   const filteredRows = (() => {
     let result = [...rows].map((row, origIdx) => ({ row, origIdx }));
@@ -142,7 +147,19 @@ export function AdminRecords({ password, username, role }: { password: string; u
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { loadTab(); }, []);
+  useEffect(() => {
+    loadTab();
+    (async () => {
+      try {
+        const [minRes, maxRes] = await Promise.all([
+          apiCall({ action: "getSetting", key: "guest_min_age" }),
+          apiCall({ action: "getSetting", key: "guest_max_age" }),
+        ]);
+        if (minRes.ok) { const d = await minRes.json(); if (d.value) setAgeRange((prev) => ({ ...prev, min: Number(d.value) || 18 })); }
+        if (maxRes.ok) { const d = await maxRes.json(); if (d.value) setAgeRange((prev) => ({ ...prev, max: Number(d.value) || 40 })); }
+      } catch {}
+    })();
+  }, []);
 
   const refresh = () => loadTab(currentTab);
 
@@ -230,8 +247,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       const isForeigner = newEntry[8] && newEntry[8] !== "India";
       const formCData = isForeigner ? JSON.stringify(newFormCFields) : undefined;
-      const res = await apiCall({ action: "add", entry, formCData, bookingPlatform: newBookingPlatform, bookingId: newBookingId });
-      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewFirstName(""); setNewLastName(""); setNewIdFiles([]); setNewFormCFields({}); setNewBookingPlatform(""); setNewBookingId(""); refresh(); }
+      const res = await apiCall({ action: "add", entry, formCData, bookingPlatform: newBookingPlatform, bookingId: newBookingId, dob: newDob });
+      if (res.ok) { setShowAddForm(false); setNewEntry(getDefaults()); setNewFirstName(""); setNewLastName(""); setNewIdFiles([]); setNewFormCFields({}); setNewBookingPlatform(""); setNewBookingId(""); setNewDob(""); refresh(); }
     } finally { setLoading(false); }
   };
 
@@ -267,10 +284,20 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       const isForeigner = pastEntry[8] && pastEntry[8] !== "India";
       const formCData = isForeigner ? JSON.stringify(pastFormCFields) : undefined;
-      const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate, formCData, bookingPlatform: pastBookingPlatform, bookingId: pastBookingId });
-      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastFirstName(""); setPastLastName(""); setPastIdFiles([]); setPastCheckoutDate(""); setPastFormCFields({}); setPastBookingPlatform(""); setPastBookingId(""); refresh(); }
+      const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate, formCData, bookingPlatform: pastBookingPlatform, bookingId: pastBookingId, dob: pastDob });
+      if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastFirstName(""); setPastLastName(""); setPastIdFiles([]); setPastCheckoutDate(""); setPastFormCFields({}); setPastBookingPlatform(""); setPastBookingId(""); setPastDob(""); refresh(); }
       else { const errData = await res.json().catch(() => ({})); alert(errData.error || "Failed to save past record"); }
     } finally { setLoading(false); }
+  };
+
+  const handleVibeMatch = async (checkinId: number, origIdx: number) => {
+    setVibeMatchingId(checkinId);
+    try {
+      const res = await apiCall({ action: "markVibeMatched", checkinId });
+      if (res.ok) {
+        setRows((prev) => prev.map((r, i) => i === origIdx ? [...r.slice(0, 21), "1", r[22] || ""] : r));
+      }
+    } finally { setVibeMatchingId(null); }
   };
 
   const undoCheckout = async (origIdx: number) => {
@@ -470,6 +497,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
                 )}
               </div>
             </div>
+            <div>
+              <Label className="text-xs">Date of Birth</Label>
+              <Input type="date" value={newDob} onChange={(e) => setNewDob(e.target.value)} className="mt-1" />
+            </div>
             {newEntry[8] && newEntry[8] !== "India" && (
               <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 bg-blue-50/30 p-3">
                 <p className="mb-2 text-xs font-semibold text-blue-800">Form C fields (foreign guest)</p>
@@ -571,6 +602,10 @@ export function AdminRecords({ password, username, role }: { password: string; u
             <div>
               <Label className="text-xs">Checkout Date</Label>
               <Input type="date" value={pastCheckoutDate} onChange={(e) => setPastCheckoutDate(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Date of Birth</Label>
+              <Input type="date" value={pastDob} onChange={(e) => setPastDob(e.target.value)} className="mt-1" />
             </div>
             <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-brand-mist bg-brand-sand/20 p-3">
               <p className="mb-2 text-xs font-semibold text-brand-green-dark">Booking details</p>
@@ -715,11 +750,55 @@ export function AdminRecords({ password, username, role }: { password: string; u
             {filteredRows.length === 0 ? (
               <tr><td colSpan={CHECKIN_COLUMNS.length + 1} className="px-4 py-12 text-center text-brand-green-dark/50">{rows.length === 0 ? "No records" : "No matches"}</td></tr>
             ) : (
-              filteredRows.map(({ row, origIdx }) => (
-                <tr key={origIdx} className="border-b border-brand-mist/60 last:border-b-0 hover:bg-brand-sand/30">
+              filteredRows.map(({ row, origIdx }) => {
+                const guestDob = row[20] || "";
+                const guestDobFromId = row[22] || "";
+                const guestAge = getAgeFromDob(guestDob);
+                const guestVibeMatched = row[21] === "1";
+                const guestFlagged = guestAge !== null && !guestVibeMatched && (guestAge < ageRange.min || guestAge > ageRange.max);
+                const guestUnderage = guestAge !== null && guestAge < ageRange.min;
+                const guestDobMismatch = !!(guestDob && guestDobFromId && !guestVibeMatched && !dobsMatch(guestDob, guestDobFromId));
+                const guestAnyFlag = guestFlagged || guestDobMismatch;
+                return (
+                <tr key={origIdx} className={cn("border-b border-brand-mist/60 last:border-b-0 hover:bg-brand-sand/30", guestAnyFlag && "bg-orange-50/40")}>
                   {CHECKIN_COLUMNS.map((col, ci) => {
                     const cell = row[ci] || "";
                     const links = cell.includes(" | ") ? cell.split(" | ").filter((u) => u.startsWith("http")) : cell.startsWith("http") ? [cell] : [];
+
+                    if (col === "Name") {
+                      const checkinId = parseInt(row[17] || "0", 10);
+                      return (
+                        <td key={ci} className="whitespace-nowrap px-3 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-brand-green-dark/90">{cell}</span>
+                            {guestFlagged && (
+                              <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", guestUnderage ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700")}>
+                                {guestUnderage ? `Underage (${guestAge})` : `Overage (${guestAge})`}
+                              </span>
+                            )}
+                            {guestDobMismatch && (
+                              <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">DOB mismatch</span>
+                            )}
+                            {guestAnyFlag && (
+                              <button
+                                type="button"
+                                onClick={() => handleVibeMatch(checkinId, origIdx)}
+                                disabled={vibeMatchingId === checkinId}
+                                className="rounded-md bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700 hover:bg-green-200 disabled:opacity-50"
+                              >
+                                {vibeMatchingId === checkinId ? "..." : "Vibe OK"}
+                              </button>
+                            )}
+                            {guestVibeMatched && (
+                              (guestAge !== null && (guestAge < ageRange.min || guestAge > ageRange.max)) ||
+                              (guestDob && guestDobFromId && !dobsMatch(guestDob, guestDobFromId))
+                            ) && (
+                              <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">Vibe OK</span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    }
 
                     if (col === "Verified") {
                       return (
@@ -784,7 +863,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
                     </td>
                   )}
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

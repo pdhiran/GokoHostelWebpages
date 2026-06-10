@@ -17,8 +17,12 @@ export function AdminSetup({ password, username }: { password: string; username?
   const [newDorm, setNewDorm] = useState("");
   const [newBedCount, setNewBedCount] = useState("6");
   const [newBedType, setNewBedType] = useState<"Bunk" | "Bunk2L1U" | "Single">("Bunk");
+  const [minAge, setMinAge] = useState("18");
+  const [maxAge, setMaxAge] = useState("40");
+  const [ageSaving, setAgeSaving] = useState(false);
+  const [ageLoaded, setAgeLoaded] = useState(false);
 
-  useEffect(() => { loadBeds(); }, []);
+  useEffect(() => { loadBeds(); loadAgeSettings(); }, []);
 
   const loadBeds = async () => {
     setLoading(true);
@@ -65,6 +69,32 @@ export function AdminSetup({ password, username }: { password: string; username?
     } finally { setLoading(false); }
   };
 
+  const loadAgeSettings = async () => {
+    try {
+      const [minRes, maxRes] = await Promise.all([
+        apiCall({ action: "getSetting", key: "guest_min_age" }),
+        apiCall({ action: "getSetting", key: "guest_max_age" }),
+      ]);
+      if (minRes.ok) { const d = await minRes.json(); if (d.value) setMinAge(d.value); }
+      if (maxRes.ok) { const d = await maxRes.json(); if (d.value) setMaxAge(d.value); }
+    } catch {}
+    setAgeLoaded(true);
+  };
+
+  const saveAgeRange = async () => {
+    const min = parseInt(minAge);
+    const max = parseInt(maxAge);
+    if (isNaN(min) || isNaN(max) || min < 1 || max < 1) { alert("Enter valid age values"); return; }
+    if (min >= max) { alert("Min age must be less than max age"); return; }
+    setAgeSaving(true);
+    try {
+      await Promise.all([
+        apiCall({ action: "setSetting", key: "guest_min_age", value: String(min) }),
+        apiCall({ action: "setSetting", key: "guest_max_age", value: String(max) }),
+      ]);
+    } finally { setAgeSaving(false); }
+  };
+
   const dorms = [...new Set(beds.map((b) => b.dormName))];
 
   if (loading) {
@@ -103,6 +133,28 @@ export function AdminSetup({ password, username }: { password: string; username?
           </div>
         </div>
       </div>
+
+      {/* Guest Age Range */}
+      {ageLoaded && (
+        <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-6 shadow-card">
+          <h3 className="font-display text-base font-bold text-brand-green-dark">Guest Age Range</h3>
+          <p className="mt-1 text-xs text-brand-green-dark/50">Guests outside this age range will be flagged for staff review. Staff can dismiss flags by marking &ldquo;Vibe Matches&rdquo;.</p>
+          <div className="mt-4 flex items-end gap-3">
+            <div className="w-28">
+              <Label className="text-xs">Min age</Label>
+              <Input type="number" value={minAge} onChange={(e) => setMinAge(e.target.value)} min="1" max="99" className="mt-1" />
+            </div>
+            <span className="pb-2 text-sm text-brand-green-dark/40">&ndash;</span>
+            <div className="w-28">
+              <Label className="text-xs">Max age</Label>
+              <Input type="number" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} min="1" max="99" className="mt-1" />
+            </div>
+            <Button type="button" variant="cta" size="sm" onClick={saveAgeRange} disabled={ageSaving}>
+              {ageSaving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Existing dorms */}
       <div className="mt-6 space-y-4">

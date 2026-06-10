@@ -28,6 +28,7 @@ import {
   decrementStock,
   restoreStock,
   addStock,
+  areAllOrderItemsInventory,
   updateFoodOrderItemQuantity,
   deleteFoodOrderItem,
 } from "@/db/queries";
@@ -148,9 +149,16 @@ export async function POST(req: NextRequest) {
         if (!validStatuses.includes(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
 
         const prevOrder = await getFoodOrderById(orderId);
-        await updateFoodOrderStatus(orderId, status, cancelledReason);
 
-        if (status === "cancelled") {
+        let finalStatus = status;
+        if (status === "placed" && prevOrder?.status === "pending_approval") {
+          const allInventory = await areAllOrderItemsInventory(orderId);
+          if (allInventory) finalStatus = "ready";
+        }
+
+        await updateFoodOrderStatus(orderId, finalStatus, cancelledReason);
+
+        if (finalStatus === "cancelled") {
           await restoreStock(orderId);
         }
 
@@ -159,7 +167,7 @@ export async function POST(req: NextRequest) {
             orderId,
             action: status === "placed" ? "order_approved" : "order_rejected",
             oldValue: "pending_approval",
-            newValue: status,
+            newValue: finalStatus,
             reason: status === "cancelled" ? (cancelledReason || "Rejected by staff") : "",
             modifiedBy: actorName,
           });
@@ -169,7 +177,7 @@ export async function POST(req: NextRequest) {
           username: actorName,
           action: "food_order_status",
           target: `order:${orderId}`,
-          details: `Status → ${status}${cancelledReason ? ` (${cancelledReason})` : ""}`,
+          details: `Status → ${finalStatus}${finalStatus !== status ? " (inventory auto-skip)" : ""}${cancelledReason ? ` (${cancelledReason})` : ""}`,
         });
         return NextResponse.json({ success: true, role });
       }

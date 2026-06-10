@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon, CheckCircleIcon } from "lucide-react";
+import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import type { Role, AdminSection } from "./types";
 
 export function AdminDashboard({
@@ -19,7 +20,7 @@ export function AdminDashboard({
   onNavigate: (section: AdminSection) => void;
 }) {
   const { apiCall } = useAdminApi(password, username);
-  const [todayCheckins, setTodayCheckins] = useState<{ row: string[]; assignedBed: string | null }[]>([]);
+  const [todayCheckins, setTodayCheckins] = useState<{ row: string[]; assignedBed: string | null; dob: string; dobFromId: string; vibeMatched: number }[]>([]);
   const [todayCheckouts, setTodayCheckouts] = useState<{
     name: string; contact: string; bedId: string; dorm: string; bedIdx: number; expectedCheckout: string;
     pendingTab: number; paidTotal: number; totalOrders: number; pendingOrders: number; checkinId: number | null;
@@ -29,6 +30,8 @@ export function AdminDashboard({
   const [togglingValidation, setTogglingValidation] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyIdx, setBusyIdx] = useState<number | null>(null);
+  const [ageRange, setAgeRange] = useState({ min: 18, max: 40 });
+  const [vibeMatchingId, setVibeMatchingId] = useState<number | null>(null);
 
   useEffect(() => { loadDashboard(); }, []);
 
@@ -42,6 +45,9 @@ export function AdminDashboard({
         setTodayCheckouts(data.todayCheckouts || []);
         setStats(data.stats || { total: 0, occupied: 0, available: 0, cleanup: 0 });
         setValidationOn(data.validationEnabled !== false);
+        if (data.guestMinAge || data.guestMaxAge) {
+          setAgeRange({ min: data.guestMinAge || 18, max: data.guestMaxAge || 40 });
+        }
       }
     } finally { setLoading(false); }
   };
@@ -99,6 +105,20 @@ export function AdminDashboard({
     } catch {
       setCheckoutBusy(false);
     }
+  };
+
+  const handleVibeMatch = async (checkinId: number) => {
+    setVibeMatchingId(checkinId);
+    try {
+      const res = await apiCall({ action: "markVibeMatched", checkinId });
+      if (res.ok) {
+        setTodayCheckins((prev) =>
+          prev.map((item) =>
+            item.row[15] === String(checkinId) ? { ...item, vibeMatched: 1 } : item
+          )
+        );
+      }
+    } finally { setVibeMatchingId(null); }
   };
 
   const today = new Date().toISOString().split("T")[0];
@@ -226,10 +246,17 @@ export function AdminDashboard({
           <p className="mt-2 text-sm text-brand-green-dark/50">No check-ins today yet</p>
         ) : (
           <div className="mt-3 space-y-2">
-            {todayCheckins.map((item, i) => (
-              <div key={i} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white px-4 py-3">
+            {todayCheckins.map((item, i) => {
+              const age = getAgeFromDob(item.dob);
+              const isFlagged = age !== null && !item.vibeMatched && (age < ageRange.min || age > ageRange.max);
+              const isUnderage = age !== null && age < ageRange.min;
+              const hasDobMismatch = !!(item.dob && item.dobFromId && !item.vibeMatched && !dobsMatch(item.dob, item.dobFromId));
+              const isAnyFlagged = isFlagged || hasDobMismatch;
+              const checkinId = parseInt(item.row[15]);
+              return (
+              <div key={i} className={cn("flex items-center justify-between rounded-xl border bg-white px-4 py-3", isAnyFlagged ? "border-orange-300 bg-orange-50/40" : "border-brand-mist")}>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium text-brand-green-dark">{item.row[3]}</p>
                     {item.row[14] === "yes" ? (
                       <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">ID verified</span>
@@ -238,10 +265,35 @@ export function AdminDashboard({
                     ) : !item.row[14] || item.row[14] === "pending" ? (
                       <span className="rounded-full bg-yellow-100 px-1.5 py-0.5 text-[9px] font-semibold text-yellow-700">ID pending</span>
                     ) : null}
+                    {isFlagged && (
+                      <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", isUnderage ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700")}>
+                        {isUnderage ? `Underage (${age})` : `Overage (${age})`}
+                      </span>
+                    )}
+                    {hasDobMismatch && (
+                      <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">DOB mismatch</span>
+                    )}
+                    {item.vibeMatched === 1 && (
+                      (age !== null && (age < ageRange.min || age > ageRange.max)) ||
+                      (item.dob && item.dobFromId && !dobsMatch(item.dob, item.dobFromId))
+                    ) && (
+                      <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">Vibe OK</span>
+                    )}
                   </div>
                   <p className="text-xs text-brand-green-dark/60">{item.row[7]}, {item.row[8]} · {item.row[4]} person{item.row[4] !== "1" ? "s" : ""} · {item.row[6]} days</p>
                 </div>
                 <div className="flex items-center gap-3">
+                  {isAnyFlagged && (
+                    <button
+                      type="button"
+                      onClick={() => handleVibeMatch(checkinId)}
+                      disabled={vibeMatchingId === checkinId}
+                      className="flex items-center gap-1 rounded-md bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700 hover:bg-green-200 disabled:opacity-50"
+                    >
+                      <CheckCircleIcon className="h-3 w-3" />
+                      {vibeMatchingId === checkinId ? "..." : "Vibe Matches"}
+                    </button>
+                  )}
                   {item.assignedBed ? (
                     <span className="rounded-full bg-brand-green/10 px-2.5 py-1 text-[11px] font-semibold text-brand-green">
                       {item.assignedBed}
@@ -255,7 +307,8 @@ export function AdminDashboard({
                   <span className="text-xs text-brand-green-dark/40">{item.row[2]}</span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

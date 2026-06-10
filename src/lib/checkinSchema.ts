@@ -56,6 +56,7 @@ export const checkinSchema = z
       .min(10, "Phone number must be at least 10 digits")
       .regex(phoneRegex, "Enter a valid phone number")
       .refine((v) => (v.match(/\d/g) || []).length >= 7, "Phone must contain at least 7 digits"),
+    dob: z.string().optional(),
     idType: z.enum(["aadhaar", "driving_licence", "passport"], {
       required_error: "Please select your ID type",
     }),

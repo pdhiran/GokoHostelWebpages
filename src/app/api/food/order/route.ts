@@ -10,6 +10,7 @@ import {
   getActiveCheckins,
   getRecentlyCheckedOutGuests,
   decrementStock,
+  updateFoodOrderStatus,
 } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
       itemPrice: number;
       quantity: number;
       lineTotal: number;
+      trackInventory: boolean;
     }> = [];
 
     for (const item of items) {
@@ -139,6 +141,7 @@ export async function POST(req: NextRequest) {
         itemPrice: menuItem.price,
         quantity: item.quantity,
         lineTotal: menuItem.price * item.quantity,
+        trackInventory: !!menuItem.trackInventory,
       });
     }
 
@@ -237,6 +240,11 @@ export async function POST(req: NextRequest) {
     // 8b. Decrement stock for inventory-tracked items
     for (const v of validatedItems) {
       await decrementStock(v.menuItemId, v.quantity);
+    }
+
+    // 8c. Auto-skip to "ready" if all items are inventory-tracked and order is placed (not pending)
+    if (initialStatus === "placed" && validatedItems.length > 0 && validatedItems.every((v) => v.trackInventory)) {
+      await updateFoodOrderStatus(order.id, "ready");
     }
 
     // 9. Return success

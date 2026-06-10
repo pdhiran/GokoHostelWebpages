@@ -24,6 +24,7 @@ const TEMPLATE_COLUMNS = [
   { header: "emergency_phone", description: "Emergency contact phone" },
   { header: "booking_platform", description: "e.g., Booking.com, Walk-in" },
   { header: "booking_id", description: "OTA reference number" },
+  { header: "dob", description: "Date of birth YYYY-MM-DD or DD/MM/YYYY" },
   { header: "status", description: "active / checked_out (default: checked_out)" },
   { header: "checked_out_at", description: "YYYY-MM-DD (checkout date)" },
   { header: "verified", description: "yes / no / pending (default: yes if id_card_link present)" },
@@ -292,6 +293,9 @@ export async function POST(req: NextRequest) {
 
           const checkedOutAt = parseDate(row.checked_out_at);
 
+          const rawDob = cellToString(row.dob);
+          const dob = rawDob ? parseDate(rawDob) || rawDob : "";
+
           const record = {
             submittedAt: new Date().toISOString(),
             arrivalDate,
@@ -313,6 +317,7 @@ export async function POST(req: NextRequest) {
             formCData: "",
             bookingPlatform: cellToString(row.booking_platform),
             bookingId: cellToString(row.booking_id) || generateBookingId(),
+            dob,
             createdMonth: deriveCreatedMonth(arrivalDate),
           };
 
