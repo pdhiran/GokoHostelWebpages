@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { getDb } from "./index";
-import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications } from "./schema";
+import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses } from "./schema";
 
 // --- Check-ins ---
 
@@ -844,6 +844,46 @@ export async function getLowStockItems() {
       sql`${menuItems.stockQuantity} <= ${menuItems.lowStockThreshold}`
     ))
     .orderBy(menuItems.stockQuantity);
+}
+
+// --- Expenses ---
+
+export async function addExpense(data: {
+  amount: number; category: string; customCategory?: string; purpose: string;
+  billImageLink?: string; createdBy: string; createdMonth: string;
+}) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  return db.insert(expenses).values({ ...data, createdAt: now, updatedAt: now });
+}
+
+export async function getExpensesByMonth(month: string) {
+  const db = getDb();
+  return db.select().from(expenses).where(eq(expenses.createdMonth, month)).orderBy(desc(expenses.id));
+}
+
+export async function getExpensesByUser(username: string, days: number) {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  return db.select().from(expenses)
+    .where(and(eq(expenses.createdBy, username), sql`${expenses.createdAt} >= ${cutoff}`))
+    .orderBy(desc(expenses.id));
+}
+
+export async function updateExpense(id: number, data: { amount?: number; category?: string; customCategory?: string; purpose?: string; billImageLink?: string; updatedBy: string }) {
+  const db = getDb();
+  return db.update(expenses).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(expenses.id, id));
+}
+
+export async function deleteExpense(id: number) {
+  const db = getDb();
+  return db.delete(expenses).where(eq(expenses.id, id));
+}
+
+export async function getExpenseMonths(): Promise<string[]> {
+  const db = getDb();
+  const rows = await db.selectDistinct({ month: expenses.createdMonth }).from(expenses).orderBy(desc(expenses.createdMonth));
+  return rows.map((r) => r.month);
 }
 
 // --- Data Retention / Cleanup ---

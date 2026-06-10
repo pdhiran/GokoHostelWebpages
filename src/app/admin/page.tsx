@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon } from "lucide-react";
+import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { AdminRecords } from "@/components/admin/AdminRecords";
@@ -13,6 +13,7 @@ import { AdminBookings } from "@/components/admin/AdminBookings";
 import { AdminManagement } from "@/components/admin/AdminManagement";
 import { AdminTimeline } from "@/components/admin/AdminTimeline";
 import { AdminFoodOrders } from "@/components/admin/AdminFoodOrders";
+import { AdminExpenditure } from "@/components/admin/AdminExpenditure";
 import type { Role, AdminSection } from "@/components/admin/types";
 
 export default function AdminPage() {
@@ -33,6 +34,7 @@ export default function AdminPage() {
   const [cpError, setCpError] = useState("");
   const [cpSuccess, setCpSuccess] = useState("");
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const exitIntentRef = useRef(false);
 
   const handleChangePassword = async () => {
@@ -82,6 +84,7 @@ export default function AdminPage() {
             if (res.ok) {
               const data = await res.json();
               setRole(data.role);
+              setPermissions(data.permissions || {});
             } else {
               localStorage.removeItem("gokoAdminSession");
             }
@@ -134,6 +137,7 @@ export default function AdminPage() {
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setRole(data.role);
+      setPermissions(data.permissions || {});
       if (rememberMe) {
         localStorage.setItem("gokoAdminSession", JSON.stringify({ password, username: username || "" }));
       }
@@ -150,6 +154,7 @@ export default function AdminPage() {
     setUsername("");
     setSection("dashboard");
     setSelectedRole(null);
+    setPermissions({});
     localStorage.removeItem("gokoAdminSession");
   };
 
@@ -250,6 +255,7 @@ export default function AdminPage() {
     { id: "timeline", label: "Timeline", icon: <CalendarDaysIcon className="h-4 w-4" /> },
     { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" /> },
     { id: "foodOrders", label: "Food Orders", icon: <span className="text-base leading-none">🍽️</span> },
+    { id: "expenditure", label: "Expenditure", icon: <WalletIcon className="h-4 w-4" /> },
     { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" /> },
   ];
 
@@ -258,7 +264,7 @@ export default function AdminPage() {
       {/* Top navigation */}
       <nav className="sticky top-0 z-30 border-b border-brand-mist bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-2 sm:px-6">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 overflow-x-auto">
             {NAV_ITEMS.filter((item) => !item.adminOnly || role === "admin").map((item) => (
               <button
                 key={item.id}
@@ -312,6 +318,7 @@ export default function AdminPage() {
         {section === "timeline" && <AdminTimeline password={password} username={username} role={role} />}
         {section === "records" && <AdminRecords password={password} username={username} role={role} />}
         {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} />}
+        {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
         {section === "management" && <AdminManagement password={password} username={username} role={role} />}
       </div>
 

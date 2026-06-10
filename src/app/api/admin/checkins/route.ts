@@ -51,24 +51,28 @@ async function triggerGithubScrape(scrapeId: number, city: string, startDate: st
   if (!res.ok) throw new Error(`GitHub API error: ${res.status} ${await res.text()}`);
 }
 
-async function authenticateUser(password: string, username?: string): Promise<UserRole | null> {
+type AuthResult = { role: UserRole; displayName: string; permissions: Record<string, boolean> };
+
+async function authenticateUser(password: string, username?: string): Promise<AuthResult | null> {
   if (!password) return null;
 
   if (!username) {
-    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return "admin";
-    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return "manager";
+    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", displayName: "Admin", permissions: {} };
+    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", displayName: "Manager", permissions: {} };
     return null;
   }
 
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return "admin";
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return "manager";
+  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return { role: "admin", displayName: "Admin", permissions: {} };
+  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return { role: "manager", displayName: "Manager", permissions: {} };
 
   try {
     const user = await getUserByUsername(username);
     if (!user) return null;
     const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) return null;
-    return (user.role as UserRole) || "manager";
+    let permissions: Record<string, boolean> = {};
+    try { permissions = JSON.parse(user.permissions || "{}"); } catch {}
+    return { role: (user.role as UserRole) || "manager", displayName: user.displayName || username, permissions };
   } catch {
     return null;
   }
@@ -91,15 +95,18 @@ function generateBookingId(): string {
 
 export async function POST(req: NextRequest) {
   let role: UserRole | null = null;
+  let permissions: Record<string, boolean> = {};
 
   try {
     const body = await req.json();
     const { password, action, month, username, ...rest } = body;
 
-    role = await authenticateUser(password, username);
-    if (!role) {
+    const authResult = await authenticateUser(password, username);
+    if (!authResult) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    role = authResult.role;
+    permissions = authResult.permissions;
     const actingUser = username || role;
 
     // --- Check-in Records ---
@@ -116,7 +123,7 @@ export async function POST(req: NextRequest) {
         (r as any).dob || "", String((r as any).vibeMatched || 0), (r as any).dobFromId || "",
       ]);
       const months = await getCheckinMonths();
-      return NextResponse.json({ rows, role, tabs: months, currentTab: tabName });
+      return NextResponse.json({ rows, role, tabs: months, currentTab: tabName, permissions });
     }
 
     if (action === "add") {

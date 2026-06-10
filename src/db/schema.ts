@@ -252,3 +252,22 @@ export const orderModifications = sqliteTable("order_modifications", {
 }, (table) => [
   index("idx_order_mods_order").on(table.orderId),
 ]);
+
+// --- Expenses ---
+
+export const expenses = sqliteTable("expenses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  amount: integer("amount").notNull(),
+  category: text("category").notNull(),
+  customCategory: text("custom_category").default(""),
+  purpose: text("purpose").notNull().default(""),
+  billImageLink: text("bill_image_link").default(""),
+  createdBy: text("created_by").notNull(),
+  updatedBy: text("updated_by").default(""),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").default(""),
+  createdMonth: text("created_month").notNull(),
+}, (table) => [
+  index("idx_expenses_month").on(table.createdMonth),
+  index("idx_expenses_created_by").on(table.createdBy),
+]);
