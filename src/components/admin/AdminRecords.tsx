@@ -769,7 +769,6 @@ export function AdminRecords({ password, username, role }: { password: string; u
                     const links = cell.includes(" | ") ? cell.split(" | ").filter((u) => u.startsWith("http")) : cell.startsWith("http") ? [cell] : [];
 
                     if (col === "Name") {
-                      const checkinId = parseInt(row[17] || "0", 10);
                       return (
                         <td key={ci} className="whitespace-nowrap px-3 py-3">
                           <div className="flex flex-wrap items-center gap-2">
@@ -785,14 +784,38 @@ export function AdminRecords({ password, username, role }: { password: string; u
                             {guestDobMismatch && (
                               <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">DOB mismatch</span>
                             )}
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    if (col === "Verified") {
+                      const checkinId = parseInt(row[17] || "0", 10);
+                      return (
+                        <td key={ci} className="whitespace-nowrap px-3 py-3">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {cell === "yes" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                                <ShieldCheckIcon className="h-3 w-3" /> Verified
+                              </span>
+                            ) : cell === "no" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                                <ShieldAlertIcon className="h-3 w-3" /> Rejected
+                              </span>
+                            ) : (
+                              <button type="button" onClick={() => setVerifyPopup({ origIdx, row })}
+                                className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700 hover:bg-yellow-200">
+                                <ShieldAlertIcon className="h-3 w-3" /> Pending
+                              </button>
+                            )}
                             {guestAnyFlag && (
                               <button
                                 type="button"
                                 onClick={() => handleVibeMatch(checkinId, origIdx)}
                                 disabled={vibeMatchingId === checkinId}
-                                className="rounded-md bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700 hover:bg-green-200 disabled:opacity-50"
+                                className="rounded-full bg-orange-100 px-2 py-0.5 text-[9px] font-semibold text-orange-700 hover:bg-orange-200 disabled:opacity-50"
                               >
-                                {vibeMatchingId === checkinId ? "..." : "Vibe OK"}
+                                {vibeMatchingId === checkinId ? "..." : "Vibe?"}
                               </button>
                             )}
                             {guestVibeMatched && (
@@ -802,27 +825,6 @@ export function AdminRecords({ password, username, role }: { password: string; u
                               <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">Vibe OK</span>
                             )}
                           </div>
-                        </td>
-                      );
-                    }
-
-                    if (col === "Verified") {
-                      return (
-                        <td key={ci} className="whitespace-nowrap px-3 py-3">
-                          {cell === "yes" ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
-                              <ShieldCheckIcon className="h-3 w-3" /> Verified
-                            </span>
-                          ) : cell === "no" ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                              <ShieldAlertIcon className="h-3 w-3" /> Rejected
-                            </span>
-                          ) : (
-                            <button type="button" onClick={() => setVerifyPopup({ origIdx, row })}
-                              className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700 hover:bg-yellow-200">
-                              <ShieldAlertIcon className="h-3 w-3" /> Pending
-                            </button>
-                          )}
                         </td>
                       );
                     }
