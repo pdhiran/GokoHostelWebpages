@@ -769,8 +769,11 @@ export function AdminRecords({ password, username, role }: { password: string; u
                       const checkinId = parseInt(row[17] || "0", 10);
                       return (
                         <td key={ci} className="whitespace-nowrap px-3 py-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-brand-green-dark/90">{cell}</span>
+                            {guestDob && (
+                              <span className="text-[10px] text-brand-green-dark/40">DOB: {guestDob}</span>
+                            )}
                             {guestFlagged && (
                               <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", guestUnderage ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700")}>
                                 {guestUnderage ? `Underage (${guestAge})` : `Overage (${guestAge})`}
