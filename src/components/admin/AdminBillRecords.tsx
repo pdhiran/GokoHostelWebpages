@@ -91,7 +91,7 @@ export function AdminBillRecords({
     try {
       const res = await expenseApi({
         action: "updateExpense",
-        expenseId: editModal.id,
+        id: editModal.id,
         amount: Math.round(amountNum * 100),
         category: editCategory,
         purpose: editPurpose.trim(),
@@ -108,10 +108,10 @@ export function AdminBillRecords({
     }
   };
 
-  const deleteExpense = async (expenseId: number) => {
+  const deleteExpense = async (id: number, billImageLink?: string) => {
     if (!confirm("Delete this expense record?")) return;
     try {
-      const res = await expenseApi({ action: "deleteExpense", expenseId });
+      const res = await expenseApi({ action: "deleteExpense", id, billImageLink });
       if (res.ok) {
         loadExpenses(currentMonth);
       } else {
@@ -237,7 +237,7 @@ export function AdminBillRecords({
                         </button>
                         <button
                           type="button"
-                          onClick={() => deleteExpense(exp.id)}
+                          onClick={() => deleteExpense(exp.id, exp.billImageLink)}
                           className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50"
                         >
                           <Trash2Icon className="h-4 w-4" />

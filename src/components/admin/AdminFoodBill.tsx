@@ -67,7 +67,7 @@ export function AdminFoodBill({
 
   const summary = data?.summary || {
     totalRevenue: 0,
-    totalOrders: 0,
+    orderCount: 0,
     cashPayments: 0,
     cashOrders: 0,
     onlinePayments: 0,
@@ -76,7 +76,7 @@ export function AdminFoodBill({
     unpaidOrders: 0,
   };
 
-  const guests: any[] = data?.guests || [];
+  const guests: any[] = data?.guestBreakdown || [];
 
   return (
     <div>
@@ -121,7 +121,7 @@ export function AdminFoodBill({
                     ₹{(summary.totalRevenue / 100).toFixed(0)}
                   </p>
                   <p className="text-xs text-brand-green-dark/60">
-                    Total Revenue ({summary.totalOrders} orders)
+                    Total Revenue ({summary.orderCount} orders)
                   </p>
                 </div>
               </div>
@@ -195,18 +195,18 @@ export function AdminFoodBill({
                   <tbody>
                     {guests.map((g: any, i: number) => (
                       <tr key={g.checkinId || i} className="border-b border-brand-mist/60 last:border-b-0 hover:bg-brand-sand/30">
-                        <td className="whitespace-nowrap px-3 py-3 font-medium text-brand-green-dark">{g.name || "—"}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/70">{g.contact || "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-3 font-medium text-brand-green-dark">{g.guestName || "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/70">{g.guestPhone || "—"}</td>
                         <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/70">{g.roomInfo || "—"}</td>
                         <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/90">{g.orderCount || 0}</td>
                         <td className="whitespace-nowrap px-3 py-3 font-medium text-brand-green-dark">
                           ₹{((g.totalSpent || 0) / 100).toFixed(0)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-emerald-700">
-                          ₹{((g.cash || 0) / 100).toFixed(0)}
+                          ₹{((g.cashPaid || 0) / 100).toFixed(0)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-blue-700">
-                          ₹{((g.online || 0) / 100).toFixed(0)}
+                          ₹{((g.onlinePaid || 0) / 100).toFixed(0)}
                         </td>
                         <td className={cn(
                           "whitespace-nowrap px-3 py-3",

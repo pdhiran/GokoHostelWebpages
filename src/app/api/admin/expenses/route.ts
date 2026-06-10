@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case "addExpense": {
-        const { amount, category, customCategory, purpose, billImageFile, billImageName, billImageMime } = rest;
+        const { amount, category, customCategory, purpose, billImage, billMimeType } = rest;
         if (!amount || !category || !purpose) {
           return NextResponse.json({ error: "amount, category, and purpose are required" }, { status: 400 });
         }
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         const month = getMonthKey();
         let billImageLink = "";
 
-        if (billImageFile && billImageName) {
+        if (billImage) {
           try {
             const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
             if (!rootFolderId) throw new Error("GOOGLE_DRIVE_FOLDER_ID not set");
@@ -92,14 +92,14 @@ export async function POST(req: NextRequest) {
             const billsFolderId = await driveGetOrCreateFolder(rootFolderId, "Goko Bills");
             const monthFolderId = await driveGetOrCreateFolder(billsFolderId, month);
 
-            const binaryStr = atob(billImageFile);
+            const binaryStr = atob(billImage);
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++) {
               bytes[i] = binaryStr.charCodeAt(i);
             }
 
-            const mime = billImageMime || "image/jpeg";
-            const fileName = billImageName || `bill_${Date.now()}.jpg`;
+            const mime = billMimeType || "image/jpeg";
+            const fileName = `bill_${Date.now()}.jpg`;
             billImageLink = await driveUploadFile(fileName, mime, bytes.buffer, monthFolderId);
           } catch (err: any) {
             await addSystemLog({ level: "error", source: "expenses", message: "Bill upload failed", details: err?.message || String(err) });
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
         if (role !== "admin") {
           return NextResponse.json({ error: "Admin only" }, { status: 403 });
         }
-        const { id, amount, category, customCategory, purpose, billImageFile, billImageName, billImageMime } = rest;
+        const { id, amount, category, customCategory, purpose, billImage: updateBillImage, billMimeType: updateBillMime } = rest;
         if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
         const updateData: any = { updatedBy: actorName };
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
         if (customCategory !== undefined) updateData.customCategory = customCategory;
         if (purpose !== undefined) updateData.purpose = purpose;
 
-        if (billImageFile && billImageName) {
+        if (updateBillImage) {
           try {
             const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
             if (!rootFolderId) throw new Error("GOOGLE_DRIVE_FOLDER_ID not set");
@@ -161,14 +161,14 @@ export async function POST(req: NextRequest) {
             const billsFolderId = await driveGetOrCreateFolder(rootFolderId, "Goko Bills");
             const monthFolderId = await driveGetOrCreateFolder(billsFolderId, month);
 
-            const binaryStr = atob(billImageFile);
+            const binaryStr = atob(updateBillImage);
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++) {
               bytes[i] = binaryStr.charCodeAt(i);
             }
 
-            const mime = billImageMime || "image/jpeg";
-            const fileName = billImageName || `bill_${Date.now()}.jpg`;
+            const mime = updateBillMime || "image/jpeg";
+            const fileName = `bill_${Date.now()}.jpg`;
             updateData.billImageLink = await driveUploadFile(fileName, mime, bytes.buffer, monthFolderId);
           } catch (err: any) {
             await addSystemLog({ level: "error", source: "expenses", message: "Bill upload failed on update", details: err?.message || String(err) });
@@ -237,6 +237,9 @@ export async function POST(req: NextRequest) {
         let onlinePayments = 0;
         let unpaidTabs = 0;
         let orderCount = orders.length;
+        let cashOrders = 0;
+        let onlineOrders = 0;
+        let unpaidOrders = 0;
 
         const guestMap = new Map<string, {
           guestName: string; guestPhone: string; roomInfo: string;
@@ -249,11 +252,14 @@ export async function POST(req: NextRequest) {
           if (order.paymentStatus === "paid") {
             if (order.paymentMethod === "cash") {
               cashPayments += order.total;
+              cashOrders += 1;
             } else {
               onlinePayments += order.total;
+              onlineOrders += 1;
             }
           } else if (order.paymentStatus === "on_tab" || order.paymentStatus === "pending") {
             unpaidTabs += order.total;
+            unpaidOrders += 1;
           }
 
           const key = order.guestPhone || order.guestName;
@@ -283,7 +289,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
           role,
-          summary: { totalRevenue, cashPayments, onlinePayments, unpaidTabs, orderCount },
+          summary: { totalRevenue, cashPayments, onlinePayments, unpaidTabs, orderCount, cashOrders, onlineOrders, unpaidOrders },
           guestBreakdown,
         });
       }

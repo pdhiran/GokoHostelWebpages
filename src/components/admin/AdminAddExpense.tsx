@@ -117,8 +117,9 @@ export function AdminAddExpense({
           };
           reader.readAsDataURL(billFile);
         });
-        body.billImage = base64;
-        body.billMimeType = billFile.type;
+        body.billImageFile = base64;
+        body.billImageName = billFile.name || `bill_${Date.now()}.jpg`;
+        body.billImageMime = billFile.type;
       }
 
       const res = await expenseApi(body);
