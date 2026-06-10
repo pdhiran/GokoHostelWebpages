@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   QrCodeIcon,
   SparklesIcon,
@@ -59,6 +59,7 @@ export function QRGenerator({ password, username, role }: { password: string; us
   const [saving, setSaving] = useState(false);
 
   const { containerRef, ready, downloadPNG, downloadSVG, getDataUrl, getPreviewDataUrl } = useQRCode(config);
+  const saveNameInputRef = useRef<HTMLInputElement>(null);
 
   const updateConfig = useCallback((partial: Partial<QRConfig>) => {
     setConfig((prev) => ({ ...prev, ...partial }));
@@ -153,13 +154,11 @@ export function QRGenerator({ password, username, role }: { password: string; us
   };
 
   const handleSaveConfig = () => {
-    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "qr-config.json";
-    a.click();
-    URL.revokeObjectURL(url);
+    setShowHistory(true);
+    setTimeout(() => {
+      saveNameInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      saveNameInputRef.current?.focus();
+    }, 100);
   };
 
 
@@ -236,6 +235,7 @@ export function QRGenerator({ password, username, role }: { password: string; us
           {/* Save Current */}
           <div className="mt-3 flex gap-2 border-t border-brand-mist pt-3">
             <input
+              ref={saveNameInputRef}
               type="text"
               placeholder="Name this QR config..."
               value={saveName}

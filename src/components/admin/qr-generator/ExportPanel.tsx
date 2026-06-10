@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DownloadIcon, CopyIcon, CheckIcon, FileJsonIcon, Loader2Icon } from "lucide-react";
+import { DownloadIcon, CopyIcon, CheckIcon, SaveIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { jsPDF } from "jspdf";
 import type { QRConfig } from "./types";
@@ -144,8 +144,8 @@ export function ExportPanel({ config, downloadPNG, downloadSVG, getDataUrl, onSa
         className="h-9 w-full gap-1.5 text-xs"
         variant="outline"
       >
-        <FileJsonIcon className="h-3.5 w-3.5" />
-        Save Configuration
+        <SaveIcon className="h-3.5 w-3.5" />
+        Save to History
       </Button>
     </div>
   );
