@@ -108,6 +108,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [frroStatus, setFrroStatus] = useState("");
   const [ageRange, setAgeRange] = useState({ min: 18, max: 40 });
   const [vibeMatchingId, setVibeMatchingId] = useState<number | null>(null);
+  const [showDobInRecords, setShowDobInRecords] = useState(false);
 
   const filteredRows = (() => {
     let result = [...rows].map((row, origIdx) => ({ row, origIdx }));
@@ -151,12 +152,14 @@ export function AdminRecords({ password, username, role }: { password: string; u
     loadTab();
     (async () => {
       try {
-        const [minRes, maxRes] = await Promise.all([
+        const [minRes, maxRes, dobRes] = await Promise.all([
           apiCall({ action: "getSetting", key: "guest_min_age" }),
           apiCall({ action: "getSetting", key: "guest_max_age" }),
+          apiCall({ action: "getSetting", key: "show_dob_in_records" }),
         ]);
         if (minRes.ok) { const d = await minRes.json(); if (d.value) setAgeRange((prev) => ({ ...prev, min: Number(d.value) || 18 })); }
         if (maxRes.ok) { const d = await maxRes.json(); if (d.value) setAgeRange((prev) => ({ ...prev, max: Number(d.value) || 40 })); }
+        if (dobRes.ok) { const d = await dobRes.json(); setShowDobInRecords(d.value === "true"); }
       } catch {}
     })();
   }, []);
@@ -771,7 +774,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
                         <td key={ci} className="whitespace-nowrap px-3 py-3">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-brand-green-dark/90">{cell}</span>
-                            {guestDob && (
+                            {showDobInRecords && guestDob && (
                               <span className="text-[10px] text-brand-green-dark/40">DOB: {guestDob}</span>
                             )}
                             {guestFlagged && (

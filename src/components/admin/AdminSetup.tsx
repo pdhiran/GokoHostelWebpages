@@ -21,6 +21,8 @@ export function AdminSetup({ password, username }: { password: string; username?
   const [maxAge, setMaxAge] = useState("40");
   const [ageSaving, setAgeSaving] = useState(false);
   const [ageLoaded, setAgeLoaded] = useState(false);
+  const [showDobInRecords, setShowDobInRecords] = useState(false);
+  const [togglingDob, setTogglingDob] = useState(false);
 
   useEffect(() => { loadBeds(); loadAgeSettings(); }, []);
 
@@ -71,14 +73,25 @@ export function AdminSetup({ password, username }: { password: string; username?
 
   const loadAgeSettings = async () => {
     try {
-      const [minRes, maxRes] = await Promise.all([
+      const [minRes, maxRes, dobRes] = await Promise.all([
         apiCall({ action: "getSetting", key: "guest_min_age" }),
         apiCall({ action: "getSetting", key: "guest_max_age" }),
+        apiCall({ action: "getSetting", key: "show_dob_in_records" }),
       ]);
       if (minRes.ok) { const d = await minRes.json(); if (d.value) setMinAge(d.value); }
       if (maxRes.ok) { const d = await maxRes.json(); if (d.value) setMaxAge(d.value); }
+      if (dobRes.ok) { const d = await dobRes.json(); setShowDobInRecords(d.value === "true"); }
     } catch {}
     setAgeLoaded(true);
+  };
+
+  const toggleShowDob = async () => {
+    setTogglingDob(true);
+    const newVal = !showDobInRecords;
+    try {
+      await apiCall({ action: "setSetting", key: "show_dob_in_records", value: newVal ? "true" : "false" });
+      setShowDobInRecords(newVal);
+    } finally { setTogglingDob(false); }
   };
 
   const saveAgeRange = async () => {
@@ -152,6 +165,16 @@ export function AdminSetup({ password, username }: { password: string; username?
             <Button type="button" variant="cta" size="sm" onClick={saveAgeRange} disabled={ageSaving}>
               {ageSaving ? "Saving..." : "Save"}
             </Button>
+          </div>
+          <div className="mt-4 flex items-center gap-3 border-t border-brand-mist pt-4">
+            <span className="text-sm font-medium text-brand-green-dark">Show DOB in Records</span>
+            <button type="button" onClick={toggleShowDob} disabled={togglingDob}
+              className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", showDobInRecords ? "bg-brand-green" : "bg-brand-green-dark/20")}>
+              <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", showDobInRecords ? "translate-x-5" : "translate-x-0.5")} />
+            </button>
+            <span className={cn("text-xs font-semibold", showDobInRecords ? "text-brand-green" : "text-brand-green-dark/40")}>
+              {togglingDob ? "..." : showDobInRecords ? "ON" : "OFF"}
+            </span>
           </div>
         </div>
       )}
