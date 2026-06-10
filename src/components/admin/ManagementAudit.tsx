@@ -35,19 +35,21 @@ export function ManagementAudit({ password, username, role }: { password: string
     return res;
   }, [password, username]);
 
+  const AUDIT_TABS = [
+    { id: "room" as AuditSubTab, label: "Room & General" },
+    { id: "food" as AuditSubTab, label: "Food Orders" },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex gap-1 rounded-lg border border-brand-mist bg-white p-1">
-        {([
-          { id: "room" as AuditSubTab, label: "Room & General" },
-          { id: "food" as AuditSubTab, label: "Food Orders" },
-        ]).map((t) => (
+        {AUDIT_TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setSubTab(t.id)}
             className={cn(
-              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors md:flex-none md:py-1.5",
               subTab === t.id ? "bg-brand-green text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
             )}
           >
