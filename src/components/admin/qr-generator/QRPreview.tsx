@@ -40,10 +40,13 @@ export function QRPreview({ containerRef, config, ready }: Props) {
         )}
       </div>
 
-      <div className="text-center">
+      <div className="text-center space-y-0.5">
         <p className="text-[10px] text-brand-green-dark/40">
-          {config.size}×{config.size}px • Error correction: {config.errorCorrection}
+          Preview • Error correction: {config.errorCorrection}
           {(config.logoFile || config.logoUrl) ? " (H - logo mode)" : ""}
+        </p>
+        <p className="text-[10px] text-brand-green-dark/30">
+          Export: {Math.max(config.size, 2048)}×{Math.max(config.size, 2048)}px HD
         </p>
       </div>
     </div>

@@ -41,9 +41,9 @@ export function ExportPanel({ config, downloadPNG, downloadSVG, getDataUrl, onSa
       const dataUrl = await getDataUrl();
       if (!dataUrl) return;
 
-      const imgSize = config.size;
-      const margin = 20;
-      const textHeight = config.textEnabled ? 40 : 0;
+      const imgSize = Math.max(config.size, 2048);
+      const margin = 40;
+      const textHeight = config.textEnabled ? 60 : 0;
       const pageWidth = imgSize + margin * 2;
       const pageHeight = imgSize + margin * 2 + textHeight;
 
