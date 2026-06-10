@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
@@ -40,6 +40,9 @@ export function AdminManagement({ password, username, role, permissions = {} }: 
   });
   const defaultTab = visibleTabs[0]?.id || "history";
   const [tab, setTab] = useState<ManagementTab>(defaultTab);
+  const [subMenuOpen, setSubMenuOpen] = useState(false);
+
+  const activeTab = visibleTabs.find((t) => t.id === tab);
 
   return (
     <div>
@@ -47,8 +50,8 @@ export function AdminManagement({ password, username, role, permissions = {} }: 
         <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Management</h2>
       </div>
 
-      {/* Sub-tab navigation */}
-      <div className="mt-4 flex flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5">
+      {/* Sub-tab navigation - Desktop */}
+      <div className="mt-4 hidden flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5 md:flex">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
@@ -65,6 +68,43 @@ export function AdminManagement({ password, username, role, permissions = {} }: 
             {t.label}
           </button>
         ))}
+      </div>
+
+      {/* Sub-tab navigation - Mobile dropdown */}
+      <div className="relative mt-4 md:hidden">
+        <button
+          type="button"
+          onClick={() => setSubMenuOpen(!subMenuOpen)}
+          className="flex w-full items-center justify-between rounded-xl border border-brand-mist bg-white px-4 py-3"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium text-brand-green">
+            {activeTab?.icon}
+            {activeTab?.label}
+          </span>
+          <ChevronDownIcon className={cn("h-4 w-4 text-brand-green-dark/40 transition-transform", subMenuOpen && "rotate-180")} />
+        </button>
+        {subMenuOpen && (
+          <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-brand-mist bg-white p-2 shadow-lg">
+            <div className="grid grid-cols-2 gap-1">
+              {visibleTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { setTab(t.id); setSubMenuOpen(false); }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition-colors",
+                    tab === t.id
+                      ? "bg-brand-green/10 text-brand-green"
+                      : "text-brand-green-dark/60 hover:bg-brand-sand/50"
+                  )}
+                >
+                  {t.icon}
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tab content */}

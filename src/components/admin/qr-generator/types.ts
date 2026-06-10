@@ -45,9 +45,9 @@ export interface QRHistoryItem {
 
 export const DEFAULT_CONFIG: QRConfig = {
   data: "https://gokohostel.com",
-  size: 600,
-  margin: 20,
-  errorCorrection: "M",
+  size: 250,
+  margin: 3,
+  errorCorrection: "H",
   style: "squares",
   cornerStyle: "square",
   fgColor: "#000000",
