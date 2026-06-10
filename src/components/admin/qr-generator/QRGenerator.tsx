@@ -54,7 +54,7 @@ export function QRGenerator({ password, username, role }: { password: string; us
   const [config, setConfig] = useState<QRConfig>(DEFAULT_CONFIG);
   const [history, setHistory] = useState<QRHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [showHistory, setShowHistory] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
 
