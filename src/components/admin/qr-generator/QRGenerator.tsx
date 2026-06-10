@@ -50,11 +50,11 @@ const ERROR_LEVELS: { id: ErrorCorrectionLevel; label: string; desc: string }[] 
   { id: "H", label: "H", desc: "30% recovery" },
 ];
 
-export function QRGenerator({ password, role }: { password: string; username?: string; role: Role }) {
+export function QRGenerator({ password, username, role }: { password: string; username?: string; role: Role }) {
   const [config, setConfig] = useState<QRConfig>(DEFAULT_CONFIG);
   const [history, setHistory] = useState<QRHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -70,7 +70,7 @@ export function QRGenerator({ password, role }: { password: string; username?: s
       const res = await fetch("/api/admin/qr-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password, action: "list" }),
+        body: JSON.stringify({ password, username, action: "list" }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -79,7 +79,7 @@ export function QRGenerator({ password, role }: { password: string; username?: s
     } finally {
       setLoadingHistory(false);
     }
-  }, [password]);
+  }, [password, username]);
 
   useEffect(() => {
     loadHistory();
@@ -89,7 +89,8 @@ export function QRGenerator({ password, role }: { password: string; username?: s
     if (!saveName.trim()) return;
     setSaving(true);
     try {
-      const dataUrl = await getDataUrl();
+      let dataUrl = "";
+      try { dataUrl = await getDataUrl(); } catch { /* ignore preview failures */ }
       const configToSave = { ...config, logoFile: null, logoUrl: "" };
       const res = await fetch("/api/admin/qr-history", {
         method: "POST",
@@ -99,12 +100,13 @@ export function QRGenerator({ password, role }: { password: string; username?: s
           action: "save",
           name: saveName.trim(),
           config: JSON.stringify(configToSave),
-          previewDataUrl: dataUrl.slice(0, 5000),
+          previewDataUrl: dataUrl || "",
         }),
       });
       if (res.ok) {
         setSaveName("");
-        loadHistory();
+        setShowHistory(true);
+        await loadHistory();
       }
     } finally {
       setSaving(false);
@@ -177,11 +179,9 @@ export function QRGenerator({ password, role }: { password: string; username?: s
             <HistoryIcon className="h-3.5 w-3.5" />
             History
           </Button>
-          <label className="cursor-pointer">
-            <Button type="button" variant="outline" className="h-8 gap-1.5 text-xs pointer-events-none">
-              <UploadIcon className="h-3.5 w-3.5" />
-              Load Config
-            </Button>
+          <label className="cursor-pointer inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+            <UploadIcon className="h-3.5 w-3.5" />
+            Load Config
             <input type="file" accept=".json" className="hidden" onChange={handleLoadConfig} />
           </label>
         </div>
@@ -197,36 +197,40 @@ export function QRGenerator({ password, role }: { password: string; username?: s
           {history.length === 0 ? (
             <p className="text-xs text-brand-green-dark/50 py-4 text-center">No saved QR codes yet.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {history.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 rounded-lg border border-brand-mist p-2.5">
-                  <div className="h-10 w-10 flex-shrink-0 rounded bg-brand-sand/30 flex items-center justify-center">
-                    <QrCodeIcon className="h-5 w-5 text-brand-green/40" />
+                <div key={item.id} className="rounded-lg border border-brand-mist p-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-center rounded-md bg-brand-sand/20 p-3">
+                    {item.previewDataUrl ? (
+                      <img src={item.previewDataUrl} alt={item.name} className="h-24 w-24 object-contain" />
+                    ) : (
+                      <QrCodeIcon className="h-16 w-16 text-brand-green/20" />
+                    )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium text-brand-green-dark">{item.name}</p>
-                    <p className="text-[10px] text-brand-green-dark/40">
-                      {new Date(item.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => loadFromHistory(item)}
-                      className="rounded p-1 text-brand-green hover:bg-brand-green/10"
-                      title="Load"
-                    >
-                      <UploadIcon className="h-3.5 w-3.5" />
-                    </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-brand-green-dark">{item.name}</p>
+                      <p className="text-[10px] text-brand-green-dark/40">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => deleteFromHistory(item.id)}
-                      className="rounded p-1 text-red-500 hover:bg-red-50"
+                      className="rounded p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600"
                       title="Delete"
                     >
                       <TrashIcon className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => loadFromHistory(item)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-md border border-brand-green/20 bg-brand-green/5 px-3 py-2 text-xs font-medium text-brand-green transition-colors hover:bg-brand-green/10"
+                  >
+                    <UploadIcon className="h-3.5 w-3.5" />
+                    Load &amp; Edit
+                  </button>
                 </div>
               ))}
             </div>

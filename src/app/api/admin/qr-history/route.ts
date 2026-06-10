@@ -1,21 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { qrHistory } from "@/db/schema";
+import { qrHistory, users } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
-async function authenticate(password: string): Promise<boolean> {
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + "goko-salt-2026");
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function authenticate(password: string, username?: string): Promise<boolean> {
   if (!password) return false;
   if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return true;
   if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return true;
+  if (username) {
+    try {
+      const db = getDb();
+      const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+      if (user) {
+        const computed = await hashPassword(password);
+        if (computed === user.passwordHash) return true;
+      }
+    } catch { /* ignore */ }
+  }
   return false;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { password, action } = body;
+    const { password, action, username } = body;
 
-    if (!await authenticate(password)) {
+    if (!await authenticate(password, username)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -32,14 +49,14 @@ export async function POST(req: NextRequest) {
         if (!name || !config) {
           return NextResponse.json({ error: "Name and config required" }, { status: 400 });
         }
-        const result = await db.insert(qrHistory).values({
+        await db.insert(qrHistory).values({
           name,
           config,
           previewDataUrl: previewDataUrl || "",
           createdBy: body.username || "",
           createdAt: new Date().toISOString(),
-        }).returning({ id: qrHistory.id });
-        return NextResponse.json({ success: true, id: result[0]?.id });
+        });
+        return NextResponse.json({ success: true });
       }
 
       case "delete": {
