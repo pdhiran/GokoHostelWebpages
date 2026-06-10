@@ -298,7 +298,7 @@ export function AdminBeds({ password, username, role }: { password: string; user
           <h3 className="font-medium text-blue-800">{unassigned.length} guest{unassigned.length !== 1 ? "s" : ""} without bed assignment</h3>
           <div className="mt-2 space-y-2">
             {unassigned.map((guest, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
+              <div key={i} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-white px-3 py-2">
                 <div>
                   <span className="font-medium text-brand-green-dark">{guest[3]}</span>
                   <span className="ml-2 text-xs text-brand-green-dark/50">{guest[6]} days · {guest[7]}</span>
@@ -321,7 +321,7 @@ export function AdminBeds({ password, username, role }: { password: string; user
 
       {/* Checkout confirmation popup */}
       {checkoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="font-display text-lg font-bold text-brand-green-dark">Confirm Checkout</h3>
             <p className="mt-2 text-sm text-brand-green-dark/80">
@@ -347,8 +347,8 @@ export function AdminBeds({ password, username, role }: { password: string; user
       {/* Assigning mode banner */}
       {assigningGuest && (
         <div className="mt-4 rounded-xl border-2 border-brand-green bg-brand-green/[0.04] p-4">
-          <div className="flex items-center justify-between">
-            <p className="font-medium text-brand-green">Assigning bed to: <strong>{assigningGuest[3]}</strong> ({assigningGuest[6]} days)</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 truncate font-medium text-brand-green">Assigning bed to: <strong>{assigningGuest[3]}</strong> ({assigningGuest[6]} days)</p>
             <button type="button" onClick={() => setAssigningGuest(null)} className="text-sm text-brand-green-dark/60 hover:text-brand-red">Cancel</button>
           </div>
           <p className="mt-1 text-xs text-brand-green-dark/60">Click on any available (green) bed below to assign</p>
@@ -358,8 +358,8 @@ export function AdminBeds({ password, username, role }: { password: string; user
       {/* Changing bed banner */}
       {changingBed !== null && (
         <div className="mt-4 rounded-xl border-2 border-blue-400 bg-blue-50/50 p-4">
-          <div className="flex items-center justify-between">
-            <p className="font-medium text-blue-700">Changing bed for: <strong>{beds[changingBed]?.guestName}</strong></p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 truncate font-medium text-blue-700">Changing bed for: <strong>{beds[changingBed]?.guestName}</strong></p>
             <button type="button" onClick={() => setChangingBed(null)} className="text-sm text-brand-green-dark/60 hover:text-brand-red">Cancel</button>
           </div>
           <p className="mt-1 text-xs text-blue-600/70">Click on any available (green) bed to move the guest there. Old bed will go to cleanup.</p>

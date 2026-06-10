@@ -11,7 +11,7 @@ interface Props {
 export function QRPreview({ containerRef, config, ready }: Props) {
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="relative rounded-xl border border-brand-mist bg-white p-6 shadow-sm">
+      <div className="relative rounded-xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
         {!ready && (
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/80">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-green border-t-transparent" />

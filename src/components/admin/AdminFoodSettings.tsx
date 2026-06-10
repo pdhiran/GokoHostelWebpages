@@ -308,7 +308,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
                 value={settings.food_kitchen_whatsapp}
                 onChange={(e) => updateField("food_kitchen_whatsapp", e.target.value)}
                 placeholder="e.g. 919876543210"
-                className="max-w-xs"
+                className="w-full sm:max-w-xs"
               />
             </div>
           </div>
@@ -355,7 +355,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
                       slots[idx] = { ...slots[idx], open: e.target.value };
                       updateField("food_kitchen_hours", slotsToString(slots));
                     }}
-                    className="w-32"
+                    className="w-full sm:w-32"
                   />
                   <span className="text-xs text-brand-green-dark/40">to</span>
                   <Input
@@ -366,7 +366,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
                       slots[idx] = { ...slots[idx], close: e.target.value };
                       updateField("food_kitchen_hours", slotsToString(slots));
                     }}
-                    className="w-32"
+                    className="w-full sm:w-32"
                   />
                   {arr.length > 1 && (
                     <button

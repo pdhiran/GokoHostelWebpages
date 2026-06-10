@@ -138,7 +138,7 @@ export function AdminDashboard({
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50"><UsersIcon className="h-5 w-5 text-blue-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-brand-green-dark">{todayCheckins.length}</p>
+              <p className="text-xl sm:text-2xl font-bold text-brand-green-dark">{todayCheckins.length}</p>
               <p className="text-xs text-brand-green-dark/60">Check-ins today</p>
             </div>
           </div>
@@ -147,7 +147,7 @@ export function AdminDashboard({
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50"><CalendarCheckIcon className="h-5 w-5 text-orange-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-brand-green-dark">{todayCheckouts.length}</p>
+              <p className="text-xl sm:text-2xl font-bold text-brand-green-dark">{todayCheckouts.length}</p>
               <p className="text-xs text-brand-green-dark/60">Checkouts due today</p>
             </div>
           </div>
@@ -156,7 +156,7 @@ export function AdminDashboard({
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50"><BedDoubleIcon className="h-5 w-5 text-green-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-brand-green-dark">{stats.available}</p>
+              <p className="text-xl sm:text-2xl font-bold text-brand-green-dark">{stats.available}</p>
               <p className="text-xs text-brand-green-dark/60">Beds available</p>
             </div>
           </div>
@@ -165,7 +165,7 @@ export function AdminDashboard({
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50"><BedDoubleIcon className="h-5 w-5 text-red-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-brand-green-dark">{stats.occupied}/{stats.total}</p>
+              <p className="text-xl sm:text-2xl font-bold text-brand-green-dark">{stats.occupied}/{stats.total}</p>
               <p className="text-xs text-brand-green-dark/60">Beds occupied</p>
             </div>
           </div>
@@ -197,7 +197,7 @@ export function AdminDashboard({
           <div className="mt-2 space-y-2">
             {todayCheckouts.map((co, i) => (
               <div key={i} className="rounded-lg bg-white px-3 py-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap gap-2 items-center justify-between">
                   <div>
                     <span className="font-medium text-brand-green-dark">{co.name}</span>
                     <span className="ml-2 text-xs text-brand-green-dark/50">{co.dorm} / {co.bedId}</span>
@@ -254,7 +254,7 @@ export function AdminDashboard({
               const isAnyFlagged = isFlagged || hasDobMismatch;
               const checkinId = parseInt(item.row[15]);
               return (
-              <div key={i} className={cn("flex items-center justify-between rounded-xl border bg-white px-4 py-3", isAnyFlagged ? "border-orange-300 bg-orange-50/40" : "border-brand-mist")}>
+              <div key={i} className={cn("flex flex-wrap gap-2 items-center justify-between rounded-xl border bg-white px-4 py-3", isAnyFlagged ? "border-orange-300 bg-orange-50/40" : "border-brand-mist")}>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium text-brand-green-dark">{item.row[3]}</p>

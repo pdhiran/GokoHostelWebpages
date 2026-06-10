@@ -138,12 +138,12 @@ export function AdminBookings({ password, username, role }: { password: string; 
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Bookings</h2>
           {lastSync && <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Last email sync: {new Date(lastSync).toLocaleString()}</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button type="button" variant="cta" onClick={() => setShowForm(true)}>
             <PlusIcon className="mr-1 h-4 w-4" /> Add Booking
           </Button>
@@ -167,7 +167,7 @@ export function AdminBookings({ password, username, role }: { password: string; 
           <h3 className="mb-3 font-semibold text-brand-green">Today&apos;s Arrivals ({todayArrivals.length})</h3>
           <div className="space-y-2">
             {todayArrivals.map((b) => (
-              <div key={b.id} className="flex items-center justify-between rounded-xl bg-white p-3 shadow-sm">
+              <div key={b.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-3 shadow-sm">
                 <div className="flex items-center gap-3">
                   <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
                     {PLATFORM_LABELS[b.platform] || b.platform}

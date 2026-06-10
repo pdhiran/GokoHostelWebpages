@@ -142,7 +142,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
     <div className="space-y-8">
       {/* === SERVICE HEALTH === */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-lg font-semibold text-brand-green-dark">Service Health</h3>
           <button
             type="button"
@@ -226,7 +226,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
 
       {/* === API USAGE STATS === */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-lg font-semibold text-brand-green-dark">API Usage</h3>
           <button type="button" onClick={loadStats} disabled={statsLoading}
             className="flex items-center gap-1.5 rounded-lg bg-brand-sand px-3 py-1.5 text-xs font-medium text-brand-green-dark/70 hover:bg-brand-sand/80 disabled:opacity-50">
@@ -235,7 +235,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
         </div>
 
         {currentMonth && (
-          <div className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
             <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">
               Current Month — {currentMonth.month}
             </h4>
@@ -269,7 +269,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
           </div>
         )}
 
-        <div className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
           <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">
             Lifetime Totals
           </h4>
@@ -282,7 +282,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
         </div>
 
         {stats.length > 0 && (
-          <div className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
             <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">
               Monthly Breakdown
             </h4>

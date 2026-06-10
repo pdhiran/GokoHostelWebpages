@@ -137,7 +137,7 @@ export function ManagementUsers({ password, username, role }: { password: string
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-semibold text-brand-green-dark">Users & Permissions</h3>
         <Button type="button" variant="cta" onClick={() => { resetForm(); setEditingUser(null); setShowForm(true); }}>
           <PlusIcon className="mr-1 h-4 w-4" /> Add User
@@ -147,10 +147,10 @@ export function ManagementUsers({ password, username, role }: { password: string
       {/* User list */}
       <div className="space-y-3">
         {users.map((user) => (
-          <div key={user.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-4">
+          <div key={user.id} className="flex items-center justify-between gap-3 rounded-xl border border-brand-mist bg-white p-4">
             <div className="flex items-center gap-3">
               {user.isSystem ? <ShieldCheckIcon className="h-5 w-5 text-brand-green" /> : <ShieldIcon className="h-5 w-5 text-brand-green-dark/30" />}
-              <div>
+              <div className="min-w-0">
                 <p className="font-medium text-brand-green-dark">{user.displayName}</p>
                 <p className="text-xs text-brand-green-dark/50">@{user.username} · {user.role}{user.isSystem ? " (system)" : ""}</p>
               </div>
@@ -272,7 +272,7 @@ export function ManagementUsers({ password, username, role }: { password: string
             {formRole === "manager" && <p className="mt-1 text-[10px] text-brand-green-dark/40">Managers have all permissions by default</p>}
           </div>
 
-          <div className="mt-5 flex gap-2">
+          <div className="mt-5 flex flex-wrap gap-2">
             <Button type="button" variant="cta" onClick={saveUser} disabled={saving}>{saving ? "Saving..." : editingUser ? "Update" : "Create"}</Button>
             <Button type="button" variant="ghost" onClick={() => { setShowForm(false); setEditingUser(null); }}>Cancel</Button>
           </div>

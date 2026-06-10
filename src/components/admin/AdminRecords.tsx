@@ -400,7 +400,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Check-in Records</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button type="button" variant="ctaOutline" onClick={() => { setShowAddForm(true); setShowPastForm(false); }} disabled={loading}>
             <PlusIcon className="mr-1 h-4 w-4" /> Add
           </Button>
@@ -429,7 +429,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       {/* Search and filters */}
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-center gap-2">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
           <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="max-w-xs" />
           <select value={sortField || ""} onChange={(e) => setSortField(e.target.value ? e.target.value as any : null)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">
             <option value="">Sort by...</option>
@@ -444,12 +444,12 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       {/* Add entry form */}
       {showAddForm && (
-        <div className="mt-4 rounded-2xl border border-brand-mist bg-white p-6 shadow-card">
+        <div className="mt-4 rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-card">
           <h3 className="font-display text-lg font-bold text-brand-green">Add manual entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {TEXT_FIELDS.map((field) => (
               field.type === "name_split" ? (
-                <div key={field.index} className="sm:col-span-2 md:col-span-2 grid grid-cols-2 gap-3">
+                <div key={field.index} className="sm:col-span-2 md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">First Name</Label>
                     <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="First name" className="mt-1" />
@@ -568,13 +568,13 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       {/* Past check-in form */}
       {showPastForm && (
-        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/30 p-6 shadow-card">
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/30 p-4 sm:p-6 shadow-card">
           <h3 className="font-display text-lg font-bold text-amber-800">Add past check-in record</h3>
           <p className="mt-1 text-xs text-amber-700">This record is for archival purposes only — no bed assignment needed.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {TEXT_FIELDS.map((field) => (
               field.type === "name_split" ? (
-                <div key={field.index} className="sm:col-span-2 md:col-span-2 grid grid-cols-2 gap-3">
+                <div key={field.index} className="sm:col-span-2 md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">First Name</Label>
                     <Input value={pastFirstName} onChange={(e) => setPastFirstName(e.target.value)} placeholder="First name" className="mt-1" />
@@ -697,12 +697,12 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       {/* Edit form */}
       {editIndex !== null && (
-        <div className="mt-4 rounded-2xl border-2 border-brand-green/20 bg-white p-6 shadow-card">
+        <div className="mt-4 rounded-2xl border-2 border-brand-green/20 bg-white p-4 sm:p-6 shadow-card">
           <h3 className="font-display text-lg font-bold text-brand-green">Edit entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {CHECKIN_COLUMNS.map((col, i) => (
               col === "Name" ? (
-                <div key={col} className="sm:col-span-2 md:col-span-2 grid grid-cols-2 gap-3">
+                <div key={col} className="sm:col-span-2 md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">First Name</Label>
                     <Input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} placeholder="First name" className="mt-1" />
@@ -885,7 +885,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       {/* Manual verification popup */}
       {verifyPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setVerifyPopup(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setVerifyPopup(null)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">Manual ID Verification</h3>
@@ -956,7 +956,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       {/* Inline upload popup */}
       {uploadPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { if (!uploading) { setUploadPopup(null); setUploadFiles([]); setUploadIdType(""); } }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => { if (!uploading) { setUploadPopup(null); setUploadFiles([]); setUploadIdType(""); } }}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">
@@ -1019,8 +1019,8 @@ export function AdminRecords({ password, username, role }: { password: string; u
 
       {/* Form C preview modal */}
       {formCPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { if (!formCEditing) setFormCPopup(null); }}>
-          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => { if (!formCEditing) setFormCPopup(null); }}>
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-4 sm:p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-indigo-800">Form C Data — {formCPopup.row[3]}</h3>
               <div className="flex items-center gap-2">

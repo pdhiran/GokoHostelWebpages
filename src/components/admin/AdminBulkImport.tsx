@@ -181,7 +181,7 @@ export function AdminBulkImport({
       </h3>
 
       {/* Step 1: Download Template */}
-      <div className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green/10">
             <DownloadIcon className="h-6 w-6 text-brand-green" aria-hidden="true" />
@@ -220,7 +220,7 @@ export function AdminBulkImport({
       </div>
 
       {/* Step 2: Upload filled Excel */}
-      <div className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green/10">
             <UploadIcon className="h-6 w-6 text-brand-green" aria-hidden="true" />
@@ -241,7 +241,7 @@ export function AdminBulkImport({
           role="button"
           tabIndex={0}
           aria-label="File upload drop zone. Press Enter or Space to browse files."
-          className={`mt-4 rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
+          className={`mt-4 rounded-xl border-2 border-dashed p-4 sm:p-8 text-center transition-colors ${
             dragActive
               ? "border-brand-green bg-brand-green/5"
               : "border-brand-mist hover:border-brand-green/40"
@@ -339,24 +339,24 @@ export function AdminBulkImport({
 
       {/* Results display */}
       {results && (
-        <div className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
           <h4 className="font-medium text-brand-green-dark">Import Results</h4>
 
-          <div className="mt-4 grid grid-cols-3 gap-4">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
             <div className="rounded-xl bg-green-50 p-4 text-center">
-              <p className="text-2xl font-bold text-green-700">
+              <p className="text-xl sm:text-2xl font-bold text-green-700">
                 {results.inserted}
               </p>
               <p className="text-xs text-green-600">Inserted</p>
             </div>
             <div className="rounded-xl bg-amber-50 p-4 text-center">
-              <p className="text-2xl font-bold text-amber-700">
+              <p className="text-xl sm:text-2xl font-bold text-amber-700">
                 {results.skipped}
               </p>
               <p className="text-xs text-amber-600">Skipped (duplicates)</p>
             </div>
             <div className="rounded-xl bg-red-50 p-4 text-center">
-              <p className="text-2xl font-bold text-red-700">
+              <p className="text-xl sm:text-2xl font-bold text-red-700">
                 {results.failed.length}
               </p>
               <p className="text-xs text-red-600">Failed</p>

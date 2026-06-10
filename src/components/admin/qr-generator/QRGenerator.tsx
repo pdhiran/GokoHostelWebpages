@@ -162,7 +162,7 @@ export function QRGenerator({ password, role }: { password: string; username?: s
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <QrCodeIcon className="h-5 w-5 text-brand-green" />
           <h2 className="text-lg font-bold text-brand-green-dark">QR Code Generator</h2>
@@ -340,7 +340,7 @@ export function QRGenerator({ password, role }: { password: string; username?: s
             {/* Error Correction */}
             <div>
               <label className="text-xs font-medium text-brand-green-dark/70">Error Correction</label>
-              <div className="mt-1.5 flex gap-1.5">
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {ERROR_LEVELS.map((l) => (
                   <button
                     key={l.id}

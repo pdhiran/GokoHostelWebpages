@@ -79,7 +79,7 @@ export function ManagementLogs({ password, username, role }: { password: string;
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-brand-green-dark">System Logs</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button type="button" variant="ctaOutline" onClick={downloadLogs} disabled={filtered.length === 0}>
             <DownloadIcon className="mr-1 h-4 w-4" /> Download
           </Button>
@@ -89,7 +89,7 @@ export function ManagementLogs({ password, username, role }: { password: string;
 
       {/* Log level config */}
       {role === "admin" && (
-        <div className="flex items-center gap-3 rounded-xl border border-brand-mist bg-white p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border border-brand-mist bg-white p-3">
           <span className="text-xs font-medium text-brand-green-dark/60">Logging level:</span>
           <select
             value={configuredLevel}

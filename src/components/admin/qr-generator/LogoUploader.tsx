@@ -107,7 +107,7 @@ export function LogoUploader({ config, onChange }: Props) {
           onDragLeave={() => setDragActive(false)}
           onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
-          className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
+          className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-4 sm:p-6 transition-colors ${
             dragActive
               ? "border-brand-green bg-brand-green/5"
               : "border-brand-mist hover:border-brand-green/40 hover:bg-brand-sand/30"

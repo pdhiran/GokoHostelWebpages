@@ -170,7 +170,7 @@ export default function AdminPage() {
   if (!role) {
     return (
       <section className="flex min-h-screen items-center justify-center bg-brand-sand">
-        <div className="w-full max-w-sm rounded-3xl border border-brand-mist bg-white p-8 shadow-card">
+        <div className="mx-4 w-full max-w-sm rounded-3xl border border-brand-mist bg-white p-6 shadow-card sm:mx-auto sm:p-8">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green/[0.07]">
             <LockIcon className="h-6 w-6 text-brand-green" />
           </div>
@@ -365,8 +365,8 @@ export default function AdminPage() {
 
       {/* Change Password Modal */}
       {showChangePassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">Change Password</h3>
               <button type="button" onClick={() => setShowChangePassword(false)} className="rounded-md p-1 text-brand-green-dark/40 hover:text-brand-green-dark">
@@ -398,8 +398,8 @@ export default function AdminPage() {
 
       {/* Exit Confirmation Dialog */}
       {showExitDialog && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-xs rounded-2xl border border-brand-mist bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-xs rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
             <h3 className="font-display text-base font-bold text-brand-green-dark">Exit Management?</h3>
             <p className="mt-2 text-sm text-brand-green-dark/70">
               Do you want to leave the Goko management page?

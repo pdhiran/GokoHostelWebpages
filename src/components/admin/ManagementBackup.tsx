@@ -55,7 +55,7 @@ export function ManagementBackup({ password, username, role }: { password: strin
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-brand-green-dark">Backup to Google Sheets</h3>
 
-      <div className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green/10">
             <DatabaseIcon className="h-6 w-6 text-brand-green" />

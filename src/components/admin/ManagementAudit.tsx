@@ -111,7 +111,7 @@ function RoomAuditTrail({ password, username, role }: { password: string; userna
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-lg font-semibold text-brand-green-dark">Audit Trail</h3>
         <div className="flex gap-2">
           <Button type="button" variant="ctaOutline" onClick={exportCsv} disabled={filtered.length === 0}>
@@ -122,7 +122,7 @@ function RoomAuditTrail({ password, username, role }: { password: string; userna
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-48" />
+        <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-48" />
         <select value={filterAction} onChange={(e) => setFilterAction(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">
           <option value="">All actions</option>
           {allActions.map((a) => <option key={a} value={a}>{a}</option>)}

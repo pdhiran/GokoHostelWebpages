@@ -377,7 +377,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
 
       {/* ---- CATEGORIES SECTION ---- */}
       <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-base font-bold text-brand-green-dark">Categories</h3>
           <Button type="button" variant="cta" size="sm" onClick={openAddCategory} disabled={saving}>
             <PlusIcon className="mr-1 h-4 w-4" /> Add Category
@@ -436,7 +436,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
               <div
                 key={cat.id}
                 className={cn(
-                  "flex items-center justify-between rounded-xl border px-4 py-3 transition-colors",
+                  "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border px-4 py-3 transition-colors",
                   selectedCategoryId === cat.id
                     ? "border-brand-green/30 bg-brand-green/5"
                     : "border-brand-mist bg-white hover:bg-brand-sand/30",
@@ -621,7 +621,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                   <div className="flex items-center gap-2">
                     <Input
                       placeholder="Add custom tag…"
-                      className="max-w-[200px] text-xs"
+                      className="w-full sm:max-w-[200px] text-xs"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();

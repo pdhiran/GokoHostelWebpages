@@ -167,14 +167,14 @@ export function AdminCheckRates({ password, username, role }: { password: string
           scrapeData.status === "done" && "bg-green-50 text-green-700",
           scrapeData.status === "failed" && "bg-red-50 text-red-700",
         )}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               {scrapeData.status === "pending" && <p>Scrape queued. The GitHub Action will process it shortly. Check back in ~3 minutes.</p>}
               {scrapeData.status === "in_progress" && <p>Scrape in progress... fetching rates from Booking.com.</p>}
               {scrapeData.status === "done" && <p>Scrape completed at {new Date(scrapeData.completedAt).toLocaleString()} — showing {scrapeData.results.length} properties.</p>}
               {scrapeData.status === "failed" && <p>Scrape failed. Try again or check logs.</p>}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(scrapeData.status === "pending" || scrapeData.status === "in_progress") && (
                 <Button type="button" variant="ctaOutline" onClick={pollStatus}>
                   <RefreshCwIcon className="mr-1 h-3.5 w-3.5" /> Check Status

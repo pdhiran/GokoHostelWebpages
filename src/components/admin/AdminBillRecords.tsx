@@ -156,12 +156,12 @@ export function AdminBillRecords({
         </div>
       )}
 
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <Input
           placeholder="Search category, purpose, submitted by..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
         {searchQuery && (
           <button
@@ -172,7 +172,7 @@ export function AdminBillRecords({
             Clear
           </button>
         )}
-        <p className="ml-auto text-sm text-brand-green-dark/70">
+        <p className="sm:ml-auto text-sm text-brand-green-dark/70">
           {filteredExpenses.length}{filteredExpenses.length !== expenses.length ? ` of ${expenses.length}` : ""} records
         </p>
       </div>
@@ -266,7 +266,7 @@ export function AdminBillRecords({
       </div>
 
       {editModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setEditModal(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setEditModal(null)}>
           <div className="w-full max-w-md rounded-2xl border border-brand-mist bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">Edit Expense</h3>

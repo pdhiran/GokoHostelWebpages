@@ -120,7 +120,7 @@ export function AdminSetup({ password, username }: { password: string; username?
       <p className="mt-1 text-sm text-brand-green-dark/60">Configure dorms and beds. Only available beds can be removed.</p>
 
       {/* Add new dorm */}
-      <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-6 shadow-card">
+      <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-card">
         <h3 className="font-display text-base font-bold text-brand-green-dark">Add new dorm</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-4">
           <div>
@@ -149,7 +149,7 @@ export function AdminSetup({ password, username }: { password: string; username?
 
       {/* Guest Age Range */}
       {ageLoaded && (
-        <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-6 shadow-card">
+        <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-card">
           <h3 className="font-display text-base font-bold text-brand-green-dark">Guest Age Range</h3>
           <p className="mt-1 text-xs text-brand-green-dark/50">Guests outside this age range will be flagged for staff review. Staff can dismiss flags by marking &ldquo;Vibe Matches&rdquo;.</p>
           <div className="mt-4 flex items-end gap-3">

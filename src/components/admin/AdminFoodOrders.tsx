@@ -634,7 +634,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         <button
           type="button"
           onClick={() => cartRef.current?.scrollIntoView({ behavior: "smooth" })}
-          className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg hover:bg-brand-green/90"
+          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg hover:bg-brand-green/90"
           title="Go to cart"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -1014,7 +1014,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
 
   return (
     <div className="space-y-3 pb-20">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-lg font-bold text-brand-green-dark">Order Summary ({filteredGroups.length})</h3>
         <button type="button" onClick={load} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-brand-green hover:bg-brand-green/[0.06]">
           <RefreshCwIcon className="h-3.5 w-3.5" /> Refresh
@@ -1348,7 +1348,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
         <button
           type="button"
           onClick={onAddNewOrder}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-2xl bg-brand-green px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-brand-green/90"
+          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2 rounded-2xl bg-brand-green px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-brand-green/90"
         >
           <PlusIcon className="h-5 w-5" /> Add New Order
         </button>
@@ -1552,7 +1552,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
             <span className="text-sm font-bold text-brand-green-dark">Grand Total</span>
             <span className="text-lg font-bold text-brand-green">₹{(preview.grandTotal / 100).toFixed(0)}</span>
           </div>
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {btSupported && (
               <button
                 type="button"
@@ -2421,7 +2421,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-lg font-bold text-brand-green-dark">Order History</h3>
         <button
           type="button"
@@ -2495,7 +2495,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
         </div>
         <div>
           <label className="mb-0.5 block text-xs text-brand-green-dark/60">Phone</label>
-          <input type="tel" value={phoneFilter} onChange={(e) => setPhoneFilter(e.target.value)} placeholder="Search by phone" className="rounded border border-brand-mist px-2 py-1 text-sm w-36" />
+          <input type="tel" value={phoneFilter} onChange={(e) => setPhoneFilter(e.target.value)} placeholder="Search by phone" className="rounded border border-brand-mist px-2 py-1 text-sm w-full sm:w-36" />
         </div>
       </div>
 
@@ -2599,7 +2599,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 border-t border-brand-mist pt-2">
+                  <div className="flex flex-wrap items-center gap-2 border-t border-brand-mist pt-2">
                     {btSupported && (
                       <button
                         type="button"
