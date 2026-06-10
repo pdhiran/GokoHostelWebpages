@@ -85,18 +85,33 @@ export function QRGenerator({ password, username, role }: { password: string; us
     loadHistory();
   }, [loadHistory]);
 
+  const fileToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const saveToHistory = async () => {
     if (!saveName.trim()) return;
     setSaving(true);
     try {
       let dataUrl = "";
       try { dataUrl = await getDataUrl(); } catch { /* ignore preview failures */ }
-      const configToSave = { ...config, logoFile: null, logoUrl: "" };
+
+      let logoDataUrl = config.logoUrl || "";
+      if (config.logoFile) {
+        logoDataUrl = await fileToDataUrl(config.logoFile);
+      }
+
+      const configToSave = { ...config, logoFile: null, logoUrl: logoDataUrl };
       const res = await fetch("/api/admin/qr-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           password,
+          username,
           action: "save",
           name: saveName.trim(),
           config: JSON.stringify(configToSave),
@@ -126,7 +141,7 @@ export function QRGenerator({ password, username, role }: { password: string; us
   const loadFromHistory = (item: QRHistoryItem) => {
     try {
       const parsed = JSON.parse(item.config) as QRConfig;
-      setConfig({ ...parsed, logoFile: null });
+      setConfig({ ...parsed, logoFile: null, logoUrl: parsed.logoUrl || "" });
       setShowHistory(false);
     } catch { /* ignore */ }
   };
