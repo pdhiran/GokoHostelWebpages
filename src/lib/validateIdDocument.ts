@@ -104,7 +104,9 @@ function checkSafeSearch(safeSearch: VisionAnalysis["safeSearch"]): { safe: bool
   if (high.includes(safeSearch.adult)) {
     return { safe: false, reason: "Image contains inappropriate content. Please upload a valid ID." };
   }
-  if (high.includes(safeSearch.spoof)) {
+  // Spoof: only reject VERY_LIKELY — digital IDs (DigiLocker, mAadhaar) trigger
+  // LIKELY spoof since they're renders, not photos of physical cards
+  if (safeSearch.spoof === "VERY_LIKELY") {
     return { safe: false, reason: "Image appears to be manipulated or spoofed. Please upload an original photo of your ID." };
   }
   if (high.includes(safeSearch.violence)) {
@@ -289,10 +291,16 @@ export async function validateIdDocument(
     }
 
     // Layer 5: SafeSearch (images only)
+    // Skip spoof check for DigiLocker/mAadhaar — these are verified government digital docs
+    const isDigiLocker = /digilocker|digi\s*locker|m[\s-]?aadhaar/i.test(analysis.text);
     if (!analysis.isPdf && analysis.safeSearch) {
-      const { safe, reason } = checkSafeSearch(analysis.safeSearch);
-      if (!safe) {
-        return { valid: false, documentType: textResult.documentType, confidence: "high", layers: [...layers, "safesearch_rejected"], message: reason };
+      if (isDigiLocker) {
+        layers.push("digilocker_trusted");
+      } else {
+        const { safe, reason } = checkSafeSearch(analysis.safeSearch);
+        if (!safe) {
+          return { valid: false, documentType: textResult.documentType, confidence: "high", layers: [...layers, "safesearch_rejected"], message: reason };
+        }
       }
       layers.push("safesearch_ok");
     }
@@ -377,10 +385,15 @@ export async function validateMultipleFiles(
     }
 
     // Layer 5: SafeSearch
+    const isDigiLockerMulti = /digilocker|digi\s*locker|m[\s-]?aadhaar/i.test(combinedText);
     if (safeSearch) {
-      const { safe, reason } = checkSafeSearch(safeSearch);
-      if (!safe) {
-        return { valid: false, documentType: textResult.documentType, confidence: "high", layers: [...layers, "safesearch_rejected"], message: reason };
+      if (isDigiLockerMulti) {
+        layers.push("digilocker_trusted");
+      } else {
+        const { safe, reason } = checkSafeSearch(safeSearch);
+        if (!safe) {
+          return { valid: false, documentType: textResult.documentType, confidence: "high", layers: [...layers, "safesearch_rejected"], message: reason };
+        }
       }
       layers.push("safesearch_ok");
     }
