@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
 
     let serverVisionCalls = 0;
     let validationFailed = false;
+    let idSpoofWarning = false;
     let passportOcrText = "";
     let visaOcrText = "";
     let idOcrText = "";
@@ -117,6 +118,9 @@ export async function POST(req: NextRequest) {
           if (idType === "passport") {
             passportOcrText = idValidation.ocrText;
           }
+        }
+        if (idValidation.spoofWarning) {
+          idSpoofWarning = true;
         }
         if (!idValidation.valid) {
           return NextResponse.json({ error: idValidation.message, field: "idImages" }, { status: 422 });
@@ -180,7 +184,7 @@ export async function POST(req: NextRequest) {
       visaLink = visaLinks.join(" | ");
     }
     const submittedAt = new Date().toISOString();
-    const verified = reusingPrevId ? "yes" : !validationEnabled ? "pending" : validationFailed ? "pending" : "yes";
+    const verified = reusingPrevId ? "yes" : !validationEnabled ? "pending" : validationFailed ? "pending" : idSpoofWarning ? "spoof_warning" : "yes";
 
     const isForeigner = nationality && nationality !== "India";
     let formCData = "";

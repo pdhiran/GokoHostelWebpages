@@ -802,6 +802,11 @@ export function AdminRecords({ password, username, role }: { password: string; u
                               <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
                                 <ShieldAlertIcon className="h-3 w-3" /> Rejected
                               </span>
+                            ) : cell === "spoof_warning" ? (
+                              <button type="button" onClick={() => setVerifyPopup({ origIdx, row })}
+                                className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-200">
+                                <ShieldAlertIcon className="h-3 w-3" /> Possibly fake
+                              </button>
                             ) : (
                               <button type="button" onClick={() => setVerifyPopup({ origIdx, row })}
                                 className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700 hover:bg-yellow-200">

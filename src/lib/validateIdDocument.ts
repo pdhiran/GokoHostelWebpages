@@ -67,6 +67,7 @@ export type ValidationResult = {
   layers?: string[];
   needsBackSide?: boolean;
   ocrText?: string;
+  spoofWarning?: boolean;
 };
 
 // --- Layer helpers ---
@@ -293,6 +294,7 @@ export async function validateIdDocument(
     // Layer 5: SafeSearch (images only)
     // Skip spoof check for DigiLocker/mAadhaar — these are verified government digital docs
     const isDigiLocker = /digilocker|digi\s*locker|m[\s-]?aadhaar/i.test(analysis.text);
+    let spoofWarning = false;
     if (!analysis.isPdf && analysis.safeSearch) {
       if (isDigiLocker) {
         layers.push("digilocker_trusted");
@@ -301,11 +303,15 @@ export async function validateIdDocument(
         if (!safe) {
           return { valid: false, documentType: textResult.documentType, confidence: "high", layers: [...layers, "safesearch_rejected"], message: reason };
         }
+        if (analysis.safeSearch.spoof === "LIKELY") {
+          spoofWarning = true;
+          layers.push("spoof_warning");
+        }
       }
       layers.push("safesearch_ok");
     }
 
-    return { ...textResult, layers, message: textResult.message, ocrText: analysis.text };
+    return { ...textResult, layers, message: textResult.message, ocrText: analysis.text, spoofWarning };
   } catch (error) {
     console.error("Vision API error:", error);
     return { valid: true, documentType: "unknown", confidence: "low", message: "Validation service unavailable, document accepted." };
@@ -386,6 +392,7 @@ export async function validateMultipleFiles(
 
     // Layer 5: SafeSearch
     const isDigiLockerMulti = /digilocker|digi\s*locker|m[\s-]?aadhaar/i.test(combinedText);
+    let spoofWarningMulti = false;
     if (safeSearch) {
       if (isDigiLockerMulti) {
         layers.push("digilocker_trusted");
@@ -394,11 +401,15 @@ export async function validateMultipleFiles(
         if (!safe) {
           return { valid: false, documentType: textResult.documentType, confidence: "high", layers: [...layers, "safesearch_rejected"], message: reason };
         }
+        if (safeSearch.spoof === "LIKELY") {
+          spoofWarningMulti = true;
+          layers.push("spoof_warning");
+        }
       }
       layers.push("safesearch_ok");
     }
 
-    return { ...textResult, layers, message: textResult.message };
+    return { ...textResult, layers, message: textResult.message, spoofWarning: spoofWarningMulti };
   } catch (error) {
     console.error("Multi-file validation error:", error);
     return { valid: true, documentType: "unknown", confidence: "low", message: "Validation service unavailable, document accepted." };

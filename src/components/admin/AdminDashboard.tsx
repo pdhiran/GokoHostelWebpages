@@ -262,6 +262,8 @@ export function AdminDashboard({
                       <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">ID verified</span>
                     ) : item.row[14] === "no" ? (
                       <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">ID rejected</span>
+                    ) : item.row[14] === "spoof_warning" ? (
+                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Possibly fake ID</span>
                     ) : !item.row[14] || item.row[14] === "pending" ? (
                       <span className="rounded-full bg-yellow-100 px-1.5 py-0.5 text-[9px] font-semibold text-yellow-700">ID pending</span>
                     ) : null}
