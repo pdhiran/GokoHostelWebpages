@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Phone number is required for walk-in orders" }, { status: 400 });
         }
 
-        const validatedItems: Array<{ menuItemId: number; itemName: string; itemPrice: number; quantity: number; lineTotal: number }> = [];
+        const validatedItems: Array<{ menuItemId: number; itemName: string; itemPrice: number; quantity: number; lineTotal: number; trackInventory: boolean }> = [];
         for (const item of items) {
           const menuItem = await getMenuItemById(item.menuItemId);
           if (!menuItem) return NextResponse.json({ error: `Menu item #${item.menuItemId} not found` }, { status: 400 });
@@ -208,6 +208,7 @@ export async function POST(req: NextRequest) {
             itemPrice: menuItem.price,
             quantity: qty,
             lineTotal: menuItem.price * qty,
+            trackInventory: !!menuItem.trackInventory,
           });
         }
 
@@ -265,10 +266,14 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        await addFoodOrderItems(validatedItems.map((v) => ({ orderId: order.id, ...v })));
+        await addFoodOrderItems(validatedItems.map((v) => ({ orderId: order.id, menuItemId: v.menuItemId, itemName: v.itemName, itemPrice: v.itemPrice, quantity: v.quantity, lineTotal: v.lineTotal })));
 
         for (const v of validatedItems) {
           await decrementStock(v.menuItemId, v.quantity);
+        }
+
+        if (validatedItems.length > 0 && validatedItems.every((v) => v.trackInventory)) {
+          await updateFoodOrderStatus(order.id, "ready");
         }
 
         await addAuditEntry({
