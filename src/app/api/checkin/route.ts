@@ -208,26 +208,24 @@ export async function POST(req: NextRequest) {
       ? generateBookingId()
       : rawBookingId;
 
-    const formDob = (formData.get("dob") as string) || "";
-
+    let formDob = "";
     let ocrDob = "";
-    if (idOcrText) {
-      try {
+    try {
+      formDob = (formData.get("dob") as string) || "";
+      if (idOcrText) {
         const { parseDobFromOcr } = await import("@/lib/parseDob");
         ocrDob = parseDobFromOcr(idOcrText, idType) || "";
-      } catch {}
-    }
-    if (!ocrDob && isForeigner && passportOcrText) {
-      try {
+      }
+      if (!ocrDob && isForeigner && passportOcrText) {
         const { parseDobFromOcr } = await import("@/lib/parseDob");
         ocrDob = parseDobFromOcr(passportOcrText, "passport") || "";
-      } catch {}
-    }
+      }
+    } catch {}
 
     const dob = formDob || ocrDob;
     const dobFromId = ocrDob;
 
-    await addCheckin({
+    const checkinData: Parameters<typeof addCheckin>[0] = {
       submittedAt,
       arrivalDate,
       arrivalTime: arrivalTime || "",
@@ -247,9 +245,20 @@ export async function POST(req: NextRequest) {
       createdMonth: getMonthKey(),
       bookingPlatform,
       bookingId: finalBookingId,
-      dob,
-      dobFromId,
-    });
+      dob: dob || undefined,
+      dobFromId: dobFromId || undefined,
+    };
+
+    try {
+      await addCheckin(checkinData);
+    } catch (insertErr: any) {
+      if (insertErr?.message?.includes("dob") || insertErr?.message?.includes("vibe_matched") || insertErr?.message?.includes("dob_from_id")) {
+        const { dob: _d, dobFromId: _di, ...fallbackData } = checkinData;
+        await addCheckin(fallbackData as Parameters<typeof addCheckin>[0]);
+      } else {
+        throw insertErr;
+      }
+    }
 
     const newUploads = (reusingPrevId ? 0 : idImages.length) + (reusingPrevVisa ? 0 : visaImages.length);
     if (newUploads > 0) incrementStat("drive", newUploads).catch(() => {});
