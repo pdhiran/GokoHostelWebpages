@@ -58,7 +58,7 @@ export function QRGenerator({ password, username, role }: { password: string; us
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const { containerRef, ready, downloadPNG, downloadSVG, getDataUrl } = useQRCode(config);
+  const { containerRef, ready, downloadPNG, downloadSVG, getDataUrl, getPreviewDataUrl } = useQRCode(config);
 
   const updateConfig = useCallback((partial: Partial<QRConfig>) => {
     setConfig((prev) => ({ ...prev, ...partial }));
@@ -98,7 +98,7 @@ export function QRGenerator({ password, username, role }: { password: string; us
     setSaving(true);
     try {
       let dataUrl = "";
-      try { dataUrl = await getDataUrl(); } catch { /* ignore preview failures */ }
+      try { dataUrl = await getPreviewDataUrl(); } catch { /* ignore preview failures */ }
 
       let logoDataUrl = config.logoUrl || "";
       if (config.logoFile) {

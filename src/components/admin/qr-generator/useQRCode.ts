@@ -110,6 +110,19 @@ export function useQRCode(config: QRConfig) {
     return new QRCodeStyling(options);
   }, [QRCodeStyling, config]);
 
+  const getPreviewDataUrl = useCallback(async (): Promise<string> => {
+    if (!QRCodeStyling) return "";
+    const options = buildOptions(config, 200, Math.round(config.margin * (200 / config.size)));
+    const instance = new QRCodeStyling(options);
+    const blob = await instance.getRawData("png");
+    if (!blob) return "";
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  }, [QRCodeStyling, config]);
+
   const downloadPNG = useCallback(async () => {
     const hd = await createHDInstance();
     if (!hd) return;
@@ -134,5 +147,5 @@ export function useQRCode(config: QRConfig) {
     });
   }, [createHDInstance]);
 
-  return { containerRef, ready, downloadPNG, downloadSVG, getDataUrl };
+  return { containerRef, ready, downloadPNG, downloadSVG, getDataUrl, getPreviewDataUrl };
 }
