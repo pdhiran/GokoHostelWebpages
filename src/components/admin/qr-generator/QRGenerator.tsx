@@ -162,19 +162,6 @@ export function QRGenerator({ password, username, role }: { password: string; us
     URL.revokeObjectURL(url);
   };
 
-  const handleLoadConfig = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(reader.result as string) as QRConfig;
-        setConfig({ ...parsed, logoFile: null });
-      } catch { /* ignore */ }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
 
   return (
     <div className="space-y-6">
@@ -194,11 +181,6 @@ export function QRGenerator({ password, username, role }: { password: string; us
             <HistoryIcon className="h-3.5 w-3.5" />
             History
           </Button>
-          <label className="cursor-pointer inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
-            <UploadIcon className="h-3.5 w-3.5" />
-            Load Config
-            <input type="file" accept=".json" className="hidden" onChange={handleLoadConfig} />
-          </label>
         </div>
       </div>
 
