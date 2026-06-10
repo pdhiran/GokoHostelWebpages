@@ -20,6 +20,7 @@ scripts/node_modules
 
 # cloudflare (local dev)
 .dev.vars
+.wrangler/
 
 # production
 /build
