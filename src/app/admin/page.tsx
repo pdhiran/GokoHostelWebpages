@@ -319,7 +319,7 @@ export default function AdminPage() {
         {section === "records" && <AdminRecords password={password} username={username} role={role} />}
         {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} />}
         {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
-        {section === "management" && <AdminManagement password={password} username={username} role={role} />}
+        {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} />}
       </div>
 
       {/* Change Password Modal */}

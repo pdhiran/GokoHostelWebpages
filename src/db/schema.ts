@@ -253,6 +253,19 @@ export const orderModifications = sqliteTable("order_modifications", {
   index("idx_order_mods_order").on(table.orderId),
 ]);
 
+// --- QR Code History ---
+
+export const qrHistory = sqliteTable("qr_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  config: text("config").notNull(),
+  previewDataUrl: text("preview_data_url").default(""),
+  createdBy: text("created_by").default(""),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_qr_history_created").on(table.createdAt),
+]);
+
 // --- Expenses ---
 
 export const expenses = sqliteTable("expenses", {

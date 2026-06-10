@@ -1,0 +1,1 @@
+export { QRGenerator } from "./QRGenerator";

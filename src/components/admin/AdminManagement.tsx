@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
@@ -14,9 +14,10 @@ import { AdminCheckRates } from "./AdminCheckRates";
 import { AdminMenuManagement } from "./AdminMenuManagement";
 import { AdminFoodSettings } from "./AdminFoodSettings";
 import { AdminBulkImport } from "./AdminBulkImport";
+import { QRGenerator } from "./qr-generator";
 import type { Role, ManagementTab } from "./types";
 
-const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly?: boolean; permission?: string }[] = [
   { id: "dorms", label: "Dorms", icon: <BedDoubleIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "users", label: "Users", icon: <UsersIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "backup", label: "Backup", icon: <DatabaseIcon className="h-3.5 w-3.5" />, adminOnly: true },
@@ -28,10 +29,15 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "menu", label: "Menu", icon: <UtensilsIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "foodSettings", label: "Food Settings", icon: <SettingsIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "bulkUpload", label: "Bulk Upload", icon: <UploadIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "qrGenerator", label: "QR Codes", icon: <QrCodeIcon className="h-3.5 w-3.5" />, permission: "canUseQRGenerator" },
 ];
 
-export function AdminManagement({ password, username, role }: { password: string; username?: string; role: Role }) {
-  const visibleTabs = TABS.filter((t) => !t.adminOnly || role === "admin");
+export function AdminManagement({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
+  const visibleTabs = TABS.filter((t) => {
+    if (t.adminOnly && role !== "admin") return false;
+    if (t.permission && role !== "admin" && role !== "manager" && !permissions[t.permission]) return false;
+    return true;
+  });
   const defaultTab = visibleTabs[0]?.id || "history";
   const [tab, setTab] = useState<ManagementTab>(defaultTab);
 
@@ -74,6 +80,7 @@ export function AdminManagement({ password, username, role }: { password: string
         {tab === "menu" && <AdminMenuManagement password={password} username={username} role={role} />}
         {tab === "foodSettings" && <AdminFoodSettings password={password} username={username} role={role} />}
         {tab === "bulkUpload" && <AdminBulkImport password={password} username={username} role={role} />}
+        {tab === "qrGenerator" && <QRGenerator password={password} username={username} role={role} />}
       </div>
     </div>
   );
