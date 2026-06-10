@@ -6,7 +6,8 @@
 
 import { parsePassportMRZ } from "./parsePassportData";
 
-const DATE_PATTERN = /(\d{1,2})[\/.\-\s](\d{1,2})[\/.\-\s](\d{2,4})/;
+const DATE_DMY_PATTERN = /(\d{1,2})[\/.\-\s](\d{1,2})[\/.\-\s](\d{2,4})/;
+const DATE_ISO_PATTERN = /(\d{4})-(\d{1,2})-(\d{1,2})/;
 
 function normalizeYear(y: string): string {
   if (y.length === 4) return y;
@@ -20,10 +21,32 @@ function formatDob(dd: string, mm: string, yyyy: string): string {
 
 function extractDateAfterLabel(text: string, ...labels: string[]): string | null {
   for (const label of labels) {
-    const regex = new RegExp(`${label}[^\\d]{0,40}?${DATE_PATTERN.source}`, "i");
-    const m = text.match(regex);
+    const isoRegex = new RegExp(`${label}[^\\d]{0,40}?${DATE_ISO_PATTERN.source}`, "i");
+    const isoM = text.match(isoRegex);
+    if (isoM) {
+      return formatDob(isoM[3], isoM[2], isoM[1]);
+    }
+
+    const dmyRegex = new RegExp(`${label}[^\\d]{0,40}?${DATE_DMY_PATTERN.source}`, "i");
+    const dmyM = text.match(dmyRegex);
+    if (dmyM) {
+      return formatDob(dmyM[1], dmyM[2], normalizeYear(dmyM[3]));
+    }
+  }
+  return null;
+}
+
+/** Find a standalone YYYY-MM-DD date on its own line (DigiLocker Aadhaar format) */
+function extractStandaloneIsoDate(text: string): string | null {
+  const lines = text.split(/\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (m) {
-      return formatDob(m[1], m[2], normalizeYear(m[3]));
+      const y = parseInt(m[1]);
+      if (y >= 1920 && y <= 2020) {
+        return formatDob(m[3], m[2], m[1]);
+      }
     }
   }
   return null;
@@ -46,6 +69,10 @@ function parseAadhaarDob(text: string): string | null {
     return `01/01/${yobMatch[1]}`;
   }
 
+  // DigiLocker Aadhaar: DOB appears as standalone YYYY-MM-DD on its own line
+  const standalone = extractStandaloneIsoDate(text);
+  if (standalone) return standalone;
+
   return null;
 }
 
@@ -56,7 +83,13 @@ function parseDrivingLicenceDob(text: string): string | null {
     "date\\s*of\\s*birth\\s*:?",
     "birth\\s*:?",
   ];
-  return extractDateAfterLabel(text, ...labels);
+  const result = extractDateAfterLabel(text, ...labels);
+  if (result) return result;
+
+  const standalone = extractStandaloneIsoDate(text);
+  if (standalone) return standalone;
+
+  return null;
 }
 
 function parsePassportDob(text: string): string | null {
