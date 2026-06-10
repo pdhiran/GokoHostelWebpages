@@ -265,17 +265,17 @@ export default function AdminPage() {
       {/* Top navigation */}
       <nav className="sticky top-0 z-30 border-b border-brand-mist bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-2 sm:px-6">
-          {/* Mobile hamburger */}
+          {/* Mobile/Tablet hamburger */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="rounded-lg p-2 text-brand-green-dark/70 hover:bg-brand-green/[0.06] md:hidden"
+            className="rounded-lg p-2 text-brand-green-dark/70 hover:bg-brand-green/[0.06] lg:hidden"
           >
             {mobileMenuOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </button>
 
           {/* Desktop nav */}
-          <div className="hidden items-center gap-1 overflow-x-auto md:flex">
+          <div className="hidden items-center gap-1 overflow-x-auto lg:flex">
             {NAV_ITEMS.filter((item) => !item.adminOnly || role === "admin").map((item) => (
               <button
                 key={item.id}
@@ -294,8 +294,8 @@ export default function AdminPage() {
             ))}
           </div>
 
-          {/* Active section label on mobile */}
-          <span className="text-sm font-semibold text-brand-green-dark md:hidden">
+          {/* Active section label on mobile/tablet */}
+          <span className="text-sm font-semibold text-brand-green-dark lg:hidden">
             {NAV_ITEMS.find((i) => i.id === section)?.label || "Admin"}
           </span>
 
@@ -326,10 +326,10 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Mobile menu dropdown */}
+        {/* Mobile/Tablet menu dropdown */}
         {mobileMenuOpen && (
-          <div className="border-t border-brand-mist bg-white px-4 py-3 md:hidden">
-            <div className="grid grid-cols-2 gap-1.5">
+          <div className="border-t border-brand-mist bg-white px-4 py-3 lg:hidden">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
               {NAV_ITEMS.filter((item) => !item.adminOnly || role === "admin").map((item) => (
                 <button
                   key={item.id}

@@ -51,7 +51,7 @@ export function AdminManagement({ password, username, role, permissions = {} }: 
       </div>
 
       {/* Sub-tab navigation - Desktop */}
-      <div className="mt-4 hidden flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5 md:flex">
+      <div className="mt-4 hidden flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5 lg:flex">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
@@ -70,8 +70,8 @@ export function AdminManagement({ password, username, role, permissions = {} }: 
         ))}
       </div>
 
-      {/* Sub-tab navigation - Mobile dropdown */}
-      <div className="relative mt-4 md:hidden">
+      {/* Sub-tab navigation - Mobile/Tablet dropdown */}
+      <div className="relative mt-4 lg:hidden">
         <button
           type="button"
           onClick={() => setSubMenuOpen(!subMenuOpen)}
@@ -85,7 +85,7 @@ export function AdminManagement({ password, username, role, permissions = {} }: 
         </button>
         {subMenuOpen && (
           <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-brand-mist bg-white p-2 shadow-lg">
-            <div className="grid grid-cols-2 gap-1">
+            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
               {visibleTabs.map((t) => (
                 <button
                   key={t.id}

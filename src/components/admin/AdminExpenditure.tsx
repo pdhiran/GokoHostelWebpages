@@ -41,7 +41,7 @@ export function AdminExpenditure({
       </div>
 
       {/* Desktop tabs */}
-      <div className="mt-4 hidden flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5 md:flex">
+      <div className="mt-4 hidden flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5 lg:flex">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
@@ -60,8 +60,8 @@ export function AdminExpenditure({
         ))}
       </div>
 
-      {/* Mobile dropdown */}
-      <div className="relative mt-4 md:hidden">
+      {/* Mobile/Tablet dropdown */}
+      <div className="relative mt-4 lg:hidden">
         <button
           type="button"
           onClick={() => setExpMenuOpen(!expMenuOpen)}

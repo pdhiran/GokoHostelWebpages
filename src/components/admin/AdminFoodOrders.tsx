@@ -139,7 +139,7 @@ export function AdminFoodOrders({ password, username, role }: { password: string
   return (
     <div>
       {/* Desktop tabs */}
-      <div className="mb-4 hidden flex-wrap gap-1 rounded-xl border border-brand-mist bg-white p-1 md:flex">
+      <div className="mb-4 hidden flex-wrap gap-1 rounded-xl border border-brand-mist bg-white p-1 lg:flex">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -155,8 +155,8 @@ export function AdminFoodOrders({ password, username, role }: { password: string
         ))}
       </div>
 
-      {/* Mobile dropdown */}
-      <div className="relative mb-4 md:hidden">
+      {/* Mobile/Tablet dropdown */}
+      <div className="relative mb-4 lg:hidden">
         <button
           type="button"
           onClick={() => setFoodMenuOpen(!foodMenuOpen)}

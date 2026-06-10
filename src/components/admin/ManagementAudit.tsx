@@ -49,7 +49,7 @@ export function ManagementAudit({ password, username, role }: { password: string
             type="button"
             onClick={() => setSubTab(t.id)}
             className={cn(
-              "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors md:flex-none md:py-1.5",
+              "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors lg:flex-none lg:py-1.5",
               subTab === t.id ? "bg-brand-green text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
             )}
           >
