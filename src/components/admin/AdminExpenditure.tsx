@@ -37,26 +37,24 @@ export function AdminExpenditure({
         <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Expenditure</h2>
       </div>
 
-      {/* Scrollable tabs */}
-      <div className="mt-4 overflow-x-auto rounded-xl border border-brand-mist bg-white p-1.5">
-        <div className="flex gap-1.5 whitespace-nowrap">
-          {visibleTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
-                tab === t.id
-                  ? "bg-brand-green/10 text-brand-green"
-                  : "text-brand-green-dark/60 hover:bg-brand-sand/50"
-              )}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
-        </div>
+      {/* Tab buttons */}
+      <div className="mt-4 flex flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5">
+        {visibleTabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+              tab === t.id
+                ? "bg-brand-green/10 text-brand-green"
+                : "text-brand-green-dark/60 hover:bg-brand-sand/50"
+            )}
+          >
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
       </div>
 
       <div className="mt-6">

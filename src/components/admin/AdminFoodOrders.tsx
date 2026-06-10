@@ -134,23 +134,21 @@ export function AdminFoodOrders({ password, username, role }: { password: string
 
   return (
     <div>
-      {/* Scrollable tabs */}
-      <div className="mb-4 overflow-x-auto rounded-xl border border-brand-mist bg-white p-1">
-        <div className="flex gap-1 whitespace-nowrap">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                tab === t.id ? "bg-brand-green text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      {/* Tab buttons */}
+      <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-brand-mist bg-white p-1">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              tab === t.id ? "bg-brand-green text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {tab === "active" && (
