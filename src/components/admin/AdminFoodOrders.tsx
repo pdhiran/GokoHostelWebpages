@@ -696,6 +696,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
   const [btSupported, setBtSupported] = useState(false);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [paymentModalGroup, setPaymentModalGroup] = useState<SummaryGroup | null>(null);
+  const [paymentModalMethod, setPaymentModalMethod] = useState<string>("cash");
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [voidingItemId, setVoidingItemId] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
@@ -1248,7 +1249,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
               <div className="border-t border-brand-mist p-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setPaymentModalGroup(selectedGroup)}
+                  onClick={() => { setPaymentModalMethod("cash"); setPaymentModalGroup(selectedGroup); }}
                   disabled={busy === selectedGroup.key}
                   className="flex items-center gap-1.5 rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
                 >
@@ -1256,7 +1257,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPaymentModalGroup(selectedGroup)}
+                  onClick={() => { setPaymentModalMethod("online"); setPaymentModalGroup(selectedGroup); }}
                   disabled={busy === selectedGroup.key}
                   className="flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                 >
@@ -1312,6 +1313,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
         <PaymentModal
           totalAmount={actualGroupTotal}
           guestName={paymentModalGroup.guestName}
+          initialMethod={paymentModalMethod}
           onConfirm={(method, cashReceived, changeGiven) => {
             markGroupPaid(paymentModalGroup, method, cashReceived, changeGiven);
             setPaymentModalGroup(null);
