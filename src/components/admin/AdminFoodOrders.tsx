@@ -696,7 +696,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
   const [btSupported, setBtSupported] = useState(false);
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [paymentModalGroup, setPaymentModalGroup] = useState<SummaryGroup | null>(null);
-  const [paymentModalMethod, setPaymentModalMethod] = useState<string>("cash");
+  const [paymentModalMethod, setPaymentModalMethod] = useState<string>("online");
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [voidingItemId, setVoidingItemId] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
@@ -2095,7 +2095,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
         <PaymentModal
           totalAmount={paymentEditOrder.total}
           guestName={selectedGroup?.guestName || ""}
-          initialMethod={paymentEditOrder.paymentStatus === "paid" ? (paymentEditOrder.paymentMethod || "cash") : "cash"}
+          initialMethod={paymentEditOrder.paymentStatus === "paid" ? (paymentEditOrder.paymentMethod || "online") : "online"}
           initialCash={paymentEditOrder.paymentStatus === "paid" ? paymentEditOrder.cashReceived : 0}
           onConfirm={(method, cashReceived, changeGiven) => {
             if (paymentEditOrder.paymentStatus === "paid") {
@@ -2706,7 +2706,7 @@ function PaymentModal({
   onConfirm: (method: string, cashReceived: number, changeGiven: number) => void;
   onClose: () => void;
 }) {
-  const defaultTab: PaymentTab = initialMethod === "online" ? "online" : initialMethod === "split" ? "split" : "cash";
+  const defaultTab: PaymentTab = initialMethod === "cash" ? "cash" : initialMethod === "split" ? "split" : "online";
   const [activeTab, setActiveTab] = useState<PaymentTab>(defaultTab);
   const defaultCash = initialCash && initialCash > 0 ? (initialCash / 100).toString() : (totalAmount / 100).toString();
   const [cashInput, setCashInput] = useState(defaultCash);
