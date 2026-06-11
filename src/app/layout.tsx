@@ -33,7 +33,10 @@ export const metadata: Metadata = {
     template: `%s | ${site.shortName}`,
   },
   description: site.description,
-  icons: { icon: "/logo.png", apple: "/logo.png" },
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/logo.png", apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "Goko Admin", statusBarStyle: "black-translucent" },
+  other: { "mobile-web-app-capable": "yes" },
   openGraph: {
     type: "website",
     locale: "en_IN",

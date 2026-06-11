@@ -14,6 +14,7 @@ import {
 } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
+import { sendPushToAll } from "@/lib/pushNotify";
 
 export async function POST(req: NextRequest) {
   try {
@@ -247,7 +248,15 @@ export async function POST(req: NextRequest) {
       await updateFoodOrderStatus(order.id, "ready");
     }
 
-    // 9. Return success
+    // 9. Push notification
+    sendPushToAll({
+      title: "New Food Order",
+      body: `Order #${order.orderNumber} from ${guestName || "Guest"}`,
+      url: "/admin",
+      tag: "food-order",
+    }).catch(() => {});
+
+    // 10. Return success
     return NextResponse.json({
       success: true,
       orderId: order.id,

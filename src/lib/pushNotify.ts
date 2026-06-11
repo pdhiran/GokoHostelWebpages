@@ -1,0 +1,65 @@
+import { buildPushHTTPRequest } from "@pushforge/builder";
+import { getDb } from "@/db";
+import { pushSubscriptions } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
+type PushPayload = {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+};
+
+export async function sendPushToAll(payload: PushPayload) {
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+  if (!vapidPrivateKey) return;
+
+  let privateJWK: object;
+  try {
+    privateJWK = JSON.parse(vapidPrivateKey);
+  } catch {
+    return;
+  }
+
+  const db = getDb();
+  const subs = await db.select().from(pushSubscriptions);
+  if (subs.length === 0) return;
+
+  const pushPayload = {
+    title: payload.title,
+    body: payload.body,
+    icon: "/icons/icon-192.png",
+    url: payload.url || "/admin",
+    tag: payload.tag || "goko-notification",
+  };
+
+  const results = await Promise.allSettled(
+    subs.map(async (sub) => {
+      try {
+        const subscription = {
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.keyP256dh, auth: sub.keyAuth },
+        };
+
+        const { endpoint, headers, body } = await buildPushHTTPRequest({
+          privateJWK,
+          subscription,
+          message: {
+            payload: pushPayload,
+            adminContact: "mailto:admin@gokohostel.com",
+          },
+        });
+
+        const res = await fetch(endpoint, { method: "POST", headers, body });
+
+        if (res.status === 410 || res.status === 404) {
+          await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
+        }
+      } catch {
+        // Individual push failure should not break the loop
+      }
+    })
+  );
+
+  return results;
+}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateIdDocument } from "@/lib/validateIdDocument";
 import { driveUploadFile, driveGetOrCreateFolder } from "@/lib/googleApiFetch";
 import { addCheckin, incrementStat, getSetting, getMonthKey, addAuditEntry, addSystemLog } from "@/db/queries";
+import { sendPushToAll } from "@/lib/pushNotify";
 
 function generateBookingId(): string {
   const now = new Date();
@@ -269,6 +270,13 @@ export async function POST(req: NextRequest) {
 
     addAuditEntry({ username: "guest", action: "self_checkin", target: name }).catch(() => {});
     addSystemLog({ level: "info", source: "checkin", message: `Self check-in: ${name}` }).catch(() => {});
+
+    sendPushToAll({
+      title: "New Check-in",
+      body: `${name} just checked in`,
+      url: "/admin",
+      tag: "checkin",
+    }).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

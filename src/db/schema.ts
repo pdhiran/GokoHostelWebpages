@@ -383,3 +383,14 @@ export const expenses = sqliteTable("expenses", {
   index("idx_expenses_month").on(table.createdMonth),
   index("idx_expenses_created_by").on(table.createdBy),
 ]);
+
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  endpoint: text("endpoint").notNull().unique(),
+  keyP256dh: text("key_p256dh").notNull(),
+  keyAuth: text("key_auth").notNull(),
+  userLabel: text("user_label").default(""),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_push_endpoint").on(table.endpoint),
+]);

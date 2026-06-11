@@ -15,6 +15,7 @@ import { AdminTimeline } from "@/components/admin/AdminTimeline";
 import { AdminFoodOrders } from "@/components/admin/AdminFoodOrders";
 import { AdminExpenditure } from "@/components/admin/AdminExpenditure";
 import type { Role, AdminSection } from "@/components/admin/types";
+import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
 
 export default function AdminPage() {
   const [password, setPassword] = useState("");
@@ -300,6 +301,7 @@ export default function AdminPage() {
           </span>
 
           <div className="flex items-center gap-3">
+            <PwaInstallBanner password={password} username={username} />
             <span className="hidden text-xs font-medium uppercase tracking-wide text-brand-green-dark/50 sm:inline">
               {username ? `${username} · ${role}` : role}
             </span>
