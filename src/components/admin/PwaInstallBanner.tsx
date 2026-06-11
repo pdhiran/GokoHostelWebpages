@@ -185,37 +185,45 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
       {/* iOS instructions modal */}
       {showIosModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm" onClick={() => setShowIosModal(false)}>
+          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h4 className="font-display text-base font-bold text-brand-green-dark">Install Goko App</h4>
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green/10">
+                  <SmartphoneIcon className="h-4 w-4 text-brand-green" />
+                </div>
+                <h4 className="font-display text-base font-bold text-brand-green-dark">Install Goko App</h4>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowIosModal(false)}
-                className="rounded-lg p-1 text-brand-green-dark/40 hover:bg-brand-sand"
+                className="rounded-lg p-1.5 text-brand-green-dark/40 hover:bg-brand-sand"
               >
-                <XIcon className="h-4 w-4" />
+                <XIcon className="h-5 w-5" />
               </button>
             </div>
-            <div className="mt-4 space-y-3 text-sm text-brand-green-dark/70">
-              <p>To install as an app on your iPhone/iPad:</p>
-              <ol className="list-decimal space-y-2 pl-5">
-                <li>
-                  Tap the <strong>Share</strong> button <span className="inline-block rounded bg-brand-sand px-1.5 py-0.5 text-xs">⬆</span> at the bottom of Safari
-                </li>
-                <li>
-                  Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong>
-                </li>
-                <li>
-                  Tap <strong>&quot;Add&quot;</strong> in the top right
-                </li>
-              </ol>
-              <p className="text-xs text-brand-green-dark/50">
-                The app will appear on your home screen and open in full-screen mode. Push notifications require iOS 16.4 or later.
+            <div className="mt-5 space-y-4 text-sm text-brand-green-dark/80">
+              <p className="font-medium">To install on your iPhone / iPad:</p>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-green text-xs font-bold text-white">1</span>
+                  <p>Tap the <strong>Share</strong> button <span className="inline-block rounded bg-brand-sand px-1.5 py-0.5 text-xs font-medium">⬆</span> at the bottom of Safari</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-green text-xs font-bold text-white">2</span>
+                  <p>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-green text-xs font-bold text-white">3</span>
+                  <p>Tap <strong>&quot;Add&quot;</strong> in the top right</p>
+                </div>
+              </div>
+              <p className="rounded-lg bg-brand-sand/60 px-3 py-2 text-xs text-brand-green-dark/50">
+                The app will appear on your home screen and open in full-screen mode. Push notifications require iOS 16.4+.
               </p>
             </div>
             <div className="mt-5">
-              <Button type="button" variant="ghost" onClick={() => setShowIosModal(false)} className="w-full">
+              <Button type="button" onClick={() => setShowIosModal(false)} className="w-full">
                 Got it
               </Button>
             </div>
