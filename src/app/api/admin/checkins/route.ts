@@ -919,6 +919,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "backfillManagerPermissions") {
+      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      const db = getDb();
+      const allUsers = await getAllUsers();
+      const managers = allUsers.filter((u) => u.role === "manager");
+      const ALL_PERMISSION_KEYS = [
+        "canAddCheckin", "canAssignBed", "canCheckout", "canMarkClean", "canEditRecords", "canDeleteRecords",
+        "canAccessKitchen", "canViewFoodOrders", "canPlaceOrders", "canManageMenu", "canManageCategories",
+        "canManageInventory", "canViewTabs", "canMarkPaid", "canGenerateBills", "canChangeFoodSettings",
+        "canViewExpenses", "canViewFoodBills", "canUseQRGenerator", "canManageAccounts", "canAddIncome", "canReconcile",
+        "canViewDashboard", "canViewBookings", "canViewBeds", "canViewTimeline", "canViewRecords", "canViewAccounts", "canViewManagement",
+        "canAddBooking", "canSyncBookings", "canDeleteBooking", "canAddExpense", "canEditExpense", "canDeleteExpense",
+      ];
+      let updated = 0;
+      for (const mgr of managers) {
+        let existing: Record<string, boolean> = {};
+        try { existing = JSON.parse(mgr.permissions || "{}"); } catch {}
+        const merged = { ...existing };
+        for (const key of ALL_PERMISSION_KEYS) {
+          merged[key] = true;
+        }
+        await updateUser(mgr.id, { permissions: JSON.stringify(merged) });
+        updated++;
+      }
+      await addAuditEntry({ username: actingUser, action: "backfill_manager_permissions", target: `${updated} managers updated` });
+      return NextResponse.json({ success: true, updated });
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error: any) {
     console.error("Admin API error:", error?.message || error);

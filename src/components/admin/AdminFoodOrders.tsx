@@ -7,6 +7,7 @@ import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem }
 import { generateGuestBill, generateCombinedBill, type CombinedBillData, type BillOrder } from "@/components/admin/FoodBillGenerator";
 import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
 import type { Role } from "./types";
+import { hasPermission } from "./types";
 
 type FoodTab = "summary" | "place" | "combined" | "payment" | "active";
 
@@ -109,8 +110,7 @@ interface PrefillGuest {
   roomInfo?: string;
 }
 
-export function AdminFoodOrders({ password, username, role }: { password: string; username?: string; role: Role }) {
-  const [tab, setTab] = useState<FoodTab>("summary");
+export function AdminFoodOrders({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const [prefillGuest, setPrefillGuest] = useState<PrefillGuest | null>(null);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
@@ -124,13 +124,23 @@ export function AdminFoodOrders({ password, username, role }: { password: string
     return res;
   }, [password, username]);
 
-  const TABS: { id: FoodTab; label: string }[] = [
-    { id: "summary", label: "Order Summary" },
-    { id: "place", label: "Place Order" },
-    { id: "combined", label: "Combined Bill" },
-    { id: "payment", label: "Payment Summary" },
-    { id: "active", label: "Active Orders" },
-  ];
+  const TAB_PERMISSIONS: Record<FoodTab, string> = {
+    summary: "canViewTabs",
+    place: "canPlaceOrders",
+    combined: "canGenerateBills",
+    payment: "canMarkPaid",
+    active: "canViewFoodOrders",
+  };
+
+  const TABS = ([
+    { id: "summary" as FoodTab, label: "Order Summary" },
+    { id: "place" as FoodTab, label: "Place Order" },
+    { id: "combined" as FoodTab, label: "Combined Bill" },
+    { id: "payment" as FoodTab, label: "Payment Summary" },
+    { id: "active" as FoodTab, label: "Active Orders" },
+  ] as { id: FoodTab; label: string }[]).filter((t) => hasPermission(role, permissions, TAB_PERMISSIONS[t.id]));
+
+  const [tab, setTab] = useState<FoodTab>(TABS[0]?.id || "summary");
 
   return (
     <div>

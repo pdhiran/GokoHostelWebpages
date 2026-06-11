@@ -13,11 +13,13 @@ export function AdminDashboard({
   username,
   role,
   onNavigate,
+  permissions,
 }: {
   password: string;
   username?: string;
   role: Role;
   onNavigate: (section: AdminSection) => void;
+  permissions?: Record<string, boolean>;
 }) {
   const { apiCall } = useAdminApi(password, username);
   const [todayCheckins, setTodayCheckins] = useState<{ row: string[]; assignedBed: string | null; dob: string; dobFromId: string; vibeMatched: number }[]>([]);

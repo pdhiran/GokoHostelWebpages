@@ -22,10 +22,12 @@ export function AdminFoodBill({
   password,
   username,
   role,
+  permissions,
 }: {
   password: string;
   username?: string;
   role: Role;
+  permissions?: Record<string, boolean>;
 }) {
   const [fromDate, setFromDate] = useState(getMonthStart);
   const [toDate, setToDate] = useState(getToday);

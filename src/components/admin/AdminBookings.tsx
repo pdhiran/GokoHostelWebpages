@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PlusIcon, Trash2Icon, CalendarIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "./types";
+import { hasPermission } from "./types";
 
 type Booking = {
   id: number;
@@ -42,7 +43,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   manual: "Manual",
 };
 
-export function AdminBookings({ password, username, role }: { password: string; username?: string; role: Role }) {
+export function AdminBookings({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,12 +145,16 @@ export function AdminBookings({ password, username, role }: { password: string; 
           {lastSync && <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Last email sync: {new Date(lastSync).toLocaleString()}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="cta" onClick={() => setShowForm(true)}>
-            <PlusIcon className="mr-1 h-4 w-4" /> Add Booking
-          </Button>
-          <Button type="button" variant="ctaOutline" onClick={syncEmails} disabled={syncing}>
-            {syncing ? "Syncing..." : "Sync Emails"}
-          </Button>
+          {hasPermission(role, permissions, "canAddBooking") && (
+            <Button type="button" variant="cta" onClick={() => setShowForm(true)}>
+              <PlusIcon className="mr-1 h-4 w-4" /> Add Booking
+            </Button>
+          )}
+          {hasPermission(role, permissions, "canSyncBookings") && (
+            <Button type="button" variant="ctaOutline" onClick={syncEmails} disabled={syncing}>
+              {syncing ? "Syncing..." : "Sync Emails"}
+            </Button>
+          )}
           <Button type="button" variant="ctaOutline" onClick={loadBookings}>
             <RefreshCwIcon className="mr-1 h-4 w-4" /> Refresh
           </Button>
@@ -177,10 +182,12 @@ export function AdminBookings({ password, username, role }: { password: string; 
                     <p className="text-xs text-brand-green-dark/50">{b.roomType || "Any"} · {b.persons} person(s){b.contact ? ` · ${b.contact}` : ""}</p>
                   </div>
                 </div>
-                <button type="button" onClick={() => markStatus(b.id, "checked_in")}
-                  className="rounded-lg bg-brand-green px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-green-dark">
-                  Mark Arrived
-                </button>
+                {hasPermission(role, permissions, "canAddBooking") && (
+                  <button type="button" onClick={() => markStatus(b.id, "checked_in")}
+                    className="rounded-lg bg-brand-green px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-green-dark">
+                    Mark Arrived
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -271,13 +278,13 @@ export function AdminBookings({ password, username, role }: { password: string; 
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        {b.status === "confirmed" && (
+                        {b.status === "confirmed" && hasPermission(role, permissions, "canAddBooking") && (
                           <>
                             <button type="button" onClick={() => markStatus(b.id, "cancelled")} className="rounded px-1.5 py-0.5 text-[9px] text-red-500 hover:bg-red-50">Cancel</button>
                             <button type="button" onClick={() => markStatus(b.id, "no_show")} className="rounded px-1.5 py-0.5 text-[9px] text-yellow-600 hover:bg-yellow-50">No-show</button>
                           </>
                         )}
-                        {role === "admin" && (
+                        {hasPermission(role, permissions, "canDeleteBooking") && (
                           <button type="button" onClick={() => deleteBookingEntry(b.id)} className="rounded p-1 text-red-400 hover:bg-red-50"><Trash2Icon className="h-3.5 w-3.5" /></button>
                         )}
                       </div>

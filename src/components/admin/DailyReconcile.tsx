@@ -42,7 +42,7 @@ function formatDate(d: string) {
   });
 }
 
-export function DailyReconcile({ password, username, role }: { password: string; username?: string; role: Role }) {
+export function DailyReconcile({ password, username, role, permissions }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const [date, setDate] = useState(getToday);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);

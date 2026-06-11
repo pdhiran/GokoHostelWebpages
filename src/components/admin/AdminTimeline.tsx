@@ -29,7 +29,7 @@ function cellFor(bed: BedRow, dayStr: string, todayStr: string): CellInfo {
   return { status: "free", guest: "" };
 }
 
-export function AdminTimeline({ password, username, role }: { password: string; username?: string; role: Role }) {
+export function AdminTimeline({ password, username, role, permissions }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
   const [beds, setBeds] = useState<BedRow[]>([]);
   const [unassigned, setUnassigned] = useState<string[][]>([]);

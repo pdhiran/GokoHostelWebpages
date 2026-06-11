@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
+import { hasPermission } from "./types";
 
 type IncomeEntry = {
   id: number;
@@ -76,7 +77,7 @@ const INCOME_SOURCES = [
   { id: "other", label: "Other" },
 ];
 
-export function DailyLedger({ password, username, role }: { password: string; username?: string; role: Role }) {
+export function DailyLedger({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const [date, setDate] = useState(getToday);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<DaySummary | null>(null);
@@ -338,7 +339,7 @@ export function DailyLedger({ password, username, role }: { password: string; us
                         {e.description && <p className="text-[10px] text-brand-green-dark/40">{e.description}</p>}
                       </div>
                     </div>
-                    {role === "admin" && (
+                    {hasPermission(role, permissions, "canDeleteExpense") && (
                       <button type="button" onClick={() => deleteIncome(e.id)} className="text-[10px] text-red-400 hover:text-red-600">
                         Delete
                       </button>

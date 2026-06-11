@@ -41,6 +41,11 @@ export function parseBedRow(row: string[]): BedRow {
   };
 }
 
+export function hasPermission(role: Role, permissions: Record<string, boolean>, key: string): boolean {
+  if (role === "admin") return true;
+  return !!permissions[key];
+}
+
 export const CHECKIN_COLUMNS = [
   "Submitted At", "Arrival Date", "Arrival Time", "Name", "Persons",
   "Contact", "Days", "Coming From", "Nationality", "Emergency Contact",

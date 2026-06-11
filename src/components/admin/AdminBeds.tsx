@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useAdminApi } from "./useAdminApi";
 import { cn } from "@/lib/utils";
 import { UserPlusIcon, SparklesIcon, ClockIcon, Loader2Icon } from "lucide-react";
-import { parseBedRow, type Role, type BedRow } from "./types";
+import { parseBedRow, type Role, type BedRow, hasPermission } from "./types";
 import { AdminLoading } from "./AdminLoading";
 
 function getDaysRemaining(expectedCheckout: string): number {
@@ -48,9 +48,9 @@ function BedSlotSvg({ position, fill }: { position: string; fill: string }) {
 
 function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeBed, isLoading }: {
   bed: BedRow;
-  onAssign: () => void;
-  onCheckout: () => void;
-  onMarkClean: () => void;
+  onAssign?: () => void;
+  onCheckout?: () => void;
+  onMarkClean?: () => void;
   onUnassign?: () => void;
   onChangeBed?: () => void;
   isLoading?: boolean;
@@ -63,8 +63,8 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
     <div className={cn(
       "relative rounded-xl border-2 p-3 transition-all duration-200",
       colors.border, colors.bg,
-      bed.status === "available" && !isLoading && "hover:shadow-md hover:-translate-y-0.5 cursor-pointer",
-    )} onClick={bed.status === "available" && !isLoading ? onAssign : undefined}>
+      bed.status === "available" && !isLoading && onAssign && "hover:shadow-md hover:-translate-y-0.5 cursor-pointer",
+    )} onClick={bed.status === "available" && !isLoading && onAssign ? onAssign : undefined}>
       {isLoading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/70">
           <Loader2Icon className="h-5 w-5 animate-spin text-brand-green" />
@@ -100,10 +100,12 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
             </span>
           </div>
           <div className="mt-2 flex gap-1">
-            <button type="button" onClick={(e) => { e.stopPropagation(); onCheckout(); }}
-              className="flex-1 rounded-lg bg-red-500/10 px-1 py-1.5 text-[9px] font-semibold text-red-600 hover:bg-red-500/20">
-              Checkout
-            </button>
+            {onCheckout && (
+              <button type="button" onClick={(e) => { e.stopPropagation(); onCheckout(); }}
+                className="flex-1 rounded-lg bg-red-500/10 px-1 py-1.5 text-[9px] font-semibold text-red-600 hover:bg-red-500/20">
+                Checkout
+              </button>
+            )}
             {onUnassign && (
               <button type="button" onClick={(e) => { e.stopPropagation(); onUnassign(); }}
                 className="flex-1 rounded-lg bg-gray-100 px-1 py-1.5 text-[9px] font-semibold text-gray-600 hover:bg-gray-200">
@@ -126,17 +128,19 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
             <SparklesIcon className="h-3.5 w-3.5 text-orange-500" />
             <span className="text-[11px] font-medium text-orange-700">Needs cleaning</span>
           </div>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onMarkClean(); }}
-            className="mt-2 w-full rounded-lg bg-orange-500/10 px-2 py-1.5 text-[10px] font-semibold text-orange-600 transition-colors hover:bg-orange-500/20">
-            Mark clean
-          </button>
+          {onMarkClean && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onMarkClean(); }}
+              className="mt-2 w-full rounded-lg bg-orange-500/10 px-2 py-1.5 text-[10px] font-semibold text-orange-600 transition-colors hover:bg-orange-500/20">
+              Mark clean
+            </button>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export function AdminBeds({ password, username, role }: { password: string; username?: string; role: Role }) {
+export function AdminBeds({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
   const [beds, setBeds] = useState<BedRow[]>([]);
   const [unassigned, setUnassigned] = useState<string[][]>([]);
@@ -475,11 +479,11 @@ export function AdminBeds({ password, username, role }: { password: string; user
                     <div className="p-1.5">
                       <BedCard bed={group.upper.bed}
                         isLoading={loadingBedIdx === group.upper.idx}
-                        onAssign={() => { if (changingBed !== null) changeBed(changingBed, group.upper!.idx); else if (assigningGuest) assignBed(group.upper!.idx, assigningGuest); }}
-                        onCheckout={() => checkoutBed(group.upper!.idx)}
-                        onUnassign={() => unassignBed(group.upper!.idx)}
-                        onChangeBed={() => { setAssigningGuest(null); setChangingBed(group.upper!.idx); }}
-                        onMarkClean={() => markClean(group.upper!.idx)} />
+                        onAssign={hasPermission(role, permissions, "canAssignBed") ? () => { if (changingBed !== null) changeBed(changingBed, group.upper!.idx); else if (assigningGuest) assignBed(group.upper!.idx, assigningGuest); } : undefined}
+                        onCheckout={hasPermission(role, permissions, "canCheckout") ? () => checkoutBed(group.upper!.idx) : undefined}
+                        onUnassign={hasPermission(role, permissions, "canAssignBed") ? () => unassignBed(group.upper!.idx) : undefined}
+                        onChangeBed={hasPermission(role, permissions, "canAssignBed") ? () => { setAssigningGuest(null); setChangingBed(group.upper!.idx); } : undefined}
+                        onMarkClean={hasPermission(role, permissions, "canMarkClean") ? () => markClean(group.upper!.idx) : undefined} />
                     </div>
                   )}
                   {/* Ladder divider */}
@@ -499,11 +503,11 @@ export function AdminBeds({ password, username, role }: { password: string; user
                     <div key={li} className="p-1.5 pt-0">
                       <BedCard bed={lower.bed}
                         isLoading={loadingBedIdx === lower.idx}
-                        onAssign={() => { if (changingBed !== null) changeBed(changingBed, lower.idx); else if (assigningGuest) assignBed(lower.idx, assigningGuest); }}
-                        onCheckout={() => checkoutBed(lower.idx)}
-                        onUnassign={() => unassignBed(lower.idx)}
-                        onChangeBed={() => { setAssigningGuest(null); setChangingBed(lower.idx); }}
-                        onMarkClean={() => markClean(lower.idx)} />
+                        onAssign={hasPermission(role, permissions, "canAssignBed") ? () => { if (changingBed !== null) changeBed(changingBed, lower.idx); else if (assigningGuest) assignBed(lower.idx, assigningGuest); } : undefined}
+                        onCheckout={hasPermission(role, permissions, "canCheckout") ? () => checkoutBed(lower.idx) : undefined}
+                        onUnassign={hasPermission(role, permissions, "canAssignBed") ? () => unassignBed(lower.idx) : undefined}
+                        onChangeBed={hasPermission(role, permissions, "canAssignBed") ? () => { setAssigningGuest(null); setChangingBed(lower.idx); } : undefined}
+                        onMarkClean={hasPermission(role, permissions, "canMarkClean") ? () => markClean(lower.idx) : undefined} />
                     </div>
                   ))}
                 </div>
@@ -517,11 +521,11 @@ export function AdminBeds({ password, username, role }: { password: string; user
                 <div className="p-1.5">
                   <BedCard bed={bed}
                     isLoading={loadingBedIdx === idx}
-                    onAssign={() => { if (changingBed !== null) changeBed(changingBed, idx); else if (assigningGuest) assignBed(idx, assigningGuest); }}
-                    onCheckout={() => checkoutBed(idx)}
-                    onUnassign={() => unassignBed(idx)}
-                    onChangeBed={() => { setAssigningGuest(null); setChangingBed(idx); }}
-                    onMarkClean={() => markClean(idx)} />
+                    onAssign={hasPermission(role, permissions, "canAssignBed") ? () => { if (changingBed !== null) changeBed(changingBed, idx); else if (assigningGuest) assignBed(idx, assigningGuest); } : undefined}
+                    onCheckout={hasPermission(role, permissions, "canCheckout") ? () => checkoutBed(idx) : undefined}
+                    onUnassign={hasPermission(role, permissions, "canAssignBed") ? () => unassignBed(idx) : undefined}
+                    onChangeBed={hasPermission(role, permissions, "canAssignBed") ? () => { setAssigningGuest(null); setChangingBed(idx); } : undefined}
+                    onMarkClean={hasPermission(role, permissions, "canMarkClean") ? () => markClean(idx) : undefined} />
                 </div>
               </div>
             ))}

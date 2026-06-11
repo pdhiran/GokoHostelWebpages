@@ -8,6 +8,7 @@ import { ExternalLinkIcon, PencilIcon, Trash2Icon, XIcon, Loader2Icon } from "lu
 import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
+import { hasPermission } from "./types";
 
 const CATEGORIES = ["Salary", "Rent", "Utilities", "Groceries", "Capital", "Maintenance", "Supplies", "Transport", "Miscellaneous", "Others"];
 
@@ -15,10 +16,12 @@ export function AdminBillRecords({
   password,
   username,
   role,
+  permissions = {},
 }: {
   password: string;
   username?: string;
   role: Role;
+  permissions?: Record<string, boolean>;
 }) {
   const expenseApi = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -187,7 +190,7 @@ export function AdminBillRecords({
               <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Amount (₹)</th>
               <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Bill</th>
               <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Submitted By</th>
-              {role === "admin" && (
+              {(hasPermission(role, permissions, "canEditExpense") || hasPermission(role, permissions, "canDeleteExpense")) && (
                 <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Actions</th>
               )}
             </tr>
@@ -195,7 +198,7 @@ export function AdminBillRecords({
           <tbody>
             {filteredExpenses.length === 0 ? (
               <tr>
-                <td colSpan={role === "admin" ? 7 : 6} className="px-4 py-12 text-center text-brand-green-dark/50">
+                <td colSpan={(hasPermission(role, permissions, "canEditExpense") || hasPermission(role, permissions, "canDeleteExpense")) ? 7 : 6} className="px-4 py-12 text-center text-brand-green-dark/50">
                   {expenses.length === 0 ? "No expense records" : "No matches"}
                 </td>
               </tr>
@@ -230,23 +233,27 @@ export function AdminBillRecords({
                     )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/70">{exp.createdBy || "—"}</td>
-                  {role === "admin" && (
+                  {(hasPermission(role, permissions, "canEditExpense") || hasPermission(role, permissions, "canDeleteExpense")) && (
                     <td className="px-3 py-3">
                       <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(exp)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-green/70 hover:bg-brand-green/[0.06]"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteExpense(exp.id, exp.billImageLink)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50"
-                        >
-                          <Trash2Icon className="h-4 w-4" />
-                        </button>
+                        {hasPermission(role, permissions, "canEditExpense") && (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(exp)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-green/70 hover:bg-brand-green/[0.06]"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                        )}
+                        {hasPermission(role, permissions, "canDeleteExpense") && (
+                          <button
+                            type="button"
+                            onClick={() => deleteExpense(exp.id, exp.billImageLink)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50"
+                          >
+                            <Trash2Icon className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}
@@ -263,7 +270,7 @@ export function AdminBillRecords({
                 <td className="whitespace-nowrap px-3 py-3 font-display text-sm font-bold text-brand-green-dark">
                   ₹{(totalPaise / 100).toFixed(0)}
                 </td>
-                <td colSpan={role === "admin" ? 3 : 2} />
+                <td colSpan={(hasPermission(role, permissions, "canEditExpense") || hasPermission(role, permissions, "canDeleteExpense")) ? 3 : 2} />
               </tr>
             </tfoot>
           )}

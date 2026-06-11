@@ -13,7 +13,7 @@ import type { Role } from "./types";
 type AccountsTab = "addExpense" | "dailyLedger" | "billRecords" | "foodBill" | "reconcile";
 
 const TABS: { id: AccountsTab; label: string; icon: React.ReactNode; permission?: string }[] = [
-  { id: "addExpense", label: "Add Expense", icon: <PlusCircleIcon className="h-3.5 w-3.5" /> },
+  { id: "addExpense", label: "Add Expense", icon: <PlusCircleIcon className="h-3.5 w-3.5" />, permission: "canAddExpense" },
   { id: "dailyLedger", label: "Daily Ledger", icon: <BookOpenIcon className="h-3.5 w-3.5" />, permission: "canAddIncome" },
   { id: "billRecords", label: "Records", icon: <FileTextIcon className="h-3.5 w-3.5" />, permission: "canViewExpenses" },
   { id: "foodBill", label: "Food Revenue", icon: <IndianRupeeIcon className="h-3.5 w-3.5" />, permission: "canViewFoodBills" },
@@ -31,7 +31,7 @@ export function AdminExpenditure({
   role: Role;
   permissions: Record<string, boolean>;
 }) {
-  const visibleTabs = TABS.filter((t) => !t.permission || role === "admin" || role === "manager" || permissions[t.permission!]);
+  const visibleTabs = TABS.filter((t) => !t.permission || role === "admin" || !!permissions[t.permission!]);
   const defaultTab = visibleTabs[0]?.id || "addExpense";
   const [tab, setTab] = useState<AccountsTab>(defaultTab);
 
@@ -62,11 +62,11 @@ export function AdminExpenditure({
       </div>
 
       <div className="mt-6">
-        {tab === "addExpense" && <AdminAddExpense password={password} username={username} role={role} />}
-        {tab === "dailyLedger" && <DailyLedger password={password} username={username} role={role} />}
-        {tab === "billRecords" && <AdminBillRecords password={password} username={username} role={role} />}
-        {tab === "foodBill" && <AdminFoodBill password={password} username={username} role={role} />}
-        {tab === "reconcile" && <DailyReconcile password={password} username={username} role={role} />}
+        {tab === "addExpense" && <AdminAddExpense password={password} username={username} role={role} permissions={permissions} />}
+        {tab === "dailyLedger" && <DailyLedger password={password} username={username} role={role} permissions={permissions} />}
+        {tab === "billRecords" && <AdminBillRecords password={password} username={username} role={role} permissions={permissions} />}
+        {tab === "foodBill" && <AdminFoodBill password={password} username={username} role={role} permissions={permissions} />}
+        {tab === "reconcile" && <DailyReconcile password={password} username={username} role={role} permissions={permissions} />}
       </div>
     </div>
   );

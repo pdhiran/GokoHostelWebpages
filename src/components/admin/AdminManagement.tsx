@@ -37,7 +37,7 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
 export function AdminManagement({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const visibleTabs = TABS.filter((t) => {
     if (t.adminOnly && role !== "admin") return false;
-    if (t.permission && role !== "admin" && role !== "manager" && !permissions[t.permission]) return false;
+    if (t.permission && role !== "admin" && !permissions[t.permission]) return false;
     return true;
   });
   const defaultTab = visibleTabs[0]?.id || "history";

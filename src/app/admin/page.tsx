@@ -99,6 +99,21 @@ export default function AdminPage() {
     setAutoLogging(false);
   }, []);
 
+  useEffect(() => {
+    if (!role || role === "admin") return;
+    const navIds: AdminSection[] = ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "management"];
+    const permKeys: Record<AdminSection, string> = {
+      dashboard: "canViewDashboard", bookings: "canViewBookings", beds: "canViewBeds",
+      timeline: "canViewTimeline", records: "canViewRecords", foodOrders: "canViewFoodOrders",
+      expenditure: "canViewAccounts", management: "canViewManagement",
+    };
+    const isVisible = (id: AdminSection) => permissions[permKeys[id]] || false;
+    if (!isVisible(section)) {
+      const first = navIds.find(isVisible);
+      if (first) setSection(first);
+    }
+  }, [role, permissions, section]);
+
   const handlePopState = useCallback(() => {
     if (exitIntentRef.current) return;
     history.pushState({ gokoAdmin: true }, "");
@@ -250,15 +265,15 @@ export default function AdminPage() {
     );
   }
 
-  const NAV_ITEMS: { id: AdminSection; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
-    { id: "dashboard", label: "Dashboard", icon: <LayoutDashboardIcon className="h-4 w-4" /> },
-    { id: "bookings", label: "Bookings", icon: <BookOpenIcon className="h-4 w-4" /> },
-    { id: "beds", label: "Beds", icon: <BedDoubleIcon className="h-4 w-4" /> },
-    { id: "timeline", label: "Timeline", icon: <CalendarDaysIcon className="h-4 w-4" /> },
-    { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" /> },
-    { id: "foodOrders", label: "Food Orders", icon: <span className="text-base leading-none">🍽️</span> },
-    { id: "expenditure", label: "Accounts", icon: <WalletIcon className="h-4 w-4" /> },
-    { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" /> },
+  const NAV_ITEMS: { id: AdminSection; label: string; icon: React.ReactNode; adminOnly?: boolean; permission?: string }[] = [
+    { id: "dashboard", label: "Dashboard", icon: <LayoutDashboardIcon className="h-4 w-4" />, permission: "canViewDashboard" },
+    { id: "bookings", label: "Bookings", icon: <BookOpenIcon className="h-4 w-4" />, permission: "canViewBookings" },
+    { id: "beds", label: "Beds", icon: <BedDoubleIcon className="h-4 w-4" />, permission: "canViewBeds" },
+    { id: "timeline", label: "Timeline", icon: <CalendarDaysIcon className="h-4 w-4" />, permission: "canViewTimeline" },
+    { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" />, permission: "canViewRecords" },
+    { id: "foodOrders", label: "Food Orders", icon: <span className="text-base leading-none">🍽️</span>, permission: "canViewFoodOrders" },
+    { id: "expenditure", label: "Accounts", icon: <WalletIcon className="h-4 w-4" />, permission: "canViewAccounts" },
+    { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" />, permission: "canViewManagement" },
   ];
 
   return (
@@ -277,7 +292,11 @@ export default function AdminPage() {
 
           {/* Desktop nav */}
           <div className="hidden items-center gap-1 overflow-x-auto lg:flex">
-            {NAV_ITEMS.filter((item) => !item.adminOnly || role === "admin").map((item) => (
+            {NAV_ITEMS.filter((item) => {
+              if (item.adminOnly && role !== "admin") return false;
+              if (item.permission && role !== "admin" && !permissions[item.permission]) return false;
+              return true;
+            }).map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -332,7 +351,11 @@ export default function AdminPage() {
         {mobileMenuOpen && (
           <div className="border-t border-brand-mist bg-white px-4 py-3 lg:hidden">
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-              {NAV_ITEMS.filter((item) => !item.adminOnly || role === "admin").map((item) => (
+              {NAV_ITEMS.filter((item) => {
+                if (item.adminOnly && role !== "admin") return false;
+                if (item.permission && role !== "admin" && !permissions[item.permission]) return false;
+                return true;
+              }).map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -355,12 +378,12 @@ export default function AdminPage() {
 
       {/* Section content */}
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
-        {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={setSection} />}
-        {section === "bookings" && <AdminBookings password={password} username={username} role={role} />}
-        {section === "beds" && <AdminBeds password={password} username={username} role={role} />}
-        {section === "timeline" && <AdminTimeline password={password} username={username} role={role} />}
-        {section === "records" && <AdminRecords password={password} username={username} role={role} />}
-        {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} />}
+        {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={setSection} permissions={permissions} />}
+        {section === "bookings" && <AdminBookings password={password} username={username} role={role} permissions={permissions} />}
+        {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} />}
+        {section === "timeline" && <AdminTimeline password={password} username={username} role={role} permissions={permissions} />}
+        {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}
+        {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} permissions={permissions} />}
         {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
         {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} />}
       </div>

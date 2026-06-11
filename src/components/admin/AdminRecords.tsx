@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
-import { CHECKIN_COLUMNS, type Role } from "./types";
+import { CHECKIN_COLUMNS, type Role, hasPermission } from "./types";
 import { countries } from "@/content/countries";
 import { BOOKING_PLATFORMS } from "@/lib/checkinSchema";
 
@@ -56,7 +56,7 @@ function extractDriveFileId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-export function AdminRecords({ password, username, role }: { password: string; username?: string; role: Role }) {
+export function AdminRecords({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
   const [rows, setRows] = useState<string[][]>([]);
   const [tabs, setTabs] = useState<string[]>([]);
@@ -401,12 +401,16 @@ export function AdminRecords({ password, username, role }: { password: string; u
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Check-in Records</h2>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="ctaOutline" onClick={() => { setShowAddForm(true); setShowPastForm(false); }} disabled={loading}>
-            <PlusIcon className="mr-1 h-4 w-4" /> Add
-          </Button>
-          <Button type="button" variant="ctaOutline" onClick={() => { setShowPastForm(true); setShowAddForm(false); }} disabled={loading}>
-            <PlusIcon className="mr-1 h-4 w-4" /> Past
-          </Button>
+          {hasPermission(role, permissions, "canAddCheckin") && (
+            <Button type="button" variant="ctaOutline" onClick={() => { setShowAddForm(true); setShowPastForm(false); }} disabled={loading}>
+              <PlusIcon className="mr-1 h-4 w-4" /> Add
+            </Button>
+          )}
+          {hasPermission(role, permissions, "canAddCheckin") && (
+            <Button type="button" variant="ctaOutline" onClick={() => { setShowPastForm(true); setShowAddForm(false); }} disabled={loading}>
+              <PlusIcon className="mr-1 h-4 w-4" /> Past
+            </Button>
+          )}
           <Button type="button" variant="ctaOutline" onClick={refresh} disabled={loading}>
             {loading ? "..." : "Refresh"}
           </Button>
@@ -746,7 +750,7 @@ export function AdminRecords({ password, username, role }: { password: string; u
               {CHECKIN_COLUMNS.map((col) => (
                 <th key={col} className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">{col}</th>
               ))}
-              {role === "admin" && <th className="px-3 py-3 text-xs font-bold uppercase">Actions</th>}
+              {(hasPermission(role, permissions, "canEditRecords") || hasPermission(role, permissions, "canDeleteRecords")) && <th className="px-3 py-3 text-xs font-bold uppercase">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -844,12 +848,12 @@ export function AdminRecords({ password, username, role }: { password: string; u
                               </a>
                             ))}
                           </div>
-                        ) : col === "ID Card" && !cell && role === "admin" ? (
+                        ) : col === "ID Card" && !cell && hasPermission(role, permissions, "canEditRecords") ? (
                           <button type="button" onClick={() => setUploadPopup({ origIdx, type: "id", guestName: row[3] || "Guest" })}
                             className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-[10px] font-medium text-brand-green hover:bg-brand-green/[0.12]">
                             <UploadIcon className="h-3 w-3" /> Upload ID
                           </button>
-                        ) : col === "Visa" && !cell && (row[8] || "").trim() !== "" && (row[8] || "").toLowerCase() !== "india" && role === "admin" ? (
+                        ) : col === "Visa" && !cell && (row[8] || "").trim() !== "" && (row[8] || "").toLowerCase() !== "india" && hasPermission(role, permissions, "canEditRecords") ? (
                           <button type="button" onClick={() => setUploadPopup({ origIdx, type: "visa", guestName: row[3] || "Guest" })}
                             className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-600 hover:bg-amber-100">
                             <UploadIcon className="h-3 w-3" /> Upload Visa
@@ -858,20 +862,24 @@ export function AdminRecords({ password, username, role }: { password: string; u
                       </td>
                     );
                   })}
-                  {role === "admin" && (
+                  {(hasPermission(role, permissions, "canEditRecords") || hasPermission(role, permissions, "canDeleteRecords")) && (
                     <td className="px-3 py-3">
                       <div className="flex gap-1">
-                        {(row[8] || "").toLowerCase() !== "india" && row[8] && (
+                        {(row[8] || "").toLowerCase() !== "india" && row[8] && hasPermission(role, permissions, "canEditRecords") && (
                           <button type="button" onClick={() => openFormC(origIdx, row)}
                             className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 hover:bg-indigo-100">
                             <FileTextIcon className="h-3 w-3" /> Form C
                           </button>
                         )}
-                        {row[18] === "checked_out" && row[19] && (Date.now() - new Date(row[19]).getTime() < 24 * 60 * 60 * 1000) && (
+                        {row[18] === "checked_out" && row[19] && (Date.now() - new Date(row[19]).getTime() < 24 * 60 * 60 * 1000) && hasPermission(role, permissions, "canEditRecords") && (
                           <button type="button" onClick={() => undoCheckout(origIdx)} className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-100">Reactivate</button>
                         )}
-                        <button type="button" onClick={() => startEdit(origIdx)} className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-green/70 hover:bg-brand-green/[0.06]"><PencilIcon className="h-4 w-4" /></button>
-                        <button type="button" onClick={() => deleteRow(origIdx)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50"><Trash2Icon className="h-4 w-4" /></button>
+                        {hasPermission(role, permissions, "canEditRecords") && (
+                          <button type="button" onClick={() => startEdit(origIdx)} className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-green/70 hover:bg-brand-green/[0.06]"><PencilIcon className="h-4 w-4" /></button>
+                        )}
+                        {hasPermission(role, permissions, "canDeleteRecords") && (
+                          <button type="button" onClick={() => deleteRow(origIdx)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50"><Trash2Icon className="h-4 w-4" /></button>
+                        )}
                       </div>
                     </td>
                   )}
