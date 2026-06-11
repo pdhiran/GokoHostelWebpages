@@ -12,8 +12,8 @@ import {
   getUserByUsername,
 } from "@/db/queries";
 import { getDb } from "@/db";
-import { foodOrders } from "@/db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { foodOrders, checkins } from "@/db/schema";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
 
 type UserRole = "admin" | "manager" | "staff";
@@ -289,6 +289,24 @@ export async function POST(req: NextRequest) {
               unpaid: order.paymentStatus !== "paid" ? order.total : 0,
               orderCount: 1,
             });
+          }
+        }
+
+        // Fetch phone numbers from checkins for hostel guests missing contact
+        const checkinIds = Array.from(guestMap.entries())
+          .filter(([k, v]) => k.startsWith("checkin:") && !v.guestPhone)
+          .map(([k]) => parseInt(k.replace("checkin:", ""), 10))
+          .filter((id) => !isNaN(id));
+
+        if (checkinIds.length > 0) {
+          const checkinRows = await db.select({ id: checkins.id, contact: checkins.contact })
+            .from(checkins)
+            .where(inArray(checkins.id, checkinIds));
+          for (const row of checkinRows) {
+            const entry = guestMap.get(`checkin:${row.id}`);
+            if (entry && !entry.guestPhone && row.contact) {
+              entry.guestPhone = row.contact;
+            }
           }
         }
 
