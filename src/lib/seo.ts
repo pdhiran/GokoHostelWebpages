@@ -47,11 +47,21 @@ export function localBusinessJsonLd() {
     description: site.description,
     url: site.url,
     image: `${site.url}${site.ogImage}`,
+    telephone: "+919833624363",
+    priceRange: "₹₹",
+    hasMap: site.mapsUrl,
     address: {
       "@type": "PostalAddress",
+      streetAddress: "Near Hema Shree, Gokarna Main Beach",
       addressLocality: "Gokarna",
       addressRegion: "Karnataka",
+      postalCode: "581421",
       addressCountry: "IN",
+    },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: 14.5479,
+      longitude: 74.3188,
     },
     sameAs: [social.instagram, social.facebook, site.googleBusinessUrl],
   };

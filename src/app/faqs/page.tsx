@@ -14,8 +14,31 @@ export const metadata = buildMetadata({
 });
 
 export default function FaqsPage() {
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqCategories.flatMap((cat) =>
+      cat.items.map((item) => ({
+        "@type": "Question" as const,
+        name: item.question,
+        acceptedAnswer: {
+          "@type": "Answer" as const,
+          text: [
+            ...item.paragraphs,
+            ...(item.bullets?.map((b) => `• ${b}`) ?? []),
+            ...(item.afterBullets ?? []),
+          ].join("\n"),
+        },
+      }))
+    ),
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       <PageRibbon
         title={faqHero.title}
         subtitle={faqHero.subtitle}

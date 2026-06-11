@@ -11,6 +11,7 @@ const paths = [
   "/community-area",
   "/faqs",
   "/reviews",
+  "/booking-enquiry",
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

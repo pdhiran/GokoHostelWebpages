@@ -23,7 +23,7 @@ import { site } from "@/lib/site";
 const homeReviewGrid = guestReviews.slice(0, 6);
 
 export const metadata = buildMetadata({
-  title: "Home",
+  title: "Goko Hostel & Community Space — Gokarna",
   description: site.description,
   path: "/",
 });

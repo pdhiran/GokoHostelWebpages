@@ -176,7 +176,7 @@ function OrderStatusContent() {
                     {STATUS_ICONS[step]}
                   </motion.div>
                   <span
-                    className={`mt-2 text-[10px] font-medium sm:text-xs ${
+                    className={`mt-2 text-[11px] font-medium sm:text-xs ${
                       isActive ? "text-blue-600" : "text-gray-400"
                     }`}
                   >

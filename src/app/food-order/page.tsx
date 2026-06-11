@@ -396,7 +396,7 @@ export default function FoodOrderPage() {
                       <p className="text-sm text-blue-100">{guestInfo.roomInfo}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Link
                       href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
                       className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
@@ -487,7 +487,7 @@ export default function FoodOrderPage() {
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
-            className="fixed bottom-20 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg max-w-[calc(100vw-2rem)] break-words text-center"
+            className="fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg max-w-[calc(100vw-2rem)] break-words text-center"
           >
             {reorderToast}
           </motion.div>

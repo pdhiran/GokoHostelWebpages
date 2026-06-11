@@ -812,7 +812,7 @@ export function WalkingRouteGuide({
         {intro}
       </p>
 
-      <div ref={timelineRef} className="relative mt-10 md:mt-12">
+      <div ref={timelineRef} className="relative mt-10 md:mt-12 overflow-hidden">
         <div
           className={cn(
             "pointer-events-none absolute left-[1.125rem] top-6 bottom-6 z-0 flex justify-center md:left-1/2 md:-translate-x-1/2",

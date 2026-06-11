@@ -55,7 +55,7 @@ function PhotoCarousel({ photos, alt }: { photos: string[]; alt: string }) {
           <button
             type="button"
             onClick={scrollPrev}
-            className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
+            className="absolute left-3 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
             aria-label="Previous photo"
           >
             <ChevronLeftIcon className="h-5 w-5" />
@@ -63,7 +63,7 @@ function PhotoCarousel({ photos, alt }: { photos: string[]; alt: string }) {
           <button
             type="button"
             onClick={scrollNext}
-            className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
+            className="absolute right-3 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
             aria-label="Next photo"
           >
             <ChevronRightIcon className="h-5 w-5" />

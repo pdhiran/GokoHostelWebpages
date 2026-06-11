@@ -49,6 +49,7 @@ export const metadata: Metadata = {
     description: site.description,
     images: [site.ogImage],
   },
+  alternates: { canonical: "https://www.gokohostel.com" },
 };
 
 export default function RootLayout({
@@ -68,7 +69,7 @@ export default function RootLayout({
             title="Google Tag Manager"
           />
         </noscript>
-        <Script id="google-tag-manager" strategy="beforeInteractive">
+        <Script id="google-tag-manager" strategy="afterInteractive">
           {gtmScript}
         </Script>
         <script

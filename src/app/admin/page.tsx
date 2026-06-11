@@ -365,7 +365,7 @@ export default function AdminPage() {
 
       {/* Change Password Modal */}
       {showChangePassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
           <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">Change Password</h3>
@@ -398,7 +398,7 @@ export default function AdminPage() {
 
       {/* Exit Confirmation Dialog */}
       {showExitDialog && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
           <div className="w-full max-w-xs rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
             <h3 className="font-display text-base font-bold text-brand-green-dark">Exit Management?</h3>
             <p className="mt-2 text-sm text-brand-green-dark/70">

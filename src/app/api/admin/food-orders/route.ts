@@ -35,7 +35,7 @@ import {
 import { normalizePhone } from "@/lib/phoneUtils";
 import { getDb } from "@/db";
 import { foodOrders, foodOrderItems, checkins, orderModifications } from "@/db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 
 type UserRole = "admin" | "manager" | "staff";
 
@@ -443,15 +443,20 @@ export async function POST(req: NextRequest) {
           .where(eq(foodOrders.paymentStatus, "on_tab"))
           .groupBy(foodOrders.checkinId);
 
+        const checkinIds = tabOrders.map((r) => r.checkinId).filter((id): id is number => id != null);
+        const allBeds = checkinIds.length > 0 ? await getAllBeds() : [];
+        const checkinRows = checkinIds.length > 0
+          ? await db.select().from(checkins).where(inArray(checkins.id, checkinIds))
+          : [];
+        const checkinMap = new Map(checkinRows.map((c) => [c.id, c]));
+
         const guestsWithTabs = [];
         for (const row of tabOrders) {
           if (!row.checkinId) continue;
-          const checkinRows = await db.select().from(checkins).where(eq(checkins.id, row.checkinId)).limit(1);
-          const guest = checkinRows[0];
+          const guest = checkinMap.get(row.checkinId);
           if (!guest) continue;
 
-          const allBeds2 = await getAllBeds();
-          const bed = allBeds2.find(
+          const bed = allBeds.find(
             (b) => b.status === "occupied" && (b.guestName === guest.name || b.guestContact === guest.contact)
           );
 

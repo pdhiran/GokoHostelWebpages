@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,25 +110,25 @@ export function AdminRecords({ password, username, role }: { password: string; u
   const [vibeMatchingId, setVibeMatchingId] = useState<number | null>(null);
   const [showDobInRecords, setShowDobInRecords] = useState(false);
 
-  const filteredRows = (() => {
-    let result = [...rows].map((row, origIdx) => ({ row, origIdx }));
+  const filteredRows = useMemo(() => {
+    let result = rows.map((row, origIdx) => ({ row, origIdx }));
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(({ row }) => row.some((cell) => cell?.toLowerCase().includes(q)));
     }
     if (sortField === "date") {
-      result.sort((a, b) => {
+      result = [...result].sort((a, b) => {
         const dateA = a.row[1] || ""; const dateB = b.row[1] || "";
         return sortDir === "asc" ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
       });
     } else if (sortField === "place") {
-      result.sort((a, b) => {
+      result = [...result].sort((a, b) => {
         const placeA = (a.row[7] || "").toLowerCase(); const placeB = (b.row[7] || "").toLowerCase();
         return sortDir === "asc" ? placeA.localeCompare(placeB) : placeB.localeCompare(placeA);
       });
     }
     return result;
-  })();
+  }, [rows, searchQuery, sortField, sortDir]);
 
   const hasActiveFilters = searchQuery.trim() !== "" || sortField !== null;
   const clearFilters = () => { setSearchQuery(""); setSortField(null); setSortDir("desc"); };

@@ -197,7 +197,7 @@ export function DailyLedger({ password, username, role }: { password: string; us
       ) : (
         <>
           {/* Day Summary Cards */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
               <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Total Revenue</p>
               <p className="mt-1 text-lg font-bold text-brand-green-dark sm:text-xl">₹{(totalRevenue / 100).toFixed(0)}</p>

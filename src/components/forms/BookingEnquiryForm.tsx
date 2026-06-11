@@ -123,7 +123,7 @@ export function BookingEnquiryForm() {
           ) : null}
         </div>
       </div>
-      <div className="grid gap-5 sm:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="enq-in" className="text-brand-green">
             Check-in
