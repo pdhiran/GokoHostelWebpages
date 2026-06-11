@@ -7,65 +7,251 @@ globs: ["**/*.{ts,tsx,js,json}"]
 
 ## Project Overview
 
-**GokoWeb** (`goko-premium`) is a full-stack web application for **Goko Hostel & Community Space** in Gokarna, India. It combines a marketing website, a guest self check-in system, and an operations admin panel.
+**GokoWeb** (`goko-premium`) is a full-stack web application for **Goko Hostel & Community Space** in Gokarna, India. It combines a marketing website, guest self check-in, food ordering, kitchen management, financial accounting, and a full operations admin panel.
 
 | Aspect | Details |
 |--------|---------|
-| **Purpose** | Hostel marketing site + operational backend |
+| **Purpose** | Hostel marketing site + complete operational backend |
 | **Domain** | `https://www.gokohostel.com` |
 | **Framework** | Next.js 15.5 (App Router), React 19, TypeScript |
-| **Styling** | Tailwind CSS, Framer Motion, shadcn/ui |
+| **Styling** | Tailwind CSS, Framer Motion, shadcn/ui (Base Nova) |
 | **Forms** | react-hook-form + Zod |
-| **Database** | Cloudflare D1 (SQLite) via Drizzle ORM |
+| **Database** | Cloudflare D1 (SQLite) via Drizzle ORM — 24 tables |
 | **Deployment** | Cloudflare Workers via @opennextjs/cloudflare |
 | **Worker** | `goko-hostel-latest-webpage` (wrangler.jsonc) |
+| **Future** | Planned Android mobile app for staff operations |
 
 ---
 
-## Key Features
+## What We Do, How We Do It, and Why
 
-### Public Marketing Site (7+ pages)
-Home, Events, Stay, Community Area, Story, Reviews, FAQs, How to Reach, Things to Do, Booking Enquiry. Global shell with sticky header, footer, WhatsApp float, Book Now gate (Stayflexi).
+### What We Do
 
-### Guest Self Check-in (`/self-checkin`)
+GokoWeb is the **entire digital backbone** of Goko Hostel. It replaces what would normally be 5-6 separate SaaS products:
+
+| Function | What GokoWeb replaces |
+|----------|-----------------------|
+| Marketing website | Squarespace / WordPress |
+| Guest check-in + ID verification | Paper registers + manual FRRO forms |
+| Food ordering + kitchen management | Zomato-like POS / pen-and-paper tickets |
+| Expense tracking + daily accounting | Tally / spreadsheet bookkeeping |
+| Bed/room management | Hostel PMS (Beds24, Cloudbeds) |
+| Booking aggregation | Manually checking OTA emails |
+
+Everything runs on a **single codebase, single deployment, single database** — no microservices, no separate backends, no third-party dashboards staff need to learn.
+
+### How We Do It
+
+**Single-stack monolith on Cloudflare edge:**
+
+- **One Next.js app** serves marketing pages (SSG), guest-facing tools (CSR), and the full admin panel (CSR) — all from the same deployment.
+- **One SQLite database** (Cloudflare D1) stores everything — guests, beds, food orders, expenses, settings. No external DB, no Redis, no message queues.
+- **Action-based APIs** — every admin endpoint is a single POST route with an `action` field that dispatches to the right handler. This avoids REST route proliferation and keeps the API surface small (23 routes handle 100+ operations).
+- **Password-per-request auth** — no JWT tokens, no sessions, no cookies. The password is sent with every API call. Simple to implement, works everywhere (web, curl, future mobile app), and avoids token refresh complexity.
+- **Google Drive as file storage** — ID photos, visa documents, and bill receipts go to Drive with public viewer links. No S3, no Cloudflare R2. Drive gives free storage with a familiar admin interface for manual access.
+- **Google Vision as AI layer** — OCR for ID validation, passport parsing, visa extraction. No custom ML models. Pay-per-use, high accuracy, supports 100+ languages.
+
+**Frontend patterns:**
+
+- All admin components are **client-side rendered** (`"use client"`) — the admin panel is a SPA within Next.js. No server components, no streaming, no suspense boundaries. This keeps the admin simple and predictable.
+- **No global state management** — no Redux, no Zustand. Each admin component manages its own state via `useState`/`useCallback` and loads its own data on mount. The only Context provider is `BookingGateProvider` for the public booking flow — admin components are fully self-contained.
+- **Inline tab rendering** — no shared Tab component abstraction. Each admin page defines its own tab array and renders buttons inline. This sounds like duplication but avoids premature abstraction — each page's tabs have different permission logic, styling variants, and mobile behavior.
+- **localStorage for guest state** — food cart and phone number persist across page reloads without any backend session. Simple, works offline, no auth needed for guest-facing pages.
+
+### Why We Made These Choices
+
+**Why Cloudflare Workers + D1 (not Vercel + Postgres)?**
+- Edge deployment gives <50ms response times globally — guests in India, Europe, and Australia all get fast check-in forms.
+- D1 (SQLite) is simpler than Postgres — no connection pooling, no pgbouncer, no cold starts. For a single-hostel app doing <100 concurrent users, SQLite is more than sufficient.
+- Cloudflare's free tier is generous — the hostel runs this at near-zero infrastructure cost.
+
+**Why action-based POST (not REST)?**
+- A single `/api/admin/checkins` handles 40+ operations. With REST, that would be 40+ route files. The action pattern keeps related operations together, makes auth a single check at the top, and simplifies the frontend API layer (one `fetch` wrapper per domain).
+- Trade-off: not cacheable by CDN, not auto-documented by OpenAPI. Acceptable for an internal admin tool.
+
+**Why password-per-request (not JWT/sessions)?**
+- The hostel has 3-5 staff members. Session management, token refresh, and logout flows add complexity for zero practical benefit at this scale.
+- The password is stored in component state on the admin page — page refresh requires re-login, which is acceptable.
+- Future mobile app: same pattern works — store password in secure storage, send with every request.
+
+**Why Google Drive for file storage (not R2/S3)?**
+- Staff can browse uploaded IDs directly in Drive's web UI without needing admin panel access.
+- Drive's 15GB free tier is sufficient for a single hostel's ID photos.
+- Organized into monthly subfolders automatically.
+- Trade-off: slower uploads than R2, dependent on Google OAuth tokens. Acceptable.
+
+**Why Vision API for ID validation (not a custom model)?**
+- Google Vision handles Aadhaar (Hindi + English), driving licenses (state variations), passports (MRZ), and visas from 100+ countries out of the box.
+- No training data needed, no model hosting, no GPU costs.
+- Pay-per-use: ~₹1 per validation. The hostel does 5-15 check-ins per day.
+
+**Why amounts in paise (not rupees as float)?**
+- Floating-point arithmetic causes rounding errors (₹10.10 + ₹10.20 ≠ ₹20.30 in IEEE 754).
+- Integer arithmetic is exact. ₹500.50 = `50050` paise. All display formatting happens at the UI layer.
+- This is the same pattern used by Stripe, Razorpay, and every serious payment system.
+
+**Why no shared component library / design system?**
+- The admin panel is internal tooling for 3-5 staff. Visual polish matters less than shipping features fast.
+- Components use Tailwind utilities directly with brand color tokens (`brand-green`, `brand-sand`, `brand-mist`). Consistent enough without the overhead of a Storybook-driven design system.
+- shadcn/ui provides the base primitives (Button, Input, Dialog) — everything else is purpose-built.
+
+**Why no tests?**
+- This is a single-hostel internal tool with a single developer. The review agent workflow (3 parallel agents: backend review + frontend review + mock workflow validation) catches bugs before push.
+- Build verification (`npx next build`) catches type errors and import issues.
+- Trade-off: no regression protection. Acceptable at current scale — if the hostel grows to a chain, automated tests become worthwhile.
+
+**Why XLSX for bulk imports (not CSV)?**
+- Excel preserves data types — phone numbers don't lose leading zeros, dates don't get mangled.
+- The `xlsx` library handles Excel serial date numbers, which are a common source of bugs with CSV date imports.
+- Staff are more familiar with Excel than CSV.
+
+**Why no real-time WebSocket (food orders use polling)?**
+- Cloudflare Workers don't natively support WebSocket persistence across requests (Durable Objects would, but add complexity).
+- 5-second polling for kitchen, 10-second for guest status — good enough for a 20-table hostel cafe.
+- Trade-off: slight delay in order updates. Not noticeable in practice.
+
+---
+
+## High-Level Architecture
+
+```
+                                 ┌──────────────────────────────────────────────────┐
+                                 │              Cloudflare Workers                  │
+                                 │  ┌────────────────────────────────────────────┐  │
+  Public Users                   │  │          Next.js 15 (App Router)           │  │
+  ─────────────                  │  │                                            │  │
+  Marketing Site (10 pages)  ──▶ │  │  src/app/           Pages & API Routes     │  │
+  Self Check-in  ──────────▶     │  │  src/components/     React Components      │  │
+  Food Ordering  ──────────▶     │  │  src/lib/            Business Logic        │  │
+  My Bills  ───────────────▶     │  │  src/db/             Drizzle ORM Layer     │  │
+                                 │  │                                            │  │
+  Staff                          │  └────────────┬───────────────────────────────┘  │
+  ─────                          │               │                                  │
+  Kitchen Dashboard  ──────▶     │               ▼                                  │
+  Admin Panel  ────────────▶     │        ┌──────────────┐                          │
+                                 │        │ Cloudflare D1 │  (SQLite, 24 tables)    │
+                                 │        └──────────────┘                          │
+                                 └──────────────────────────────────────────────────┘
+                                                 │
+                         ┌───────────────────────┼───────────────────────┐
+                         ▼                       ▼                       ▼
+                  Google Drive             Google Vision           Gmail API
+                  (ID/bill uploads)        (OCR/validation)        (OTA booking sync)
+```
+
+### Request Flow
+
+All API routes use **POST with action-based dispatch** (no REST verbs). Auth is password-based: env-var admin/manager passwords or hashed user passwords from the `users` table. No JWT/session tokens — password sent with every request.
+
+### Data Layer
+
+- **ORM:** Drizzle ORM with SQLite dialect
+- **DB Access:** `getDb()` returns D1 client via Cloudflare Worker binding `DB`
+- **Monetary values:** All amounts stored as **integers in paise** (₹500 = `50000`)
+- **Dates:** ISO strings in `createdAt` fields; `YYYY-MM-DD` for date-only fields
+- **Month keys:** `"JUNE-2026"` format for partitioning (expenses, check-ins)
+
+---
+
+## Feature Map
+
+### 1. Public Marketing Site (10 pages)
+
+Home, Stay, Story, Events, Community Area, How to Reach, Things to Do, FAQs, Reviews, Booking Enquiry. Global shell with sticky header, footer, WhatsApp float, Book Now gate (Stayflexi).
+
+### 2. Guest Self Check-in (`/self-checkin`)
+
 - Mobile-first form with ID upload + real-time Vision API validation
 - Returning guest lookup by phone (reuses prior Drive links)
-- Foreign guest Form C fields + passport/visa OCR
+- Foreign guest Form C fields + passport/visa OCR (8 languages)
 - Booking platform + ID capture
 - Uploads to Google Drive; records in D1
 
-### Admin Panel (`/admin`)
-Six sections (password-protected):
+### 3. Food Ordering System (`/food-order`, `/kitchen`, `/my-bills`)
+
+**Guest flow:**
+- Phone lookup identifies hostel guest (linked to check-in) or walk-in
+- Browse menu by category, add to cart (persisted in localStorage)
+- Place order with idempotency key; hostel guests billed on tab, walk-ins pay at counter
+- Track order status in real-time (10s polling)
+- View bills at `/my-bills` — unpaid vs paid, grouped by stay
+
+**Kitchen flow (`/kitchen`):**
+- Password-gated staff dashboard with real-time order queue
+- Status pipeline: `pending_approval` → `placed` → `preparing` → `ready` → `served`
+- Item modifications, void, availability toggle, busy mode
+- Web Bluetooth thermal printer support (ESC/POS)
+
+**Admin food management:**
+- Menu categories/items CRUD with inventory tracking
+- Food settings: kitchen hours, tax rate, tab limits, WhatsApp notifications
+- Order management: status updates, void/discount, reassign, combined billing
+- Food revenue reporting with guest-wise breakdown
+
+### 4. Accounts & Financial Module
+
+**Five sub-tabs under Admin → Accounts:**
+
+| Tab | Component | Purpose |
+|-----|-----------|---------|
+| Add Expense | `AdminAddExpense` | Submit expenses with bill photo upload to Google Drive |
+| Daily Ledger | `DailyLedger` | Daily income/expense per account, food revenue |
+| Records | `AdminBillRecords` | Monthly expense history browser |
+| Food Revenue | `AdminFoodBill` | Date-range food revenue with guest breakdown |
+| Reconcile | `DailyReconcile` | Cash/account reconciliation (expected vs actual closing) |
+
+**Account Settings (under Management):**
+
+| Section | Purpose |
+|---------|---------|
+| Accounts | Bank/cash account CRUD, default account, opening balances |
+| Employees | Staff CRUD with salary, role, frequency |
+| Vendors | Vendor directory with categories |
+| Bulk Expenses | XLSX bulk import of historical expenses |
+| Bulk Income | XLSX bulk import of historical income |
+
+**Salary payments** create both a `salary_payments` record and an auto-generated expense entry.
+
+### 5. Admin Panel (`/admin`)
+
+Eight top-level sections (password-protected):
 
 | Section | Component | Purpose |
 |---------|-----------|---------|
-| Dashboard | `AdminDashboard` | Today's check-ins/checkouts, occupancy |
+| Dashboard | `AdminDashboard` | Today's check-ins/checkouts, occupancy, quick nav |
 | Bookings | `AdminBookings` | OTA bookings, Gmail sync |
 | Beds | `AdminBeds` | Visual bed map, assign/checkout/change |
 | Timeline | `AdminTimeline` | Multi-day occupancy grid |
 | Records | `AdminRecords` | Monthly check-in CRUD, Form C |
-| Management | `AdminManagement` | Dorms, users, backup, audit, logs, health, rates |
+| Food Orders | `AdminFoodOrders` | Order ops, tabs, payments, embedded kitchen view |
+| Accounts | `AdminExpenditure` | Financial module (5 sub-tabs above) |
+| Management | `AdminManagement` | 13 sub-tabs below |
 
-**Roles:** `admin`, `manager`, `staff`
+**Management sub-tabs (13):**
+Dorms, Users, Backup, Audit, Logs, Health & Stats, History, Rates, Menu, Food Settings, Bulk Upload (check-ins), QR Codes, Account Settings
 
-### Form C / FRRO Automation
+**Roles:** `admin` (full access), `manager` (most features), `staff` (permission-gated)
+
+### 6. QR Code Generator (Admin → Management → QR Codes)
+
+Standalone design tool using `qr-code-styling` library. Staff can create branded QR codes with custom colors, logos, and text. Presets for business card (vCard), Wi-Fi, website, contact. Export PNG/SVG, save/load configurations from history.
+
+### 7. Form C / FRRO Automation
+
 - Passport MRZ + visa OCR parsing (8 languages)
-- Local Playwright server for auto-fill
+- Local Playwright server for FRRO auto-fill
 - Bookmarklet/console script for mobile
 - See `frro-form-c-findings.mdc` for full technical details
 
-### Bed Management
-- Dorm setup (Bunk, Bunk2L1U, Single)
-- Lifecycle: available → occupied → cleanup → available
-- Bed history audit trail
+### 8. Bulk Upload System
 
-### Booking Management
-- Manual + Gmail sync (MakeMyTrip, Booking.com, Hostelworld)
-- Email parsing via `otaEmailParser.ts`
+Three bulk importers, all following the same pattern: download XLSX template → fill data → upload → validate + deduplicate + insert.
 
-### Rate Scraping
-- GitHub Actions workflow dispatches Puppeteer scraper
-- Results stored and displayed in admin UI
+| Importer | Location | API Route |
+|----------|----------|-----------|
+| Check-in guests | Management → Bulk Upload | `/api/admin/import` |
+| Expenses | Account Settings → Bulk Expenses | `/api/admin/bulk-import-accounts` |
+| Income | Account Settings → Bulk Income | `/api/admin/bulk-import-accounts` |
 
 ---
 
@@ -74,141 +260,456 @@ Six sections (password-protected):
 ```
 GokoWeb/
 ├── src/
-│   ├── app/                    # Next.js App Router pages + API routes
-│   │   ├── admin/              # Admin panel page
-│   │   ├── self-checkin/       # Guest check-in page
-│   │   └── api/                # REST API
+│   ├── app/                          # Next.js App Router
+│   │   ├── page.tsx                  # Home
+│   │   ├── stay/                     # Stay page
+│   │   ├── story/                    # Our Story
+│   │   ├── events/                   # Events
+│   │   ├── community-area/           # Community Area
+│   │   ├── how-to-reach/             # How to Reach
+│   │   ├── things-to-do/             # Things to Do
+│   │   ├── faqs/                     # FAQs
+│   │   ├── reviews/                  # Reviews
+│   │   ├── booking-enquiry/          # Booking Enquiry
+│   │   ├── self-checkin/             # Guest self check-in
+│   │   ├── food-order/               # Guest food ordering + status
+│   │   ├── my-bills/                 # Guest bill history
+│   │   ├── kitchen/                  # Kitchen staff dashboard
+│   │   ├── admin/                    # Admin panel
+│   │   └── api/                      # 23 API routes
+│   │       ├── checkin/              # Guest check-in + lookup
+│   │       ├── validate-id/          # ID/visa OCR validation
+│   │       ├── settings/             # Public feature flags
+│   │       ├── food/                 # Menu, order, status, bills, kitchen
+│   │       ├── form-c/              # FRRO Form C data
+│   │       ├── auth/google/          # OAuth flow
+│   │       ├── bookings/             # Gmail OTA sync
+│   │       └── admin/                # Admin APIs (checkins, expenses, food, etc.)
 │   ├── components/
-│   │   ├── admin/              # 18 admin components
-│   │   ├── forms/              # SelfCheckinForm, BookingEnquiryForm
-│   │   ├── layout/             # Header, Footer, SiteShell
-│   │   ├── sections/           # Marketing page sections
-│   │   └── ui/                 # shadcn primitives
-│   ├── content/                # Static data (nav, FAQs, countries)
-│   ├── db/                     # schema.ts, queries.ts, index.ts
-│   └── lib/                    # Business logic utilities
-├── migrations/                 # D1 SQL migrations (0001–0008)
-├── scripts/                    # FRRO server, scraper, migration tools
-├── public/                     # Static assets
-├── .github/workflows/          # scrape-rates.yml
-└── wrangler.jsonc              # Cloudflare Worker config
+│   │   ├── admin/                    # ~30 admin components + qr-generator/
+│   │   ├── food/                     # PhoneEntry, MenuBrowser, FoodCart
+│   │   ├── kitchen/                  # KitchenDashboard
+│   │   ├── forms/                    # SelfCheckinForm, BookingEnquiryForm
+│   │   ├── layout/                   # Header, Footer, SiteShell, MobileDrawer
+│   │   ├── sections/                 # Marketing page sections
+│   │   ├── booking/                  # BookNowButton, BookingGateProvider
+│   │   ├── faq/                      # FaqAccordion
+│   │   ├── media/                    # HeroBackdrop, ImageCarousel
+│   │   ├── motion/                   # Framer Motion wrappers
+│   │   └── ui/                       # shadcn/ui primitives (13 components)
+│   ├── content/                      # Static data (nav, FAQs, countries, etc.)
+│   ├── db/
+│   │   ├── schema.ts                 # 24 Drizzle table definitions
+│   │   ├── queries.ts                # ~90 exported query functions
+│   │   └── index.ts                  # getDb() — D1 binding
+│   └── lib/                          # Business logic utilities (15 files)
+├── migrations/                       # D1 SQL migrations
+├── drizzle/                          # Drizzle Kit output
+├── scripts/                          # FRRO server, scraper, migration tools
+├── public/                           # Static assets
+├── .github/workflows/                # scrape-rates.yml
+└── wrangler.jsonc                    # Cloudflare Worker config
 ```
 
 ---
 
-## Database Schema (D1)
+## Database Schema (D1 — 24 Tables)
 
-### `checkins`
-Core guest records: name, contact, nationality, arrival/departure dates, ID links (Drive URLs), verification status, `form_c_data` JSON, booking platform/ID, month key.
+### Core Guest Management
 
-### `beds`
-Bed inventory: dorm_id, bed_id, position (Upper/Lower/Single), type, status, guest info, dates.
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| `checkins` | Guest records | name, contact, nationality, arrivalDate, idType, idCardLink, visaLink, verified, status, formCData, bookingPlatform, bookingId, dob, vibeMatched, createdMonth |
+| `beds` | Bed inventory | dormId, bedId, position, type, status, guest info, checkinDate, expectedCheckout |
+| `dorms` | Dorm names | name (unique) |
+| `bed_history` | Bed audit trail | bedIdLabel, dormName, action, guest info, createdAt |
+| `bookings` | OTA/manual bookings | guestName, platform, bookingRef, dates, paymentStatus, source, rawData |
 
-### `dorms`
-Dorm names (unique).
+### Food Ordering
 
-### `bed_history`
-Audit trail: bed_id_label, dorm, action, guest info, timestamp.
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| `menu_categories` | Menu sections | name, nameKannada, icon, displayOrder, isActive, trackInventoryDefault |
+| `menu_items` | Menu items | categoryId, name, price (paise), tags, ingredients, isAvailable, track_inventory, stock_quantity |
+| `food_orders` | Order headers | orderNumber, guestType, checkinId, guest info, totals, status, paymentStatus, paymentMethod, idempotencyKey |
+| `food_order_items` | Line items | orderId, menuItemId, itemName, quantity, lineTotal, status |
+| `order_modifications` | Change audit | orderId, action, oldValue, newValue, modifiedBy |
 
-### `bookings`
-OTA/manual bookings: guest, platform, ref, dates, room type, payment status, source.
+### Financial / Accounts
 
-### `settings`
-Key-value store: `image_validation`, OAuth tokens, FRRO credentials, etc.
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| `accounts` | Bank/cash accounts | name, nickname, bankName, accountType, accountNumber, isDefault, isActive, openingBalance |
+| `vendors` | Vendor directory | name, category, contactPhone, notes, isActive |
+| `employees` | Staff records | name, role, salary (paise), salaryFrequency, bankAccount |
+| `salary_payments` | Salary history | employeeId, amount, month, accountId, paymentMethod |
+| `expenses` | Expense records | amount (paise), category, purpose, billImageLink, vendorId, accountId, paymentMethod, mainCategory, subCategory, createdBy, createdMonth |
+| `daily_income` | Income entries | date, accountId, type, amount (paise), source, description, foodRevenueAuto |
+| `daily_ledger` | Reconciliation | date, accountId, openingBalance, totalIncome, totalExpense, expectedClosing, actualClosing, isReconciled |
 
-### `users`
-Admin users: username, password_hash, role, permissions (JSON).
+### System
 
-### `audit_log` / `system_logs`
-Observability: who did what, errors, API calls.
-
-### `api_stats`
-Monthly counters: vision, drive, sheets, total.
-
-### `rate_scrapes`
-Competitor rate data: city, dates, results (JSON), status.
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| `settings` | Key-value config | key (PK), value — OAuth tokens, food config, feature flags |
+| `users` | Admin users | username, passwordHash, displayName, role, permissions (JSON), isSystem |
+| `audit_log` | Who-did-what | username, action, target, details, ipAddress |
+| `system_logs` | Error/info logs | level, source, message, details, requestId |
+| `api_stats` | API usage | month, vision, sheets, drive, total |
+| `rate_scrapes` | Competitor rates | city, dates, status, results (JSON) |
+| `qr_history` | Saved QR configs | name, config (JSON), previewDataUrl, createdBy |
 
 ---
 
-## API Routes
+## API Routes (23 Endpoints)
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/api/checkin` | POST | Guest self check-in (multipart) |
+### Public / Guest APIs
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/checkin` | POST | Guest self-check-in (multipart: ID upload → Drive → Vision → D1) |
 | `/api/checkin/lookup` | GET | Returning guest lookup by phone |
-| `/api/validate-id` | POST | Real-time ID/visa Vision validation |
+| `/api/validate-id` | POST | Real-time ID/visa Vision OCR validation |
 | `/api/settings` | GET | Public feature flags |
-| `/api/admin/checkins` | POST | Monolithic admin API (40+ actions via `action` field) |
-| `/api/admin/upload` | POST | File upload to Google Drive |
-| `/api/bookings/sync` | POST | Gmail OTA booking sync |
-| `/api/form-c/[id]` | GET | Tokenized Form C data + photo for FRRO |
-| `/api/auth/google/start` | GET | OAuth initiation |
-| `/api/auth/google/callback` | GET | OAuth callback |
+| `/api/food/menu` | GET | Menu categories, items, kitchen hours, settings |
+| `/api/food/order` | POST | Place food order (idempotency, stock, tab limits, kitchen hours) |
+| `/api/food/lookup` | GET | Phone → active/recent check-in match |
+| `/api/food/status` | GET | Order status or all orders for a guest |
+| `/api/food/bills` | GET | Paid/unpaid food bills by phone |
+| `/api/food/kitchen` | POST | Kitchen staff: orders, status, mods, busy toggle |
+| `/api/form-c/[id]` | GET | Token-gated FRRO Form C data + photo |
 
-### Admin API Actions (via `action` field)
-**Records:** list, add, addPast, update, delete, verifyCheckin, checkoutGuest, undoCheckout
-**Form C:** getFormCData, reExtractFormC, updateFormCData
-**Dashboard:** getDashboard
-**Beds:** getBeds, assignBed, checkoutBed, markClean, unassignBed, changeBed
-**Dorms:** initDorms, removeDorm, removeBed
-**Settings:** getSetting, setSetting, getStats, healthCheck
-**Users:** getUsers, createUser, updateUser, deleteUser
-**Audit:** getAuditLog, getSystemLogs, runBackup
-**Bookings:** getBookings, getUpcomingBookings, addBooking, updateBookingStatus, deleteBooking
-**Rates:** getLatestRateScrape, getRateScrapeStatus, startRateScrape, updateRateScrapeResults
+### Auth
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/auth/google/start` | GET | OAuth initiation (Drive + Gmail) |
+| `/api/auth/google/callback` | GET | OAuth callback → stores refresh token |
+
+### Admin APIs (action-based POST)
+
+| Route | Key Actions |
+|-------|-------------|
+| `/api/admin/checkins` | 40+ actions: CRUD, verify, Form C, beds/dorms, dashboard, users, audit, backup, bookings, rates, settings |
+| `/api/admin/expenses` | addExpense, listExpenses, getMyExpenses, updateExpense, deleteExpense, getFoodRevenue, getDailyLedger, addDailyIncome, deleteDailyIncome, getReconciliation, saveReconciliation, adjustOpeningBalance |
+| `/api/admin/account-settings` | Accounts/vendors/employees CRUD, paySalary |
+| `/api/admin/food` | Menu categories/items CRUD, stock, food settings |
+| `/api/admin/food-orders` | Order management: status, payments, tabs, void, discount, combined bills |
+| `/api/admin/upload` | File upload to Google Drive |
+| `/api/admin/import` | Check-in XLSX bulk import + template |
+| `/api/admin/bulk-import-accounts` | Expense/income XLSX bulk import + templates |
+| `/api/admin/qr-history` | QR config save/load/delete |
+| `/api/bookings/sync` | Gmail OTA booking sync |
 
 ---
 
-## Key Workflows
+## Detailed Feature Workflows
 
-### Guest Self Check-in
-1. Guest opens `/self-checkin` → fills form
-2. Phone lookup for returning guests (reuses prior ID links)
-3. ID validation via Vision API
-4. Submit → Upload images to Drive → OCR passport/visa for foreigners → Insert D1 record
+### 1. Guest Self Check-in (`/self-checkin`)
 
-### Form C Submission
-1. Admin opens Form C popup for a foreign guest
-2. Preview extracted data (passport, visa, arrival info)
-3. "Desktop: Auto-Submit" → local Playwright server fills FRRO form
-4. Admin uploads photo manually → script auto-saves
-5. Application ID stored in `frroSubmissions` array
+**State machine:** `phone` → `form` → `submitting` → `success`
 
-### Bed Assignment
-1. Guest checks in → appears in unassigned list
-2. Staff assigns to available bed → bed becomes occupied
-3. Checkout → bed goes to cleanup → mark clean → available again
+**Step 1 — Phone lookup:**
+- Guest enters mobile number (no country code)
+- `GET /api/checkin/lookup?phone={digits}` queries latest checkin by contact (exact match)
+- **Found:** prefills name, contact, nationality, emergency contacts, idType; reuses previous `idCardLink`/`visaLink` (skips re-upload); parses `formCData` JSON for Form C fields
+- **Not found:** blank form with phone prefilled
 
-### Booking Sync
-1. Admin triggers Gmail sync → API reads OTA confirmation emails
-2. `otaEmailParser.ts` extracts booking details
-3. Deduplicates by booking_ref → inserts new bookings
+**Step 2 — Form fields:**
+- `bookingPlatform` (Booking.com, Agoda, MakeMyTrip, Hostelworld, Airbnb, Offline, Walk-in)
+- `bookingId` (required unless Offline/Walk-in — server auto-generates `GOKO{date}{random}`)
+- `arrivalDate`, `arrivalTime`, `firstName`, `lastName`, `dob`, `numberOfPersons`, `stayingDays`
+- `nationality` (searchable country list), `comingFrom`, `contactNumber`
+- `emergencyName`, `emergencyPhone`
+- `idType` (aadhaar / driving_licence / passport), `idImages` (multi-file: JPEG, PNG, WebP, HEIC, PDF; max 10MB each)
+- **Foreign guests only:** `visaImages`, `arrivedFromCountry`, `purposeOfVisit`, plus 8 other Form C fields
+
+**Step 3 — Vision API validation (optional, toggled via `image_validation` setting):**
+- User clicks "Verify document" → `POST /api/validate-id` (multipart)
+- **5-layer validation:** label/object detection → OCR text extraction → document type scoring (Aadhaar/DL/passport regex) → name match → SafeSearch (spoof/adult/violence)
+- **Results:** `valid: true` (green checkmark, submit enabled) or `valid: false` with specific reason (type mismatch → user can fix dropdown; name not found → re-upload; spoof detected → reject)
+- Type mismatch recovery: changing idType dropdown to match `detectedIdType` auto-accepts
+- Vision outage: submit still allowed with warning (`idServerError = true`)
+
+**Step 4 — Submission:**
+1. Client sends multipart FormData to `POST /api/checkin`
+2. Server validates required fields (name, contact, nationality, idType, arrivalDate, stayingDays, comingFrom, persons)
+3. Server re-validates first ID file via Vision (unless reusing `prevIdCardLink`)
+4. Invalid → 422 with `{ error, field: "idImages" }`. Vision error → continues with `verified: "pending"`
+5. Uploads images to Google Drive: root folder → monthly subfolder → named `{Guest}_{id_1}_{timestamp}.{ext}`
+6. Multiple files joined as `"link1 | link2"`. Upload failure → expense saved with `"Upload failed"` in link
+7. For foreign guests: runs passport MRZ parsing + visa OCR → stores in `formCData` JSON
+8. DOB: uses form input or falls back to OCR-extracted DOB
+9. Inserts into `checkins` table with `status: "active"`, `verified` based on validation result
+10. Side effects: `incrementStat("vision"/"drive")`, audit log entry
+
+**Verified field values:**
+- `"yes"` — Vision passed or reusing previous ID
+- `"pending"` — validation off, Vision error, or needs manual review
+- `"spoof_warning"` — SafeSearch spoof LIKELY
+- `"no"` — admin rejected
+
+### 2. Admin Check-in Management (Records tab)
+
+**View:** Monthly check-in table with search/sort. Drive links open in new tab.
+
+**Verify:** Click pending/spoof badge → review ID/visa images → approve (`verified: "yes"`) or reject (`verified: "no"`)
+
+**Edit (admin only):** Inline form; can replace ID/visa images via Drive upload → `action: "update"`
+
+**Checkout:** Driven from Beds tab or Dashboard (not Records). `checkoutBed` sets bed to cleanup + checkin to `checked_out`. `checkoutGuest` for unassigned guests. Reactivate within 24h via `undoCheckout`.
+
+**Add Past:** Create historical check-in already `checked_out` — archival only, no bed assignment.
+
+**Form C (foreign guests):** View/edit extracted passport/visa data + FRRO submit helpers. `reExtractFormC` re-runs Vision OCR on stored Drive images.
+
+### 3. Food Ordering System
+
+**State machines:**
+
+Order status: `pending_approval` → `placed` → `preparing` → `ready` → `served` (or `cancelled` from any pre-served state)
+
+Payment status: hostel → `on_tab` → `paid`; walk-in → `pending` → `paid`
+
+Item status: `active` → `voided` (stock restored)
+
+**Auto-skip:** If all items are inventory-tracked and status is `placed`, order auto-advances to `ready`.
+
+**localStorage keys:** `gokoFoodCart` (cart items JSON), `gokoFoodPhone` (10-digit phone)
+
+#### 3a. Guest Ordering (`/food-order`)
+
+1. **Page load:** `GET /api/food/menu` → categories, items, settings. Check kitchen hours (`isKitchenOpen()`); show closed banner if outside hours. Check busy mode; show warning banner.
+2. **Phone entry:** `GET /api/food/lookup?phone=` → 1 match = hostel guest (linked to checkinId); multiple = picker; 0 = walk-in. Saved to `gokoFoodPhone`.
+3. **Menu browse:** Category grid sorted by displayOrder → item list. Filters: veg/non-veg, chef-special, search. Low stock badge shown. Cart persisted in `gokoFoodCart`.
+4. **Order placement:** `POST /api/food/order` with idempotency key (UUID). Server validates: required fields → checkin match → idempotency check → kitchen hours → busy mode (503) → item availability/stock → tab limit check → create order → decrement stock.
+5. **Success:** Clear cart. Show order number, total. Links to status page and reorder. Optional WhatsApp notification.
+
+#### 3b. Order Status (`/food-order/status`)
+
+- `GET /api/food/status?order={n}&phone={phone}` polled every 10 seconds
+- Visual stepper: pending_approval → placed → preparing → ready → served
+
+#### 3c. Kitchen Dashboard (`/kitchen`)
+
+- Password-gated (env passwords or any DB user hash). Stored in `sessionStorage.kitchen_pw`.
+- Polls `listOrders` every 5 seconds. Audio alert on new orders.
+- Three columns: New (`placed`) → Preparing → Ready. Separate approval section if `food_approval_in_kitchen` enabled.
+- Staff can: advance status, modify item quantities, void items (with reason), add items, toggle item availability, toggle busy mode.
+- Web Bluetooth thermal printing (ESC/POS): order tickets with optional Kannada names.
+
+#### 3d. Admin Food Orders (Food Orders section)
+
+- **Order Summary:** View guest tabs, approve/reject pending, void items, mark paid (cash/online/split with change calculation)
+- **Place Order:** Staff places orders for hostel guests (search active checkins), walk-ins, or cafe tables. Always starts as `placed` (no guest confirmation).
+- **Combined Bill:** Multi-guest tab preview, thermal print, PDF generation
+- **Payment Summary:** Paid/unpaid breakdown, per-order payment edit, revert to pending
+- **Active Orders:** Embedded KitchenDashboard
+
+#### 3e. My Bills (`/my-bills`)
+
+- `GET /api/food/bills?phone=` returns unpaid + paid orders
+- Grouped by current stay vs past stays (via `latestCheckinId`)
+- Shows per-order details with line items and payment status
+
+#### 3f. Menu Management (admin only)
+
+- Category CRUD: name, Kannada name, icon, display order, inventory default
+- Item CRUD: name, price (paise), tags (JSON), ingredients, availability, inventory tracking (stock quantity, low stock threshold)
+- Bulk toggle availability by category
+- Stock management: add stock, low stock alerts
+
+#### 3g. Food Settings
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| `food_kitchen_hours` | `08:00-15:00,18:00-23:30` | IST slots; blocks guest orders when closed |
+| `food_kitchen_busy` | `false` | 503 for guest orders; kitchen/admin toggle |
+| `food_tax_rate` | `5` | Tax % on all orders |
+| `food_tab_limit` | `0` | Max unpaid tab per hostel guest (paise); 0 = unlimited |
+| `food_checkout_grace_days` | `10` | Days after checkout guest can still order |
+| `food_cafe_tables` | `6` | Cafe table slots in admin Place Order |
+| `food_confirm_with_guest` | `false` | Orders start as `pending_approval` |
+| `food_approval_in_kitchen` | `false` | Kitchen sees approve/reject for pending |
+| `food_kitchen_whatsapp` | `""` | WhatsApp number for post-order message |
+| `food_customer_whatsapp` | `true` | Auto-open WhatsApp after guest order |
+| `food_show_out_of_stock` | `false` | Show unavailable items on guest menu |
+| `food_payment_history_days` | `7` | Paid orders retention in Payment Summary |
+| `food_kannada_kitchen_print` | `true` | Kannada names on thermal tickets |
+| `food_kannada_kitchen_display` | `true` | Kannada names on kitchen screen |
+
+### 4. Expense Management
+
+#### 4a. Add Expense
+
+**Initial load:** 3 parallel calls — `getMyExpenses` (last 7 days), `listVendors`, `listAccounts` (auto-selects default)
+
+**Form fields:** Amount (₹), Type (stay_expense/food_expense), Category (Salary/Rent/Utilities/Groceries/Capital/Maintenance/Supplies/Transport/Miscellaneous/Others), Vendor (optional, from list), Payment Method (cash/online), Account (required for online), Notes, Bill Photos (multi-image via file picker)
+
+**Bill photo upload flow:**
+1. User picks images via `<input type="file" accept="image/*" multiple>`
+2. Preview via `FileReader.readAsDataURL()`
+3. On submit: each file re-read as base64, sent as `billImage`/`billMimeType` (single) or `billImages: [{data, mime}]` (multiple)
+4. Server uploads to Google Drive: root → `Goko Bills/{MONTH-KEY}/` → `bill_{timestamp}_{random}.{ext}`
+5. Drive link(s) stored as comma-separated URLs in `billImageLink`
+6. Upload failure: expense still saved with empty link
+
+**Submit:** `POST /api/admin/expenses` action `addExpense`. Amount converted to paise. Audit log `expense_added`.
+
+#### 4b. Daily Ledger
+
+**Date navigation:** Left/right arrows ±1 day; date picker. Forward disabled past today.
+
+**Load:** `getDailyLedger` → incomeEntries, expenseEntries (with vendorName), accounts, foodRevenue, accountSummaries
+
+**Summary cards (client-side math):**
+- Total Revenue = sum(income amounts) + foodRevenue
+- Stay Revenue = sum(income where source = "stay")
+- Food Revenue = from API (sum of paid, non-cancelled food orders for that day)
+- Total Expense = sum(expense amounts)
+- Net = Total Revenue - Total Expense
+
+**Add Income:** `addDailyIncome` with date, accountId (null = Cash), type (cash/online), amount (paise), source (stay/food/other), description
+
+**Account-wise summaries:** Cash + each active account, showing income and expense totals per bucket
+
+#### 4c. Reconciliation
+
+**Opening balance priority:** today's ledger row → previous day's actual/expected closing → account seed (openingBalance field)
+
+**Per-account cards:** Opening + Income - Expense = Expected Closing. Admin enters Actual Closing. Mismatch highlight if difference > ₹0.50.
+
+**Save:** `saveReconciliation` with entries array `[{accountId, actualClosing}]`. Server recomputes totals, upserts `daily_ledger` rows with `isReconciled: 1`. Locks inputs after save.
+
+**Adjust opening balance:** `adjustOpeningBalance` creates/updates ledger row without reconciling (admin only).
+
+#### 4d. Expense Records
+
+Monthly view via `listExpenses`. Client-side search on category/purpose/createdBy. Edit (admin): amount, category, purpose. Delete (admin): attempts Drive file delete then removes DB row.
+
+#### 4e. Food Revenue Report
+
+Date range (default: month start → today). `getFoodRevenue` queries all non-cancelled food orders. Summary: totalRevenue, cash/online payments, unpaid tabs. Guest-wise breakdown sorted by total spent.
+
+#### 4f. Salary Payments
+
+Employee list → Pay button → modal with: Payment Type (salary/bonus/advance/loan/reimbursement), Amount (prefilled from monthly salary), Month, Payment Method, Account (if online), Notes.
+
+`paySalary` creates **dual records:** `salary_payments` row + auto-generated `expenses` row (category "Salary", purpose includes employee name and type label, createdMonth derived from selected month).
+
+### 5. Bed Management
+
+**Status transitions:**
+```
+available ──assign──▶ occupied ──checkout──▶ cleanup ──markClean──▶ available
+                         │                      ▲
+                         └── unassign ───────────┘ (correction, no cleanup)
+
+occupied ──changeBed──▶ cleanup (old) + occupied (new)
+```
+
+**Assign:** Select unassigned guest → click available bed → `assignBed` with bedId, guestName, guestContact, checkinDate, stayingDays. Sets expectedCheckout. Logs `bed_history` action "assign".
+
+**Checkout:** Click occupied bed → confirm → `checkoutBed`. Bed → cleanup. Matching active checkin → `status: "checked_out"`, `checkedOutAt` set. History: "checkout".
+
+**Mark clean:** `markClean`. Bed → available. History: "markClean".
+
+**Change bed:** Select occupied bed → click available bed → `changeBed`. Source: occupied → cleanup. Target: available → occupied (copies guest info). History: "change-out" / "change-in".
+
+**Unassign:** Direct correction. `occupied → available` without cleanup step. History: "unassign".
+
+**Direct checkout:** `checkoutGuest` by checkinId — marks checkin checked_out without bed involvement (for unassigned guests).
+
+**Overdue highlight:** Yellow border when `expectedCheckout < today` and bed still occupied.
+
+### 6. Booking Management
+
+**Manual booking:** `addBooking` with guestName, contact, platform (manual/makemytrip/booking_com/hostelworld/direct), bookingRef, dates, roomType (Mixed Dorm/Female Dorm/Luxury Dorm/Private Room/Any), persons, paymentStatus (unknown/paid/pay_at_property/partial).
+
+**Gmail sync flow:**
+1. Admin clicks Sync → `POST /api/bookings/sync`
+2. Gmail search: OTA emails from last 7 days (MakeMyTrip, Booking.com, Hostelworld)
+3. `otaEmailParser.ts` extracts: guestName, bookingRef, dates, roomType, persons, contact, paymentStatus
+4. Deduplicates by bookingRef → inserts new bookings with `source: "email"`
+5. Returns `{ synced, skipped, total }`
+
+**Supported platforms:** MakeMyTrip (full extraction), Booking.com (full), Hostelworld (basic — no contact, always partial payment)
+
+**Status management:** `updateBookingStatus` → confirmed / checked_in / cancelled / no_show
+
+### 7. Form C / FRRO Automation
+
+1. Admin opens Form C popup for a foreign guest record
+2. System shows extracted data from passport MRZ + visa OCR (parsed during check-in)
+3. **Desktop auto-submit:** Local Playwright server (port 3456) fetches guest data from `/api/form-c/{id}`, opens FRRO portal, fills all fields automatically
+4. **Photo constraint:** FRRO server rejects programmatic uploads — admin must manually upload the photo (auto-downloaded to `/tmp/photo.jpg`)
+5. Script polls for photo detection, then auto-saves the form
+6. **Mobile:** Bookmarklet script for browser console
+7. Application ID stored in `frroSubmissions` array on the checkin record
+8. Admin can re-extract Form C data (`reExtractFormC`) if passport/visa images are updated
+
+### 8. Bulk Upload System
+
+All three importers follow identical UX: download XLSX template → fill data → drag-and-drop upload → validate + deduplicate + insert → results (inserted/skipped/failed with row-level errors).
+
+| Importer | Template columns | Duplicate detection | API route |
+|----------|-----------------|---------------------|-----------|
+| Check-in guests | first_name, last_name, contact, arrival_date + 16 optional fields | name + contact + arrival_date | `/api/admin/import` |
+| Expenses | date, amount, category, type, payment_method, vendor, account_name, notes | date + amount + category + notes | `/api/admin/bulk-import-accounts` |
+| Income | date, amount, source, type, account_name, description | date + amount + source + description | `/api/admin/bulk-import-accounts` |
+
+Server: parses XLSX via `xlsx` library, filters description rows, validates per-row (required fields, enum values, date formats including Excel serial numbers), resolves vendor/account names to IDs (active only), batch inserts (50/batch), logs via `addSystemLog`.
+
+### 9. QR Code Generator
+
+Standalone admin design tool (Management → QR Codes). Uses `qr-code-styling` library. Configure: data URL, dot/corner colors, center logo, label text. Presets: business card (vCard), Wi-Fi, website, contact. Export PNG/SVG. Save/load configurations from `qr_history` table. Not wired into food ordering — staff manually sets the encoded URL.
+
+### 10. Dashboard
+
+Today's snapshot: active check-ins count, today's arrivals/departures, bed occupancy stats, image validation toggle. Quick navigation cards to other sections.
 
 ---
 
 ## External Integrations
 
-| Service | Purpose | Auth |
-|---------|---------|------|
-| Cloudflare D1 | Database | Worker binding `DB` |
-| Google Drive | ID/visa image storage | OAuth2 refresh token |
+| Service | Purpose | Auth Method |
+|---------|---------|-------------|
+| Cloudflare D1 | Database (24 tables) | Worker binding `DB` |
+| Cloudflare Workers | Hosting runtime | OpenNext adapter |
+| Google Drive | ID/visa/bill image storage | Service account + OAuth2 refresh |
 | Google Vision | OCR, label detection, SafeSearch | Service account JWT |
-| Gmail | OTA booking email sync | OAuth2 refresh token |
-| FRRO (indianfrro.gov.in) | Form C for foreign guests | Manual CAPTCHA + Playwright |
-| GitHub Actions | Rate scraping | GITHUB_TOKEN + workflow dispatch |
-| Stayflexi | Booking engine | URL only |
+| Gmail API | OTA booking email sync | OAuth2 refresh token |
+| FRRO Portal | Form C for foreign guests | Manual CAPTCHA + Playwright |
+| GitHub Actions | Rate scraping (Booking.com) | GITHUB_TOKEN + workflow dispatch |
+| Stayflexi | External booking engine | URL link only |
+| WhatsApp | Enquiry, food order notifications | wa.me deep links |
+| Web Bluetooth | Kitchen thermal printer (ESC/POS) | Direct BLE connection |
+| Google Tag Manager | Analytics | GTM-WM3M8ZKP |
+| jsPDF / html-to-image | Bill PDF generation | Client-side |
+| xlsx | Excel import/export for bulk uploads | Server-side |
+| qr-code-styling | QR code generation | Client-side |
 
 ---
 
-## Scripts (`scripts/`)
+## Lib Utilities (`src/lib/`)
 
-| Script | Purpose |
-|--------|---------|
-| `frro-server.ts` | Express + Playwright for FRRO auto-fill (port 3456) |
-| `scrape-booking-rates.js` | Puppeteer Booking.com scraper (GitHub Actions) |
-| `migrate-sheets-to-d1.ts` | One-time Sheets → D1 migration |
-| `get-drive-token.js` | OAuth token CLI |
-| `test-ocr-parsing.ts` | OCR parsing tests |
+| File | Purpose |
+|------|---------|
+| `utils.ts` | `cn()` — Tailwind class merge |
+| `site.ts` | Site constants: URLs, WhatsApp, GTM ID, social links |
+| `seo.ts` | `buildMetadata()`, `localBusinessJsonLd()` |
+| `format.ts` | Text truncation |
+| `googleApiFetch.ts` | Google APIs: Drive upload/delete/folders, Vision OCR, Gmail, health checks |
+| `validateIdDocument.ts` | ID/visa validation via Vision OCR |
+| `parsePassportData.ts` | MRZ parsing, visa extraction (8 languages) |
+| `parseDob.ts` | DOB extraction, age calculation |
+| `checkinSchema.ts` | Zod schema + booking platforms |
+| `phoneUtils.ts` | `normalizePhone()`, `phonesMatch()` |
+| `kitchenHours.ts` | Kitchen hours parsing, `isKitchenOpen()` |
+| `otaEmailParser.ts` | OTA email parsing (Booking.com, etc.) |
+| `frroBookmarklet.ts` | Form C token + bookmarklet URL |
+| `thermalPrint.ts` | Web Bluetooth ESC/POS kitchen receipt printing |
+| `stayGallery.ts` | Room image gallery mapping |
 
 ---
 
@@ -216,14 +717,14 @@ Competitor rate data: city, dates, results (JSON), status.
 
 | Variable | Purpose |
 |----------|---------|
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | Vision API |
-| `GOOGLE_DRIVE_FOLDER_ID` | ID uploads folder |
-| `GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN` | Drive/Gmail |
-| `GOOGLE_WEB_CLIENT_ID/SECRET` | Admin OAuth re-auth |
 | `ADMIN_PASSWORD` | Full admin access |
 | `MANAGER_PASSWORD` | Limited access |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Vision API |
+| `GOOGLE_DRIVE_FOLDER_ID` | ID/bill uploads root folder |
+| `GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN` | Drive/Gmail |
+| `GOOGLE_WEB_CLIENT_ID/SECRET` | Admin OAuth re-auth |
 | `GITHUB_TOKEN` | Rate scraping dispatch |
-| `GITHUB_REPO` | Scraping repo (default: thegokosocial/GokoHostelWebpages) |
+| `GITHUB_REPO` | Scraping repo |
 
 ---
 
@@ -236,13 +737,233 @@ npm run dev
 # Cloudflare local preview
 npm run preview:cf
 
-# Deploy to Cloudflare Workers
-npm run cf:build && npm run deploy:cf
+# Deploy to Cloudflare Workers (build is included in deploy script)
+npm run deploy:cf
 
 # D1 migrations
 npm run db:migrate:local   # local
 npm run db:migrate:prod    # production
 ```
+
+---
+
+## Android Mobile App — Future Planning Notes
+
+The codebase is designed as a web-first application with mobile-responsive UI. For the planned Android app:
+
+**Current mobile-ready patterns:**
+- All guest-facing pages (`/food-order`, `/self-checkin`, `/my-bills`) are already mobile-first
+- Kitchen dashboard is touch-optimized with large tap targets
+- Admin panel is responsive but desktop-optimized
+
+**Recommended approach for Android:**
+- **WebView wrapper** (quickest): Wrap the existing PWA in a native Android shell using WebView or TWA (Trusted Web Activity). Kitchen and food ordering flows would work immediately.
+- **React Native / Expo** (recommended for native UX): Share business logic and API contracts. The action-based POST API pattern maps directly to mobile API calls. All monetary/date conventions are already clean.
+- **Key APIs to expose for mobile:** All existing POST endpoints work as-is — no REST redesign needed. Auth would need enhancement (token-based sessions instead of password-per-request).
+
+**Staff-priority screens for mobile:**
+1. Kitchen dashboard (order queue, status updates, thermal print)
+2. Add Expense (quick expense entry with camera for bill photos)
+3. Daily Ledger (income/expense tracking)
+4. Bed management (assign/checkout)
+5. Check-in records (guest lookup, verify)
+
+**Data considerations:**
+- All amounts in paise — no floating-point issues across platforms
+- Dates as ISO strings — timezone-safe
+- No client-side state persistence beyond localStorage — mobile can use its own storage
+- Google Drive uploads via base64 in API body — works from mobile camera
+
+---
+
+## Development Workflow
+
+### Standard Feature Development Process
+
+Every non-trivial feature follows this process:
+
+1. **Plan** — Switch to Plan mode. Explore the codebase with parallel subagents. Ask clarifying questions. Create a detailed plan with specific file paths and code snippets.
+2. **Implement** — Switch to Agent mode. Create/modify files following existing patterns. Run `npx next build` after implementation to verify compilation.
+3. **Review** — Launch parallel review subagents:
+   - Backend API review (correctness, security, data integrity, schema match)
+   - Frontend component review (UI consistency, accessibility, state management, cleanup)
+   - Mock workflow validation (trace 5-10 end-to-end scenarios step by step)
+4. **Fix** — Address all actionable findings from reviews. Re-build to confirm.
+5. **Push** — Commit with descriptive message and push to `origin/main`.
+
+### Git Workflow
+
+- **Branch:** `main` (direct push)
+- **Commit style:** Imperative present tense, 1-2 sentence summary. Examples:
+  - `Add bulk upload for expenses and income in Account Settings`
+  - `Fix P0/P1 bugs from workflow simulation review`
+  - `Support multiple bill photos per expense`
+- **No force pushes.** No `--amend` on pushed commits.
+
+---
+
+## Coding Conventions
+
+### TypeScript / React
+
+- All components are `"use client"` — no server components in admin panel
+- Named exports for all components (no default exports)
+- Props interface inline in function signature: `{ password, username, role }: { password: string; username?: string; role: Role }`
+- `useCallback` for API calls and event handlers that are dependencies of `useEffect`
+- `useRef` for preventing double-submissions (e.g., `importingRef.current`)
+- `AbortController` for cancellable fetch requests with cleanup in `useEffect` return
+
+### API Pattern
+
+All admin APIs follow this exact pattern:
+
+```typescript
+// Single POST endpoint with action-based dispatch
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { password, username, action, ...rest } = body;
+
+  // Authenticate
+  const auth = await authenticateUser(password, username);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Dispatch — most routes use switch/case; admin/checkins uses if-else chains
+  switch (action) {
+    case "doSomething": {
+      // ... business logic
+      return NextResponse.json({ success: true });
+    }
+    default:
+      return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+  }
+}
+```
+
+For file uploads (bulk import, bill photos): use **multipart FormData** instead of JSON. Detect via `Content-Type` header.
+
+### Authentication
+
+Three auth tiers, checked in order:
+1. `ADMIN_PASSWORD` env var — full admin access
+2. `MANAGER_PASSWORD` env var — limited access
+3. User password hash from `users` table — role/permission-gated
+
+Password hashing: `SHA-256(password + "goko-salt-2026")` — computed client-side is NOT done; raw password is sent and hashed on server.
+
+### Monetary Values
+
+- **ALWAYS** store as integers in paise (₹500 → `50000`)
+- Convert on input: `Math.round(parseFloat(amount) * 100)`
+- Convert on display: `(amount / 100).toFixed(0)` or `.toFixed(2)`
+- Never use floating-point arithmetic on stored values
+
+### Date Handling
+
+- `createdAt` / `updatedAt`: ISO 8601 string (`new Date().toISOString()`)
+- Date-only fields (`date` in `daily_income`): `"YYYY-MM-DD"` string
+- Month keys (`createdMonth`): `"JUNE-2026"` format — derived via `getMonthKey()` or `deriveCreatedMonth(dateStr)`
+- Date parsing in imports: handle Excel serial numbers, `YYYY-MM-DD`, `DD/MM/YYYY`, native `Date` parse
+
+### Component Structure
+
+Admin components follow this layout pattern:
+
+```
+<div className="space-y-6">
+  {/* Section title */}
+  <h3 className="text-lg font-semibold text-brand-green-dark">Title</h3>
+
+  {/* Card sections */}
+  <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
+    ...content
+  </div>
+
+  {/* Tables */}
+  <div className="overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+    <table className="w-full min-w-[600px] text-left text-sm">
+      <thead><tr className="border-b border-brand-mist bg-brand-sand/50">...</tr></thead>
+      <tbody>...</tbody>
+    </table>
+  </div>
+</div>
+```
+
+### Tab Pattern
+
+Admin pages use inline tab rendering (no shared Tab component):
+
+1. Define tab array: `{ id, label, icon, permission? }[]`
+2. Filter by role/permissions → `visibleTabs`
+3. `useState` for active tab
+4. Render buttons with `cn()` for active styling (`bg-brand-green/10 text-brand-green` active vs `text-brand-green-dark/60` inactive)
+5. Conditional render: `{tab === "tabId" && <Component />}`
+
+### Styling Conventions
+
+- **Brand colors:** `brand-green` (#2d5c3f), `brand-green-dark` (#1a3d2a), `brand-red` (#EA3639), `brand-sand` (#faf8f4), `brand-mist` (green/8%)
+- **Fonts:** `font-display` (Mohave — headings), `font-sans` (Roboto — body)
+- **Border radius:** `rounded-xl` (cards), `rounded-2xl` (major sections), `rounded-lg` (buttons/inputs)
+- **Shadows:** `shadow-sm` (subtle), `shadow-card` (cards), `shadow-soft` (elevated)
+- **Responsive:** `sm:` for tablet, `lg:` for desktop. Mobile-first.
+- **Icons:** Lucide React exclusively. Size `h-3.5 w-3.5` for tab icons, `h-4 w-4` for buttons, `h-6 w-6` for section icons.
+- **Text opacity:** Use `text-brand-green-dark/60` pattern (Tailwind opacity modifier) for secondary text
+- **Loading states:** `<Loader2Icon className="h-4 w-4 animate-spin" />` with disabled button
+
+### Bulk Import Pattern
+
+All XLSX importers follow the same structure (see `AdminBulkImport.tsx` as reference):
+
+**Frontend component:**
+- Step 1: Download Template button → POST JSON `{ password, action: "xxxTemplate" }`
+- Step 2: Drag-and-drop zone with file validation (`.xlsx` only, max 5MB)
+- Import button → POST multipart FormData with `file`, `password`, `importType`
+- Results display: inserted/skipped/failed counts + failed rows table
+- Help section with bullet-point instructions
+
+**Backend route:**
+- Template generation: `XLSX.utils.aoa_to_sheet([headers, descriptions])` → buffer
+- Import: `XLSX.read(buffer)` → `sheet_to_json` → filter description rows → validate per-row → duplicate check → batch insert (50/batch)
+- Return `{ total, inserted, skipped, failed: [{ row, reason }] }`
+- Log via `addSystemLog()`
+
+### Error Handling
+
+- API routes: wrap in try/catch, return `{ error: "message" }` with appropriate status code
+- Frontend: `setError(string)` state displayed as red alert box
+- Import failures: per-row error tracking with row number and reason
+- Network errors: catch in fetch, display generic "Something went wrong"
+
+### File Organization
+
+- New admin features: component in `src/components/admin/`, API in `src/app/api/admin/`
+- Database changes: add to `src/db/schema.ts`, create migration in `migrations/`
+- Query helpers: add to `src/db/queries.ts` (or inline in route for CRUD-only operations)
+- Shared constants (categories, statuses): define at top of the component that uses them
+- No barrel files except for `qr-generator/index.ts`
+
+---
+
+## Testing & Validation
+
+### Build Verification
+
+Every change must pass `npx next build` before commit. The build runs TypeScript type checking, ESLint, and Next.js compilation.
+
+### Review Agent Workflows
+
+For non-trivial features, launch 3 parallel review agents:
+
+1. **Backend review** — checks: correctness, SQL injection safety, schema field match, paise conversion, duplicate detection logic, auth, error handling
+2. **Frontend review** — checks: API integration (URLs, payloads), UI consistency with existing components, accessibility (aria labels, keyboard nav), state cleanup (AbortController, useEffect return), responsive behavior
+3. **Mock workflow validation** — traces 5-10 specific user scenarios end-to-end through frontend → API → DB and back, verifying data transformations at each step
+
+### Key Validation Points
+
+- Amounts: verify rupees-to-paise conversion in both directions
+- Dates: verify parsing handles Excel serial numbers, DD/MM/YYYY, YYYY-MM-DD
+- Duplicate detection: verify re-uploads skip already-imported rows
+- Active-only: vendor/account lookups should filter `isActive = 1`
+- Auth: verify password check runs before any data access
 
 ---
 
@@ -252,7 +973,7 @@ Supports 8 languages: English, German, French, Dutch, Hebrew, Spanish, Italian, 
 
 Key techniques:
 - MRZ parsing for core passport fields
-- Date elimination method for date of issue (finds all dates, removes known DOB/expiry)
+- Date elimination method for date of issue
 - Next-line matching for EU multilingual label format
 - Fuzzy regex for visa type OCR errors
 - normalizeDate supports EN/FR/DE/NL/ES/IT/PT month abbreviations
