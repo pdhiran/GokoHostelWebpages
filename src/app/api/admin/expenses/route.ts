@@ -426,6 +426,12 @@ export async function POST(req: NextRequest) {
           and(sql`${expenses.createdAt} >= ${date}`, sql`${expenses.createdAt} <= ${date + "T23:59:59"}`)
         );
 
+        // Get previous day's ledger for rolling balances
+        const prevDate = new Date(date + "T00:00:00");
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = prevDate.toISOString().split("T")[0];
+        const prevLedgerEntries = await db.select().from(dailyLedger).where(eq(dailyLedger.date, prevDateStr));
+
         // Build balance for each account + cash
         const balances = [
           { accountId: null, accountName: "Cash" },
@@ -435,11 +441,18 @@ export async function POST(req: NextRequest) {
           const totalIncome = incomeEntries.filter((i) => i.accountId === acc.accountId).reduce((s, i) => s + i.amount, 0);
           const totalExpense = dayExpenses.filter((e) => e.accountId === acc.accountId).reduce((s, e) => s + e.amount, 0);
 
-          // Opening balance: from ledger if exists, else from previous day's closing, else account opening balance
-          let openingBalance = ledgerEntry?.openingBalance ?? 0;
-          if (!ledgerEntry) {
-            const account = allAccounts.find((a) => a.id === acc.accountId);
-            openingBalance = account?.openingBalance ?? 0;
+          // Opening balance priority: today's ledger entry > previous day's actual closing > previous day's expected closing > account seed
+          let openingBalance = 0;
+          if (ledgerEntry) {
+            openingBalance = ledgerEntry.openingBalance;
+          } else {
+            const prevEntry = prevLedgerEntries.find((l) => l.accountId === acc.accountId);
+            if (prevEntry) {
+              openingBalance = prevEntry.actualClosing ?? prevEntry.expectedClosing;
+            } else {
+              const account = allAccounts.find((a) => a.id === acc.accountId);
+              openingBalance = account?.openingBalance ?? 0;
+            }
           }
 
           const expectedClosing = openingBalance + totalIncome - totalExpense;
@@ -456,7 +469,7 @@ export async function POST(req: NextRequest) {
           };
         });
 
-        const isReconciled = ledgerEntries.some((l) => l.isReconciled);
+        const isReconciled = ledgerEntries.every((l) => l.isReconciled) && ledgerEntries.length > 0;
         const notes = ledgerEntries[0]?.notes || "";
 
         return NextResponse.json({ balances, isReconciled, notes });
@@ -473,12 +486,31 @@ export async function POST(req: NextRequest) {
         );
         const allAccounts = await db.select().from(accounts).where(eq(accounts.isActive, 1));
 
+        // Get previous day's ledger for rolling opening balances
+        const prevDate = new Date(date + "T00:00:00");
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = prevDate.toISOString().split("T")[0];
+        const prevLedgerEntries = await db.select().from(dailyLedger).where(eq(dailyLedger.date, prevDateStr));
+        const existingLedger = await db.select().from(dailyLedger).where(eq(dailyLedger.date, date));
+
         for (const entry of entries as { accountId: number | null; actualClosing: number | null }[]) {
           const totalIncome = incomeEntries.filter((i) => i.accountId === entry.accountId).reduce((s, i) => s + i.amount, 0);
           const totalExpense = dayExpenses.filter((e) => e.accountId === entry.accountId).reduce((s, e) => s + e.amount, 0);
 
-          const account = allAccounts.find((a) => a.id === entry.accountId);
-          const openingBalance = account?.openingBalance ?? 0;
+          // Determine opening balance same way as getReconciliation
+          const todayEntry = existingLedger.find((l) => l.accountId === entry.accountId);
+          let openingBalance = 0;
+          if (todayEntry) {
+            openingBalance = todayEntry.openingBalance;
+          } else {
+            const prevEntry = prevLedgerEntries.find((l) => l.accountId === entry.accountId);
+            if (prevEntry) {
+              openingBalance = prevEntry.actualClosing ?? prevEntry.expectedClosing;
+            } else {
+              const account = allAccounts.find((a) => a.id === entry.accountId);
+              openingBalance = account?.openingBalance ?? 0;
+            }
+          }
           const expectedClosing = openingBalance + totalIncome - totalExpense;
 
           const existing = await db.select().from(dailyLedger).where(

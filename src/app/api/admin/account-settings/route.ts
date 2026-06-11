@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
 
       // --- Salary Payments ---
       case "paySalary": {
-        const { employeeId, amount, month, accountId, paymentMethod, notes } = rest;
+        const { employeeId, amount, month, accountId, paymentMethod, payType, notes } = rest;
         if (!employeeId || !amount || !month) {
           return NextResponse.json({ error: "employeeId, amount, and month required" }, { status: 400 });
         }
@@ -174,6 +174,8 @@ export async function POST(req: NextRequest) {
 
         const now = new Date().toISOString();
         const actorName = username || "admin";
+        const type = payType || "salary";
+        const typeLabel = type === "salary" ? "Salary" : type === "bonus" ? "Bonus" : type === "advance" ? "Advance" : type === "loan" ? "Loan" : type === "reimbursement" ? "Reimbursement" : "Payment";
 
         await db.insert(salaryPayments).values({
           employeeId,
@@ -182,16 +184,19 @@ export async function POST(req: NextRequest) {
           accountId: accountId || null,
           paymentMethod: paymentMethod || "cash",
           paidAt: now,
-          notes: notes || "",
+          notes: `[${typeLabel}] ${notes || ""}`.trim(),
           createdBy: actorName,
         });
 
-        const monthKey = new Date().toLocaleString("en-US", { month: "long", year: "numeric" }).toUpperCase().replace(" ", "-");
+        // Use selected month for expense record (e.g. "2026-06" -> "JUNE-2026")
+        const [yr, mo] = month.split("-");
+        const monthNames = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+        const monthKey = `${monthNames[parseInt(mo, 10) - 1]}-${yr}`;
         await db.insert(expenses).values({
           amount,
           category: "Salary",
           customCategory: "",
-          purpose: `Salary for ${emp.name} (${month})`,
+          purpose: `${typeLabel} for ${emp.name} (${month})${notes ? " - " + notes : ""}`,
           billImageLink: "",
           vendorId: null,
           accountId: accountId || null,

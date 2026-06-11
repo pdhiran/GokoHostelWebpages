@@ -72,6 +72,7 @@ export function AccountSettings({ password, username, role }: { password: string
   const [salaryMethod, setSalaryMethod] = useState("cash");
   const [salaryAccountId, setSalaryAccountId] = useState("");
   const [salaryNotes, setSalaryNotes] = useState("");
+  const [salaryPayType, setSalaryPayType] = useState("salary");
   const [payingSalary, setPayingSalary] = useState(false);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
@@ -164,6 +165,7 @@ export function AccountSettings({ password, username, role }: { password: string
     setPayingEmployee(emp);
     setSalaryAmount((emp.salary / 100).toFixed(0));
     setSalaryNotes("");
+    setSalaryPayType("salary");
     const defaultAcc = accounts.find((a) => a.isDefault);
     if (defaultAcc) setSalaryAccountId(String(defaultAcc.id));
   };
@@ -181,6 +183,7 @@ export function AccountSettings({ password, username, role }: { password: string
         month: salaryMonth,
         accountId: salaryMethod === "online" && salaryAccountId ? parseInt(salaryAccountId) : null,
         paymentMethod: salaryMethod,
+        payType: salaryPayType,
         notes: salaryNotes,
       });
       setPayingEmployee(null);
@@ -395,15 +398,25 @@ export function AccountSettings({ password, username, role }: { password: string
         )}
       </div>
 
-      {/* Salary Payment Modal */}
+      {/* Salary/Bonus/Advance/Loan Payment Modal */}
       {payingEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
-            <h4 className="font-display text-base font-bold text-brand-green-dark">Pay Salary</h4>
+            <h4 className="font-display text-base font-bold text-brand-green-dark">Pay Employee</h4>
             <p className="mt-1 text-xs text-brand-green-dark/60">
               {payingEmployee.name} · {payingEmployee.role || "Staff"}
             </p>
             <div className="mt-4 space-y-3">
+              <div>
+                <Label className="text-xs">Payment Type</Label>
+                <select value={salaryPayType} onChange={(e) => setSalaryPayType(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs">
+                  <option value="salary">Salary</option>
+                  <option value="bonus">Bonus</option>
+                  <option value="advance">Advance / Early Salary</option>
+                  <option value="loan">Loan</option>
+                  <option value="reimbursement">Reimbursement</option>
+                </select>
+              </div>
               <div>
                 <Label className="text-xs">Amount (₹)</Label>
                 <Input type="number" min="0" step="1" value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} className="mt-1 h-8 text-xs" />
@@ -436,7 +449,7 @@ export function AccountSettings({ password, username, role }: { password: string
             <div className="mt-5 flex gap-2">
               <Button type="button" onClick={submitSalaryPayment} disabled={payingSalary} className="flex-1 gap-1.5">
                 {payingSalary ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <IndianRupeeIcon className="h-3.5 w-3.5" />}
-                Pay ₹{salaryAmount || "0"}
+                Pay ₹{salaryAmount || "0"} ({salaryPayType})
               </Button>
               <Button type="button" variant="ghost" onClick={() => setPayingEmployee(null)}>Cancel</Button>
             </div>

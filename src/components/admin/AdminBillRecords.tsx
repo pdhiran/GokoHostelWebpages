@@ -69,7 +69,7 @@ export function AdminBillRecords({
         return (
           (exp.category || "").toLowerCase().includes(q) ||
           (exp.purpose || "").toLowerCase().includes(q) ||
-          (exp.submittedBy || "").toLowerCase().includes(q)
+          (exp.createdBy || "").toLowerCase().includes(q)
         );
       })
     : expenses;
@@ -224,7 +224,7 @@ export function AdminBillRecords({
                       <span className="text-brand-green-dark/40">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/70">{exp.submittedBy || "—"}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/70">{exp.createdBy || "—"}</td>
                   {role === "admin" && (
                     <td className="px-3 py-3">
                       <div className="flex gap-1">

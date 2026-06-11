@@ -58,7 +58,8 @@ type DaySummary = {
 };
 
 function getToday() {
-  return new Date().toISOString().split("T")[0];
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function formatDate(d: string) {
@@ -107,15 +108,18 @@ export function DailyLedger({ password, username, role }: { password: string; us
       if (res.ok) {
         const d = await res.json();
         setData(d);
-        if (d.accounts?.length > 0 && !incAccountId) {
-          const defaultAcc = d.accounts.find((a: Account) => a.id);
-          if (defaultAcc) setIncAccountId(String(defaultAcc.id));
-        }
       }
     } finally {
       setLoading(false);
     }
-  }, [apiCall, date, incAccountId]);
+  }, [apiCall, date]);
+
+  useEffect(() => {
+    if (data?.accounts?.length && !incAccountId) {
+      const defaultAcc = data.accounts.find((a: Account) => a.id);
+      if (defaultAcc) setIncAccountId(String(defaultAcc.id));
+    }
+  }, [data?.accounts]);
 
   useEffect(() => { loadDay(); }, [loadDay]);
 
