@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
         let unpaidOrders = 0;
 
         const guestMap = new Map<string, {
-          guestName: string; guestPhone: string; roomInfo: string;
+          guestName: string; guestPhone: string; roomInfo: string; checkinId: number | null;
           totalSpent: number; cashPaid: number; onlinePaid: number; unpaid: number; orderCount: number;
         }>();
 
@@ -262,7 +262,11 @@ export async function POST(req: NextRequest) {
             unpaidOrders += 1;
           }
 
-          const key = order.guestPhone || order.guestName;
+          // Group hostel guests by checkinId, walk-ins by name+phone
+          const key = order.checkinId
+            ? `checkin:${order.checkinId}`
+            : `walkin:${(order.guestName || "").toLowerCase().trim()}:${(order.guestPhone || "").trim()}`;
+
           const existing = guestMap.get(key);
           if (existing) {
             existing.totalSpent += order.total;
@@ -270,11 +274,15 @@ export async function POST(req: NextRequest) {
             if (order.paymentStatus === "paid" && order.paymentMethod === "cash") existing.cashPaid += order.total;
             else if (order.paymentStatus === "paid") existing.onlinePaid += order.total;
             else existing.unpaid += order.total;
+            // Update contact/room if available and currently missing
+            if (!existing.guestPhone && order.guestPhone) existing.guestPhone = order.guestPhone;
+            if (!existing.roomInfo && order.roomInfo) existing.roomInfo = order.roomInfo;
           } else {
             guestMap.set(key, {
               guestName: order.guestName,
               guestPhone: order.guestPhone,
               roomInfo: order.roomInfo || "",
+              checkinId: order.checkinId,
               totalSpent: order.total,
               cashPaid: order.paymentStatus === "paid" && order.paymentMethod === "cash" ? order.total : 0,
               onlinePaid: order.paymentStatus === "paid" && order.paymentMethod !== "cash" ? order.total : 0,
