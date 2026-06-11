@@ -12,6 +12,7 @@ import {
   ChevronRightIcon,
   Loader2Icon,
   LockIcon,
+  Undo2Icon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
@@ -50,6 +51,9 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
   const [actuals, setActuals] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [reconciled, setReconciled] = useState(false);
+  const [reconciledBy, setReconciledBy] = useState("");
+  const [reconciledAt, setReconciledAt] = useState("");
+  const [undoing, setUndoing] = useState(false);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -70,6 +74,8 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
         setBalances(d.balances || []);
         setReconciled(d.isReconciled || false);
         setNotes(d.notes || "");
+        setReconciledBy(d.reconciledBy || "");
+        setReconciledAt(d.reconciledAt || "");
         const initialActuals: Record<string, string> = {};
         for (const b of d.balances || []) {
           const key = b.accountId != null ? String(b.accountId) : "cash";
@@ -119,6 +125,19 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
     loadReconciliation();
   };
 
+  const undoReconciliation = async () => {
+    if (!confirm("Are you sure you want to undo the reconciliation for this day? This will clear all actual closing balances.")) return;
+    setUndoing(true);
+    try {
+      const res = await apiCall({ action: "undoReconciliation", date });
+      if (res.ok) {
+        await loadReconciliation();
+      }
+    } finally {
+      setUndoing(false);
+    }
+  };
+
   const shiftDate = (days: number) => {
     const [y, m, d] = date.split("-").map(Number);
     const next = new Date(y, m - 1, d + days);
@@ -153,9 +172,31 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
       </div>
 
       {reconciled && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <LockIcon className="h-4 w-4 text-emerald-600" />
-          <span className="text-sm font-medium text-emerald-700">This day has been reconciled.</span>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <LockIcon className="h-4 w-4 text-emerald-600" />
+              <div>
+                <span className="text-sm font-medium text-emerald-700">This day has been reconciled.</span>
+                {reconciledBy && (
+                  <p className="text-[10px] text-emerald-600/70">
+                    By {reconciledBy}{reconciledAt ? ` on ${new Date(reconciledAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })}` : ""}
+                  </p>
+                )}
+              </div>
+            </div>
+            {role === "admin" && (
+              <button
+                type="button"
+                onClick={undoReconciliation}
+                disabled={undoing}
+                className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {undoing ? <Loader2Icon className="h-3 w-3 animate-spin" /> : <Undo2Icon className="h-3 w-3" />}
+                Undo
+              </button>
+            )}
+          </div>
         </div>
       )}
 

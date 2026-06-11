@@ -481,8 +481,10 @@ export async function POST(req: NextRequest) {
 
         const isReconciled = ledgerEntries.every((l) => l.isReconciled) && ledgerEntries.length > 0;
         const notes = ledgerEntries[0]?.notes || "";
+        const reconciledBy = ledgerEntries[0]?.reconciledBy || "";
+        const reconciledAt = ledgerEntries[0]?.reconciledAt || "";
 
-        return NextResponse.json({ balances, isReconciled, notes });
+        return NextResponse.json({ balances, isReconciled, notes, reconciledBy, reconciledAt });
       }
 
       case "saveReconciliation": {
@@ -554,6 +556,24 @@ export async function POST(req: NextRequest) {
             });
           }
         }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case "undoReconciliation": {
+        if (role !== "admin") {
+          return NextResponse.json({ error: "Admin only" }, { status: 403 });
+        }
+        const { date } = rest;
+        if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
+
+        const db = getDb();
+        await db.update(dailyLedger).set({
+          isReconciled: 0,
+          reconciledBy: null,
+          reconciledAt: null,
+          actualClosing: null,
+        }).where(eq(dailyLedger.date, date));
 
         return NextResponse.json({ success: true });
       }
