@@ -426,10 +426,10 @@ export async function POST(req: NextRequest) {
           and(sql`${expenses.createdAt} >= ${date}`, sql`${expenses.createdAt} <= ${date + "T23:59:59"}`)
         );
 
-        // Get previous day's ledger for rolling balances
-        const prevDate = new Date(date + "T00:00:00");
-        prevDate.setDate(prevDate.getDate() - 1);
-        const prevDateStr = prevDate.toISOString().split("T")[0];
+        // Get previous day's ledger for rolling balances (use date arithmetic to avoid timezone issues)
+        const [year, month, day] = date.split("-").map(Number);
+        const prevDateObj = new Date(year, month - 1, day - 1);
+        const prevDateStr = `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, "0")}-${String(prevDateObj.getDate()).padStart(2, "0")}`;
         const prevLedgerEntries = await db.select().from(dailyLedger).where(eq(dailyLedger.date, prevDateStr));
 
         // Build balance for each account + cash
@@ -486,10 +486,10 @@ export async function POST(req: NextRequest) {
         );
         const allAccounts = await db.select().from(accounts).where(eq(accounts.isActive, 1));
 
-        // Get previous day's ledger for rolling opening balances
-        const prevDate = new Date(date + "T00:00:00");
-        prevDate.setDate(prevDate.getDate() - 1);
-        const prevDateStr = prevDate.toISOString().split("T")[0];
+        // Get previous day's ledger for rolling opening balances (timezone-safe)
+        const [yr, mo, dy] = date.split("-").map(Number);
+        const prevDateObj = new Date(yr, mo - 1, dy - 1);
+        const prevDateStr = `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, "0")}-${String(prevDateObj.getDate()).padStart(2, "0")}`;
         const prevLedgerEntries = await db.select().from(dailyLedger).where(eq(dailyLedger.date, prevDateStr));
         const existingLedger = await db.select().from(dailyLedger).where(eq(dailyLedger.date, date));
 

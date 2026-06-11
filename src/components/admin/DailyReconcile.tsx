@@ -120,9 +120,9 @@ export function DailyReconcile({ password, username, role }: { password: string;
   };
 
   const shiftDate = (days: number) => {
-    const d = new Date(date + "T00:00:00");
-    d.setDate(d.getDate() + days);
-    setDate(d.toISOString().split("T")[0]);
+    const [y, m, d] = date.split("-").map(Number);
+    const next = new Date(y, m - 1, d + days);
+    setDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`);
   };
 
   return (

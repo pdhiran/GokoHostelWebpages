@@ -12,7 +12,6 @@ import {
   ChevronRightIcon,
   IndianRupeeIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
 
@@ -155,16 +154,16 @@ export function DailyLedger({ password, username, role }: { password: string; us
   };
 
   const shiftDate = (days: number) => {
-    const d = new Date(date + "T00:00:00");
-    d.setDate(d.getDate() + days);
-    setDate(d.toISOString().split("T")[0]);
+    const [y, m, d] = date.split("-").map(Number);
+    const next = new Date(y, m - 1, d + days);
+    setDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`);
   };
 
   const totalIncome = data?.incomeEntries.reduce((s, e) => s + e.amount, 0) || 0;
   const totalExpense = data?.expenseEntries.reduce((s, e) => s + e.amount, 0) || 0;
   const foodRevenue = data?.foodRevenue || 0;
-  const totalRevenue = totalIncome;
-  const stayRevenue = totalRevenue - foodRevenue;
+  const stayRevenue = data?.incomeEntries.filter((e) => e.source === "stay").reduce((s, e) => s + e.amount, 0) || 0;
+  const totalRevenue = totalIncome + foodRevenue;
 
   return (
     <div className="space-y-6">
@@ -198,22 +197,28 @@ export function DailyLedger({ password, username, role }: { password: string; us
       ) : (
         <>
           {/* Day Summary Cards */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
-              <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Total Income</p>
-              <p className="mt-1 text-lg font-bold text-emerald-700 sm:text-xl">₹{(totalIncome / 100).toFixed(0)}</p>
+              <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Total Revenue</p>
+              <p className="mt-1 text-lg font-bold text-brand-green-dark sm:text-xl">₹{(totalRevenue / 100).toFixed(0)}</p>
             </div>
             <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
-              <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Total Expense</p>
-              <p className="mt-1 text-lg font-bold text-red-600 sm:text-xl">₹{(totalExpense / 100).toFixed(0)}</p>
+              <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Stay Revenue</p>
+              <p className="mt-1 text-lg font-bold text-emerald-700 sm:text-xl">₹{(stayRevenue / 100).toFixed(0)}</p>
             </div>
             <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
               <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Food Revenue</p>
               <p className="mt-1 text-lg font-bold text-blue-700 sm:text-xl">₹{(foodRevenue / 100).toFixed(0)}</p>
             </div>
             <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
-              <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Stay Revenue</p>
-              <p className="mt-1 text-lg font-bold text-brand-green-dark sm:text-xl">₹{(stayRevenue / 100).toFixed(0)}</p>
+              <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Total Expense</p>
+              <p className="mt-1 text-lg font-bold text-red-600 sm:text-xl">₹{(totalExpense / 100).toFixed(0)}</p>
+            </div>
+            <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+              <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Net (Income - Expense)</p>
+              <p className={`mt-1 text-lg font-bold sm:text-xl ${(totalRevenue - totalExpense) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                ₹{((totalRevenue - totalExpense) / 100).toFixed(0)}
+              </p>
             </div>
           </div>
 

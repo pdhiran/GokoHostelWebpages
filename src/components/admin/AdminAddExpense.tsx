@@ -115,6 +115,7 @@ export function AdminAddExpense({
     if (!amountNum || amountNum <= 0) { setError("Please enter a valid amount"); return; }
     if (!subCategory) { setError("Please select a category"); return; }
     if (subCategory === "Others" && !customCategory.trim()) { setError("Please enter a description for Others"); return; }
+    if (paymentMethod === "online" && !accountId) { setError("Please select an account for online payment"); return; }
 
     setSubmitting(true);
     try {

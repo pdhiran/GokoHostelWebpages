@@ -174,6 +174,7 @@ export function AccountSettings({ password, username, role }: { password: string
     if (!payingEmployee) return;
     const amt = parseFloat(salaryAmount);
     if (!amt || amt <= 0) return;
+    if (salaryMethod === "online" && !salaryAccountId) { alert("Please select an account for online payment"); return; }
     setPayingSalary(true);
     try {
       await apiCall({
