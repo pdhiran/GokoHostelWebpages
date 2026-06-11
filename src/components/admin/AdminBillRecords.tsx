@@ -212,14 +212,19 @@ export function AdminBillRecords({
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     {exp.billImageLink ? (
-                      <a
-                        href={exp.billImageLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-xs font-medium text-brand-green hover:bg-brand-green/[0.12]"
-                      >
-                        View <ExternalLinkIcon className="h-3 w-3" />
-                      </a>
+                      <span className="inline-flex flex-wrap gap-1">
+                        {exp.billImageLink.split(",").map((link: string, li: number) => (
+                          <a
+                            key={li}
+                            href={link.trim()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-xs font-medium text-brand-green hover:bg-brand-green/[0.12]"
+                          >
+                            {exp.billImageLink.includes(",") ? `#${li + 1}` : "View"} <ExternalLinkIcon className="h-3 w-3" />
+                          </a>
+                        ))}
+                      </span>
                     ) : (
                       <span className="text-brand-green-dark/40">—</span>
                     )}

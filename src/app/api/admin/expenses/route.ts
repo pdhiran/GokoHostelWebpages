@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case "addExpense": {
-        const { amount, category, customCategory, purpose, billImage, billMimeType, vendorId, accountId, paymentMethod, mainCategory, subCategory } = rest;
+        const { amount, category, customCategory, purpose, billImage, billMimeType, billImages, vendorId, accountId, paymentMethod, mainCategory, subCategory } = rest;
         if (!amount || !category) {
           return NextResponse.json({ error: "amount and category are required" }, { status: 400 });
         }
@@ -84,26 +84,36 @@ export async function POST(req: NextRequest) {
         const month = getMonthKey();
         let billImageLink = "";
 
-        if (billImage) {
-          try {
-            const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-            if (!rootFolderId) throw new Error("GOOGLE_DRIVE_FOLDER_ID not set");
+        const uploadOneImage = async (base64Data: string, mimeType: string, folderId: string): Promise<string> => {
+          const binaryStr = atob(base64Data);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          const ext = mimeType.includes("png") ? "png" : "jpg";
+          const fileName = `bill_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+          return driveUploadFile(fileName, mimeType, bytes.buffer, folderId);
+        };
 
+        try {
+          const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+          if (rootFolderId && (billImage || (billImages && billImages.length > 0))) {
             const billsFolderId = await driveGetOrCreateFolder(rootFolderId, "Goko Bills");
             const monthFolderId = await driveGetOrCreateFolder(billsFolderId, month);
 
-            const binaryStr = atob(billImage);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
+            if (billImages && Array.isArray(billImages) && billImages.length > 0) {
+              const links: string[] = [];
+              for (const img of billImages as { data: string; mime: string }[]) {
+                const link = await uploadOneImage(img.data, img.mime || "image/jpeg", monthFolderId);
+                if (link) links.push(link);
+              }
+              billImageLink = links.join(",");
+            } else if (billImage) {
+              billImageLink = await uploadOneImage(billImage, billMimeType || "image/jpeg", monthFolderId);
             }
-
-            const mime = billMimeType || "image/jpeg";
-            const fileName = `bill_${Date.now()}.jpg`;
-            billImageLink = await driveUploadFile(fileName, mime, bytes.buffer, monthFolderId);
-          } catch (err: any) {
-            await addSystemLog({ level: "error", source: "expenses", message: "Bill upload failed", details: err?.message || String(err) });
           }
+        } catch (err: any) {
+          await addSystemLog({ level: "error", source: "expenses", message: "Bill upload failed", details: err?.message || String(err) });
         }
 
         await addExpense({

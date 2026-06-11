@@ -38,8 +38,8 @@ export function AdminAddExpense({
   const [vendorId, setVendorId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [accountId, setAccountId] = useState("");
-  const [billFile, setBillFile] = useState<File | null>(null);
-  const [billPreview, setBillPreview] = useState<string | null>(null);
+  const [billFiles, setBillFiles] = useState<File[]>([]);
+  const [billPreviews, setBillPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -93,18 +93,23 @@ export function AdminAddExpense({
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setBillFile(file);
-    if (file) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setBillFiles((prev) => [...prev, ...files]);
+    for (const file of files) {
       const reader = new FileReader();
-      reader.onload = () => setBillPreview(reader.result as string);
+      reader.onload = () => setBillPreviews((prev) => [...prev, reader.result as string]);
       reader.readAsDataURL(file);
-    } else {
-      setBillPreview(null);
     }
+    e.target.value = "";
   };
 
-  const clearFile = () => { setBillFile(null); setBillPreview(null); };
+  const removeFile = (index: number) => {
+    setBillFiles((prev) => prev.filter((_, i) => i !== index));
+    setBillPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearFiles = () => { setBillFiles([]); setBillPreviews([]); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,14 +137,22 @@ export function AdminAddExpense({
         accountId: paymentMethod === "online" && accountId ? parseInt(accountId) : undefined,
       };
 
-      if (billFile) {
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => { resolve((reader.result as string).split(",")[1]); };
-          reader.readAsDataURL(billFile);
-        });
-        body.billImage = base64;
-        body.billMimeType = billFile.type;
+      if (billFiles.length > 0) {
+        const images: { data: string; mime: string }[] = [];
+        for (const file of billFiles) {
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => { resolve((reader.result as string).split(",")[1]); };
+            reader.readAsDataURL(file);
+          });
+          images.push({ data: base64, mime: file.type });
+        }
+        if (images.length === 1) {
+          body.billImage = images[0].data;
+          body.billMimeType = images[0].mime;
+        } else {
+          body.billImages = images;
+        }
       }
 
       const res = await expenseApi(body);
@@ -150,7 +163,7 @@ export function AdminAddExpense({
         setCustomCategory("");
         setPurpose("");
         setVendorId("");
-        clearFile();
+        clearFiles();
         loadData();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -281,23 +294,34 @@ export function AdminAddExpense({
             />
           </div>
 
-          {/* Bill Photo */}
+          {/* Bill Photos */}
           <div className="sm:col-span-2">
-            <Label className="text-xs">Bill Photo (optional)</Label>
+            <Label className="text-xs">Bill Photos (optional)</Label>
             <div className="mt-1 flex flex-wrap items-center gap-3">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-brand-sand/50">
                 <ImageIcon className="h-4 w-4 text-brand-green" />
-                {billFile ? "Change photo" : "Choose photo"}
-                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                {billFiles.length > 0 ? "Add more" : "Choose photo"}
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
               </label>
-              {billFile && (
-                <button type="button" onClick={clearFile} className="text-xs text-red-500 hover:text-red-700">
-                  <XIcon className="h-4 w-4" />
-                </button>
+              {billFiles.length > 0 && (
+                <span className="text-xs text-brand-green-dark/60">{billFiles.length} photo{billFiles.length > 1 ? "s" : ""} selected</span>
               )}
             </div>
-            {billPreview && (
-              <img src={billPreview} alt="Bill preview" className="mt-2 h-32 w-auto rounded-lg border border-brand-mist object-cover" />
+            {billPreviews.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {billPreviews.map((preview, i) => (
+                  <div key={i} className="relative">
+                    <img src={preview} alt={`Bill ${i + 1}`} className="h-24 w-auto rounded-lg border border-brand-mist object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-white shadow-sm hover:bg-red-600"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -350,9 +374,13 @@ export function AdminAddExpense({
                     <td className="max-w-[200px] truncate px-3 py-3 text-brand-green-dark/70">{exp.purpose || "—"}</td>
                     <td className="whitespace-nowrap px-3 py-3">
                       {exp.billImageLink ? (
-                        <a href={exp.billImageLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-xs font-medium text-brand-green hover:bg-brand-green/[0.12]">
-                          View <ExternalLinkIcon className="h-3 w-3" />
-                        </a>
+                        <span className="inline-flex flex-wrap gap-1">
+                          {exp.billImageLink.split(",").map((link: string, li: number) => (
+                            <a key={li} href={link.trim()} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-xs font-medium text-brand-green hover:bg-brand-green/[0.12]">
+                              {exp.billImageLink.includes(",") ? `#${li + 1}` : "View"} <ExternalLinkIcon className="h-3 w-3" />
+                            </a>
+                          ))}
+                        </span>
                       ) : (
                         <span className="text-brand-green-dark/40">—</span>
                       )}
