@@ -13,7 +13,10 @@ import {
   UsersIcon,
   StoreIcon,
   IndianRupeeIcon,
+  UploadIcon,
 } from "lucide-react";
+import { BulkExpenseImport } from "./BulkExpenseImport";
+import { BulkIncomeImport } from "./BulkIncomeImport";
 import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
@@ -45,7 +48,7 @@ const ACCOUNT_TYPES = [
   { id: "cash", label: "Cash" },
 ];
 
-type SettingsSection = "accounts" | "employees" | "vendors";
+type SettingsSection = "accounts" | "employees" | "vendors" | "bulkExpenses" | "bulkIncome";
 
 export function AccountSettings({ password, username, role }: { password: string; username?: string; role: Role }) {
   const [section, setSection] = useState<SettingsSection>("accounts");
@@ -199,11 +202,13 @@ export function AccountSettings({ password, username, role }: { password: string
   return (
     <div className="space-y-6">
       {/* Section Tabs */}
-      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white p-1">
+      <div className="flex flex-wrap gap-1 rounded-lg border border-brand-mist bg-white p-1">
         {([
           { id: "accounts" as SettingsSection, label: "Accounts", icon: <BanknoteIcon className="h-3.5 w-3.5" /> },
           { id: "employees" as SettingsSection, label: "Employees", icon: <UsersIcon className="h-3.5 w-3.5" /> },
           { id: "vendors" as SettingsSection, label: "Vendors", icon: <StoreIcon className="h-3.5 w-3.5" /> },
+          { id: "bulkExpenses" as SettingsSection, label: "Bulk Expenses", icon: <UploadIcon className="h-3.5 w-3.5" /> },
+          { id: "bulkIncome" as SettingsSection, label: "Bulk Income", icon: <UploadIcon className="h-3.5 w-3.5" /> },
         ]).map((s) => (
           <button
             key={s.id}
@@ -219,8 +224,16 @@ export function AccountSettings({ password, username, role }: { password: string
         ))}
       </div>
 
+      {/* Bulk upload sections */}
+      {section === "bulkExpenses" && (
+        <BulkExpenseImport password={password} username={username} role={role} />
+      )}
+      {section === "bulkIncome" && (
+        <BulkIncomeImport password={password} username={username} role={role} />
+      )}
+
       {/* List + Add button */}
-      <div className="flex items-center justify-between">
+      {(section === "accounts" || section === "employees" || section === "vendors") && <><div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-brand-green-dark capitalize">{section} ({
           section === "accounts" ? accounts.length : section === "vendors" ? vendors.length : employees.length
         })</h3>
@@ -398,6 +411,7 @@ export function AccountSettings({ password, username, role }: { password: string
           <p className="py-8 text-center text-sm text-brand-green-dark/50">No {section} configured yet.</p>
         )}
       </div>
+      </>}
 
       {/* Salary/Bonus/Advance/Loan Payment Modal */}
       {payingEmployee && (
