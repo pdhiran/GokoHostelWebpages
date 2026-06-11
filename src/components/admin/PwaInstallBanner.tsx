@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { DownloadIcon, BellIcon, SmartphoneIcon, XIcon, CheckCircleIcon, Loader2Icon, LockIcon, UnlockIcon } from "lucide-react";
+import { DownloadIcon, BellIcon, SmartphoneIcon, XIcon, CheckCircleIcon, Loader2Icon } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -116,31 +116,11 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     }
   }, [swRegistration, password, username, subscribing]);
 
-  const [orientationLocked, setOrientationLocked] = useState(false);
-
-  const handleToggleOrientationLock = useCallback(async () => {
-    try {
-      const so = screen.orientation as any;
-      if (orientationLocked) {
-        if (so?.unlock) so.unlock();
-        setOrientationLocked(false);
-      } else {
-        if (!so?.lock) return;
-        const current = so.type as string;
-        await so.lock(current);
-        setOrientationLocked(true);
-      }
-    } catch {
-      // Screen orientation lock not supported or denied
-    }
-  }, [orientationLocked]);
-
   const showInstallButton = installPrompt && !isStandalone && !installed;
   const showIosInstall = isIos && !isStandalone && !installed;
   const showPushButton = pushSupported && !pushSubscribed && VAPID_PUBLIC_KEY;
-  const showRotateButton = isStandalone;
 
-  if (!showInstallButton && !showIosInstall && !showPushButton && !pushSubscribed && !showRotateButton) {
+  if (!showInstallButton && !showIosInstall && !showPushButton && !pushSubscribed) {
     return null;
   }
 
@@ -201,19 +181,6 @@ export function PwaInstallBanner({ password, username }: { password: string; use
           </span>
         )}
 
-        {/* Lock/unlock orientation (PWA only) */}
-        {showRotateButton && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleToggleOrientationLock}
-            title={orientationLocked ? "Unlock rotation" : "Lock rotation"}
-            className={orientationLocked ? "text-brand-green" : ""}
-          >
-            {orientationLocked ? <LockIcon className="h-3.5 w-3.5" /> : <UnlockIcon className="h-3.5 w-3.5" />}
-          </Button>
-        )}
       </div>
 
       {/* iOS instructions modal */}

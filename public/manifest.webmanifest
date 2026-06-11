@@ -7,7 +7,6 @@
   "display": "standalone",
   "theme_color": "#2d5c3f",
   "background_color": "#faf8f4",
-  "orientation": "any",
   "id": "/admin",
   "icons": [
     {
