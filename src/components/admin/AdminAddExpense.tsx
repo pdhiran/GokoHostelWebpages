@@ -5,11 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2Icon, ExternalLinkIcon, ImageIcon, XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
 
-const CATEGORIES = ["Groceries", "Utilities", "Maintenance", "Supplies", "Transport", "Wages", "Other"];
+const MAIN_CATEGORIES = [
+  { id: "stay_expense", label: "Stay Expense" },
+  { id: "food_expense", label: "Food Expense" },
+];
+
+const SUB_CATEGORIES = [
+  "Salary", "Rent", "Utilities", "Groceries", "Capital",
+  "Maintenance", "Supplies", "Transport", "Miscellaneous", "Others",
+];
+
+type Account = { id: number; name: string; nickname: string };
+type Vendor = { id: number; name: string; category: string };
 
 export function AdminAddExpense({
   password,
@@ -21,15 +31,21 @@ export function AdminAddExpense({
   role: Role;
 }) {
   const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("");
+  const [mainCategory, setMainCategory] = useState("stay_expense");
+  const [subCategory, setSubCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [vendorId, setVendorId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [accountId, setAccountId] = useState("");
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billPreview, setBillPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [recentExpenses, setRecentExpenses] = useState<any[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
 
@@ -43,24 +59,38 @@ export function AdminAddExpense({
     });
   }, [password, username]);
 
-  const loadRecent = useCallback(async () => {
+  const settingsApi = useCallback(async (body: Record<string, any>) => {
+    const payload: Record<string, any> = { password, ...body };
+    if (username) payload.username = username;
+    return fetch("/api/admin/account-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  }, [password, username]);
+
+  const loadData = useCallback(async () => {
     setLoadingRecent(true);
     try {
-      const res = await expenseApi({ action: "getMyExpenses" });
-      if (res.ok) {
-        const data = await res.json();
-        setRecentExpenses(data.expenses || []);
+      const [recentRes, vendorRes, accRes] = await Promise.all([
+        expenseApi({ action: "getMyExpenses" }),
+        settingsApi({ action: "listVendors" }),
+        settingsApi({ action: "listAccounts" }),
+      ]);
+      if (recentRes.ok) { const d = await recentRes.json(); setRecentExpenses(d.expenses || []); }
+      if (vendorRes.ok) { const d = await vendorRes.json(); setVendors(d.vendors || []); }
+      if (accRes.ok) {
+        const d = await accRes.json();
+        setAccounts(d.accounts || []);
+        const defaultAcc = (d.accounts || []).find((a: any) => a.isDefault);
+        if (defaultAcc) setAccountId(String(defaultAcc.id));
       }
-    } catch {
-      // ignore
     } finally {
       setLoadingRecent(false);
     }
-  }, [expenseApi]);
+  }, [expenseApi, settingsApi]);
 
-  useEffect(() => {
-    loadRecent();
-  }, [loadRecent]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -74,10 +104,7 @@ export function AdminAddExpense({
     }
   };
 
-  const clearFile = () => {
-    setBillFile(null);
-    setBillPreview(null);
-  };
+  const clearFile = () => { setBillFile(null); setBillPreview(null); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,52 +112,45 @@ export function AdminAddExpense({
     setSuccess("");
 
     const amountNum = parseFloat(amount);
-    if (!amountNum || amountNum <= 0) {
-      setError("Please enter a valid amount");
-      return;
-    }
-    if (!category) {
-      setError("Please select a category");
-      return;
-    }
-    if (category === "Other" && !customCategory.trim()) {
-      setError("Please enter a custom category name");
-      return;
-    }
+    if (!amountNum || amountNum <= 0) { setError("Please enter a valid amount"); return; }
+    if (!subCategory) { setError("Please select a category"); return; }
+    if (subCategory === "Others" && !customCategory.trim()) { setError("Please enter a description for Others"); return; }
 
     setSubmitting(true);
     try {
       const body: Record<string, any> = {
         action: "addExpense",
         amount: Math.round(amountNum * 100),
-        category: category === "Other" ? customCategory.trim() : category,
-        customCategory: category === "Other" ? customCategory.trim() : undefined,
-        purpose: purpose.trim(),
+        category: subCategory === "Others" ? customCategory.trim() : subCategory,
+        customCategory: subCategory === "Others" ? customCategory.trim() : undefined,
+        purpose: purpose.trim() || (subCategory === "Others" ? customCategory.trim() : subCategory),
+        mainCategory,
+        subCategory,
+        vendorId: vendorId ? parseInt(vendorId) : undefined,
+        paymentMethod,
+        accountId: paymentMethod === "online" && accountId ? parseInt(accountId) : undefined,
       };
 
       if (billFile) {
         const base64 = await new Promise<string>((resolve) => {
           const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(",")[1]);
-          };
+          reader.onload = () => { resolve((reader.result as string).split(",")[1]); };
           reader.readAsDataURL(billFile);
         });
-        body.billImageFile = base64;
-        body.billImageName = billFile.name || `bill_${Date.now()}.jpg`;
-        body.billImageMime = billFile.type;
+        body.billImage = base64;
+        body.billMimeType = billFile.type;
       }
 
       const res = await expenseApi(body);
       if (res.ok) {
         setSuccess("Expense submitted successfully!");
         setAmount("");
-        setCategory("");
+        setSubCategory("");
         setCustomCategory("");
         setPurpose("");
+        setVendorId("");
         clearFile();
-        loadRecent();
+        loadData();
       } else {
         const data = await res.json().catch(() => ({}));
         setError(data.error || "Failed to submit expense");
@@ -144,11 +164,12 @@ export function AdminAddExpense({
 
   return (
     <div>
-      <form onSubmit={handleSubmit} className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+      <form onSubmit={handleSubmit} className="rounded-2xl border border-brand-mist bg-white p-4 shadow-card sm:p-5">
         <h3 className="font-display text-lg font-bold text-brand-green-dark">Add Expense</h3>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {/* Amount */}
           <div>
-            <Label className="text-xs">Amount (₹)</Label>
+            <Label className="text-xs">Amount (₹) *</Label>
             <Input
               type="number"
               min="0"
@@ -159,52 +180,114 @@ export function AdminAddExpense({
               className="mt-1"
             />
           </div>
+
+          {/* Main Category */}
           <div>
-            <Label className="text-xs">Category</Label>
+            <Label className="text-xs">Type</Label>
             <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              value={mainCategory}
+              onChange={(e) => setMainCategory(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {MAIN_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sub Category */}
+          <div>
+            <Label className="text-xs">Category *</Label>
+            <select
+              value={subCategory}
+              onChange={(e) => setSubCategory(e.target.value)}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">Select category...</option>
-              {CATEGORIES.map((c) => (
+              {SUB_CATEGORIES.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
-          {category === "Other" && (
+
+          {/* Vendor */}
+          <div>
+            <Label className="text-xs">Vendor (optional)</Label>
+            <select
+              value={vendorId}
+              onChange={(e) => setVendorId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">No vendor / Other</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}{v.category ? ` (${v.category})` : ""}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Payment Method */}
+          <div>
+            <Label className="text-xs">Payment Method</Label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="cash">Cash</option>
+              <option value="online">Online</option>
+            </select>
+          </div>
+
+          {/* Account (shown only for online) */}
+          {paymentMethod === "online" && (
+            <div>
+              <Label className="text-xs">Account</Label>
+              <select
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Select account...</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.nickname || a.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Custom category name for Others */}
+          {subCategory === "Others" && (
             <div className="sm:col-span-2">
-              <Label className="text-xs">Custom Category Name</Label>
+              <Label className="text-xs">Description / Reason *</Label>
               <Input
                 value={customCategory}
                 onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder="Enter category name"
+                placeholder="Enter expense description"
                 className="mt-1"
               />
             </div>
           )}
+
+          {/* Purpose */}
           <div className="sm:col-span-2">
-            <Label className="text-xs">Purpose / Notes</Label>
+            <Label className="text-xs">Notes (optional)</Label>
             <textarea
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
-              placeholder="Describe the expense..."
-              rows={3}
+              placeholder="Additional notes..."
+              rows={2}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
+
+          {/* Bill Photo */}
           <div className="sm:col-span-2">
             <Label className="text-xs">Bill Photo (optional)</Label>
-            <div className="mt-1 flex items-center gap-3">
+            <div className="mt-1 flex flex-wrap items-center gap-3">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-brand-sand/50">
                 <ImageIcon className="h-4 w-4 text-brand-green" />
                 {billFile ? "Change photo" : "Choose photo"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </label>
               {billFile && (
                 <button type="button" onClick={clearFile} className="text-xs text-red-500 hover:text-red-700">
@@ -213,11 +296,7 @@ export function AdminAddExpense({
               )}
             </div>
             {billPreview && (
-              <img
-                src={billPreview}
-                alt="Bill preview"
-                className="mt-2 h-32 w-auto rounded-lg border border-brand-mist object-cover"
-              />
+              <img src={billPreview} alt="Bill preview" className="mt-2 h-32 w-auto rounded-lg border border-brand-mist object-cover" />
             )}
           </div>
         </div>
@@ -236,6 +315,7 @@ export function AdminAddExpense({
         </div>
       </form>
 
+      {/* Recent Submissions */}
       <div className="mt-8">
         <h3 className="font-display text-lg font-bold text-brand-green-dark">
           Your Recent Submissions (Last 7 Days)
@@ -252,6 +332,7 @@ export function AdminAddExpense({
                   <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Date</th>
                   <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Category</th>
                   <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Amount</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Method</th>
                   <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Purpose</th>
                   <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Bill</th>
                 </tr>
@@ -262,19 +343,13 @@ export function AdminAddExpense({
                     <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/90">
                       {exp.createdAt ? new Date(exp.createdAt).toLocaleDateString() : "—"}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/90">{exp.category || "—"}</td>
-                    <td className="whitespace-nowrap px-3 py-3 font-medium text-brand-green-dark">
-                      ₹{(exp.amount / 100).toFixed(0)}
-                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/90">{exp.subCategory || exp.category || "—"}</td>
+                    <td className="whitespace-nowrap px-3 py-3 font-medium text-brand-green-dark">₹{(exp.amount / 100).toFixed(0)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/70">{exp.paymentMethod || "cash"}</td>
                     <td className="max-w-[200px] truncate px-3 py-3 text-brand-green-dark/70">{exp.purpose || "—"}</td>
                     <td className="whitespace-nowrap px-3 py-3">
                       {exp.billImageLink ? (
-                        <a
-                          href={exp.billImageLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-xs font-medium text-brand-green hover:bg-brand-green/[0.12]"
-                        >
+                        <a href={exp.billImageLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-xs font-medium text-brand-green hover:bg-brand-green/[0.12]">
                           View <ExternalLinkIcon className="h-3 w-3" />
                         </a>
                       ) : (

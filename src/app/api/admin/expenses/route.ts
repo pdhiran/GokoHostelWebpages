@@ -73,9 +73,9 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case "addExpense": {
-        const { amount, category, customCategory, purpose, billImage, billMimeType } = rest;
-        if (!amount || !category || !purpose) {
-          return NextResponse.json({ error: "amount, category, and purpose are required" }, { status: 400 });
+        const { amount, category, customCategory, purpose, billImage, billMimeType, vendorId, accountId, paymentMethod, mainCategory, subCategory } = rest;
+        if (!amount || !category) {
+          return NextResponse.json({ error: "amount and category are required" }, { status: 400 });
         }
         if (typeof amount !== "number" || amount <= 0) {
           return NextResponse.json({ error: "amount must be a positive integer (in paise)" }, { status: 400 });
@@ -110,10 +110,15 @@ export async function POST(req: NextRequest) {
           amount,
           category,
           customCategory: customCategory || "",
-          purpose,
+          purpose: purpose || category,
           billImageLink,
           createdBy: actorName,
           createdMonth: month,
+          vendorId: vendorId || null,
+          accountId: accountId || null,
+          paymentMethod: paymentMethod || "cash",
+          mainCategory: mainCategory || "stay_expense",
+          subCategory: subCategory || "",
         });
 
         await addAuditEntry({

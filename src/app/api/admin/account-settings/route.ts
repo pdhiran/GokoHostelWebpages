@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { accounts, vendors, employees, users } from "@/db/schema";
+import { accounts, vendors, employees, users, salaryPayments, expenses } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 async function hashPassword(password: string): Promise<string> {
@@ -159,6 +159,51 @@ export async function POST(req: NextRequest) {
         const { id } = rest;
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
         await db.delete(employees).where(eq(employees.id, id));
+        return NextResponse.json({ success: true });
+      }
+
+      // --- Salary Payments ---
+      case "paySalary": {
+        const { employeeId, amount, month, accountId, paymentMethod, notes } = rest;
+        if (!employeeId || !amount || !month) {
+          return NextResponse.json({ error: "employeeId, amount, and month required" }, { status: 400 });
+        }
+
+        const [emp] = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
+        if (!emp) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+
+        const now = new Date().toISOString();
+        const actorName = username || "admin";
+
+        await db.insert(salaryPayments).values({
+          employeeId,
+          amount,
+          month,
+          accountId: accountId || null,
+          paymentMethod: paymentMethod || "cash",
+          paidAt: now,
+          notes: notes || "",
+          createdBy: actorName,
+        });
+
+        const monthKey = new Date().toLocaleString("en-US", { month: "long", year: "numeric" }).toUpperCase().replace(" ", "-");
+        await db.insert(expenses).values({
+          amount,
+          category: "Salary",
+          customCategory: "",
+          purpose: `Salary for ${emp.name} (${month})`,
+          billImageLink: "",
+          vendorId: null,
+          accountId: accountId || null,
+          paymentMethod: paymentMethod || "cash",
+          mainCategory: "stay_expense",
+          subCategory: "Salary",
+          createdBy: actorName,
+          createdAt: now,
+          updatedAt: now,
+          createdMonth: monthKey,
+        });
+
         return NextResponse.json({ success: true });
       }
 

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
 
-const CATEGORIES = ["Groceries", "Utilities", "Maintenance", "Supplies", "Transport", "Wages", "Other"];
+const CATEGORIES = ["Salary", "Rent", "Utilities", "Groceries", "Capital", "Maintenance", "Supplies", "Transport", "Miscellaneous", "Others"];
 
 export function AdminBillRecords({
   password,

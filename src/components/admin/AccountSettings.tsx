@@ -12,6 +12,7 @@ import {
   BanknoteIcon,
   UsersIcon,
   StoreIcon,
+  IndianRupeeIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
@@ -60,6 +61,18 @@ export function AccountSettings({ password, username, role }: { password: string
 
   // Form states
   const [formData, setFormData] = useState<Record<string, string>>({});
+
+  // Salary payment
+  const [payingEmployee, setPayingEmployee] = useState<Employee | null>(null);
+  const [salaryAmount, setSalaryAmount] = useState("");
+  const [salaryMonth, setSalaryMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [salaryMethod, setSalaryMethod] = useState("cash");
+  const [salaryAccountId, setSalaryAccountId] = useState("");
+  const [salaryNotes, setSalaryNotes] = useState("");
+  const [payingSalary, setPayingSalary] = useState(false);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -145,6 +158,36 @@ export function AccountSettings({ password, username, role }: { password: string
 
   const updateField = (key: string, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const startPaySalary = (emp: Employee) => {
+    setPayingEmployee(emp);
+    setSalaryAmount((emp.salary / 100).toFixed(0));
+    setSalaryNotes("");
+    const defaultAcc = accounts.find((a) => a.isDefault);
+    if (defaultAcc) setSalaryAccountId(String(defaultAcc.id));
+  };
+
+  const submitSalaryPayment = async () => {
+    if (!payingEmployee) return;
+    const amt = parseFloat(salaryAmount);
+    if (!amt || amt <= 0) return;
+    setPayingSalary(true);
+    try {
+      await apiCall({
+        action: "paySalary",
+        employeeId: payingEmployee.id,
+        amount: Math.round(amt * 100),
+        month: salaryMonth,
+        accountId: salaryMethod === "online" && salaryAccountId ? parseInt(salaryAccountId) : null,
+        paymentMethod: salaryMethod,
+        notes: salaryNotes,
+      });
+      setPayingEmployee(null);
+      loadData();
+    } finally {
+      setPayingSalary(false);
+    }
   };
 
   if (loading) return <AdminLoading message="Loading settings..." />;
@@ -338,6 +381,9 @@ export function AccountSettings({ password, username, role }: { password: string
               </p>
             </div>
             <div className="flex gap-1">
+              <button type="button" onClick={() => startPaySalary(e)} className="rounded-md px-2 py-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Pay Salary">
+                <IndianRupeeIcon className="inline h-3 w-3" /> Pay
+              </button>
               <button type="button" onClick={() => startEdit(e)} className="rounded-md p-1.5 text-brand-green-dark/40 hover:bg-brand-sand hover:text-brand-green"><PencilIcon className="h-3.5 w-3.5" /></button>
               <button type="button" onClick={() => deleteItem(e.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button>
             </div>
@@ -348,6 +394,55 @@ export function AccountSettings({ password, username, role }: { password: string
           <p className="py-8 text-center text-sm text-brand-green-dark/50">No {section} configured yet.</p>
         )}
       </div>
+
+      {/* Salary Payment Modal */}
+      {payingEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
+            <h4 className="font-display text-base font-bold text-brand-green-dark">Pay Salary</h4>
+            <p className="mt-1 text-xs text-brand-green-dark/60">
+              {payingEmployee.name} · {payingEmployee.role || "Staff"}
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <Label className="text-xs">Amount (₹)</Label>
+                <Input type="number" min="0" step="1" value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} className="mt-1 h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="text-xs">Month</Label>
+                <Input type="month" value={salaryMonth} onChange={(e) => setSalaryMonth(e.target.value)} className="mt-1 h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="text-xs">Payment Method</Label>
+                <select value={salaryMethod} onChange={(e) => setSalaryMethod(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs">
+                  <option value="cash">Cash</option>
+                  <option value="online">Online</option>
+                </select>
+              </div>
+              {salaryMethod === "online" && (
+                <div>
+                  <Label className="text-xs">Account</Label>
+                  <select value={salaryAccountId} onChange={(e) => setSalaryAccountId(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs">
+                    <option value="">Select account...</option>
+                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.nickname || a.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <Label className="text-xs">Notes (optional)</Label>
+                <Input value={salaryNotes} onChange={(e) => setSalaryNotes(e.target.value)} className="mt-1 h-8 text-xs" placeholder="e.g. Advance, partial..." />
+              </div>
+            </div>
+            <div className="mt-5 flex gap-2">
+              <Button type="button" onClick={submitSalaryPayment} disabled={payingSalary} className="flex-1 gap-1.5">
+                {payingSalary ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <IndianRupeeIcon className="h-3.5 w-3.5" />}
+                Pay ₹{salaryAmount || "0"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setPayingEmployee(null)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
