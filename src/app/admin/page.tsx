@@ -256,7 +256,7 @@ export default function AdminPage() {
     { id: "timeline", label: "Timeline", icon: <CalendarDaysIcon className="h-4 w-4" /> },
     { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" /> },
     { id: "foodOrders", label: "Food Orders", icon: <span className="text-base leading-none">🍽️</span> },
-    { id: "expenditure", label: "Expenditure", icon: <WalletIcon className="h-4 w-4" /> },
+    { id: "expenditure", label: "Accounts", icon: <WalletIcon className="h-4 w-4" /> },
     { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" /> },
   ];
 

@@ -266,6 +266,100 @@ export const qrHistory = sqliteTable("qr_history", {
   index("idx_qr_history_created").on(table.createdAt),
 ]);
 
+// --- Accounts Module ---
+
+export const accounts = sqliteTable("accounts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  nickname: text("nickname").default(""),
+  bankName: text("bank_name").default(""),
+  accountType: text("account_type").notNull().default("savings"),
+  accountNumber: text("account_number").default(""),
+  ifscCode: text("ifsc_code").default(""),
+  isDefault: integer("is_default").notNull().default(0),
+  isActive: integer("is_active").notNull().default(1),
+  openingBalance: integer("opening_balance").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_accounts_active").on(table.isActive),
+]);
+
+export const vendors = sqliteTable("vendors", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  category: text("category").default(""),
+  contactPhone: text("contact_phone").default(""),
+  notes: text("notes").default(""),
+  isActive: integer("is_active").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_vendors_active").on(table.isActive),
+  index("idx_vendors_category").on(table.category),
+]);
+
+export const employees = sqliteTable("employees", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  role: text("role").default(""),
+  phone: text("phone").default(""),
+  salary: integer("salary").notNull().default(0),
+  salaryFrequency: text("salary_frequency").notNull().default("monthly"),
+  bankAccount: text("bank_account").default(""),
+  isActive: integer("is_active").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_employees_active").on(table.isActive),
+]);
+
+export const salaryPayments = sqliteTable("salary_payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  amount: integer("amount").notNull(),
+  month: text("month").notNull(),
+  accountId: integer("account_id").references(() => accounts.id),
+  paymentMethod: text("payment_method").notNull().default("cash"),
+  paidAt: text("paid_at").notNull(),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").notNull(),
+}, (table) => [
+  index("idx_salary_employee").on(table.employeeId),
+  index("idx_salary_month").on(table.month),
+]);
+
+export const dailyIncome = sqliteTable("daily_income", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull(),
+  accountId: integer("account_id").references(() => accounts.id),
+  type: text("type").notNull().default("cash"),
+  amount: integer("amount").notNull(),
+  source: text("source").notNull().default("stay"),
+  description: text("description").default(""),
+  foodRevenueAuto: integer("food_revenue_auto").notNull().default(0),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_daily_income_date").on(table.date),
+  index("idx_daily_income_account").on(table.accountId),
+]);
+
+export const dailyLedger = sqliteTable("daily_ledger", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull(),
+  accountId: integer("account_id").references(() => accounts.id),
+  openingBalance: integer("opening_balance").notNull().default(0),
+  totalIncome: integer("total_income").notNull().default(0),
+  totalExpense: integer("total_expense").notNull().default(0),
+  expectedClosing: integer("expected_closing").notNull().default(0),
+  actualClosing: integer("actual_closing"),
+  isReconciled: integer("is_reconciled").notNull().default(0),
+  reconciledBy: text("reconciled_by").default(""),
+  reconciledAt: text("reconciled_at").default(""),
+  notes: text("notes").default(""),
+}, (table) => [
+  index("idx_daily_ledger_date").on(table.date),
+  index("idx_daily_ledger_account").on(table.accountId),
+]);
+
 // --- Expenses ---
 
 export const expenses = sqliteTable("expenses", {
@@ -275,6 +369,11 @@ export const expenses = sqliteTable("expenses", {
   customCategory: text("custom_category").default(""),
   purpose: text("purpose").notNull().default(""),
   billImageLink: text("bill_image_link").default(""),
+  vendorId: integer("vendor_id"),
+  accountId: integer("account_id"),
+  paymentMethod: text("payment_method").default("cash"),
+  mainCategory: text("main_category").default("stay_expense"),
+  subCategory: text("sub_category").default(""),
   createdBy: text("created_by").notNull(),
   updatedBy: text("updated_by").default(""),
   createdAt: text("created_at").notNull(),

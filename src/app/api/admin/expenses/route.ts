@@ -12,7 +12,7 @@ import {
   getUserByUsername,
 } from "@/db/queries";
 import { getDb } from "@/db";
-import { foodOrders, checkins } from "@/db/schema";
+import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
 
@@ -318,6 +318,222 @@ export async function POST(req: NextRequest) {
           summary: { totalRevenue, cashPayments, onlinePayments, unpaidTabs, orderCount, cashOrders, onlineOrders, unpaidOrders },
           guestBreakdown,
         });
+      }
+
+      // --- Daily Ledger ---
+      case "getDailyLedger": {
+        const { date } = rest;
+        if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
+
+        const db = getDb();
+        const allAccounts = await db.select({ id: accounts.id, name: accounts.name, nickname: accounts.nickname }).from(accounts).where(eq(accounts.isActive, 1));
+
+        const incomeEntries = await db.select().from(dailyIncome).where(eq(dailyIncome.date, date)).orderBy(desc(dailyIncome.createdAt));
+
+        const dayExpenses = await db.select().from(expenses).where(
+          and(sql`${expenses.createdAt} >= ${date}`, sql`${expenses.createdAt} <= ${date + "T23:59:59"}`)
+        ).orderBy(desc(expenses.createdAt));
+
+        // Attach vendor names
+        const vendorIds = dayExpenses.filter((e) => e.vendorId).map((e) => e.vendorId!);
+        let vendorMap: Record<number, string> = {};
+        if (vendorIds.length > 0) {
+          const vendorRows = await db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(inArray(vendors.id, vendorIds));
+          for (const v of vendorRows) vendorMap[v.id] = v.name;
+        }
+
+        const expenseEntries = dayExpenses.map((e) => ({
+          ...e,
+          vendorName: e.vendorId ? vendorMap[e.vendorId] || "" : "",
+        }));
+
+        // Food revenue for the day (paid food orders)
+        const foodOrdersDay = await db.select({ total: foodOrders.total }).from(foodOrders).where(
+          and(
+            sql`${foodOrders.status} != 'cancelled'`,
+            sql`${foodOrders.paymentStatus} = 'paid'`,
+            sql`${foodOrders.createdAt} >= ${date}`,
+            sql`${foodOrders.createdAt} <= ${date + "T23:59:59"}`,
+          )
+        );
+        const foodRevenue = foodOrdersDay.reduce((s, o) => s + o.total, 0);
+
+        // Account-wise summaries
+        const accountSummaries = [
+          { accountId: null, accountName: "Cash", income: 0, expense: 0 },
+          ...allAccounts.map((a) => ({ accountId: a.id as number, accountName: a.nickname || a.name, income: 0, expense: 0 })),
+        ];
+        for (const inc of incomeEntries) {
+          const summary = accountSummaries.find((s) => s.accountId === inc.accountId) || accountSummaries[0];
+          summary.income += inc.amount;
+        }
+        for (const exp of dayExpenses) {
+          const summary = accountSummaries.find((s) => s.accountId === exp.accountId) || accountSummaries[0];
+          summary.expense += exp.amount;
+        }
+
+        return NextResponse.json({
+          incomeEntries,
+          expenseEntries,
+          accounts: allAccounts,
+          foodRevenue,
+          accountSummaries: accountSummaries.filter((s) => s.income > 0 || s.expense > 0),
+        });
+      }
+
+      case "addDailyIncome": {
+        const { date, accountId, type, amount, source, description } = rest;
+        if (!date || !amount) return NextResponse.json({ error: "date and amount required" }, { status: 400 });
+        const db = getDb();
+        await db.insert(dailyIncome).values({
+          date,
+          accountId: accountId || null,
+          type: type || "cash",
+          amount,
+          source: source || "stay",
+          description: description || "",
+          createdBy: username || displayName,
+          createdAt: new Date().toISOString(),
+        });
+        return NextResponse.json({ success: true });
+      }
+
+      case "deleteDailyIncome": {
+        const { id } = rest;
+        if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+        const db = getDb();
+        await db.delete(dailyIncome).where(eq(dailyIncome.id, id));
+        return NextResponse.json({ success: true });
+      }
+
+      // --- Reconciliation ---
+      case "getReconciliation": {
+        const { date } = rest;
+        if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
+
+        const db = getDb();
+        const allAccounts = await db.select().from(accounts).where(eq(accounts.isActive, 1));
+        const ledgerEntries = await db.select().from(dailyLedger).where(eq(dailyLedger.date, date));
+
+        // Get income/expense totals for the day
+        const incomeEntries = await db.select().from(dailyIncome).where(eq(dailyIncome.date, date));
+        const dayExpenses = await db.select().from(expenses).where(
+          and(sql`${expenses.createdAt} >= ${date}`, sql`${expenses.createdAt} <= ${date + "T23:59:59"}`)
+        );
+
+        // Build balance for each account + cash
+        const balances = [
+          { accountId: null, accountName: "Cash" },
+          ...allAccounts.map((a) => ({ accountId: a.id as number, accountName: (a.nickname || a.name) as string })),
+        ].map((acc) => {
+          const ledgerEntry = ledgerEntries.find((l) => l.accountId === acc.accountId);
+          const totalIncome = incomeEntries.filter((i) => i.accountId === acc.accountId).reduce((s, i) => s + i.amount, 0);
+          const totalExpense = dayExpenses.filter((e) => e.accountId === acc.accountId).reduce((s, e) => s + e.amount, 0);
+
+          // Opening balance: from ledger if exists, else from previous day's closing, else account opening balance
+          let openingBalance = ledgerEntry?.openingBalance ?? 0;
+          if (!ledgerEntry) {
+            const account = allAccounts.find((a) => a.id === acc.accountId);
+            openingBalance = account?.openingBalance ?? 0;
+          }
+
+          const expectedClosing = openingBalance + totalIncome - totalExpense;
+
+          return {
+            accountId: acc.accountId,
+            accountName: acc.accountName,
+            openingBalance,
+            totalIncome,
+            totalExpense,
+            expectedClosing,
+            actualClosing: ledgerEntry?.actualClosing ?? null,
+            isReconciled: !!ledgerEntry?.isReconciled,
+          };
+        });
+
+        const isReconciled = ledgerEntries.some((l) => l.isReconciled);
+        const notes = ledgerEntries[0]?.notes || "";
+
+        return NextResponse.json({ balances, isReconciled, notes });
+      }
+
+      case "saveReconciliation": {
+        const { date, entries, notes } = rest;
+        if (!date || !entries) return NextResponse.json({ error: "date and entries required" }, { status: 400 });
+
+        const db = getDb();
+        const incomeEntries = await db.select().from(dailyIncome).where(eq(dailyIncome.date, date));
+        const dayExpenses = await db.select().from(expenses).where(
+          and(sql`${expenses.createdAt} >= ${date}`, sql`${expenses.createdAt} <= ${date + "T23:59:59"}`)
+        );
+        const allAccounts = await db.select().from(accounts).where(eq(accounts.isActive, 1));
+
+        for (const entry of entries as { accountId: number | null; actualClosing: number | null }[]) {
+          const totalIncome = incomeEntries.filter((i) => i.accountId === entry.accountId).reduce((s, i) => s + i.amount, 0);
+          const totalExpense = dayExpenses.filter((e) => e.accountId === entry.accountId).reduce((s, e) => s + e.amount, 0);
+
+          const account = allAccounts.find((a) => a.id === entry.accountId);
+          const openingBalance = account?.openingBalance ?? 0;
+          const expectedClosing = openingBalance + totalIncome - totalExpense;
+
+          const existing = await db.select().from(dailyLedger).where(
+            and(eq(dailyLedger.date, date), entry.accountId != null ? eq(dailyLedger.accountId, entry.accountId) : sql`${dailyLedger.accountId} IS NULL`)
+          ).limit(1);
+
+          if (existing.length > 0) {
+            await db.update(dailyLedger).set({
+              totalIncome,
+              totalExpense,
+              expectedClosing,
+              actualClosing: entry.actualClosing,
+              isReconciled: 1,
+              reconciledBy: username || displayName,
+              reconciledAt: new Date().toISOString(),
+              notes: notes || "",
+            }).where(eq(dailyLedger.id, existing[0].id));
+          } else {
+            await db.insert(dailyLedger).values({
+              date,
+              accountId: entry.accountId,
+              openingBalance,
+              totalIncome,
+              totalExpense,
+              expectedClosing,
+              actualClosing: entry.actualClosing,
+              isReconciled: 1,
+              reconciledBy: username || displayName,
+              reconciledAt: new Date().toISOString(),
+              notes: notes || "",
+            });
+          }
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case "adjustOpeningBalance": {
+        const { date, accountId, openingBalance } = rest;
+        if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
+
+        const db = getDb();
+        const existing = await db.select().from(dailyLedger).where(
+          and(eq(dailyLedger.date, date), accountId != null ? eq(dailyLedger.accountId, accountId) : sql`${dailyLedger.accountId} IS NULL`)
+        ).limit(1);
+
+        if (existing.length > 0) {
+          await db.update(dailyLedger).set({ openingBalance }).where(eq(dailyLedger.id, existing[0].id));
+        } else {
+          await db.insert(dailyLedger).values({
+            date,
+            accountId: accountId ?? null,
+            openingBalance,
+            totalIncome: 0,
+            totalExpense: 0,
+            expectedClosing: openingBalance,
+          });
+        }
+
+        return NextResponse.json({ success: true });
       }
 
       default:

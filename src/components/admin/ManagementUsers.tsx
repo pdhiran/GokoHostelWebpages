@@ -48,6 +48,9 @@ const EXPENSE_PERMISSION_OPTIONS = [
 
 const TOOLS_PERMISSION_OPTIONS = [
   { key: "canUseQRGenerator", label: "Use QR code generator" },
+  { key: "canManageAccounts", label: "Manage account settings" },
+  { key: "canAddIncome", label: "Add daily income entries" },
+  { key: "canReconcile", label: "Reconcile daily balances" },
 ];
 
 export function ManagementUsers({ password, username, role }: { password: string; username?: string; role: Role }) {
