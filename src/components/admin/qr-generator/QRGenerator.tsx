@@ -6,6 +6,7 @@ import {
   SparklesIcon,
   TrashIcon,
   UploadIcon,
+  DownloadIcon,
   Loader2Icon,
   HistoryIcon,
   LayoutTemplateIcon,
@@ -94,6 +95,20 @@ export function QRGenerator({ password, username, role }: { password: string; us
     });
   };
 
+  const blobUrlToDataUrl = async (blobUrl: string): Promise<string> => {
+    try {
+      const res = await fetch(blobUrl);
+      const blob = await res.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return "";
+    }
+  };
+
   const saveToHistory = async () => {
     if (!saveName.trim()) return;
     setSaving(true);
@@ -101,9 +116,15 @@ export function QRGenerator({ password, username, role }: { password: string; us
       let dataUrl = "";
       try { dataUrl = await getPreviewDataUrl(); } catch { /* ignore preview failures */ }
 
-      let logoDataUrl = config.logoUrl || "";
+      let logoDataUrl = "";
       if (config.logoFile) {
         logoDataUrl = await fileToDataUrl(config.logoFile);
+      } else if (config.logoUrl) {
+        if (config.logoUrl.startsWith("data:")) {
+          logoDataUrl = config.logoUrl;
+        } else {
+          logoDataUrl = await blobUrlToDataUrl(config.logoUrl);
+        }
       }
 
       const configToSave = { ...config, logoFile: null, logoUrl: logoDataUrl };
@@ -144,6 +165,39 @@ export function QRGenerator({ password, username, role }: { password: string; us
       const parsed = JSON.parse(item.config) as QRConfig;
       setConfig({ ...parsed, logoFile: null, logoUrl: parsed.logoUrl || "" });
       setShowHistory(false);
+    } catch { /* ignore */ }
+  };
+
+  const downloadFromHistory = async (item: QRHistoryItem) => {
+    try {
+      const parsed = JSON.parse(item.config) as QRConfig;
+      const tempConfig = { ...parsed, logoFile: null, logoUrl: parsed.logoUrl || "" };
+      const { default: QRCodeStylingLib } = await import("qr-code-styling");
+      const exportSize = Math.max(tempConfig.size, 2048);
+      const exportMargin = Math.round(tempConfig.margin * (exportSize / tempConfig.size));
+      const errorLevel = tempConfig.logoUrl ? "H" : tempConfig.errorCorrection;
+      const options: any = {
+        width: exportSize,
+        height: exportSize,
+        margin: exportMargin,
+        data: tempConfig.data || " ",
+        dotsOptions: {
+          type: tempConfig.style === "dots" ? "dots" : tempConfig.style === "rounded" ? "rounded" : tempConfig.style === "classy" ? "classy" : tempConfig.style === "classy-rounded" ? "classy-rounded" : "square",
+          ...(tempConfig.gradient.type !== "none"
+            ? { gradient: { type: tempConfig.gradient.type, rotation: tempConfig.gradient.rotation || 0, colorStops: [{ offset: 0, color: tempConfig.gradient.colorStart }, { offset: 1, color: tempConfig.gradient.colorEnd }] } }
+            : { color: tempConfig.fgColor }),
+        },
+        backgroundOptions: { color: tempConfig.bgColor },
+        cornersSquareOptions: { type: tempConfig.cornerStyle === "dot" ? "dot" : tempConfig.cornerStyle === "extra-rounded" ? "extra-rounded" : "square" },
+        cornersDotOptions: { type: tempConfig.cornerStyle === "dot" ? "dot" : tempConfig.cornerStyle === "extra-rounded" ? "extra-rounded" : "square" },
+        qrOptions: { errorCorrectionLevel: errorLevel },
+      };
+      if (tempConfig.logoUrl) {
+        options.image = tempConfig.logoUrl;
+        options.imageOptions = { crossOrigin: "anonymous", margin: tempConfig.logoMargin, imageSize: tempConfig.logoSize / 100, hideBackgroundDots: tempConfig.logoBgEnabled };
+      }
+      const instance = new QRCodeStylingLib(options);
+      await instance.download({ name: item.name || "goko-qr", extension: "png" });
     } catch { /* ignore */ }
   };
 
@@ -219,14 +273,23 @@ export function QRGenerator({ password, username, role }: { password: string; us
                       <TrashIcon className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => loadFromHistory(item)}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-md border border-brand-green/20 bg-brand-green/5 px-3 py-2 text-xs font-medium text-brand-green transition-colors hover:bg-brand-green/10"
-                  >
-                    <UploadIcon className="h-3.5 w-3.5" />
-                    Load &amp; Edit
-                  </button>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => loadFromHistory(item)}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-brand-green/20 bg-brand-green/5 px-3 py-2 text-xs font-medium text-brand-green transition-colors hover:bg-brand-green/10"
+                    >
+                      <UploadIcon className="h-3.5 w-3.5" />
+                      Load &amp; Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadFromHistory(item)}
+                      className="flex items-center justify-center gap-1.5 rounded-md border border-brand-mist bg-white px-3 py-2 text-xs font-medium text-brand-green-dark/70 transition-colors hover:bg-brand-sand/50"
+                    >
+                      <DownloadIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
