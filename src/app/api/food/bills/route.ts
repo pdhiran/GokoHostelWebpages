@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       subtotal: number;
       tax: number;
       total: number;
+      discount: number;
       paymentStatus: string;
       paymentMethod: string | null;
       createdAt: string;
@@ -69,6 +70,7 @@ export async function GET(req: NextRequest) {
             subtotal: o.subtotal,
             tax: o.tax,
             total: o.total,
+            discount: o.discount,
             paymentStatus: o.paymentStatus,
             paymentMethod: o.paymentMethod,
             createdAt: o.createdAt,
@@ -99,6 +101,7 @@ export async function GET(req: NextRequest) {
         subtotal: o.subtotal,
         tax: o.tax,
         total: o.total,
+        discount: o.discount,
         paymentStatus: o.paymentStatus,
         paymentMethod: o.paymentMethod,
         createdAt: o.createdAt,
@@ -119,6 +122,7 @@ export async function GET(req: NextRequest) {
           subtotal: o.subtotal,
           tax: o.tax,
           total: o.total,
+          discount: o.discount,
           paymentStatus: o.paymentStatus,
           paymentMethod: o.paymentMethod,
           createdAt: o.createdAt,

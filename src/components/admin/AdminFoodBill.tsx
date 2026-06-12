@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BanknoteIcon, SmartphoneIcon, AlertTriangleIcon, ShoppingCartIcon } from "lucide-react";
+import { BanknoteIcon, SmartphoneIcon, AlertTriangleIcon, ShoppingCartIcon, TagIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
@@ -69,6 +69,7 @@ export function AdminFoodBill({
 
   const summary = data?.summary || {
     totalRevenue: 0,
+    totalDiscount: 0,
     orderCount: 0,
     cashPayments: 0,
     cashOrders: 0,
@@ -173,6 +174,23 @@ export function AdminFoodBill({
                 </div>
               </div>
             </div>
+            {summary.totalDiscount > 0 && (
+              <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50">
+                    <TagIcon className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-brand-green-dark">
+                      ₹{(summary.totalDiscount / 100).toFixed(0)}
+                    </p>
+                    <p className="text-xs text-brand-green-dark/60">
+                      Total Discounts
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {guests.length > 0 && (

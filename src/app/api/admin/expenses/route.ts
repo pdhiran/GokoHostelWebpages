@@ -255,6 +255,7 @@ export async function POST(req: NextRequest) {
         let cashOrders = 0;
         let onlineOrders = 0;
         let unpaidOrders = 0;
+        let totalDiscount = 0;
 
         const guestMap = new Map<string, {
           guestName: string; guestPhone: string; roomInfo: string; checkinId: number | null;
@@ -263,6 +264,7 @@ export async function POST(req: NextRequest) {
 
         for (const order of orders) {
           totalRevenue += order.total;
+          totalDiscount += order.discount || 0;
 
           if (order.paymentStatus === "paid") {
             if (order.paymentMethod === "cash") {
@@ -330,7 +332,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
           role,
-          summary: { totalRevenue, cashPayments, onlinePayments, unpaidTabs, orderCount, cashOrders, onlineOrders, unpaidOrders },
+          summary: { totalRevenue, totalDiscount, cashPayments, onlinePayments, unpaidTabs, orderCount, cashOrders, onlineOrders, unpaidOrders },
           guestBreakdown,
         });
       }

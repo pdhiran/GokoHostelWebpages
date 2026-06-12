@@ -19,6 +19,7 @@ interface OrderData {
   subtotal: number;
   tax: number;
   total: number;
+  discount: number;
   specialInstructions: string;
   createdAt: string;
 }
@@ -218,8 +219,14 @@ function OrderStatusContent() {
           <div className="mt-3 border-t border-gray-100 pt-3">
             <div className="flex justify-between text-sm text-gray-600">
               <span>Subtotal</span>
-              <span>{formatPrice(order.subtotal)}</span>
+              <span>{formatPrice(order.subtotal + (order.discount || 0))}</span>
             </div>
+            {order.discount > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Discount</span>
+                <span>-{formatPrice(order.discount)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm text-gray-600">
               <span>Tax</span>
               <span>{formatPrice(order.tax)}</span>

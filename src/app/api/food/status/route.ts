@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
           subtotal: order.subtotal,
           tax: order.tax,
           total: order.total,
+          discount: order.discount,
           specialInstructions: order.specialInstructions,
           createdAt: order.createdAt,
         },

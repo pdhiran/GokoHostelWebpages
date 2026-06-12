@@ -168,6 +168,7 @@ export interface BillData {
   subtotal: number;
   tax: number;
   total: number;
+  discount?: number;
   taxRate: number;
   paymentMethod?: string;
   date?: string;
@@ -224,6 +225,9 @@ export async function printFoodBill(data: BillData): Promise<void> {
 
   parts.push(line(separator("-")));
   parts.push(line(twoColumn("Subtotal:", formatPaise(data.subtotal))));
+  if (data.discount && data.discount > 0) {
+    parts.push(line(twoColumn("Discount:", `-${formatPaise(data.discount)}`)));
+  }
   parts.push(line(twoColumn(`Tax (${data.taxRate}%):`, formatPaise(data.tax))));
   parts.push(BOLD_ON, DOUBLE_WIDTH_ON);
   parts.push(line(twoColumn("TOTAL:", formatPaise(data.total))));
@@ -286,7 +290,7 @@ export async function printOrderTicket(data: OrderTicketData): Promise<void> {
 }
 
 export async function printCombinedBill(
-  guests: Array<{ name: string; total: number; items: BillItem[] }>,
+  guests: Array<{ name: string; total: number; discount?: number; items: BillItem[] }>,
   grandTotal: number,
   taxRate: number,
   paymentMethod?: string,
@@ -324,6 +328,10 @@ export async function printCombinedBill(
   }
 
   parts.push(line(separator("-")));
+  const combinedDiscount = guests.reduce((sum, g) => sum + (g.discount || 0), 0);
+  if (combinedDiscount > 0) {
+    parts.push(line(twoColumn("Discount:", `-${formatPaise(combinedDiscount)}`)));
+  }
   parts.push(BOLD_ON, DOUBLE_WIDTH_ON);
   parts.push(line(twoColumn("GRAND TOTAL:", formatPaise(grandTotal))));
   parts.push(DOUBLE_WIDTH_OFF, BOLD_OFF);

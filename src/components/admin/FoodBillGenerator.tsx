@@ -19,6 +19,7 @@ export type BillOrder = {
   subtotal: number;
   tax: number;
   total: number;
+  discount?: number;
   specialInstructions?: string;
 };
 
@@ -287,6 +288,15 @@ export function generateGuestBill(data: GuestBillData): void {
   doc.text(formatPaise(data.grandSubtotal), totalsX, y, { align: "right" });
   y += 5;
 
+  const grandDiscount = data.orders.reduce((sum, o) => sum + (o.discount || 0), 0);
+  if (grandDiscount > 0) {
+    doc.setTextColor(22, 163, 74);
+    doc.text("Discount:", labelsX, y, { align: "right" });
+    doc.text(`-${formatPaise(grandDiscount)}`, totalsX, y, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    y += 5;
+  }
+
   doc.text(`Tax (${data.taxRate}%):`, labelsX, y, { align: "right" });
   doc.text(formatPaise(data.grandTax), totalsX, y, { align: "right" });
   y += 5;
@@ -424,6 +434,17 @@ export function generateCombinedBill(data: CombinedBillData): void {
   doc.text("Combined Subtotal:", labelsX, y, { align: "right" });
   doc.text(formatPaise(data.grandSubtotal), totalsX, y, { align: "right" });
   y += 5;
+
+  const combinedDiscount = data.guests.reduce(
+    (sum, g) => sum + g.orders.reduce((s, o) => s + (o.discount || 0), 0), 0
+  );
+  if (combinedDiscount > 0) {
+    doc.setTextColor(22, 163, 74);
+    doc.text("Discount:", labelsX, y, { align: "right" });
+    doc.text(`-${formatPaise(combinedDiscount)}`, totalsX, y, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    y += 5;
+  }
 
   doc.text(`Tax (${data.taxRate}%):`, labelsX, y, { align: "right" });
   doc.text(formatPaise(data.grandTax), totalsX, y, { align: "right" });

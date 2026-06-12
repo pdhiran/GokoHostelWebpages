@@ -344,12 +344,15 @@ export async function POST(req: NextRequest) {
 
         const activeItems = await db.select().from(foodOrderItems)
           .where(and(eq(foodOrderItems.orderId, orderId), sql`${foodOrderItems.status} != 'voided'`));
-        const newSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+        const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+        const [currentOrder] = await db.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
+        const existingDiscount = Math.min(currentOrder?.discount || 0, grossSubtotal);
+        const newSubtotal = grossSubtotal - existingDiscount;
         const voidTaxRateStr = await getSetting("food_tax_rate");
         const voidTaxRate = Number(voidTaxRateStr) || 5;
         const newTax = Math.round((newSubtotal * voidTaxRate) / 100);
         const newTotal = newSubtotal + newTax;
-        await updateFoodOrder(orderId, { subtotal: newSubtotal, tax: newTax, total: newTotal });
+        await updateFoodOrder(orderId, { subtotal: newSubtotal, tax: newTax, total: newTotal, discount: existingDiscount });
 
         await addAuditEntry({
           username: actorName,
@@ -361,34 +364,110 @@ export async function POST(req: NextRequest) {
       }
 
       case "applyDiscount": {
-        const { orderId, discountAmount, reason } = rest;
-        if (!orderId || !discountAmount) return NextResponse.json({ error: "orderId and discountAmount required" }, { status: 400 });
+        const { orderIds, discountPercent, discountAmount, reason } = rest;
+        if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+          return NextResponse.json({ error: "orderIds required" }, { status: 400 });
+        }
+        if (!reason) return NextResponse.json({ error: "reason required" }, { status: 400 });
+        if (discountPercent == null && discountAmount == null) {
+          return NextResponse.json({ error: "discountPercent or discountAmount required" }, { status: 400 });
+        }
 
-        const order = await getFoodOrderById(orderId);
-        if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-
-        const discount = Math.abs(Number(discountAmount));
-        const newSubtotal = Math.max(0, order.subtotal - discount);
         const discTaxRateStr = await getSetting("food_tax_rate");
         const discTaxRate = Number(discTaxRateStr) || 5;
-        const newTax = Math.round((newSubtotal * discTaxRate) / 100);
-        const newTotal = newSubtotal + newTax;
-        await updateFoodOrder(orderId, { subtotal: newSubtotal, tax: newTax, total: newTotal });
-        await addOrderModification({
-          orderId,
-          action: "discount",
-          oldValue: `₹${(order.total / 100).toFixed(0)}`,
-          newValue: `₹${(newTotal / 100).toFixed(0)}`,
-          reason: reason || `Discount of ₹${(discount / 100).toFixed(0)}`,
-          modifiedBy: actorName,
-        });
+
+        const orderData: { id: number; grossSubtotal: number }[] = [];
+        for (const oid of orderIds) {
+          const items = await getFoodOrderItems(oid);
+          const activeItems = items.filter((i) => i.status !== "voided");
+          const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+          orderData.push({ id: oid, grossSubtotal });
+        }
+
+        const grossTotal = orderData.reduce((sum, o) => sum + o.grossSubtotal, 0);
+        if (grossTotal <= 0) return NextResponse.json({ error: "No billable items" }, { status: 400 });
+
+        let totalDiscount: number;
+        if (discountPercent != null) {
+          const pct = Math.max(0, Math.min(100, Number(discountPercent)));
+          totalDiscount = Math.round(grossTotal * pct / 100);
+        } else {
+          totalDiscount = Math.max(0, Math.min(grossTotal, Math.abs(Number(discountAmount))));
+        }
+
+        for (const od of orderData) {
+          const proportion = grossTotal > 0 ? od.grossSubtotal / grossTotal : 0;
+          const orderDiscount = Math.round(totalDiscount * proportion);
+          const newSubtotal = Math.max(0, od.grossSubtotal - orderDiscount);
+          const newTax = Math.round((newSubtotal * discTaxRate) / 100);
+          const newTotal = newSubtotal + newTax;
+          await updateFoodOrder(od.id, {
+            discount: orderDiscount,
+            discountReason: reason,
+            discountBy: actorName,
+            subtotal: newSubtotal,
+            tax: newTax,
+            total: newTotal,
+          });
+          await addOrderModification({
+            orderId: od.id,
+            action: "discount",
+            oldValue: `₹${(od.grossSubtotal / 100).toFixed(0)}`,
+            newValue: `₹${(newTotal / 100).toFixed(0)}`,
+            reason: `${reason} (discount ₹${(orderDiscount / 100).toFixed(0)})`,
+            modifiedBy: actorName,
+          });
+        }
+
         await addAuditEntry({
           username: actorName,
           action: "food_discount",
-          target: `order:${orderId}`,
-          details: `Discount ₹${(discount / 100).toFixed(0)}, new total ₹${(newTotal / 100).toFixed(0)}. Reason: ${reason || "N/A"}`,
+          target: `orders:${orderIds.join(",")}`,
+          details: `Discount ₹${(totalDiscount / 100).toFixed(0)} on gross ₹${(grossTotal / 100).toFixed(0)}. Reason: ${reason}`,
         });
-        return NextResponse.json({ success: true, role, newTotal });
+        return NextResponse.json({ success: true, role });
+      }
+
+      case "removeDiscount": {
+        const { orderIds: removeOrderIds } = rest;
+        if (!removeOrderIds || !Array.isArray(removeOrderIds) || removeOrderIds.length === 0) {
+          return NextResponse.json({ error: "orderIds required" }, { status: 400 });
+        }
+
+        const rmTaxRateStr = await getSetting("food_tax_rate");
+        const rmTaxRate = Number(rmTaxRateStr) || 5;
+
+        for (const oid of removeOrderIds) {
+          const items = await getFoodOrderItems(oid);
+          const activeItems = items.filter((i) => i.status !== "voided");
+          const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+          const newTax = Math.round((grossSubtotal * rmTaxRate) / 100);
+          const newTotal = grossSubtotal + newTax;
+          await updateFoodOrder(oid, {
+            discount: 0,
+            discountReason: "",
+            discountBy: "",
+            subtotal: grossSubtotal,
+            tax: newTax,
+            total: newTotal,
+          });
+          await addOrderModification({
+            orderId: oid,
+            action: "discount",
+            oldValue: "discount applied",
+            newValue: "discount removed",
+            reason: "Discount removed",
+            modifiedBy: actorName,
+          });
+        }
+
+        await addAuditEntry({
+          username: actorName,
+          action: "food_discount_removed",
+          target: `orders:${removeOrderIds.join(",")}`,
+          details: `Discount removed from ${removeOrderIds.length} order(s)`,
+        });
+        return NextResponse.json({ success: true, role });
       }
 
       case "reassignOrder": {

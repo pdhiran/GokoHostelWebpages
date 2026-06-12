@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon, PencilIcon } from "lucide-react";
+import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon, PencilIcon, TagIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem } from "@/lib/thermalPrint";
 import { generateGuestBill, generateCombinedBill, type CombinedBillData, type BillOrder } from "@/components/admin/FoodBillGenerator";
 import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
@@ -39,6 +39,9 @@ export interface Order {
   paidBy: string;
   cashReceived: number;
   changeGiven: number;
+  discount: number;
+  discountReason: string;
+  discountBy: string;
   cancelledReason: string;
   createdBy: string;
   createdAt: string;
@@ -167,7 +170,7 @@ export function AdminFoodOrders({ password, username, role, permissions = {} }: 
         </div>
       )}
       {tab === "place" && <PlaceOrder apiCall={apiCall} prefillGuest={prefillGuest} onPrefillConsumed={() => setPrefillGuest(null)} onOrderPlaced={() => setTab("summary")} />}
-      {tab === "summary" && <OrderSummary apiCall={apiCall} onOrderMore={(guest) => { setPrefillGuest(guest); setTab("place"); }} onAddNewOrder={() => setTab("place")} />}
+      {tab === "summary" && <OrderSummary apiCall={apiCall} onOrderMore={(guest) => { setPrefillGuest(guest); setTab("place"); }} onAddNewOrder={() => setTab("place")} role={role} permissions={permissions} />}
       {tab === "combined" && <CombinedBill apiCall={apiCall} />}
       {tab === "payment" && <PaymentSummary apiCall={apiCall} />}
     </div>
@@ -682,7 +685,7 @@ interface SummaryGroup {
   earliestOrderTime: string;
 }
 
-function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body: any) => Promise<Response>; onOrderMore: (guest: PrefillGuest) => void; onAddNewOrder?: () => void }) {
+function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }: { apiCall: (body: any) => Promise<Response>; onOrderMore: (guest: PrefillGuest) => void; onAddNewOrder?: () => void; role?: Role; permissions?: Record<string, boolean> }) {
   const [hostelGuests, setHostelGuests] = useState<GuestWithTab[]>([]);
   const [walkinOrders, setWalkinOrders] = useState<Order[]>([]);
   const [hostelOrdersMap, setHostelOrdersMap] = useState<Record<number, Order[]>>({});
@@ -697,6 +700,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
   const [printingGroup, setPrintingGroup] = useState<string | null>(null);
   const [paymentModalGroup, setPaymentModalGroup] = useState<SummaryGroup | null>(null);
   const [paymentModalMethod, setPaymentModalMethod] = useState<string>("online");
+  const [discountModalGroup, setDiscountModalGroup] = useState<SummaryGroup | null>(null);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [voidingItemId, setVoidingItemId] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
@@ -938,6 +942,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
       const subtotal = orders.reduce((s, o) => s + o.subtotal, 0);
       const tax = orders.reduce((s, o) => s + o.tax, 0);
       const total = orders.reduce((s, o) => s + o.total, 0);
+      const discount = orders.reduce((s, o) => s + (o.discount || 0), 0);
       await printFoodBill({
         guestName: group.guestName,
         guestPhone: group.contactInfo || undefined,
@@ -948,6 +953,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
         tax,
         total,
         taxRate: 5,
+        discount: discount || undefined,
       });
       alert("Bill printed successfully!");
     } catch (err: any) {
@@ -973,6 +979,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
       subtotal: o.subtotal,
       tax: o.tax,
       total: o.total,
+      discount: o.discount || 0,
       specialInstructions: o.specialInstructions || undefined,
     }));
     generateGuestBill({
@@ -1247,6 +1254,20 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
             {/* Footer action buttons */}
             {selectedGroupOrders.length > 0 && (
               <div className="border-t border-brand-mist p-3 flex flex-wrap gap-2">
+                {hasPermission(role || "staff", permissions || {}, "canMarkPaid") && (() => {
+                  const totalGroupDiscount = selectedGroupOrders.reduce((s, o) => s + (o.discount || 0), 0);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setDiscountModalGroup(selectedGroup)}
+                      disabled={busy === selectedGroup.key}
+                      className="flex items-center gap-1.5 rounded-lg border border-purple-500 bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                    >
+                      <TagIcon className="h-3.5 w-3.5" />
+                      {totalGroupDiscount > 0 ? `Discount · -₹${(totalGroupDiscount / 100).toFixed(0)}` : "Discount"}
+                    </button>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => { setPaymentModalMethod("cash"); setPaymentModalGroup(selectedGroup); }}
@@ -1321,6 +1342,37 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder }: { apiCall: (body:
           onClose={() => setPaymentModalGroup(null)}
         />
       )}
+
+      {/* Discount Modal */}
+      {discountModalGroup && (() => {
+        const discOrders = getGroupOrders(discountModalGroup);
+        const totalGroupDiscount = discOrders.reduce((s, o) => s + (o.discount || 0), 0);
+        const grossTotal = discOrders.reduce((s, o) => s + (o.discount || 0) + o.subtotal, 0);
+        return (
+          <DiscountModal
+            totalAmount={grossTotal}
+            currentDiscount={totalGroupDiscount}
+            guestName={discountModalGroup.guestName}
+            onApply={async (data) => {
+              const orderIds = discOrders.map((o) => o.id);
+              const res = await apiCall({ action: "applyDiscount", orderIds, ...data });
+              if (res.ok) {
+                await refreshAfterEdit(discountModalGroup);
+              }
+              setDiscountModalGroup(null);
+            }}
+            onRemove={totalGroupDiscount > 0 ? async () => {
+              const orderIds = discOrders.map((o) => o.id);
+              const res = await apiCall({ action: "removeDiscount", orderIds });
+              if (res.ok) {
+                await refreshAfterEdit(discountModalGroup);
+              }
+              setDiscountModalGroup(null);
+            } : undefined}
+            onClose={() => setDiscountModalGroup(null)}
+          />
+        );
+      })()}
 
       {/* Floating Add New Order button */}
       {onAddNewOrder && !selectedGroup && (
@@ -2893,6 +2945,225 @@ function PaymentModal({
             className="flex-1 rounded-lg bg-brand-green px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-green/90 disabled:opacity-40"
           >
             {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Discount Modal ──────────────────────────────────────────────────────────
+
+const DISCOUNT_REASONS = ["Complimentary", "Staff Meal", "Loyalty Guest", "Service Issue", "Manager Discount", "Other"];
+const QUICK_PERCENTS = [5, 10, 15, 20, 25, 50, 100];
+
+function DiscountModal({
+  totalAmount,
+  currentDiscount,
+  guestName,
+  onApply,
+  onRemove,
+  onClose,
+}: {
+  totalAmount: number;
+  currentDiscount: number;
+  guestName: string;
+  onApply: (data: { discountPercent?: number; discountAmount?: number; reason: string }) => void;
+  onRemove?: () => void;
+  onClose: () => void;
+}) {
+  const [mode, setMode] = useState<"percent" | "fixed">("percent");
+  const [percentInput, setPercentInput] = useState("");
+  const [fixedInput, setFixedInput] = useState("");
+  const [reason, setReason] = useState(DISCOUNT_REASONS[0]);
+  const [customReason, setCustomReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const totalRupees = totalAmount / 100;
+
+  const discountPaise = mode === "percent"
+    ? Math.round(totalAmount * (Math.min(100, Math.max(0, Number(percentInput) || 0)) / 100))
+    : Math.round(Math.min(totalAmount, Math.max(0, (Number(fixedInput) || 0) * 100)));
+
+  const newTotal = Math.max(0, totalAmount - discountPaise);
+  const finalReason = reason === "Other" ? customReason : reason;
+
+  const canApply = discountPaise > 0 && finalReason.trim().length > 0 && !saving;
+
+  const handleApply = () => {
+    setSaving(true);
+    if (mode === "percent") {
+      onApply({ discountPercent: Number(percentInput) || 0, reason: finalReason });
+    } else {
+      onApply({ discountAmount: Math.round((Number(fixedInput) || 0) * 100), reason: finalReason });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
+          <div>
+            <h3 className="text-base font-bold text-brand-green-dark">Apply Discount</h3>
+            <p className="text-xs text-brand-green-dark/50">{guestName}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-brand-sand">
+            <XIcon className="h-5 w-5 text-brand-green-dark/60" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {/* Original Total */}
+          <div className="bg-brand-sand/40 px-5 py-3 text-center">
+            <p className="text-xs text-brand-green-dark/60">Original Total</p>
+            <p className="text-2xl font-bold text-brand-green">₹{totalRupees.toFixed(0)}</p>
+          </div>
+
+          {/* Mode Tabs */}
+          <div className="flex gap-1 border-b border-brand-mist px-5 pt-3 pb-0">
+            {([{ id: "percent" as const, label: "Percentage" }, { id: "fixed" as const, label: "Fixed Amount" }]).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setMode(t.id)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-t-lg px-4 py-2 text-sm font-medium transition-colors",
+                  mode === t.id
+                    ? "border-b-2 border-purple-600 bg-purple-50 text-purple-700"
+                    : "text-brand-green-dark/50 hover:text-brand-green-dark/70"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="px-5 py-4 space-y-3">
+            {mode === "percent" && (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Discount %</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={100}
+                    className="w-full rounded-lg border border-brand-mist px-3 py-2.5 text-lg font-semibold text-brand-green-dark focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    value={percentInput}
+                    onChange={(e) => setPercentInput(e.target.value)}
+                    placeholder="0"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_PERCENTS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPercentInput(String(p))}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                        Number(percentInput) === p
+                          ? "border-purple-500 bg-purple-100 text-purple-700"
+                          : "border-brand-mist text-brand-green-dark/60 hover:bg-brand-sand"
+                      )}
+                    >
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {mode === "fixed" && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Discount Amount (₹)</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  className="w-full rounded-lg border border-brand-mist px-3 py-2.5 text-lg font-semibold text-brand-green-dark focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  value={fixedInput}
+                  onChange={(e) => setFixedInput(e.target.value)}
+                  placeholder="0"
+                  autoFocus
+                />
+              </div>
+            )}
+
+            {/* Reason */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Reason</label>
+              <select
+                className="w-full rounded-lg border border-brand-mist px-3 py-2 text-sm text-brand-green-dark focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              >
+                {DISCOUNT_REASONS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            {reason === "Other" && (
+              <input
+                type="text"
+                className="w-full rounded-lg border border-brand-mist px-3 py-2 text-sm text-brand-green-dark focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Enter reason..."
+                autoFocus
+              />
+            )}
+
+            {/* Preview */}
+            {discountPaise > 0 && (
+              <div className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 space-y-1">
+                <div className="flex justify-between text-sm text-brand-green-dark/70">
+                  <span>Original Total</span>
+                  <span>₹{totalRupees.toFixed(0)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold text-purple-700">
+                  <span>Discount</span>
+                  <span>-₹{(discountPaise / 100).toFixed(0)}</span>
+                </div>
+                <div className="border-t border-purple-200 pt-1 flex justify-between text-base font-bold text-brand-green-dark">
+                  <span>New Total</span>
+                  <span>₹{(newTotal / 100).toFixed(0)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-2 border-t border-brand-mist px-5 py-4">
+          {onRemove && currentDiscount > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSaving(true); onRemove(); }}
+              disabled={saving}
+              className="rounded-lg border border-red-300 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+            >
+              Remove
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-brand-mist px-4 py-2.5 text-sm font-medium text-brand-green-dark/70 hover:bg-brand-sand"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={!canApply}
+            className="flex-1 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-40"
+          >
+            {saving ? "Applying..." : "Apply Discount"}
           </button>
         </div>
       </div>

@@ -21,7 +21,7 @@ import {
   areAllOrderItemsInventory,
 } from "@/db/queries";
 import { getDb } from "@/db";
-import { foodOrderItems, orderModifications } from "@/db/schema";
+import { foodOrderItems, foodOrders, orderModifications } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 
 type UserRole = "admin" | "manager" | "staff";
@@ -172,13 +172,17 @@ export async function POST(req: NextRequest) {
       const allItems = await getFoodOrderItems(orderId);
       const activeItems = allItems.filter((i) => i.status !== "voided");
 
-      const subtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+      const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+      const db2 = getDb();
+      const [curOrder] = await db2.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
+      const existingDiscount = Math.min(curOrder?.discount || 0, grossSubtotal);
+      const subtotal = grossSubtotal - existingDiscount;
       const taxRateStr = await getSetting("food_tax_rate");
       const taxRate = Number(taxRateStr) || 5;
       const tax = Math.round((subtotal * taxRate) / 100);
       const total = subtotal + tax;
 
-      await updateFoodOrder(orderId, { subtotal, tax, total });
+      await updateFoodOrder(orderId, { subtotal, tax, total, discount: existingDiscount });
 
       return NextResponse.json({ success: true, data: { subtotal, tax, total } });
     }
@@ -231,13 +235,17 @@ export async function POST(req: NextRequest) {
 
       const updatedItems = await getFoodOrderItems(orderId);
       const activeItems = updatedItems.filter((i) => i.status !== "voided");
-      const subtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+      const grossSub = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+      const db3 = getDb();
+      const [curOrd] = await db3.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
+      const disc = Math.min(curOrd?.discount || 0, grossSub);
+      const subtotal = grossSub - disc;
       const taxRateStr = await getSetting("food_tax_rate");
       const taxRate = Number(taxRateStr) || 5;
       const tax = Math.round((subtotal * taxRate) / 100);
       const total = subtotal + tax;
 
-      await updateFoodOrder(orderId, { subtotal, tax, total });
+      await updateFoodOrder(orderId, { subtotal, tax, total, discount: disc });
 
       return NextResponse.json({ success: true, data: { subtotal, tax, total } });
     }
@@ -283,13 +291,17 @@ export async function POST(req: NextRequest) {
 
       const updatedItems = await getFoodOrderItems(orderId);
       const activeItems = updatedItems.filter((i) => i.status !== "voided");
-      const subtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+      const grossSub2 = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
+      const db4 = getDb();
+      const [curOrd2] = await db4.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
+      const disc2 = Math.min(curOrd2?.discount || 0, grossSub2);
+      const subtotal = grossSub2 - disc2;
       const taxRateStr = await getSetting("food_tax_rate");
       const taxRate = Number(taxRateStr) || 5;
       const tax = Math.round((subtotal * taxRate) / 100);
       const total = subtotal + tax;
 
-      await updateFoodOrder(orderId, { subtotal, tax, total });
+      await updateFoodOrder(orderId, { subtotal, tax, total, discount: disc2 });
 
       return NextResponse.json({ success: true, data: { subtotal, tax, total, itemName: menuItem.name } });
     }

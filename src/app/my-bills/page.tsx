@@ -23,6 +23,7 @@ interface BillOrder {
   subtotal: number;
   tax: number;
   total: number;
+  discount: number;
   paymentStatus: string;
   paymentMethod: string | null;
   createdAt: string;
@@ -470,8 +471,14 @@ function OrderCard({
               <div className="mt-3 border-t border-dashed border-gray-200 pt-2">
                 <div className="flex justify-between text-xs text-gray-400">
                   <span>Subtotal</span>
-                  <span>₹{Math.round(order.subtotal / 100)}</span>
+                  <span>₹{Math.round((order.subtotal + (order.discount || 0)) / 100)}</span>
                 </div>
+                {order.discount > 0 && (
+                  <div className="flex justify-between text-xs text-green-600">
+                    <span>Discount</span>
+                    <span>-₹{(order.discount / 100).toFixed(0)}</span>
+                  </div>
+                )}
                 {order.tax > 0 && (
                   <div className="flex justify-between text-xs text-gray-400">
                     <span>Tax</span>
