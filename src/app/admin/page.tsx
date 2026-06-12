@@ -14,7 +14,7 @@ import { AdminManagement } from "@/components/admin/AdminManagement";
 import { AdminTimeline } from "@/components/admin/AdminTimeline";
 import { AdminFoodOrders } from "@/components/admin/AdminFoodOrders";
 import { AdminExpenditure } from "@/components/admin/AdminExpenditure";
-import type { Role, AdminSection } from "@/components/admin/types";
+import type { Role, AdminSection, ManagementTab } from "@/components/admin/types";
 import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
 import { SyncStatusBar } from "@/components/admin/SyncStatusBar";
 
@@ -25,6 +25,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [section, setSection] = useState<AdminSection>("dashboard");
+  const [managementTab, setManagementTab] = useState<ManagementTab | undefined>();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<"admin" | "manager" | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
@@ -383,7 +384,7 @@ export default function AdminPage() {
           password={password}
           username={username}
           role={role}
-          onNavigateToSync={() => setSection("management")}
+          onNavigateToSync={() => { setManagementTab("serverSync"); setSection("management"); }}
         />
       )}
 
@@ -396,7 +397,7 @@ export default function AdminPage() {
         {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}
         {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} permissions={permissions} />}
         {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
-        {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} />}
+        {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} initialTab={managementTab} onTabUsed={() => setManagementTab(undefined)} />}
       </div>
 
       {/* Change Password Modal */}

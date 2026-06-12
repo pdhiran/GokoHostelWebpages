@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
@@ -36,14 +36,21 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "serverSync", label: "Server Sync", icon: <ServerIcon className="h-3.5 w-3.5" />, adminOnly: true },
 ];
 
-export function AdminManagement({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
+export function AdminManagement({ password, username, role, permissions = {}, initialTab, onTabUsed }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean>; initialTab?: ManagementTab; onTabUsed?: () => void }) {
   const visibleTabs = TABS.filter((t) => {
     if (t.adminOnly && role !== "admin") return false;
     if (t.permission && role !== "admin" && !permissions[t.permission]) return false;
     return true;
   });
   const defaultTab = visibleTabs[0]?.id || "history";
-  const [tab, setTab] = useState<ManagementTab>(defaultTab);
+  const [tab, setTab] = useState<ManagementTab>(initialTab || defaultTab);
+
+  useEffect(() => {
+    if (initialTab && visibleTabs.some((t) => t.id === initialTab)) {
+      setTab(initialTab);
+      onTabUsed?.();
+    }
+  }, [initialTab]);
   const [subMenuOpen, setSubMenuOpen] = useState(false);
 
   const activeTab = visibleTabs.find((t) => t.id === tab);
