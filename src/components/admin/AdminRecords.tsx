@@ -705,7 +705,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
           <h3 className="font-display text-lg font-bold text-brand-green">Edit entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {CHECKIN_COLUMNS.map((col, i) => (
-              col === "Name" ? (
+              i === 0 ? null : col === "Name" ? (
                 <div key={col} className="sm:col-span-2 md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">First Name</Label>
@@ -747,7 +747,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
         <table className="w-full min-w-[1000px] text-left text-sm">
           <thead>
             <tr className="border-b border-brand-mist bg-brand-sand/50">
-              {CHECKIN_COLUMNS.map((col) => (
+              {CHECKIN_COLUMNS.map((col, ci) => ci === 0 ? null : (
                 <th key={col} className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">{col}</th>
               ))}
               {(hasPermission(role, permissions, "canEditRecords") || hasPermission(role, permissions, "canDeleteRecords")) && <th className="px-3 py-3 text-xs font-bold uppercase">Actions</th>}
@@ -755,7 +755,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
           </thead>
           <tbody>
             {filteredRows.length === 0 ? (
-              <tr><td colSpan={CHECKIN_COLUMNS.length + 1} className="px-4 py-12 text-center text-brand-green-dark/50">{rows.length === 0 ? "No records" : "No matches"}</td></tr>
+              <tr><td colSpan={CHECKIN_COLUMNS.length} className="px-4 py-12 text-center text-brand-green-dark/50">{rows.length === 0 ? "No records" : "No matches"}</td></tr>
             ) : (
               filteredRows.map(({ row, origIdx }) => {
                 const guestDob = row[20] || "";
@@ -769,6 +769,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                 return (
                 <tr key={origIdx} className={cn("border-b border-brand-mist/60 last:border-b-0 hover:bg-brand-sand/30", guestAnyFlag && "bg-orange-50/40")}>
                   {CHECKIN_COLUMNS.map((col, ci) => {
+                    if (ci === 0) return null;
                     const cell = row[ci] || "";
                     const links = cell.includes(" | ") ? cell.split(" | ").filter((u) => u.startsWith("http")) : cell.startsWith("http") ? [cell] : [];
 
