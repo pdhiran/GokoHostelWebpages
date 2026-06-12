@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon, CheckCircleIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon, CheckCircleIcon, UtensilsIcon } from "lucide-react";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import type { Role, AdminSection } from "./types";
 
@@ -324,18 +324,16 @@ export function AdminDashboard({
           <p className="mt-2 font-medium text-brand-green-dark">Assign Beds</p>
           <p className="text-xs text-brand-green-dark/50">Manage dorm assignments</p>
         </button>
+        <button type="button" onClick={() => onNavigate("foodOrders")} className="rounded-xl border border-brand-mist bg-white p-4 text-left transition-all hover:shadow-soft">
+          <UtensilsIcon className="h-5 w-5 text-brand-green" />
+          <p className="mt-2 font-medium text-brand-green-dark">Food Orders</p>
+          <p className="text-xs text-brand-green-dark/50">Manage orders & payments</p>
+        </button>
         <button type="button" onClick={() => onNavigate("records")} className="rounded-xl border border-brand-mist bg-white p-4 text-left transition-all hover:shadow-soft">
           <UsersIcon className="h-5 w-5 text-brand-green" />
           <p className="mt-2 font-medium text-brand-green-dark">View Records</p>
           <p className="text-xs text-brand-green-dark/50">All check-in entries</p>
         </button>
-        {role === "admin" && (
-          <button type="button" onClick={() => onNavigate("management")} className="rounded-xl border border-brand-mist bg-white p-4 text-left transition-all hover:shadow-soft">
-            <BedDoubleIcon className="h-5 w-5 text-brand-green" />
-            <p className="mt-2 font-medium text-brand-green-dark">Dorm Setup</p>
-            <p className="text-xs text-brand-green-dark/50">Configure beds and dorms</p>
-          </button>
-        )}
       </div>
 
       {/* Validation toggle (admin only) */}
