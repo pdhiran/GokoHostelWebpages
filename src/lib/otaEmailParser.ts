@@ -62,7 +62,8 @@ export function isBookingEmail(message: GmailMessage): boolean {
 
 export function parseBookingEmail(message: GmailMessage): ParsedBooking | null {
   const from = message.from.toLowerCase();
-  const body = message.body;
+  const rawBody = message.body;
+  const body = stripHtml(rawBody);
   const subject = message.subject;
   const isStayFlexi = from.includes("stayflexi.com");
 
@@ -232,6 +233,30 @@ function extractStayFlexiDate(text: string, keyword: string): string {
 }
 
 // --- Utility helpers ---
+
+function stripHtml(html: string): string {
+  if (!html.includes("<")) return html;
+  let text = html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|tr|li|h[1-6])>/gi, "\n")
+    .replace(/<\/td>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&rsquo;/gi, "'")
+    .replace(/&lsquo;/gi, "'")
+    .replace(/&rdquo;/gi, "\u201D")
+    .replace(/&ldquo;/gi, "\u201C")
+    .replace(/&#\d+;/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n/g, "\n")
+    .trim();
+  return text;
+}
 
 function extractBetween(text: string, startKey: string, endKey: string): string | null {
   const regex = new RegExp(`${startKey}[:\\s]*([^\\n<]+?)(?:${endKey}|$)`, "i");
