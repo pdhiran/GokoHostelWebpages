@@ -130,10 +130,11 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
   };
 
   const today = new Date().toISOString().split("T")[0];
-  const todayArrivals = bookings.filter((b) => b.checkinDate === today && b.status === "confirmed");
-  const upcoming = bookings.filter((b) => b.checkinDate > today && b.status === "confirmed");
+  const gokoBookings = bookings.filter((b) => !b.property || b.property === "goko_hostel");
+  const todayArrivals = gokoBookings.filter((b) => b.checkinDate === today && b.status === "confirmed");
+  const upcoming = gokoBookings.filter((b) => b.checkinDate > today && b.status === "confirmed");
 
-  const filtered = bookings.filter((b) => {
+  const filtered = gokoBookings.filter((b) => {
     if (filterPlatform && b.platform !== filterPlatform) return false;
     if (filterStatus && b.status !== filterStatus) return false;
     return true;
