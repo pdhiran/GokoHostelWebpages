@@ -730,20 +730,30 @@ Today's snapshot: active check-ins count, today's arrivals/departures, bed occup
 
 ## Deployment
 
+**Auto-deploy is configured.** Cloudflare Workers watches the GitHub repo and auto-builds + deploys on every push to `main`. No manual deploy step is needed.
+
+**DO NOT run `npm run deploy:cf` after pushing** — the auto-deploy handles it. Running it manually creates duplicate deployments.
+
 ```bash
 # Local dev
 npm run dev
 
-# Cloudflare local preview
+# Cloudflare local preview (for testing before push)
 npm run preview:cf
 
-# Deploy to Cloudflare Workers (build is included in deploy script)
+# Manual deploy (ONLY if auto-deploy is broken or for emergency hotfix)
 npm run deploy:cf
 
-# D1 migrations
+# D1 migrations (still manual — run BEFORE pushing code that uses new tables)
 npm run db:migrate:local   # local
 npm run db:migrate:prod    # production
 ```
+
+**Deploy workflow:**
+1. Make changes → build verify (`npx next build`)
+2. `git add + commit + push` → Cloudflare auto-deploys (takes ~2 minutes)
+3. If new DB tables/columns → run `npm run db:migrate:prod` BEFORE pushing
+4. If new Wrangler secrets → set via `npx wrangler versions secret put KEY_NAME` BEFORE pushing
 
 ---
 
@@ -794,6 +804,7 @@ Every non-trivial feature follows this process:
 ### Git Workflow
 
 - **Branch:** `main` (direct push)
+- **Auto-deploy:** Every push to `main` triggers Cloudflare auto-build + deploy. Do NOT run `npm run deploy:cf` manually.
 - **Commit style:** Imperative present tense, 1-2 sentence summary. Examples:
   - `Add bulk upload for expenses and income in Account Settings`
   - `Fix P0/P1 bugs from workflow simulation review`
