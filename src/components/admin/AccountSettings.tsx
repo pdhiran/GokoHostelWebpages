@@ -62,6 +62,7 @@ export function AccountSettings({ password, username, role }: { password: string
   const [editing, setEditing] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const scrollBackId = useRef<string | null>(null);
 
   // Form states
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -147,8 +148,18 @@ export function AccountSettings({ password, username, role }: { password: string
 
       const res = await apiCall({ action, ...payload });
       if (res.ok) {
+        if (editing) scrollBackId.current = String(editing.id);
         resetForm();
-        loadData();
+        loadData().then(() => {
+          if (scrollBackId.current) {
+            const id = scrollBackId.current;
+            scrollBackId.current = null;
+            setTimeout(() => {
+              const el = document.querySelector(`[data-item-id="${id}"]`);
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 200);
+          }
+        });
       }
     } finally {
       setSaving(false);
@@ -358,7 +369,7 @@ export function AccountSettings({ password, username, role }: { password: string
       {/* Items List */}
       <div className="space-y-2">
         {section === "accounts" && accounts.map((a) => (
-          <div key={a.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div key={a.id} data-item-id={a.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
             <div>
               <p className="text-sm font-medium text-brand-green-dark">
                 {a.name} {a.nickname && <span className="text-brand-green-dark/50">({a.nickname})</span>}
@@ -377,7 +388,7 @@ export function AccountSettings({ password, username, role }: { password: string
         ))}
 
         {section === "vendors" && vendors.map((v) => (
-          <div key={v.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div key={v.id} data-item-id={v.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
             <div>
               <p className="text-sm font-medium text-brand-green-dark">{v.name}</p>
               <p className="text-[10px] text-brand-green-dark/50">
@@ -392,7 +403,7 @@ export function AccountSettings({ password, username, role }: { password: string
         ))}
 
         {section === "employees" && employees.map((e) => (
-          <div key={e.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div key={e.id} data-item-id={e.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
             <div>
               <p className="text-sm font-medium text-brand-green-dark">{e.name}</p>
               <p className="text-[10px] text-brand-green-dark/50">

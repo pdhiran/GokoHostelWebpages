@@ -120,6 +120,8 @@ export function AdminMenuManagement({ password, username, role }: { password: st
   const itemFormRef = useRef<HTMLDivElement>(null);
   const [addStockItemId, setAddStockItemId] = useState<number | null>(null);
   const [addStockQty, setAddStockQty] = useState("");
+  const scrollBackCatId = useRef<number | null>(null);
+  const scrollBackItemId = useRef<number | null>(null);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -196,8 +198,13 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         ? await apiCall({ action: "updateCategory", id: editingCategoryId, ...payload })
         : await apiCall({ action: "addCategory", ...payload });
       if (res.ok) {
+        if (editingCategoryId) scrollBackCatId.current = editingCategoryId;
         setShowCategoryForm(false);
         await loadAll();
+        if (scrollBackCatId.current) {
+          const id = scrollBackCatId.current; scrollBackCatId.current = null;
+          setTimeout(() => { const el = document.querySelector(`[data-cat-id="${id}"]`); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200);
+        }
       } else {
         const d = await res.json();
         alert(d.error || "Failed to save");
@@ -318,8 +325,13 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         ? await apiCall({ action: "updateMenuItem", id: editingItemId, ...payload })
         : await apiCall({ action: "addMenuItem", ...payload });
       if (res.ok) {
+        if (editingItemId) scrollBackItemId.current = editingItemId;
         setShowItemForm(false);
         await loadItems();
+        if (scrollBackItemId.current) {
+          const id = scrollBackItemId.current; scrollBackItemId.current = null;
+          setTimeout(() => { const el = document.querySelector(`[data-item-id="${id}"]`); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200);
+        }
       } else {
         const d = await res.json();
         alert(d.error || "Failed to save");
@@ -441,6 +453,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
             {categories.map((cat) => (
               <div
                 key={cat.id}
+                data-cat-id={cat.id}
                 className={cn(
                   "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border px-4 py-3 transition-colors",
                   selectedCategoryId === cat.id
@@ -726,7 +739,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                     const isLowStock = item.trackInventory && item.stockQuantity <= item.lowStockThreshold;
                     const isZeroStock = item.trackInventory && item.stockQuantity === 0;
                     return (
-                      <tr key={item.id} className={cn("border-b border-brand-mist/50 last:border-0", !item.isAvailable && "opacity-60")}>
+                      <tr key={item.id} data-item-id={item.id} className={cn("border-b border-brand-mist/50 last:border-0", !item.isAvailable && "opacity-60")}>
                         <td className="py-2.5 pr-3">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-brand-green-dark">{item.name}</span>

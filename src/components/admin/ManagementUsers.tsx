@@ -92,6 +92,7 @@ export function ManagementUsers({ password, username, role }: { password: string
   const [formPermissions, setFormPermissions] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const scrollBackUserId = useRef<number | null>(null);
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -125,10 +126,15 @@ export function ManagementUsers({ password, username, role }: { password: string
 
       const res = await apiCall(payload);
       if (res.ok) {
+        if (editingUser) scrollBackUserId.current = editingUser.id;
         setShowForm(false);
         setEditingUser(null);
         resetForm();
         await loadUsers();
+        if (scrollBackUserId.current) {
+          const id = scrollBackUserId.current; scrollBackUserId.current = null;
+          setTimeout(() => { const el = document.querySelector(`[data-user-id="${id}"]`); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200);
+        }
       } else {
         const d = await res.json();
         alert(d.error || "Failed to save user");
@@ -177,7 +183,7 @@ export function ManagementUsers({ password, username, role }: { password: string
       {/* User list */}
       <div className="space-y-3">
         {users.map((user) => (
-          <div key={user.id} className="flex items-center justify-between gap-3 rounded-xl border border-brand-mist bg-white p-4">
+          <div key={user.id} data-user-id={user.id} className="flex items-center justify-between gap-3 rounded-xl border border-brand-mist bg-white p-4">
             <div className="flex items-center gap-3">
               {user.isSystem ? <ShieldCheckIcon className="h-5 w-5 text-brand-green" /> : <ShieldIcon className="h-5 w-5 text-brand-green-dark/30" />}
               <div className="min-w-0">

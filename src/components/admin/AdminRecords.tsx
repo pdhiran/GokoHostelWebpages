@@ -112,6 +112,18 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
   const [viewMode, setViewMode] = useState<"card" | "table">(() => typeof window !== "undefined" && window.innerWidth < 1024 ? "card" : "table");
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const editFormRef = useRef<HTMLDivElement>(null);
+  const scrollBackId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (scrollBackId.current && rows.length > 0) {
+      const id = scrollBackId.current;
+      scrollBackId.current = null;
+      setTimeout(() => {
+        const el = document.querySelector(`[data-record-id="${id}"]`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
+    }
+  }, [rows]);
 
   const filteredRows = useMemo(() => {
     let result = rows.map((row, origIdx) => ({ row, origIdx }));
@@ -220,7 +232,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       if (editVisaFiles.length > 0) updated[15] = await doUpload(editVisaFiles, updated[3] || "Guest", "visa");
       const rowId = parseInt(rows[editIndex!][17] || "0", 10);
       const res = await apiCall({ action: "update", rowId, entry: updated, tab: currentTab });
-      if (res.ok) { setEditIndex(null); refresh(); }
+      if (res.ok) { scrollBackId.current = String(rowId); setEditIndex(null); refresh(); }
     } finally { setLoading(false); }
   };
 
@@ -778,7 +790,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
               const visaLinks = (row[15] || "").includes(" | ") ? (row[15] || "").split(" | ").filter((u: string) => u.startsWith("http")) : (row[15] || "").startsWith("http") ? [row[15]] : [];
 
               return (
-                <div key={origIdx} className={cn("rounded-xl border border-brand-mist bg-white shadow-sm", guestAnyFlag && "border-orange-200 bg-orange-50/30")}>
+                <div key={origIdx} data-record-id={row[17] || origIdx} className={cn("rounded-xl border border-brand-mist bg-white shadow-sm", guestAnyFlag && "border-orange-200 bg-orange-50/30")}>
                   {/* Collapsed — always visible */}
                   <button
                     type="button"
@@ -909,7 +921,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                 const guestDobMismatch = !!(guestDob && guestDobFromId && !guestVibeMatched && !dobsMatch(guestDob, guestDobFromId));
                 const guestAnyFlag = guestFlagged || guestDobMismatch;
                 return (
-                <tr key={origIdx} className={cn("border-b border-brand-mist/60 last:border-b-0 hover:bg-brand-sand/30", guestAnyFlag && "bg-orange-50/40")}>
+                <tr key={origIdx} data-record-id={row[17] || origIdx} className={cn("border-b border-brand-mist/60 last:border-b-0 hover:bg-brand-sand/30", guestAnyFlag && "bg-orange-50/40")}>
                   {CHECKIN_COLUMNS.map((col, ci) => {
                     if (ci === 0) return null;
                     const cell = row[ci] || "";
