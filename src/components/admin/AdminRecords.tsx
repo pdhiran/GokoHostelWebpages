@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,6 +111,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
   const [showDobInRecords, setShowDobInRecords] = useState(false);
   const [viewMode, setViewMode] = useState<"card" | "table">(() => typeof window !== "undefined" && window.innerWidth < 1024 ? "card" : "table");
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
+  const editFormRef = useRef<HTMLDivElement>(null);
 
   const filteredRows = useMemo(() => {
     let result = rows.map((row, origIdx) => ({ row, origIdx }));
@@ -195,6 +196,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
     setEditLastName(nameParts.slice(1).join(" ") || "");
     setEditIdFiles([]);
     setEditVisaFiles([]);
+    setTimeout(() => editFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   const updateRow = async () => {
@@ -713,7 +715,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
 
       {/* Edit form */}
       {editIndex !== null && (
-        <div className="mt-4 rounded-2xl border-2 border-brand-green/20 bg-white p-4 sm:p-6 shadow-card">
+        <div ref={editFormRef} className="mt-4 rounded-2xl border-2 border-brand-green/20 bg-white p-4 sm:p-6 shadow-card">
           <h3 className="font-display text-lg font-bold text-brand-green">Edit entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {CHECKIN_COLUMNS.map((col, i) => (
