@@ -136,13 +136,17 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
     return prop === filterProperty;
   });
   const todayArrivals = propertyBookings.filter((b) => b.checkinDate === today && b.status === "confirmed");
-  const upcoming = propertyBookings.filter((b) => b.checkinDate > today && b.status === "confirmed");
+  const upcoming = propertyBookings
+    .filter((b) => b.checkinDate > today && b.status === "confirmed")
+    .sort((a, b) => a.checkinDate.localeCompare(b.checkinDate));
 
-  const filtered = propertyBookings.filter((b) => {
-    if (filterPlatform && b.platform !== filterPlatform) return false;
-    if (filterStatus && b.status !== filterStatus) return false;
-    return true;
-  });
+  const filtered = propertyBookings
+    .filter((b) => {
+      if (filterPlatform && b.platform !== filterPlatform) return false;
+      if (filterStatus && b.status !== filterStatus) return false;
+      return true;
+    })
+    .sort((a, b) => a.checkinDate.localeCompare(b.checkinDate));
 
   const allPlatforms = [...new Set(bookings.map((b) => b.platform))];
   const allStatuses = [...new Set(bookings.map((b) => b.status))];
