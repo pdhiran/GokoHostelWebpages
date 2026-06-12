@@ -368,6 +368,7 @@ export async function POST(req: NextRequest) {
         if (!orderId || !orderItemId || newQuantity === undefined) {
           return NextResponse.json({ error: "Missing orderId, orderItemId, or newQuantity" }, { status: 400 });
         }
+        const db = getDb();
 
         const allOrderItems = await getFoodOrderItems(orderId);
         const targetItem = allOrderItems.find((i) => i.id === orderItemId);
@@ -436,9 +437,13 @@ export async function POST(req: NextRequest) {
           totalDiscount = Math.max(0, Math.min(grossTotal, Math.abs(Number(discountAmount))));
         }
 
-        for (const od of orderData) {
+        let discountAssigned = 0;
+        for (let oi = 0; oi < orderData.length; oi++) {
+          const od = orderData[oi];
+          const isLast = oi === orderData.length - 1;
           const proportion = grossTotal > 0 ? od.grossSubtotal / grossTotal : 0;
-          const orderDiscount = Math.round(totalDiscount * proportion);
+          const orderDiscount = isLast ? (totalDiscount - discountAssigned) : Math.round(totalDiscount * proportion);
+          discountAssigned += orderDiscount;
           const newSubtotal = Math.max(0, od.grossSubtotal - orderDiscount);
           const newTax = Math.round((newSubtotal * discTaxRate) / 100);
           const newTotal = newSubtotal + newTax;

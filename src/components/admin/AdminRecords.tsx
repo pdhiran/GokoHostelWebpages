@@ -149,6 +149,8 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
   const clearFilters = () => { setSearchQuery(""); setSortField(null); setSortDir("desc"); };
 
   const loadTab = async (tab?: string) => {
+    setExpandedCard(null);
+    setEditIndex(null);
     setLoading(true);
     try {
       const res = await apiCall({ action: "list", month: tab });
