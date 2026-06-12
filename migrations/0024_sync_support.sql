@@ -6,98 +6,98 @@
 
 -- Core guest & beds
 ALTER TABLE checkins ADD COLUMN sync_id TEXT;
-ALTER TABLE checkins ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE checkins ADD COLUMN sync_updated_at TEXT;
 ALTER TABLE checkins ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE checkins ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE dorms ADD COLUMN sync_id TEXT;
-ALTER TABLE dorms ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE dorms ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE dorms ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE dorms ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE beds ADD COLUMN sync_id TEXT;
-ALTER TABLE beds ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE beds ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE beds ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE beds ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE bed_history ADD COLUMN sync_id TEXT;
-ALTER TABLE bed_history ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE bed_history ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE bed_history ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 
 ALTER TABLE bookings ADD COLUMN sync_id TEXT;
-ALTER TABLE bookings ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE bookings ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE bookings ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE bookings ADD COLUMN deleted_at TEXT;
 
 -- Food ordering
 ALTER TABLE menu_categories ADD COLUMN sync_id TEXT;
-ALTER TABLE menu_categories ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE menu_categories ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE menu_categories ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE menu_categories ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE menu_items ADD COLUMN sync_id TEXT;
-ALTER TABLE menu_items ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE menu_items ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE menu_items ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE menu_items ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE food_orders ADD COLUMN sync_id TEXT;
-ALTER TABLE food_orders ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE food_orders ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE food_orders ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE food_orders ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE food_order_items ADD COLUMN sync_id TEXT;
-ALTER TABLE food_order_items ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE food_order_items ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE food_order_items ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 
 ALTER TABLE order_modifications ADD COLUMN sync_id TEXT;
-ALTER TABLE order_modifications ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE order_modifications ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE order_modifications ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 
 -- Financial / accounts
 ALTER TABLE accounts ADD COLUMN sync_id TEXT;
-ALTER TABLE accounts ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE accounts ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE accounts ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE accounts ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE vendors ADD COLUMN sync_id TEXT;
-ALTER TABLE vendors ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE vendors ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE vendors ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE vendors ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE employees ADD COLUMN sync_id TEXT;
-ALTER TABLE employees ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE employees ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE employees ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE employees ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE salary_payments ADD COLUMN sync_id TEXT;
-ALTER TABLE salary_payments ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE salary_payments ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE salary_payments ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 
 ALTER TABLE daily_income ADD COLUMN sync_id TEXT;
-ALTER TABLE daily_income ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE daily_income ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE daily_income ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE daily_income ADD COLUMN deleted_at TEXT;
 
 ALTER TABLE daily_ledger ADD COLUMN sync_id TEXT;
-ALTER TABLE daily_ledger ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE daily_ledger ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE daily_ledger ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 
 ALTER TABLE expenses ADD COLUMN sync_id TEXT;
-ALTER TABLE expenses ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE expenses ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE expenses ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE expenses ADD COLUMN deleted_at TEXT;
 
 -- System (synced selectively)
 ALTER TABLE users ADD COLUMN sync_id TEXT;
-ALTER TABLE users ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE users ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE users ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 ALTER TABLE users ADD COLUMN deleted_at TEXT;
 
-ALTER TABLE settings ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE settings ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE settings ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 
 ALTER TABLE qr_history ADD COLUMN sync_id TEXT;
-ALTER TABLE qr_history ADD COLUMN sync_updated_at TEXT DEFAULT (datetime('now'));
+ALTER TABLE qr_history ADD COLUMN sync_updated_at TEXT DEFAULT '';
 ALTER TABLE qr_history ADD COLUMN sync_source TEXT DEFAULT 'cloudflare';
 
 -- Tables NOT synced (no sync columns): api_stats, system_logs, rate_scrapes, push_subscriptions, audit_log
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS sync_conflicts (
   resolution TEXT DEFAULT '',  -- 'cloud', 'pi', 'manual', 'merged'
   resolved_at TEXT DEFAULT '',
   resolved_by TEXT DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_sync_conflicts_unresolved ON sync_conflicts(resolved);
