@@ -364,7 +364,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "updateItemQuantity": {
-        const { orderId, orderItemId, newQuantity } = rest;
+        const { orderId, orderItemId, newQuantity, reason: qtyReason } = rest;
         if (!orderId || !orderItemId || newQuantity === undefined) {
           return NextResponse.json({ error: "Missing orderId, orderItemId, or newQuantity" }, { status: 400 });
         }
@@ -381,10 +381,10 @@ export async function POST(req: NextRequest) {
 
         if (newQuantity <= 0) {
           await deleteFoodOrderItem(orderItemId);
-          await addOrderModification({ orderId, action: "item_removed", itemId: orderItemId, oldValue: String(oldQty), newValue: "0", reason: "Quantity reduced to zero", modifiedBy: actorName });
+          await addOrderModification({ orderId, action: "item_removed", itemId: orderItemId, oldValue: String(oldQty), newValue: "0", reason: qtyReason || "Quantity reduced to zero", modifiedBy: actorName });
         } else {
           await updateFoodOrderItemQuantity(orderItemId, newQuantity, targetItem.itemPrice);
-          await addOrderModification({ orderId, action: "quantity_changed", itemId: orderItemId, oldValue: String(oldQty), newValue: String(newQuantity), reason: "", modifiedBy: actorName });
+          await addOrderModification({ orderId, action: "quantity_changed", itemId: orderItemId, oldValue: String(oldQty), newValue: String(newQuantity), reason: qtyReason || "", modifiedBy: actorName });
         }
 
         if (qtyDiff > 0) await addStock(targetItem.menuItemId, qtyDiff);

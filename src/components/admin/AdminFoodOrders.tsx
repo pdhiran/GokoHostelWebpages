@@ -705,6 +705,9 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
   const [voidingItemId, setVoidingItemId] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [voidedItemReasons, setVoidedItemReasons] = useState<Record<number, string>>({});
+  const [modHistoryOrderId, setModHistoryOrderId] = useState<number | null>(null);
+  const [modHistoryData, setModHistoryData] = useState<OrderModification[]>([]);
+  const [modHistoryLoading, setModHistoryLoading] = useState(false);
 
   useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
@@ -875,6 +878,18 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
     }
   }, [apiCall]);
 
+  const toggleModHistory = async (orderId: number) => {
+    if (modHistoryOrderId === orderId) { setModHistoryOrderId(null); return; }
+    setModHistoryOrderId(orderId);
+    setModHistoryLoading(true);
+    try {
+      const res = await apiCall({ action: "getOrderModifications", orderId });
+      if (res.ok) { const data = await res.json(); setModHistoryData(data.modifications || []); }
+      else { setModHistoryData([]); }
+    } catch { setModHistoryData([]); }
+    finally { setModHistoryLoading(false); }
+  };
+
   const handleVoidItem = async (orderId: number, itemId: number, reason: string) => {
     setActionBusy(`void_${itemId}`);
     try {
@@ -889,9 +904,21 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
     }
   };
 
-  const handleQuantityChange = async (orderId: number, itemId: number, newQuantity: number) => {
+  const handleQuantityChange = async (orderId: number, itemId: number, newQuantity: number, orderStatus?: string) => {
     if (newQuantity <= 0) {
       setVoidingItemId(itemId);
+      return;
+    }
+    if (orderStatus === "served") {
+      const reason = prompt("This order is already served. Enter reason for quantity change:");
+      if (!reason) return;
+      setActionBusy(`qty_${itemId}`);
+      try {
+        const res = await apiCall({ action: "updateItemQuantity", orderId, orderItemId: itemId, newQuantity, reason });
+        if (res.ok) {
+          if (selectedGroup) await refreshAfterEdit(selectedGroup);
+        }
+      } finally { setActionBusy(null); }
       return;
     }
     setActionBusy(`qty_${itemId}`);
@@ -1176,6 +1203,9 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                           <StatusBadge status={order.status} />
+                          {order.hasModifications && (
+                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-brand-green-dark/50">
@@ -1237,14 +1267,14 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                                 <div className="flex items-center gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => handleQuantityChange(order.id, item.id, item.quantity - 1)}
+                                    onClick={() => handleQuantityChange(order.id, item.id, item.quantity - 1, order.status)}
                                     disabled={actionBusy === `qty_${item.id}`}
                                     className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 disabled:opacity-50"
                                   >−</button>
                                   <span className="w-5 text-center font-medium text-brand-green-dark">{item.quantity}</span>
                                   <button
                                     type="button"
-                                    onClick={() => handleQuantityChange(order.id, item.id, item.quantity + 1)}
+                                    onClick={() => handleQuantityChange(order.id, item.id, item.quantity + 1, order.status)}
                                     disabled={actionBusy === `qty_${item.id}`}
                                     className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 disabled:opacity-50"
                                   >+</button>
@@ -1284,6 +1314,37 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                         <span className="text-[10px] text-brand-green-dark/40">by {order.createdBy || "guest"}</span>
                         <span className="text-sm font-semibold text-brand-green-dark">₹{(order.total / 100).toFixed(0)}</span>
                       </div>
+                      {order.discount > 0 && (
+                        <div className="flex items-center justify-between text-[10px] text-green-600">
+                          <span>Discount{order.discountBy ? ` by ${order.discountBy}` : ""}</span>
+                          <span>-₹{(order.discount / 100).toFixed(0)}</span>
+                        </div>
+                      )}
+                      {order.hasModifications && (
+                        <div className="mt-1.5 border-t border-brand-mist pt-1.5">
+                          <button type="button" onClick={() => toggleModHistory(order.id)} className="text-[10px] font-medium text-amber-600 hover:text-amber-700">
+                            {modHistoryOrderId === order.id ? "Hide history" : "View modifications"}
+                          </button>
+                          {modHistoryOrderId === order.id && (
+                            <div className="mt-1 space-y-1">
+                              {modHistoryLoading ? (
+                                <p className="text-[10px] text-brand-green-dark/40">Loading...</p>
+                              ) : modHistoryData.length === 0 ? (
+                                <p className="text-[10px] text-brand-green-dark/40">No modifications</p>
+                              ) : (
+                                modHistoryData.map((mod, mi) => (
+                                  <div key={mi} className="rounded bg-amber-50 px-2 py-1 text-[10px]">
+                                    <span className="font-medium text-amber-700">{mod.action}</span>
+                                    {mod.oldValue && mod.newValue && <span className="text-amber-600"> {mod.oldValue} → {mod.newValue}</span>}
+                                    {mod.reason && <span className="text-amber-500"> — {mod.reason}</span>}
+                                    <span className="text-amber-400"> by {mod.modifiedBy}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     );
                   })}
