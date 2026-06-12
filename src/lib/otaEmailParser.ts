@@ -185,7 +185,7 @@ function parseStayFlexi(body: string, subject: string, platform: string, from: s
   const personsMatch = body.match(/(\d+)\s*Adult\(s\)/i);
   const persons = personsMatch ? parseInt(personsMatch[1], 10) : 1;
 
-  const contact = extractPattern(body, /(?:Phone)\s+([+\d\s\-()]+)/i) || "";
+  const contact = extractGuestContact(body);
 
   const totalPayments = extractPattern(body, /Total\s+payments\s+([^\n<]+)/i) || "";
   const isPaid = totalPayments ? !totalPayments.includes("0.0") : false;
@@ -205,6 +205,18 @@ function parseStayFlexi(body: string, subject: string, platform: string, from: s
     specialRequests: "",
     property,
   };
+}
+
+function extractGuestContact(body: string): string {
+  const customerSection = body.match(/Customer details([\s\S]*?)(?:Accomodation details|Room details|$)/i);
+  if (customerSection) {
+    const section = customerSection[1];
+    const phone = extractPattern(section, /(?:Phone|Mobile|Contact)\s+([+\d\s\-()]+)/i);
+    if (phone) return phone.trim();
+    const email = extractPattern(section, /(?:Email)\s+([^\s\n]+@[^\s\n]+)/i);
+    if (email) return email.trim();
+  }
+  return "";
 }
 
 function identifyProperty(from: string, body: string): string {

@@ -56,6 +56,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
   const [showForm, setShowForm] = useState(false);
   const [filterPlatform, setFilterPlatform] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterProperty, setFilterProperty] = useState("goko_hostel");
 
   const [form, setForm] = useState({
     guestName: "", contact: "", platform: "manual", bookingRef: "",
@@ -130,11 +131,14 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
   };
 
   const today = new Date().toISOString().split("T")[0];
-  const gokoBookings = bookings.filter((b) => !b.property || b.property === "goko_hostel");
-  const todayArrivals = gokoBookings.filter((b) => b.checkinDate === today && b.status === "confirmed");
-  const upcoming = gokoBookings.filter((b) => b.checkinDate > today && b.status === "confirmed");
+  const propertyBookings = bookings.filter((b) => {
+    const prop = b.property || "goko_hostel";
+    return prop === filterProperty;
+  });
+  const todayArrivals = propertyBookings.filter((b) => b.checkinDate === today && b.status === "confirmed");
+  const upcoming = propertyBookings.filter((b) => b.checkinDate > today && b.status === "confirmed");
 
-  const filtered = gokoBookings.filter((b) => {
+  const filtered = propertyBookings.filter((b) => {
     if (filterPlatform && b.platform !== filterPlatform) return false;
     if (filterStatus && b.status !== filterStatus) return false;
     return true;
@@ -151,6 +155,10 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
         <div>
           <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Bookings</h2>
           {lastSync && <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Last email sync: {new Date(lastSync).toLocaleString()}</p>}
+          <select value={filterProperty} onChange={(e) => setFilterProperty(e.target.value)} className="mt-1.5 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium">
+            <option value="goko_hostel">Goko Hostel</option>
+            <option value="sunnys_paradise">Sunny&apos;s Paradise</option>
+          </select>
         </div>
         <div className="flex flex-wrap gap-2">
           {hasPermission(role, permissions, "canAddBooking") && (
@@ -185,16 +193,13 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
           <h3 className="mb-3 font-semibold text-brand-green">Today&apos;s Arrivals ({todayArrivals.length})</h3>
           <div className="space-y-2">
             {todayArrivals.map((b) => (
-              <div key={b.id} className={cn("flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-3 shadow-sm", b.property === "sunnys_paradise" && "ring-2 ring-amber-300 bg-amber-50")}>
+              <div key={b.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-3 shadow-sm">
                 <div className="flex items-center gap-3">
                   <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
                     {PLATFORM_LABELS[b.platform] || b.platform}
                   </span>
                   <div>
-                    <p className="font-medium text-brand-green-dark">
-                      {b.guestName}
-                      {b.property === "sunnys_paradise" && <span className="ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700">Sunny&apos;s Paradise</span>}
-                    </p>
+                    <p className="font-medium text-brand-green-dark">{b.guestName}</p>
                     <p className="text-xs text-brand-green-dark/50">{b.roomType || "Any"} · {b.persons} person(s){b.contact ? ` · ${b.contact}` : ""}</p>
                   </div>
                 </div>
@@ -216,17 +221,14 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">Upcoming ({upcoming.length})</h3>
           <div className="space-y-2">
             {upcoming.slice(0, 10).map((b) => (
-              <div key={b.id} className={cn("flex items-center justify-between rounded-lg border border-brand-mist p-3", b.property === "sunnys_paradise" && "border-amber-300 bg-amber-50/50")}>
+              <div key={b.id} className="flex items-center justify-between rounded-lg border border-brand-mist p-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-brand-sand">
                     <span className="text-[10px] font-bold text-brand-green-dark/60">{new Date(b.checkinDate).toLocaleDateString("en", { day: "numeric" })}</span>
                     <span className="text-[8px] uppercase text-brand-green-dark/40">{new Date(b.checkinDate).toLocaleDateString("en", { month: "short" })}</span>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-brand-green-dark">
-                      {b.guestName}
-                      {b.property === "sunnys_paradise" && <span className="ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700">Sunny&apos;s</span>}
-                    </p>
+                    <p className="text-sm font-medium text-brand-green-dark">{b.guestName}</p>
                     <p className="text-xs text-brand-green-dark/50">
                       <span className={cn("mr-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
                         {PLATFORM_LABELS[b.platform] || b.platform}
@@ -274,15 +276,10 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-brand-green-dark/50">No bookings yet</td></tr>
               ) : (
                 filtered.map((b) => (
-                  <tr key={b.id} className={cn("border-b border-brand-mist/50 last:border-0 hover:bg-brand-sand/30", b.property === "sunnys_paradise" && "bg-amber-50/60")}>
+                  <tr key={b.id} className="border-b border-brand-mist/50 last:border-0 hover:bg-brand-sand/30">
                     <td className="px-4 py-3">
                       <p className="font-medium text-brand-green-dark">{b.guestName}</p>
                       {b.contact && <p className="text-[10px] text-brand-green-dark/50">{b.contact}</p>}
-                      {b.property && b.property !== "goko_hostel" && (
-                        <span className="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700">
-                          {PROPERTY_LABELS[b.property] || b.property}
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
