@@ -863,9 +863,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "addBooking") {
-      const { guestName, contact, platform, bookingRef, checkinDate, checkoutDate, roomType, persons, paymentStatus, specialRequests, source } = rest;
+      const { guestName, contact, platform, bookingRef, checkinDate, checkoutDate, roomType, persons, paymentStatus, specialRequests, source, property } = rest;
       if (!guestName || !checkinDate || !platform) return NextResponse.json({ error: "Guest name, date, and platform required" }, { status: 400 });
-      await addBooking({ guestName, contact, platform, bookingRef, checkinDate, checkoutDate, roomType, persons: parseInt(persons) || 1, paymentStatus, specialRequests, source });
+      await addBooking({ guestName, contact, platform, bookingRef, checkinDate, checkoutDate, roomType, persons: parseInt(persons) || 1, paymentStatus, specialRequests, source, property });
       await addAuditEntry({ username: actingUser, action: "booking_added", target: `${guestName} (${platform})` });
       return NextResponse.json({ success: true });
     }

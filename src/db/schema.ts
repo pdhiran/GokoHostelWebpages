@@ -169,6 +169,7 @@ export const bookings = sqliteTable("bookings", {
   specialRequests: text("special_requests").default(""),
   status: text("status").notNull().default("confirmed"),
   source: text("source").default("manual"),
+  property: text("property").default("goko_hostel"),
   rawData: text("raw_data").default(""),
   createdAt: text("created_at").notNull(),
   syncedAt: text("synced_at").default(""),

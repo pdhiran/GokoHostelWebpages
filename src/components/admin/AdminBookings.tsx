@@ -24,6 +24,7 @@ type Booking = {
   specialRequests: string;
   status: string;
   source: string;
+  property: string;
   createdAt: string;
 };
 
@@ -43,6 +44,11 @@ const PLATFORM_LABELS: Record<string, string> = {
   manual: "Manual",
 };
 
+const PROPERTY_LABELS: Record<string, string> = {
+  goko_hostel: "Goko Hostel",
+  sunnys_paradise: "Sunny's Paradise",
+};
+
 export function AdminBookings({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -54,7 +60,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
   const [form, setForm] = useState({
     guestName: "", contact: "", platform: "manual", bookingRef: "",
     checkinDate: "", checkoutDate: "", roomType: "", persons: "1",
-    paymentStatus: "unknown", specialRequests: "",
+    paymentStatus: "unknown", specialRequests: "", property: "goko_hostel",
   });
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -105,7 +111,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
       const res = await apiCall({ action: "addBooking", ...form, persons: parseInt(form.persons) || 1 });
       if (res.ok) {
         setShowForm(false);
-        setForm({ guestName: "", contact: "", platform: "manual", bookingRef: "", checkinDate: "", checkoutDate: "", roomType: "", persons: "1", paymentStatus: "unknown", specialRequests: "" });
+        setForm({ guestName: "", contact: "", platform: "manual", bookingRef: "", checkinDate: "", checkoutDate: "", roomType: "", persons: "1", paymentStatus: "unknown", specialRequests: "", property: "goko_hostel" });
         await loadBookings();
       } else { const d = await res.json(); alert(d.error || "Failed"); }
     } finally { setSaving(false); }
@@ -172,13 +178,16 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
           <h3 className="mb-3 font-semibold text-brand-green">Today&apos;s Arrivals ({todayArrivals.length})</h3>
           <div className="space-y-2">
             {todayArrivals.map((b) => (
-              <div key={b.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-3 shadow-sm">
+              <div key={b.id} className={cn("flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-3 shadow-sm", b.property === "sunnys_paradise" && "ring-2 ring-amber-300 bg-amber-50")}>
                 <div className="flex items-center gap-3">
                   <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
                     {PLATFORM_LABELS[b.platform] || b.platform}
                   </span>
                   <div>
-                    <p className="font-medium text-brand-green-dark">{b.guestName}</p>
+                    <p className="font-medium text-brand-green-dark">
+                      {b.guestName}
+                      {b.property === "sunnys_paradise" && <span className="ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700">Sunny&apos;s Paradise</span>}
+                    </p>
                     <p className="text-xs text-brand-green-dark/50">{b.roomType || "Any"} · {b.persons} person(s){b.contact ? ` · ${b.contact}` : ""}</p>
                   </div>
                 </div>
@@ -200,14 +209,17 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">Upcoming ({upcoming.length})</h3>
           <div className="space-y-2">
             {upcoming.slice(0, 10).map((b) => (
-              <div key={b.id} className="flex items-center justify-between rounded-lg border border-brand-mist p-3">
+              <div key={b.id} className={cn("flex items-center justify-between rounded-lg border border-brand-mist p-3", b.property === "sunnys_paradise" && "border-amber-300 bg-amber-50/50")}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-brand-sand">
                     <span className="text-[10px] font-bold text-brand-green-dark/60">{new Date(b.checkinDate).toLocaleDateString("en", { day: "numeric" })}</span>
                     <span className="text-[8px] uppercase text-brand-green-dark/40">{new Date(b.checkinDate).toLocaleDateString("en", { month: "short" })}</span>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-brand-green-dark">{b.guestName}</p>
+                    <p className="text-sm font-medium text-brand-green-dark">
+                      {b.guestName}
+                      {b.property === "sunnys_paradise" && <span className="ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700">Sunny&apos;s</span>}
+                    </p>
                     <p className="text-xs text-brand-green-dark/50">
                       <span className={cn("mr-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
                         {PLATFORM_LABELS[b.platform] || b.platform}
@@ -255,10 +267,15 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-brand-green-dark/50">No bookings yet</td></tr>
               ) : (
                 filtered.map((b) => (
-                  <tr key={b.id} className="border-b border-brand-mist/50 last:border-0 hover:bg-brand-sand/30">
+                  <tr key={b.id} className={cn("border-b border-brand-mist/50 last:border-0 hover:bg-brand-sand/30", b.property === "sunnys_paradise" && "bg-amber-50/60")}>
                     <td className="px-4 py-3">
                       <p className="font-medium text-brand-green-dark">{b.guestName}</p>
                       {b.contact && <p className="text-[10px] text-brand-green-dark/50">{b.contact}</p>}
+                      {b.property && b.property !== "goko_hostel" && (
+                        <span className="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700">
+                          {PROPERTY_LABELS[b.property] || b.property}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
@@ -322,6 +339,13 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                   <option value="booking_com">Booking.com</option>
                   <option value="hostelworld">Hostelworld</option>
                   <option value="direct">Direct (WhatsApp/Call)</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-brand-green-dark/60">Property</label>
+                <select value={form.property} onChange={(e) => setForm({ ...form, property: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <option value="goko_hostel">Goko Hostel</option>
+                  <option value="sunnys_paradise">Sunny&apos;s Paradise</option>
                 </select>
               </div>
               <div>

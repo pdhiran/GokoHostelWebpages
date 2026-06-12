@@ -15,20 +15,33 @@ export type ParsedBooking = {
   persons: number;
   paymentStatus: string;
   specialRequests: string;
+  property?: string;
 };
 
 const OTA_SENDERS: Record<string, string> = {
   "makemytrip": "makemytrip.com",
   "booking_com": "booking.com",
   "hostelworld": "hostelworld.com",
+  "stayflexi": "stayflexi.com",
 };
 
-export function identifyPlatform(from: string): string | null {
+export function identifyPlatform(from: string, subject?: string): string | null {
   const lower = from.toLowerCase();
   if (lower.includes("makemytrip")) return "makemytrip";
   if (lower.includes("booking.com")) return "booking_com";
   if (lower.includes("hostelworld")) return "hostelworld";
+  if (lower.includes("stayflexi")) {
+    return identifyPlatformFromContent(subject || "");
+  }
   return null;
+}
+
+function identifyPlatformFromContent(text: string): string | null {
+  const lower = text.toLowerCase();
+  if (lower.includes("booking.com")) return "booking_com";
+  if (lower.includes("makemytrip")) return "makemytrip";
+  if (lower.includes("hostelworld")) return "hostelworld";
+  return "booking_com";
 }
 
 export function isBookingEmail(message: GmailMessage): boolean {
@@ -39,17 +52,28 @@ export function isBookingEmail(message: GmailMessage): boolean {
   const isFromOTA = Object.values(OTA_SENDERS).some((domain) => from.includes(domain));
   const hasKeyword = bookingKeywords.some((kw) => subject.includes(kw));
 
+  if (from.includes("stayflexi.com")) {
+    const stayflexiKeywords = ["booking confirmed", "new booking", "booking from"];
+    return stayflexiKeywords.some((kw) => subject.includes(kw));
+  }
+
   return isFromOTA && hasKeyword;
 }
 
 export function parseBookingEmail(message: GmailMessage): ParsedBooking | null {
-  const platform = identifyPlatform(message.from);
-  if (!platform) return null;
-
+  const from = message.from.toLowerCase();
   const body = message.body;
   const subject = message.subject;
+  const isStayFlexi = from.includes("stayflexi.com");
+
+  const platform = identifyPlatform(message.from, subject);
+  if (!platform) return null;
 
   try {
+    if (isStayFlexi) {
+      return parseStayFlexi(body, subject, platform, message.from);
+    }
+
     switch (platform) {
       case "makemytrip":
         return parseMakeMyTrip(body, subject);
@@ -133,6 +157,80 @@ function parseHostelworld(body: string, subject: string): ParsedBooking {
   };
 }
 
+function parseStayFlexi(body: string, subject: string, platform: string, from: string): ParsedBooking {
+  const guestName =
+    extractPattern(body, /confirmed for\s+([^,\n<]+)/i) ||
+    extractPattern(body, /(?:Name)\s+([^\n<]+)/i) ||
+    "Unknown Guest";
+
+  const bookingRef =
+    extractPattern(subject, /Itinerary\s*#\s*([A-Z0-9_]+)/i) ||
+    extractPattern(body, /(?:Confirmation code)\s+([A-Z0-9_]+)/i) ||
+    "";
+
+  const otaRef = extractPattern(body, /BOOKING\.COM\s+Confirmation\s+code\s+(\d+)/i) || "";
+
+  const checkinDate =
+    extractStayFlexiDate(subject, "from") ||
+    extractDate(body, "check.?in") ||
+    "";
+  const checkoutDate =
+    extractStayFlexiDate(subject, "to") ||
+    extractDate(body, "check.?out") ||
+    "";
+
+  const roomType = extractPattern(body, /Room:\s*([^\n<,]+)/i) || "";
+
+  const personsMatch = body.match(/(\d+)\s*Adult\(s\)/i);
+  const persons = personsMatch ? parseInt(personsMatch[1], 10) : 1;
+
+  const contact = extractPattern(body, /(?:Phone)\s+([+\d\s\-()]+)/i) || "";
+
+  const totalPayments = extractPattern(body, /Total\s+payments\s+([^\n<]+)/i) || "";
+  const isPaid = totalPayments ? !totalPayments.includes("0.0") : false;
+
+  const property = identifyProperty(from, body);
+
+  return {
+    guestName: guestName.trim(),
+    contact: contact.trim(),
+    platform,
+    bookingRef: bookingRef || otaRef,
+    checkinDate,
+    checkoutDate,
+    roomType: roomType.trim(),
+    persons,
+    paymentStatus: isPaid ? "paid" : "pay_at_property",
+    specialRequests: "",
+    property,
+  };
+}
+
+function identifyProperty(from: string, body: string): string {
+  const fromLower = from.toLowerCase();
+  if (fromLower.includes("sunny") || fromLower.includes("paradise")) return "sunnys_paradise";
+  if (fromLower.includes("goko")) return "goko_hostel";
+
+  const accomName = extractPattern(body, /Accomodation details[\s\S]*?Name\s+([^\n<]+)/i);
+  if (accomName) {
+    const lower = accomName.toLowerCase().trim();
+    if (lower.includes("sunny") || lower.includes("paradise")) return "sunnys_paradise";
+    if (lower.includes("goko")) return "goko_hostel";
+  }
+  return "goko_hostel";
+}
+
+function extractStayFlexiDate(text: string, keyword: string): string {
+  const regex = new RegExp(`${keyword}\\s+(\\w{3,9}\\s+\\d{1,2},?\\s+\\d{4})`, "i");
+  const match = text.match(regex);
+  if (!match) return "";
+  try {
+    const d = new Date(match[1]);
+    if (!isNaN(d.getTime())) return formatLocalDate(d);
+  } catch {}
+  return match[1];
+}
+
 // --- Utility helpers ---
 
 function extractBetween(text: string, startKey: string, endKey: string): string | null {
@@ -154,12 +252,19 @@ function extractDate(text: string, contextKey: string): string {
   const dateStr = match[1];
   try {
     const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    if (!isNaN(d.getTime())) return formatLocalDate(d);
   } catch {}
 
   return dateStr;
 }
 
+function formatLocalDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function getOtaSearchQuery(): string {
-  return "from:(makemytrip.com OR booking.com OR hostelworld.com) subject:(booking OR reservation OR confirmation) newer_than:7d";
+  return "from:(makemytrip.com OR booking.com OR hostelworld.com OR stayflexi.com) subject:(booking OR reservation OR confirmation) newer_than:7d";
 }

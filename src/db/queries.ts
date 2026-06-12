@@ -330,7 +330,8 @@ export async function getUpcomingBookings() {
 export async function addBooking(data: {
   guestName: string; contact?: string; platform: string; bookingRef?: string;
   checkinDate: string; checkoutDate?: string; roomType?: string; persons?: number;
-  paymentStatus?: string; specialRequests?: string; status?: string; source?: string; rawData?: string;
+  paymentStatus?: string; specialRequests?: string; status?: string; source?: string;
+  property?: string; rawData?: string;
 }) {
   const db = getDb();
   return db.insert(bookings).values({
@@ -346,6 +347,7 @@ export async function addBooking(data: {
     specialRequests: data.specialRequests || "",
     status: data.status || "confirmed",
     source: data.source || "manual",
+    property: data.property || "goko_hostel",
     rawData: data.rawData || "",
     createdAt: new Date().toISOString(),
     syncedAt: "",
