@@ -706,6 +706,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
   const [voidingItemId, setVoidingItemId] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [voidedItemReasons, setVoidedItemReasons] = useState<Record<number, string>>({});
+  const [pendingQtyChange, setPendingQtyChange] = useState<{ orderId: number; itemId: number; newQty: number } | null>(null);
   const [modHistoryOrderId, setModHistoryOrderId] = useState<number | null>(null);
   const [modHistoryData, setModHistoryData] = useState<OrderModification[]>([]);
   const [modHistoryLoading, setModHistoryLoading] = useState(false);
@@ -911,21 +912,30 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       return;
     }
     if (orderStatus === "served") {
-      const reason = prompt("This order is already served. Enter reason for quantity change:");
-      if (!reason) return;
-      setActionBusy(`qty_${itemId}`);
-      try {
-        const res = await apiCall({ action: "updateItemQuantity", orderId, orderItemId: itemId, newQuantity, reason });
-        if (res.ok) {
-          if (selectedGroup) await refreshAfterEdit(selectedGroup);
-        }
-      } finally { setActionBusy(null); }
+      setPendingQtyChange({ orderId, itemId, newQty: newQuantity });
+      setVoidingItemId(itemId);
       return;
     }
     setActionBusy(`qty_${itemId}`);
     try {
       const res = await apiCall({ action: "updateItemQuantity", orderId, orderItemId: itemId, newQuantity });
       if (res.ok) {
+        if (selectedGroup) await refreshAfterEdit(selectedGroup);
+      }
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleServedQtyChange = async (reason: string) => {
+    if (!pendingQtyChange) return;
+    const { orderId, itemId, newQty } = pendingQtyChange;
+    setActionBusy(`qty_${itemId}`);
+    try {
+      const res = await apiCall({ action: "updateItemQuantity", orderId, orderItemId: itemId, newQuantity: newQty, reason });
+      if (res.ok) {
+        setPendingQtyChange(null);
+        setVoidingItemId(null);
         if (selectedGroup) await refreshAfterEdit(selectedGroup);
       }
     } finally {
@@ -1301,10 +1311,16 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                             )}
                             {voidingItemId === item.id && (
                               <VoidReasonPopup
-                                itemName={item.itemName}
-                                onVoid={(reason) => handleVoidItem(order.id, item.id, reason)}
-                                onCancel={() => setVoidingItemId(null)}
-                                busy={actionBusy === `void_${item.id}`}
+                                itemName={pendingQtyChange?.itemId === item.id ? `Reduce "${item.itemName}" (${item.quantity} → ${pendingQtyChange.newQty})` : item.itemName}
+                                onVoid={(reason) => {
+                                  if (pendingQtyChange?.itemId === item.id) {
+                                    handleServedQtyChange(reason);
+                                  } else {
+                                    handleVoidItem(order.id, item.id, reason);
+                                  }
+                                }}
+                                onCancel={() => { setVoidingItemId(null); setPendingQtyChange(null); }}
+                                busy={actionBusy === `void_${item.id}` || actionBusy === `qty_${item.id}`}
                               />
                             )}
                           </div>
