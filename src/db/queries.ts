@@ -364,6 +364,11 @@ export async function deleteBooking(id: number) {
   return db.delete(bookings).where(eq(bookings.id, id));
 }
 
+export async function deleteEmailBookings() {
+  const db = getDb();
+  return db.delete(bookings).where(eq(bookings.source, "email"));
+}
+
 // --- Rate Scrapes ---
 
 export async function createRateScrape(data: { city: string; startDate: string; endDate: string; propertyType: string }) {

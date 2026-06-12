@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { gmailListMessages, gmailGetMessage } from "@/lib/googleApiFetch";
 import { isBookingEmail, parseBookingEmail, getOtaSearchQuery } from "@/lib/otaEmailParser";
-import { addBooking, getAllBookings, setSetting, getSetting, addAuditEntry, addSystemLog } from "@/db/queries";
+import { addBooking, getAllBookings, deleteEmailBookings, setSetting, getSetting, addAuditEntry, addSystemLog } from "@/db/queries";
 import { isOfflineMode } from "@/lib/runtime";
 
 export async function POST(req: NextRequest) {
@@ -11,10 +11,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { password } = body;
+    const { password, resync } = body;
 
     if (!password || (password !== process.env.ADMIN_PASSWORD && password !== process.env.MANAGER_PASSWORD)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (resync) {
+      await deleteEmailBookings();
     }
 
     const query = getOtaSearchQuery();

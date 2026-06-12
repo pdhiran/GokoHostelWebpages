@@ -74,20 +74,21 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
     if (res.ok) { const d = await res.json(); setLastSync(d.value || null); }
   };
 
-  const syncEmails = async () => {
+  const syncEmails = async (resync = false) => {
+    if (resync && !confirm("This will delete all email-synced bookings and re-import them. Continue?")) return;
     setSyncing(true);
     setSyncResult(null);
     try {
       const res = await fetch("/api/bookings/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, resync }),
       });
       const data = await res.json();
       if (res.ok) {
         setSyncResult(`Synced ${data.synced} new booking(s). ${data.skipped || 0} skipped.`);
         setLastSync(new Date().toISOString());
-        if (data.synced > 0) await loadBookings();
+        await loadBookings();
       } else {
         setSyncResult(`Sync failed: ${data.error}`);
       }
@@ -157,9 +158,14 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
             </Button>
           )}
           {hasPermission(role, permissions, "canSyncBookings") && (
-            <Button type="button" variant="ctaOutline" onClick={syncEmails} disabled={syncing}>
-              {syncing ? "Syncing..." : "Sync Emails"}
-            </Button>
+            <>
+              <Button type="button" variant="ctaOutline" onClick={() => syncEmails(false)} disabled={syncing}>
+                {syncing ? "Syncing..." : "Sync Emails"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => syncEmails(true)} disabled={syncing} className="text-xs text-brand-green-dark/50">
+                Re-sync All
+              </Button>
+            </>
           )}
           <Button type="button" variant="ctaOutline" onClick={loadBookings}>
             <RefreshCwIcon className="mr-1 h-4 w-4" /> Refresh
