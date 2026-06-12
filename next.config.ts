@@ -1,9 +1,13 @@
 import type { NextConfig } from "next";
 
+const isPi = process.env.GOKO_RUNTIME === "pi";
+
 const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: ["better-sqlite3"],
+  ...(isPi ? { output: "standalone" } : {}),
 };
 
 // OpenNext runs Wrangler + monkey-patches Node's `vm` during dev. Loading it only

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { driveDeleteFile } from "@/lib/googleApiFetch";
 import { getDb } from "@/db";
+import { isOfflineMode } from "@/lib/runtime";
 import {
   getCheckinsByMonth, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
   getAllBeds, getBedById, updateBedStatus, getAllDorms, getDormByName, addDorm, addBed, deleteBed, deleteDormAndBeds,
@@ -246,6 +247,11 @@ export async function POST(req: NextRequest) {
     if (action === "verifyCheckin") {
       const { rowId, verified } = rest;
       if (!isValidId(rowId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+      if (isOfflineMode()) {
+        await updateCheckin(rowId, { verified: "yes" });
+        await addAuditEntry({ username: actingUser, action: "verify_id", target: `${rowId} (offline)` });
+        return NextResponse.json({ success: true });
+      }
       await updateCheckin(rowId, { verified: verified ? "yes" : "no" });
       await addAuditEntry({ username: actingUser, action: "verify_id", target: String(rowId) });
       return NextResponse.json({ success: true });
@@ -374,21 +380,27 @@ export async function POST(req: NextRequest) {
 
     if (action === "healthCheck") {
       if (role !== "admin") return NextResponse.json({ error: "Only admin can run health checks" }, { status: 403 });
-      const { checkOAuthHealth, checkVisionHealth, checkGmailHealth } = await import("@/lib/googleApiFetch");
 
-      const [drive, vision, gmail, d1] = await Promise.all([
+      const d1 = await (async () => {
+        try {
+          const db = getDb();
+          await db.select({ one: sql`1` }).from(sql`(SELECT 1)`);
+          return { status: "ok" as const };
+        } catch (e: any) {
+          return { status: "error" as const, message: e.message || "Database connection failed" };
+        }
+      })();
+
+      if (isOfflineMode()) {
+        const offlineSkipped = { status: "skipped" as const, message: "Offline mode" };
+        return NextResponse.json({ results: { d1, drive: offlineSkipped, vision: offlineSkipped, gmail: offlineSkipped } });
+      }
+
+      const { checkOAuthHealth, checkVisionHealth, checkGmailHealth } = await import("@/lib/googleApiFetch");
+      const [drive, vision, gmail] = await Promise.all([
         checkOAuthHealth(),
         checkVisionHealth(),
         checkGmailHealth(),
-        (async () => {
-          try {
-            const db = getDb();
-            await db.run(sql`SELECT 1`);
-            return { status: "ok" as const };
-          } catch (e: any) {
-            return { status: "error" as const, message: e.message || "D1 connection failed" };
-          }
-        })(),
       ]);
 
       return NextResponse.json({ results: { d1, drive, vision, gmail } });
@@ -830,6 +842,9 @@ export async function POST(req: NextRequest) {
 
     if (action === "runBackup") {
       if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      if (isOfflineMode()) {
+        return NextResponse.json({ error: "Backup requires internet" }, { status: 503 });
+      }
       await setSetting("last_backup", new Date().toISOString());
       await addAuditEntry({ username: actingUser, action: "backup_run", target: "manual" });
       return NextResponse.json({ success: true, message: "Backup timestamp recorded." });
@@ -888,6 +903,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "startRateScrape") {
+      if (isOfflineMode()) {
+        return NextResponse.json({ error: "Rate scraping requires internet" }, { status: 503 });
+      }
       const { city: scrapeCity, startDate: sDate, endDate: eDate, propertyType: pType, proxyUrl: pUrl } = rest;
       if (!scrapeCity || !sDate || !eDate) return NextResponse.json({ error: "City and dates required" }, { status: 400 });
 

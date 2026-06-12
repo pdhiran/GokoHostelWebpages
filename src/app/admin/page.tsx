@@ -16,6 +16,7 @@ import { AdminFoodOrders } from "@/components/admin/AdminFoodOrders";
 import { AdminExpenditure } from "@/components/admin/AdminExpenditure";
 import type { Role, AdminSection } from "@/components/admin/types";
 import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
+import { SyncStatusBar } from "@/components/admin/SyncStatusBar";
 
 export default function AdminPage() {
   const [password, setPassword] = useState("");
@@ -375,6 +376,16 @@ export default function AdminPage() {
           </div>
         )}
       </nav>
+
+      {/* Sync status bar */}
+      {role === "admin" && (
+        <SyncStatusBar
+          password={password}
+          username={username}
+          role={role}
+          onNavigateToSync={() => setSection("management")}
+        />
+      )}
 
       {/* Section content */}
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">

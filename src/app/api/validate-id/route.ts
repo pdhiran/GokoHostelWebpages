@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateIdDocument, validateMultipleFiles } from "@/lib/validateIdDocument";
 import { incrementStat, addSystemLog } from "@/db/queries";
+import { isOfflineMode } from "@/lib/runtime";
 
 export async function POST(req: NextRequest) {
+  if (isOfflineMode()) {
+    return NextResponse.json({ valid: true, offline: true, message: "ID validation unavailable offline" });
+  }
+
   try {
     const formData = await req.formData();
     const files = formData.getAll("file") as File[];

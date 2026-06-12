@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { driveUploadFile, driveGetOrCreateFolder } from "@/lib/googleApiFetch";
 import { getMonthKey, incrementStat, addSystemLog } from "@/db/queries";
+import { isOfflineMode } from "@/lib/runtime";
 
 export async function POST(req: NextRequest) {
+  if (isOfflineMode()) {
+    return NextResponse.json({ error: "File uploads require internet connection" }, { status: 503 });
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;

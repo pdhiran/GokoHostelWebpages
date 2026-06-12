@@ -2,6 +2,7 @@ import { buildPushHTTPRequest } from "@pushforge/builder";
 import { getDb } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { isOfflineMode } from "@/lib/runtime";
 
 type PushPayload = {
   title: string;
@@ -11,6 +12,8 @@ type PushPayload = {
 };
 
 export async function sendPushToAll(payload: PushPayload) {
+  if (isOfflineMode()) return;
+
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
   if (!vapidPrivateKey) return;
 

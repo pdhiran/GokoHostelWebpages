@@ -1,5 +1,17 @@
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+// Sync columns shared across synced tables
+const syncColumns = {
+  syncId: text("sync_id"),
+  syncUpdatedAt: text("sync_updated_at"),
+  syncSource: text("sync_source").default("cloudflare"),
+};
+
+const syncColumnsWithDelete = {
+  ...syncColumns,
+  deletedAt: text("deleted_at"),
+};
+
 export const checkins = sqliteTable("checkins", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   submittedAt: text("submitted_at").notNull(),
@@ -26,6 +38,7 @@ export const checkins = sqliteTable("checkins", {
   dobFromId: text("dob_from_id").default(""),
   vibeMatched: integer("vibe_matched").notNull().default(0),
   createdMonth: text("created_month").notNull(),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_checkins_month").on(table.createdMonth),
   index("idx_checkins_contact").on(table.contact),
@@ -37,6 +50,7 @@ export const dorms = sqliteTable("dorms", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
   createdAt: text("created_at").notNull(),
+  ...syncColumnsWithDelete,
 });
 
 export const beds = sqliteTable("beds", {
@@ -52,6 +66,7 @@ export const beds = sqliteTable("beds", {
   checkinDate: text("checkin_date").default(""),
   expectedCheckout: text("expected_checkout").default(""),
   stayingDays: text("staying_days").default(""),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_beds_dorm").on(table.dormId),
   index("idx_beds_status").on(table.status),
@@ -65,6 +80,7 @@ export const bedHistory = sqliteTable("bed_history", {
   guestName: text("guest_name").default(""),
   guestContact: text("guest_contact").default(""),
   createdAt: text("created_at").notNull(),
+  ...syncColumns,
 }, (table) => [
   index("idx_history_action").on(table.action),
   index("idx_history_dorm").on(table.dormName),
@@ -73,6 +89,8 @@ export const bedHistory = sqliteTable("bed_history", {
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
+  syncUpdatedAt: text("sync_updated_at"),
+  syncSource: text("sync_source").default("cloudflare"),
 });
 
 export const apiStats = sqliteTable("api_stats", {
@@ -94,6 +112,7 @@ export const users = sqliteTable("users", {
   createdAt: text("created_at").notNull(),
   createdBy: text("created_by").default(""),
   isSystem: integer("is_system").notNull().default(0),
+  ...syncColumnsWithDelete,
 });
 
 export const auditLog = sqliteTable("audit_log", {
@@ -153,6 +172,7 @@ export const bookings = sqliteTable("bookings", {
   rawData: text("raw_data").default(""),
   createdAt: text("created_at").notNull(),
   syncedAt: text("synced_at").default(""),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_bookings_checkin").on(table.checkinDate),
   index("idx_bookings_platform").on(table.platform),
@@ -170,6 +190,7 @@ export const menuCategories = sqliteTable("menu_categories", {
   displayOrder: integer("display_order").notNull().default(0),
   isActive: integer("is_active").notNull().default(1),
   trackInventoryDefault: integer("track_inventory_default").notNull().default(0),
+  ...syncColumnsWithDelete,
 });
 
 export const menuItems = sqliteTable("menu_items", {
@@ -188,6 +209,7 @@ export const menuItems = sqliteTable("menu_items", {
   trackInventory: integer("track_inventory").notNull().default(0),
   stockQuantity: integer("stock_quantity").notNull().default(0),
   lowStockThreshold: integer("low_stock_threshold").notNull().default(5),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_menu_items_category").on(table.categoryId),
   index("idx_menu_items_available").on(table.isAvailable),
@@ -221,6 +243,7 @@ export const foodOrders = sqliteTable("food_orders", {
   createdBy: text("created_by").notNull().default("guest"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_food_orders_checkin").on(table.checkinId),
   index("idx_food_orders_status").on(table.status),
@@ -238,6 +261,7 @@ export const foodOrderItems = sqliteTable("food_order_items", {
   quantity: integer("quantity").notNull().default(1),
   lineTotal: integer("line_total").notNull().default(0),
   status: text("status").notNull().default("active"),
+  ...syncColumns,
 }, (table) => [
   index("idx_food_order_items_order").on(table.orderId),
 ]);
@@ -252,6 +276,7 @@ export const orderModifications = sqliteTable("order_modifications", {
   reason: text("reason").default(""),
   modifiedBy: text("modified_by").notNull(),
   createdAt: text("created_at").notNull(),
+  ...syncColumns,
 }, (table) => [
   index("idx_order_mods_order").on(table.orderId),
 ]);
@@ -265,6 +290,7 @@ export const qrHistory = sqliteTable("qr_history", {
   previewDataUrl: text("preview_data_url").default(""),
   createdBy: text("created_by").default(""),
   createdAt: text("created_at").notNull(),
+  ...syncColumns,
 }, (table) => [
   index("idx_qr_history_created").on(table.createdAt),
 ]);
@@ -283,6 +309,7 @@ export const accounts = sqliteTable("accounts", {
   isActive: integer("is_active").notNull().default(1),
   openingBalance: integer("opening_balance").notNull().default(0),
   createdAt: text("created_at").notNull(),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_accounts_active").on(table.isActive),
 ]);
@@ -295,6 +322,7 @@ export const vendors = sqliteTable("vendors", {
   notes: text("notes").default(""),
   isActive: integer("is_active").notNull().default(1),
   createdAt: text("created_at").notNull(),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_vendors_active").on(table.isActive),
   index("idx_vendors_category").on(table.category),
@@ -310,6 +338,7 @@ export const employees = sqliteTable("employees", {
   bankAccount: text("bank_account").default(""),
   isActive: integer("is_active").notNull().default(1),
   createdAt: text("created_at").notNull(),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_employees_active").on(table.isActive),
 ]);
@@ -324,6 +353,7 @@ export const salaryPayments = sqliteTable("salary_payments", {
   paidAt: text("paid_at").notNull(),
   notes: text("notes").default(""),
   createdBy: text("created_by").notNull(),
+  ...syncColumns,
 }, (table) => [
   index("idx_salary_employee").on(table.employeeId),
   index("idx_salary_month").on(table.month),
@@ -340,6 +370,7 @@ export const dailyIncome = sqliteTable("daily_income", {
   foodRevenueAuto: integer("food_revenue_auto").notNull().default(0),
   createdBy: text("created_by").notNull(),
   createdAt: text("created_at").notNull(),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_daily_income_date").on(table.date),
   index("idx_daily_income_account").on(table.accountId),
@@ -358,6 +389,7 @@ export const dailyLedger = sqliteTable("daily_ledger", {
   reconciledBy: text("reconciled_by").default(""),
   reconciledAt: text("reconciled_at").default(""),
   notes: text("notes").default(""),
+  ...syncColumns,
 }, (table) => [
   index("idx_daily_ledger_date").on(table.date),
   index("idx_daily_ledger_account").on(table.accountId),
@@ -382,6 +414,7 @@ export const expenses = sqliteTable("expenses", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").default(""),
   createdMonth: text("created_month").notNull(),
+  ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_expenses_month").on(table.createdMonth),
   index("idx_expenses_created_by").on(table.createdBy),
@@ -396,4 +429,49 @@ export const pushSubscriptions = sqliteTable("push_subscriptions", {
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("idx_push_endpoint").on(table.endpoint),
+]);
+
+// --- Sync Infrastructure (not synced themselves) ---
+
+export const syncLog = sqliteTable("sync_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  direction: text("direction").notNull(),
+  status: text("status").notNull().default("started"),
+  recordsPulled: integer("records_pulled").notNull().default(0),
+  recordsPushed: integer("records_pushed").notNull().default(0),
+  conflictsFound: integer("conflicts_found").notNull().default(0),
+  errorMessage: text("error_message").default(""),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at").default(""),
+  details: text("details").default(""),
+});
+
+export const syncConflicts = sqliteTable("sync_conflicts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tableName: text("table_name").notNull(),
+  syncId: text("sync_id").notNull(),
+  conflictType: text("conflict_type").notNull().default("update_update"),
+  cloudData: text("cloud_data").notNull().default("{}"),
+  piData: text("pi_data").notNull().default("{}"),
+  cloudUpdatedAt: text("cloud_updated_at").default(""),
+  piUpdatedAt: text("pi_updated_at").default(""),
+  resolved: integer("resolved").notNull().default(0),
+  resolution: text("resolution").default(""),
+  resolvedAt: text("resolved_at").default(""),
+  resolvedBy: text("resolved_by").default(""),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_sync_conflicts_unresolved").on(table.resolved),
+  index("idx_sync_conflicts_table").on(table.tableName),
+]);
+
+export const syncIdMap = sqliteTable("sync_id_map", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tableName: text("table_name").notNull(),
+  syncId: text("sync_id").notNull(),
+  localId: integer("local_id").notNull(),
+  remoteId: integer("remote_id"),
+}, (table) => [
+  uniqueIndex("idx_sync_id_map_unique").on(table.tableName, table.syncId),
+  index("idx_sync_id_map_lookup").on(table.tableName, table.localId),
 ]);

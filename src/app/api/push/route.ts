@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { sendPushToAll } from "@/lib/pushNotify";
+import { isOfflineMode } from "@/lib/runtime";
 
 async function authenticate(password: string): Promise<boolean> {
   if (!password) return false;
@@ -12,6 +13,10 @@ async function authenticate(password: string): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
+  if (isOfflineMode()) {
+    return NextResponse.json({ error: "Push notifications require internet" }, { status: 503 });
+  }
+
   try {
     const body = await req.json();
     const { action, password, ...rest } = body;

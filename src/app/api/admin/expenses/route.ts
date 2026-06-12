@@ -15,6 +15,7 @@ import { getDb } from "@/db";
 import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
+import { isOfflineMode } from "@/lib/runtime";
 
 type UserRole = "admin" | "manager" | "staff";
 
@@ -95,25 +96,31 @@ export async function POST(req: NextRequest) {
           return driveUploadFile(fileName, mimeType, bytes.buffer, folderId);
         };
 
-        try {
-          const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-          if (rootFolderId && (billImage || (billImages && billImages.length > 0))) {
-            const billsFolderId = await driveGetOrCreateFolder(rootFolderId, "Goko Bills");
-            const monthFolderId = await driveGetOrCreateFolder(billsFolderId, month);
-
-            if (billImages && Array.isArray(billImages) && billImages.length > 0) {
-              const links: string[] = [];
-              for (const img of billImages as { data: string; mime: string }[]) {
-                const link = await uploadOneImage(img.data, img.mime || "image/jpeg", monthFolderId);
-                if (link) links.push(link);
-              }
-              billImageLink = links.join(",");
-            } else if (billImage) {
-              billImageLink = await uploadOneImage(billImage, billMimeType || "image/jpeg", monthFolderId);
-            }
+        if (isOfflineMode()) {
+          if (billImage || (billImages && billImages.length > 0)) {
+            billImageLink = "offline-pending";
           }
-        } catch (err: any) {
-          await addSystemLog({ level: "error", source: "expenses", message: "Bill upload failed", details: err?.message || String(err) });
+        } else {
+          try {
+            const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+            if (rootFolderId && (billImage || (billImages && billImages.length > 0))) {
+              const billsFolderId = await driveGetOrCreateFolder(rootFolderId, "Goko Bills");
+              const monthFolderId = await driveGetOrCreateFolder(billsFolderId, month);
+
+              if (billImages && Array.isArray(billImages) && billImages.length > 0) {
+                const links: string[] = [];
+                for (const img of billImages as { data: string; mime: string }[]) {
+                  const link = await uploadOneImage(img.data, img.mime || "image/jpeg", monthFolderId);
+                  if (link) links.push(link);
+                }
+                billImageLink = links.join(",");
+              } else if (billImage) {
+                billImageLink = await uploadOneImage(billImage, billMimeType || "image/jpeg", monthFolderId);
+              }
+            }
+          } catch (err: any) {
+            await addSystemLog({ level: "error", source: "expenses", message: "Bill upload failed", details: err?.message || String(err) });
+          }
         }
 
         await addExpense({
@@ -168,25 +175,29 @@ export async function POST(req: NextRequest) {
         if (purpose !== undefined) updateData.purpose = purpose;
 
         if (updateBillImage) {
-          try {
-            const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-            if (!rootFolderId) throw new Error("GOOGLE_DRIVE_FOLDER_ID not set");
+          if (isOfflineMode()) {
+            updateData.billImageLink = "offline-pending";
+          } else {
+            try {
+              const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+              if (!rootFolderId) throw new Error("GOOGLE_DRIVE_FOLDER_ID not set");
 
-            const month = getMonthKey();
-            const billsFolderId = await driveGetOrCreateFolder(rootFolderId, "Goko Bills");
-            const monthFolderId = await driveGetOrCreateFolder(billsFolderId, month);
+              const month = getMonthKey();
+              const billsFolderId = await driveGetOrCreateFolder(rootFolderId, "Goko Bills");
+              const monthFolderId = await driveGetOrCreateFolder(billsFolderId, month);
 
-            const binaryStr = atob(updateBillImage);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
+              const binaryStr = atob(updateBillImage);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+
+              const mime = updateBillMime || "image/jpeg";
+              const fileName = `bill_${Date.now()}.jpg`;
+              updateData.billImageLink = await driveUploadFile(fileName, mime, bytes.buffer, monthFolderId);
+            } catch (err: any) {
+              await addSystemLog({ level: "error", source: "expenses", message: "Bill upload failed on update", details: err?.message || String(err) });
             }
-
-            const mime = updateBillMime || "image/jpeg";
-            const fileName = `bill_${Date.now()}.jpg`;
-            updateData.billImageLink = await driveUploadFile(fileName, mime, bytes.buffer, monthFolderId);
-          } catch (err: any) {
-            await addSystemLog({ level: "error", source: "expenses", message: "Bill upload failed on update", details: err?.message || String(err) });
           }
         }
 

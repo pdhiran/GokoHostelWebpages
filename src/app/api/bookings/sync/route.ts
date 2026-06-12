@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { gmailListMessages, gmailGetMessage } from "@/lib/googleApiFetch";
 import { isBookingEmail, parseBookingEmail, getOtaSearchQuery } from "@/lib/otaEmailParser";
 import { addBooking, getAllBookings, setSetting, getSetting, addAuditEntry, addSystemLog } from "@/db/queries";
+import { isOfflineMode } from "@/lib/runtime";
 
 export async function POST(req: NextRequest) {
+  if (isOfflineMode()) {
+    return NextResponse.json({ error: "Booking sync requires internet connection" }, { status: 503 });
+  }
+
   try {
     const body = await req.json();
     const { password } = body;

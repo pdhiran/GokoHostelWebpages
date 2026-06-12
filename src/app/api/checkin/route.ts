@@ -3,6 +3,7 @@ import { validateIdDocument } from "@/lib/validateIdDocument";
 import { driveUploadFile, driveGetOrCreateFolder } from "@/lib/googleApiFetch";
 import { addCheckin, incrementStat, getSetting, getMonthKey, addAuditEntry, addSystemLog } from "@/db/queries";
 import { sendPushToAll } from "@/lib/pushNotify";
+import { isOfflineMode } from "@/lib/runtime";
 
 function generateBookingId(): string {
   const now = new Date();
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
     const reusingPrevId = idImages.length === 0 && !!prevIdCardLink;
     const reusingPrevVisa = visaImages.length === 0 && !!prevVisaLink;
 
-    if (validationEnabled && !reusingPrevId) {
+    if (validationEnabled && !reusingPrevId && !isOfflineMode()) {
       async function validateFile(file: File, category: "id" | "visa", idTypeHint?: string, nameToCheck?: string) {
         if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
           return { valid: false, documentType: "unknown" as const, confidence: "high" as const, message: "Only images and PDFs accepted" };
@@ -155,6 +156,8 @@ export async function POST(req: NextRequest) {
 
     if (reusingPrevId) {
       idCardLink = prevIdCardLink;
+    } else if (isOfflineMode()) {
+      idCardLink = "offline-pending";
     } else {
       const idCardLinks: string[] = [];
       for (let i = 0; i < idImages.length; i++) {
@@ -171,6 +174,8 @@ export async function POST(req: NextRequest) {
 
     if (reusingPrevVisa) {
       visaLink = prevVisaLink;
+    } else if (isOfflineMode()) {
+      visaLink = visaImages.length > 0 ? "offline-pending" : "";
     } else {
       const visaLinks: string[] = [];
       for (let i = 0; i < visaImages.length; i++) {
@@ -271,12 +276,14 @@ export async function POST(req: NextRequest) {
     addAuditEntry({ username: "guest", action: "self_checkin", target: name }).catch(() => {});
     addSystemLog({ level: "info", source: "checkin", message: `Self check-in: ${name}` }).catch(() => {});
 
-    sendPushToAll({
-      title: "New Check-in",
-      body: `${name} just checked in`,
-      url: "/admin",
-      tag: "checkin",
-    }).catch(() => {});
+    if (!isOfflineMode()) {
+      sendPushToAll({
+        title: "New Check-in",
+        body: `${name} just checked in`,
+        url: "/admin",
+        tag: "checkin",
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
@@ -16,6 +16,7 @@ import { AdminFoodSettings } from "./AdminFoodSettings";
 import { AdminBulkImport } from "./AdminBulkImport";
 import { QRGenerator } from "./qr-generator";
 import { AccountSettings } from "./AccountSettings";
+import { ServerSync } from "./ServerSync";
 import type { Role, ManagementTab } from "./types";
 
 const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly?: boolean; permission?: string }[] = [
@@ -32,6 +33,7 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "bulkUpload", label: "Bulk Upload", icon: <UploadIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "qrGenerator", label: "QR Codes", icon: <QrCodeIcon className="h-3.5 w-3.5" />, permission: "canUseQRGenerator" },
   { id: "accountSettings", label: "Account Settings", icon: <WalletIcon className="h-3.5 w-3.5" />, permission: "canManageAccounts" },
+  { id: "serverSync", label: "Server Sync", icon: <ServerIcon className="h-3.5 w-3.5" />, adminOnly: true },
 ];
 
 export function AdminManagement({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
@@ -127,6 +129,7 @@ export function AdminManagement({ password, username, role, permissions = {} }: 
         {tab === "bulkUpload" && <AdminBulkImport password={password} username={username} role={role} />}
         {tab === "qrGenerator" && <QRGenerator password={password} username={username} role={role} />}
         {tab === "accountSettings" && <AccountSettings password={password} username={username} role={role} />}
+        {tab === "serverSync" && <ServerSync password={password} username={username} role={role} />}
       </div>
     </div>
   );
