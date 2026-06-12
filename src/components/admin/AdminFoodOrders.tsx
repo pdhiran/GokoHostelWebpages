@@ -55,6 +55,7 @@ export interface OrderModification {
   itemName: string;
   oldValue: string;
   newValue: string;
+  reason: string;
   modifiedBy: string;
   createdAt: string;
 }
