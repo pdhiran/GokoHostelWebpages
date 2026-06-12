@@ -134,41 +134,53 @@ export function AdminDashboard({
       <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Dashboard</h2>
       <p className="mt-1 text-sm text-brand-green-dark/60">{today}</p>
 
-      {/* Stats cards */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50"><UsersIcon className="h-5 w-5 text-blue-600" /></div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold text-brand-green-dark">{todayCheckins.length}</p>
-              <p className="text-xs text-brand-green-dark/60">Check-ins today</p>
+      {/* Food Orders quick access */}
+      <button type="button" onClick={() => onNavigate("foodOrders")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-brand-mist bg-white p-4 shadow-card transition-all hover:shadow-soft">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50"><UtensilsIcon className="h-5 w-5 text-amber-600" /></div>
+          <div>
+            <p className="font-semibold text-brand-green-dark">Food Orders</p>
+            <p className="text-xs text-brand-green-dark/50">Manage orders & payments</p>
+          </div>
+        </div>
+        <span className="text-brand-green-dark/30">→</span>
+      </button>
+
+      {/* Stats cards — compact 2x2 grid on mobile */}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50"><UsersIcon className="h-4 w-4 text-blue-600" /></div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-brand-green-dark leading-tight">{todayCheckins.length}</p>
+              <p className="text-[10px] text-brand-green-dark/60 leading-tight">Check-ins today</p>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50"><CalendarCheckIcon className="h-5 w-5 text-orange-600" /></div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold text-brand-green-dark">{todayCheckouts.length}</p>
-              <p className="text-xs text-brand-green-dark/60">Checkouts due today</p>
+        <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50"><CalendarCheckIcon className="h-4 w-4 text-orange-600" /></div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-brand-green-dark leading-tight">{todayCheckouts.length}</p>
+              <p className="text-[10px] text-brand-green-dark/60 leading-tight">Checkouts due</p>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50"><BedDoubleIcon className="h-5 w-5 text-green-600" /></div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold text-brand-green-dark">{stats.available}</p>
-              <p className="text-xs text-brand-green-dark/60">Beds available</p>
+        <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-50"><BedDoubleIcon className="h-4 w-4 text-green-600" /></div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-brand-green-dark leading-tight">{stats.available}</p>
+              <p className="text-[10px] text-brand-green-dark/60 leading-tight">Beds available</p>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50"><BedDoubleIcon className="h-5 w-5 text-red-600" /></div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold text-brand-green-dark">{stats.occupied}/{stats.total}</p>
-              <p className="text-xs text-brand-green-dark/60">Beds occupied</p>
+        <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50"><BedDoubleIcon className="h-4 w-4 text-red-600" /></div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-brand-green-dark leading-tight">{stats.occupied}/{stats.total}</p>
+              <p className="text-[10px] text-brand-green-dark/60 leading-tight">Beds occupied</p>
             </div>
           </div>
         </div>
