@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ExternalLinkIcon, Trash2Icon, PlusIcon, UploadIcon, PencilIcon, ShieldCheckIcon, ShieldAlertIcon, Loader2Icon, XIcon, FileTextIcon } from "lucide-react";
+import { ExternalLinkIcon, Trash2Icon, PlusIcon, UploadIcon, PencilIcon, ShieldCheckIcon, ShieldAlertIcon, Loader2Icon, XIcon, FileTextIcon, LayoutListIcon, TableIcon, ChevronDownIcon, PhoneIcon, MapPinIcon, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import { useAdminApi } from "./useAdminApi";
@@ -109,6 +109,8 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
   const [ageRange, setAgeRange] = useState({ min: 18, max: 40 });
   const [vibeMatchingId, setVibeMatchingId] = useState<number | null>(null);
   const [showDobInRecords, setShowDobInRecords] = useState(false);
+  const [viewMode, setViewMode] = useState<"card" | "table">(() => typeof window !== "undefined" && window.innerWidth < 1024 ? "card" : "table");
+  const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
   const filteredRows = useMemo(() => {
     let result = rows.map((row, origIdx) => ({ row, origIdx }));
@@ -443,7 +445,17 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
           {sortField && <button type="button" onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")} className="rounded-md border border-input bg-background px-2 py-2 text-xs">{sortDir === "asc" ? "A-Z" : "Z-A"}</button>}
           {hasActiveFilters && <button type="button" onClick={clearFilters} className="rounded-md bg-brand-red/10 px-3 py-2 text-xs font-medium text-brand-red hover:bg-brand-red/20">Clear</button>}
         </div>
-        <p className="text-sm text-brand-green-dark/70">{filteredRows.length}{filteredRows.length !== rows.length ? ` of ${rows.length}` : ""} records</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-brand-green-dark/70">{filteredRows.length}{filteredRows.length !== rows.length ? ` of ${rows.length}` : ""} records</p>
+          <div className="flex rounded-lg border border-brand-mist bg-white p-0.5">
+            <button type="button" onClick={() => setViewMode("card")} className={cn("rounded-md p-1.5 transition-colors", viewMode === "card" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Card view">
+              <LayoutListIcon className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" onClick={() => setViewMode("table")} className={cn("rounded-md p-1.5 transition-colors", viewMode === "table" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Table view">
+              <TableIcon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Add entry form */}
@@ -742,8 +754,136 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
         </div>
       )}
 
+      {/* Card View */}
+      {viewMode === "card" && (
+        <div className="mt-6 space-y-2">
+          {filteredRows.length === 0 ? (
+            <p className="py-12 text-center text-brand-green-dark/50">{rows.length === 0 ? "No records" : "No matches"}</p>
+          ) : (
+            filteredRows.map(({ row, origIdx }) => {
+              const isExpanded = expandedCard === origIdx;
+              const guestDob = row[20] || "";
+              const guestDobFromId = row[22] || "";
+              const guestAge = getAgeFromDob(guestDob);
+              const guestVibeMatched = row[21] === "1";
+              const guestFlagged = guestAge !== null && !guestVibeMatched && (guestAge < ageRange.min || guestAge > ageRange.max);
+              const guestUnderage = guestAge !== null && guestAge < ageRange.min;
+              const guestDobMismatch = !!(guestDob && guestDobFromId && !guestVibeMatched && !dobsMatch(guestDob, guestDobFromId));
+              const guestAnyFlag = guestFlagged || guestDobMismatch;
+              const verified = row[16] || "";
+              const checkinId = parseInt(row[17] || "0", 10);
+              const idLinks = (row[14] || "").includes(" | ") ? (row[14] || "").split(" | ").filter((u: string) => u.startsWith("http")) : (row[14] || "").startsWith("http") ? [row[14]] : [];
+              const visaLinks = (row[15] || "").includes(" | ") ? (row[15] || "").split(" | ").filter((u: string) => u.startsWith("http")) : (row[15] || "").startsWith("http") ? [row[15]] : [];
+
+              return (
+                <div key={origIdx} className={cn("rounded-xl border border-brand-mist bg-white shadow-sm", guestAnyFlag && "border-orange-200 bg-orange-50/30")}>
+                  {/* Collapsed — always visible */}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCard(isExpanded ? null : origIdx)}
+                    className="flex w-full items-start justify-between gap-2 p-3 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-brand-green-dark">{row[3] || "—"}</span>
+                        {verified === "yes" ? (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700"><ShieldCheckIcon className="h-2.5 w-2.5" />Verified</span>
+                        ) : verified === "no" ? (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700"><ShieldAlertIcon className="h-2.5 w-2.5" />Rejected</span>
+                        ) : verified === "spoof_warning" ? (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700"><ShieldAlertIcon className="h-2.5 w-2.5" />Spoof</span>
+                        ) : verified === "pending" ? (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-yellow-100 px-1.5 py-0.5 text-[9px] font-semibold text-yellow-700"><ShieldAlertIcon className="h-2.5 w-2.5" />Pending</span>
+                        ) : null}
+                        {guestFlagged && <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", guestUnderage ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700")}>{guestUnderage ? `Underage (${guestAge})` : `Overage (${guestAge})`}</span>}
+                        {guestDobMismatch && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">DOB mismatch</span>}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-green-dark/60">
+                        <span className="flex items-center gap-1"><CalendarIcon className="h-3 w-3" />{row[1] || "—"} {row[2] || ""}</span>
+                        <span className="flex items-center gap-1"><PhoneIcon className="h-3 w-3" />{row[5] || "—"}</span>
+                        <span className="flex items-center gap-1"><MapPinIcon className="h-3 w-3" />{row[7] || "—"}</span>
+                      </div>
+                    </div>
+                    <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-brand-green-dark/40 transition-transform mt-1", isExpanded && "rotate-180")} />
+                  </button>
+
+                  {/* Expanded — details + actions */}
+                  {isExpanded && (
+                    <div className="border-t border-brand-mist px-3 pb-3 pt-2">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                        <div><span className="text-brand-green-dark/50">Persons:</span> <span className="text-brand-green-dark">{row[4] || "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">Days:</span> <span className="text-brand-green-dark">{row[6] || "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">Nationality:</span> <span className="text-brand-green-dark">{row[8] || "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">ID Type:</span> <span className="text-brand-green-dark">{row[13] || "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">Platform:</span> <span className="text-brand-green-dark">{row[11] || "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">Booking ID:</span> <span className="text-brand-green-dark">{row[12] || "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">Emergency:</span> <span className="text-brand-green-dark">{row[9] || "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">Emerg. Ph:</span> <span className="text-brand-green-dark">{row[10] || "—"}</span></div>
+                      </div>
+
+                      {/* Document links */}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {idLinks.length > 0 ? idLinks.map((url: string, li: number) => (
+                          <a key={`id-${li}`} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-[10px] font-medium text-brand-green hover:bg-brand-green/[0.12]">
+                            ID {idLinks.length > 1 ? (li === 0 ? "Front" : "Back") : "Card"} <ExternalLinkIcon className="h-2.5 w-2.5" />
+                          </a>
+                        )) : hasPermission(role, permissions, "canEditRecords") ? (
+                          <button type="button" onClick={() => setUploadPopup({ origIdx, type: "id", guestName: row[3] || "Guest" })} className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-[10px] font-medium text-brand-green hover:bg-brand-green/[0.12]">
+                            <UploadIcon className="h-2.5 w-2.5" /> Upload ID
+                          </button>
+                        ) : null}
+                        {visaLinks.length > 0 ? visaLinks.map((url: string, li: number) => (
+                          <a key={`visa-${li}`} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-600 hover:bg-amber-100">
+                            Visa {visaLinks.length > 1 ? `#${li + 1}` : ""} <ExternalLinkIcon className="h-2.5 w-2.5" />
+                          </a>
+                        )) : (row[8] || "").toLowerCase() !== "india" && row[8] && hasPermission(role, permissions, "canEditRecords") ? (
+                          <button type="button" onClick={() => setUploadPopup({ origIdx, type: "visa", guestName: row[3] || "Guest" })} className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-600 hover:bg-amber-100">
+                            <UploadIcon className="h-2.5 w-2.5" /> Upload Visa
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {/* Actions */}
+                      {(hasPermission(role, permissions, "canEditRecords") || hasPermission(role, permissions, "canDeleteRecords")) && (
+                        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-brand-mist pt-2">
+                          {(row[8] || "").toLowerCase() !== "india" && row[8] && hasPermission(role, permissions, "canEditRecords") && (
+                            <button type="button" onClick={() => openFormC(origIdx, row)} className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 hover:bg-indigo-100">
+                              <FileTextIcon className="h-3 w-3" /> Form C
+                            </button>
+                          )}
+                          {hasPermission(role, permissions, "canEditRecords") && (
+                            <button type="button" onClick={() => startEdit(origIdx)} className="flex items-center gap-1 rounded-lg bg-brand-sand px-2 py-1 text-[10px] font-medium text-brand-green-dark/70 hover:bg-brand-green/10">
+                              <PencilIcon className="h-3 w-3" /> Edit
+                            </button>
+                          )}
+                          {hasPermission(role, permissions, "canDeleteRecords") && (
+                            <button type="button" onClick={() => deleteRow(origIdx)} className="flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100">
+                              <Trash2Icon className="h-3 w-3" /> Delete
+                            </button>
+                          )}
+                          {(verified === "pending" || verified === "spoof_warning") && (
+                            <button type="button" onClick={() => setVerifyPopup({ origIdx, row })} className="flex items-center gap-1 rounded-lg bg-yellow-50 px-2 py-1 text-[10px] font-medium text-yellow-700 hover:bg-yellow-100">
+                              <ShieldAlertIcon className="h-3 w-3" /> Verify
+                            </button>
+                          )}
+                          {guestAnyFlag && (
+                            <button type="button" onClick={() => handleVibeMatch(checkinId, origIdx)} disabled={vibeMatchingId === checkinId} className="rounded-lg bg-orange-50 px-2 py-1 text-[10px] font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50">
+                              {vibeMatchingId === checkinId ? "..." : "Vibe?"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
       {/* Table */}
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+      {viewMode === "table" && <div className="mt-6 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
         <table className="w-full min-w-[1000px] text-left text-sm">
           <thead>
             <tr className="border-b border-brand-mist bg-brand-sand/50">
@@ -890,7 +1030,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
             )}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Manual verification popup */}
       {verifyPopup && (
