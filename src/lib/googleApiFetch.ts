@@ -388,16 +388,7 @@ export async function gmailGetMessage(messageId: string): Promise<GmailMessage |
   const headers = data.payload?.headers || [];
   const getHeader = (name: string) => headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
 
-  let body = "";
-  if (data.payload?.body?.data) {
-    body = atob(data.payload.body.data.replace(/-/g, "+").replace(/_/g, "/"));
-  } else if (data.payload?.parts) {
-    const textPart = data.payload.parts.find((p: any) => p.mimeType === "text/plain") ||
-                     data.payload.parts.find((p: any) => p.mimeType === "text/html");
-    if (textPart?.body?.data) {
-      body = atob(textPart.body.data.replace(/-/g, "+").replace(/_/g, "/"));
-    }
-  }
+  const body = extractBodyFromPayload(data.payload);
 
   return {
     id: data.id,
@@ -407,4 +398,39 @@ export async function gmailGetMessage(messageId: string): Promise<GmailMessage |
     date: getHeader("Date"),
     body,
   };
+}
+
+function extractBodyFromPayload(payload: any): string {
+  if (!payload) return "";
+
+  if (payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+
+  if (payload.parts) {
+    const htmlPart = findMimePart(payload.parts, "text/html");
+    if (htmlPart?.body?.data) return decodeBase64Url(htmlPart.body.data);
+
+    const textPart = findMimePart(payload.parts, "text/plain");
+    if (textPart?.body?.data) return decodeBase64Url(textPart.body.data);
+  }
+
+  return "";
+}
+
+function findMimePart(parts: any[], mimeType: string): any | null {
+  for (const part of parts) {
+    if (part.mimeType === mimeType && part.body?.data) {
+      return part;
+    }
+    if (part.parts) {
+      const found = findMimePart(part.parts, mimeType);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function decodeBase64Url(data: string): string {
+  return atob(data.replace(/-/g, "+").replace(/_/g, "/"));
 }
