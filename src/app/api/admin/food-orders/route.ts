@@ -363,6 +363,47 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, role, newTotal });
       }
 
+      case "updateItemQuantity": {
+        const { orderId, orderItemId, newQuantity } = rest;
+        if (!orderId || !orderItemId || newQuantity === undefined) {
+          return NextResponse.json({ error: "Missing orderId, orderItemId, or newQuantity" }, { status: 400 });
+        }
+
+        const allOrderItems = await getFoodOrderItems(orderId);
+        const targetItem = allOrderItems.find((i) => i.id === orderItemId);
+        if (!targetItem) {
+          return NextResponse.json({ error: "Order item not found" }, { status: 404 });
+        }
+
+        const oldQty = targetItem.quantity;
+        const qtyDiff = oldQty - (newQuantity > 0 ? newQuantity : 0);
+
+        if (newQuantity <= 0) {
+          await deleteFoodOrderItem(orderItemId);
+          await addOrderModification({ orderId, action: "item_removed", itemId: orderItemId, oldValue: String(oldQty), newValue: "0", reason: "Quantity reduced to zero", modifiedBy: actorName });
+        } else {
+          await updateFoodOrderItemQuantity(orderItemId, newQuantity, targetItem.itemPrice);
+          await addOrderModification({ orderId, action: "quantity_changed", itemId: orderItemId, oldValue: String(oldQty), newValue: String(newQuantity), reason: "", modifiedBy: actorName });
+        }
+
+        if (qtyDiff > 0) await addStock(targetItem.menuItemId, qtyDiff);
+        else if (qtyDiff < 0) await decrementStock(targetItem.menuItemId, Math.abs(qtyDiff));
+
+        const updItems = await getFoodOrderItems(orderId);
+        const actItems = updItems.filter((i) => i.status !== "voided");
+        const grossSub = actItems.reduce((sum, i) => sum + i.lineTotal, 0);
+        const [curOrd] = await db.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
+        const disc = Math.min(curOrd?.discount || 0, grossSub);
+        const qtyTaxRateStr = await getSetting("food_tax_rate");
+        const qtyTaxRate = Number(qtyTaxRateStr) || 5;
+        const qtySubtotal = grossSub - disc;
+        const qtyTax = Math.round((qtySubtotal * qtyTaxRate) / 100);
+        const qtyTotal = qtySubtotal + qtyTax;
+        await updateFoodOrder(orderId, { subtotal: qtySubtotal, tax: qtyTax, total: qtyTotal, discount: disc });
+
+        return NextResponse.json({ success: true, role, data: { subtotal: qtySubtotal, tax: qtyTax, total: qtyTotal } });
+      }
+
       case "applyDiscount": {
         const { orderIds, discountPercent, discountAmount, reason } = rest;
         if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {

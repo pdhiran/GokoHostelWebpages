@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon, PencilIcon, TagIcon } from "lucide-react";
-import { isBluetoothSupported, printFoodBill, printCombinedBill, type BillItem } from "@/lib/thermalPrint";
+import { isBluetoothSupported, printFoodBill, printCombinedBill, printOrderTicket, type BillItem } from "@/lib/thermalPrint";
 import { generateGuestBill, generateCombinedBill, type CombinedBillData, type BillOrder } from "@/components/admin/FoodBillGenerator";
 import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
 import type { Role } from "./types";
@@ -963,6 +963,33 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
     }
   };
 
+  const handleKitchenPrint = async (group: SummaryGroup) => {
+    const orders = getGroupOrders(group);
+    const activeOrders = orders.filter(o => o.status !== "cancelled" && o.status !== "served");
+    if (activeOrders.length === 0) { alert("No active orders to print for kitchen"); return; }
+    setPrintingGroup(group.key);
+    try {
+      for (const order of activeOrders) {
+        const items = order.items.filter(i => i.status !== "voided").map(i => ({ name: i.itemName, quantity: i.quantity }));
+        if (items.length === 0) continue;
+        await printOrderTicket({
+          orderNumber: order.orderNumber,
+          guestName: group.guestName,
+          guestType: group.guestType === "hostel" ? "hostel" : "walkin",
+          roomInfo: group.roomInfo || undefined,
+          items,
+          specialInstructions: order.specialInstructions || undefined,
+          createdAt: order.createdAt,
+        });
+      }
+      alert("Kitchen ticket(s) printed!");
+    } catch (err: any) {
+      alert(`Print failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setPrintingGroup(null);
+    }
+  };
+
   const handlePdfGroup = (group: SummaryGroup) => {
     const orders = getGroupOrders(group);
     if (orders.length === 0) return;
@@ -1293,6 +1320,17 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                   >
                     <PrinterIcon className="h-3.5 w-3.5" />
                     {printingGroup === selectedGroup.key ? "Printing..." : "Print"}
+                  </button>
+                )}
+                {btSupported && (
+                  <button
+                    type="button"
+                    onClick={() => handleKitchenPrint(selectedGroup)}
+                    disabled={printingGroup === selectedGroup.key}
+                    className="flex items-center gap-1.5 rounded-lg border border-orange-200 px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                  >
+                    <PrinterIcon className="h-3.5 w-3.5" />
+                    Kitchen
                   </button>
                 )}
                 <button
