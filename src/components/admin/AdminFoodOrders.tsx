@@ -1182,6 +1182,22 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                             {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}{" "}
                             {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
                           </span>
+                          {btSupported && order.status !== "cancelled" && order.status !== "served" && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const items = order.items.filter(i => i.status !== "voided").map(i => ({ name: i.itemName, quantity: i.quantity }));
+                                if (items.length === 0) return;
+                                try {
+                                  await printOrderTicket({ orderNumber: order.orderNumber, guestName: selectedGroup.guestName, guestType: selectedGroup.guestType === "hostel" ? "hostel" : "walkin", roomInfo: selectedGroup.roomInfo || undefined, items, specialInstructions: order.specialInstructions || undefined, createdAt: order.createdAt });
+                                } catch (err: any) { alert(`Print failed: ${err.message || "Unknown error"}`); }
+                              }}
+                              className="rounded p-1 text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                              title="Print kitchen ticket"
+                            >
+                              <PrinterIcon className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => { setEditingOrderId(isEditing ? null : order.id); setVoidingItemId(null); }}
