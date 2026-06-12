@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +61,7 @@ export function AccountSettings({ password, username, role }: { password: string
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
 
   // Form states
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -108,7 +109,7 @@ export function AccountSettings({ password, username, role }: { password: string
 
   const resetForm = () => { setFormData({}); setEditing(null); setShowForm(false); };
 
-  const startAdd = () => { resetForm(); setShowForm(true); };
+  const startAdd = () => { resetForm(); setShowForm(true); setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); };
 
   const startEdit = (item: any) => {
     setEditing(item);
@@ -122,6 +123,7 @@ export function AccountSettings({ password, username, role }: { password: string
     }
     setFormData(data);
     setShowForm(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   const saveItem = async () => {
@@ -244,7 +246,7 @@ export function AccountSettings({ password, username, role }: { password: string
 
       {/* Form */}
       {showForm && (
-        <div className="rounded-xl border border-brand-mist bg-white p-4 sm:p-5 space-y-4">
+        <div ref={formRef} className="rounded-xl border border-brand-mist bg-white p-4 sm:p-5 space-y-4">
           <h4 className="text-sm font-semibold text-brand-green-dark">{editing ? "Edit" : "Add"} {section.slice(0, -1)}</h4>
 
           {section === "accounts" && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,7 @@ export function ManagementUsers({ password, username, role }: { password: string
   const [formRole, setFormRole] = useState("staff");
   const [formPermissions, setFormPermissions] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -155,6 +156,7 @@ export function ManagementUsers({ password, username, role }: { password: string
     setFormRole(user.role);
     setFormPermissions(user.permissions || {});
     setShowForm(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   if (role !== "admin") {
@@ -167,7 +169,7 @@ export function ManagementUsers({ password, username, role }: { password: string
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-semibold text-brand-green-dark">Users & Permissions</h3>
-        <Button type="button" variant="cta" onClick={() => { resetForm(); setEditingUser(null); setShowForm(true); }}>
+        <Button type="button" variant="cta" onClick={() => { resetForm(); setEditingUser(null); setShowForm(true); setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); }}>
           <PlusIcon className="mr-1 h-4 w-4" /> Add User
         </Button>
       </div>
@@ -202,7 +204,7 @@ export function ManagementUsers({ password, username, role }: { password: string
 
       {/* Add/Edit form */}
       {showForm && (
-        <div className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+        <div ref={formRef} className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
           <h4 className="mb-4 font-semibold text-brand-green-dark">{editingUser ? "Edit User" : "Add New User"}</h4>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

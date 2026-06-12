@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,10 +112,12 @@ export function AdminMenuManagement({ password, username, role }: { password: st
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>({ ...emptyCategoryForm });
+  const categoryFormRef = useRef<HTMLDivElement>(null);
 
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [itemForm, setItemForm] = useState<ItemForm>({ ...emptyItemForm });
+  const itemFormRef = useRef<HTMLDivElement>(null);
   const [addStockItemId, setAddStockItemId] = useState<number | null>(null);
   const [addStockQty, setAddStockQty] = useState("");
 
@@ -161,6 +163,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
     setCategoryForm({ ...emptyCategoryForm });
     setEditingCategoryId(null);
     setShowCategoryForm(true);
+    setTimeout(() => categoryFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   const openEditCategory = (cat: Category) => {
@@ -174,6 +177,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
     });
     setEditingCategoryId(cat.id);
     setShowCategoryForm(true);
+    setTimeout(() => categoryFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   const saveCategory = async () => {
@@ -235,6 +239,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
     });
     setEditingItemId(null);
     setShowItemForm(true);
+    setTimeout(() => itemFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   const openEditItem = (item: MenuItem) => {
@@ -266,6 +271,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
     });
     setEditingItemId(item.id);
     setShowItemForm(true);
+    setTimeout(() => itemFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   const saveItem = async () => {
@@ -386,7 +392,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
 
         {/* Category Form (Add/Edit) */}
         {showCategoryForm && (
-          <div className="mt-4 rounded-xl border border-brand-green/20 bg-brand-green/5 p-4">
+          <div ref={categoryFormRef} className="mt-4 rounded-xl border border-brand-green/20 bg-brand-green/5 p-4">
             <h4 className="text-sm font-semibold text-brand-green-dark">
               {editingCategoryId ? "Edit Category" : "Add Category"}
             </h4>
@@ -524,7 +530,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
 
         {/* Item Form (Add/Edit) */}
         {showItemForm && (
-          <div className="mt-4 rounded-xl border border-brand-green/20 bg-brand-green/5 p-4">
+          <div ref={itemFormRef} className="mt-4 rounded-xl border border-brand-green/20 bg-brand-green/5 p-4">
             <h4 className="text-sm font-semibold text-brand-green-dark">
               {editingItemId ? "Edit Item" : "Add Item"}
             </h4>
