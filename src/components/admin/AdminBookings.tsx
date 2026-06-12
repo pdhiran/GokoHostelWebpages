@@ -162,7 +162,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
               <Button type="button" variant="ctaOutline" onClick={() => syncEmails(false)} disabled={syncing}>
                 {syncing ? "Syncing..." : "Sync Emails"}
               </Button>
-              <Button type="button" variant="ghost" onClick={() => syncEmails(true)} disabled={syncing} className="text-xs text-brand-green-dark/50">
+              <Button type="button" variant="ctaOutline" onClick={() => syncEmails(true)} disabled={syncing}>
                 Re-sync All
               </Button>
             </>
