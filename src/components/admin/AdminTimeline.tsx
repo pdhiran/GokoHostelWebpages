@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminApi } from "./useAdminApi";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { cn } from "@/lib/utils";
 import { ChevronDownIcon, ChevronRightIcon, LogOutIcon, SparklesIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 import { parseBedRow, type Role, type BedRow } from "./types";
@@ -31,6 +32,7 @@ function cellFor(bed: BedRow, dayStr: string, todayStr: string): CellInfo {
 
 export function AdminTimeline({ password, username, role, permissions }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
+  const { showError } = useAdminToast();
   const [beds, setBeds] = useState<BedRow[]>([]);
   const [unassigned, setUnassigned] = useState<string[][]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
 
   const act = async (action: string, bedIdx: number, extra?: Record<string, any>) => {
     setBusyIdx(bedIdx); setPopup(null);
-    try { const r = await apiCall({ action, bedId: bedIdx, ...extra }); if (r.ok) await load(); else { const d = await r.json(); alert(d.error || "Failed"); } }
+    try { const r = await apiCall({ action, bedId: bedIdx, ...extra }); if (r.ok) await load(); else { const d = await r.json(); showError("Failed", d.error); } }
     finally { setBusyIdx(null); }
   };
 

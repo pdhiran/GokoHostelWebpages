@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,8 @@ export function AdminBillRecords({
   role: Role;
   permissions?: Record<string, boolean>;
 }) {
+  const { showError } = useAdminToast();
+
   const expenseApi = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
     if (username) payload.username = username;
@@ -104,7 +107,7 @@ export function AdminBillRecords({
         loadExpenses(currentMonth);
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "Failed to update");
+        showError("Failed to update", data.error);
       }
     } finally {
       setEditSaving(false);
@@ -119,10 +122,10 @@ export function AdminBillRecords({
         loadExpenses(currentMonth);
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "Failed to delete");
+        showError("Failed to delete", data.error);
       }
     } catch {
-      alert("Something went wrong");
+      showError("Something went wrong");
     }
   };
 

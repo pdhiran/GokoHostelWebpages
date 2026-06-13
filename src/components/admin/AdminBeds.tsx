@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminApi } from "./useAdminApi";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { cn } from "@/lib/utils";
 import { UserPlusIcon, SparklesIcon, ClockIcon, Loader2Icon } from "lucide-react";
 import { parseBedRow, type Role, type BedRow, hasPermission } from "./types";
@@ -142,6 +143,7 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
 
 export function AdminBeds({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
+  const { showError } = useAdminToast();
   const [beds, setBeds] = useState<BedRow[]>([]);
   const [unassigned, setUnassigned] = useState<string[][]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,7 +179,7 @@ export function AdminBeds({ password, username, role, permissions = {} }: { pass
         await loadBeds();
       } else {
         const d = await res.json().catch(() => ({}));
-        alert(d.error || "Checkout failed");
+        showError("Checkout failed", d.error);
       }
     } finally { setCheckingOut(false); }
   };
@@ -230,7 +232,7 @@ export function AdminBeds({ password, username, role, permissions = {} }: { pass
     try {
       const res = await apiCall({ action: "changeBed", fromBedId: fromIdx, toBedId: toIdx });
       if (res.ok) { setChangingBed(null); await loadBeds(); }
-      else { const d = await res.json(); alert(d.error || "Failed"); }
+      else { const d = await res.json(); showError("Failed to change bed", d.error); }
     } finally { setLoadingBedIdx(null); }
   };
 

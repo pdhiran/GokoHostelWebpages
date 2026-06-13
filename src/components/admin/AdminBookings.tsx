@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAdminApi } from "./useAdminApi";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ const PROPERTY_LABELS: Record<string, string> = {
 
 export function AdminBookings({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
+  const { showError } = useAdminToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -107,7 +109,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
   };
 
   const addBooking = async () => {
-    if (!form.guestName || !form.checkinDate) { alert("Guest name and check-in date are required"); return; }
+    if (!form.guestName || !form.checkinDate) { showError("Guest name and check-in date are required"); return; }
     setSaving(true);
     try {
       const res = await apiCall({ action: "addBooking", ...form, persons: parseInt(form.persons) || 1 });
@@ -115,7 +117,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
         setShowForm(false);
         setForm({ guestName: "", contact: "", platform: "manual", bookingRef: "", checkinDate: "", checkoutDate: "", roomType: "", persons: "1", paymentStatus: "unknown", specialRequests: "", property: "goko_hostel" });
         await loadBookings();
-      } else { const d = await res.json(); alert(d.error || "Failed"); }
+      } else { const d = await res.json(); showError("Failed to add booking", d.error); }
     } finally { setSaving(false); }
   };
 

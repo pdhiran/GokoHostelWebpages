@@ -12,6 +12,7 @@ import { AdminLoading } from "./AdminLoading";
 import { CHECKIN_COLUMNS, type Role, hasPermission } from "./types";
 import { countries } from "@/content/countries";
 import { BOOKING_PLATFORMS } from "@/lib/checkinSchema";
+import { useAdminToast } from "@/components/admin/AdminToast";
 
 const TEXT_FIELDS = [
   { index: 1, label: "Arrival Date", type: "date" },
@@ -58,6 +59,7 @@ function extractDriveFileId(url: string): string | null {
 
 export function AdminRecords({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
   const { apiCall } = useAdminApi(password, username);
+  const { showError, showSuccess } = useAdminToast();
   const [rows, setRows] = useState<string[][]>([]);
   const [tabs, setTabs] = useState<string[]>([]);
   const [currentTab, setCurrentTab] = useState("");
@@ -226,7 +228,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
           fd.append("file", file); fd.append("name", guestName); fd.append("type", type); fd.append("password", password);
           const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
           if (res.ok) { const data = await res.json(); if (data.link) links.push(data.link); }
-          else { alert(`File upload failed (${res.status}): ${await res.text()}`); }
+          else { showError("File upload failed", `${res.status}: ${await res.text()}`); }
         }
         return links.join(" | ");
       };
@@ -239,7 +241,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
   };
 
   const addEntry = async () => {
-    if (!newFirstName.trim() || !newLastName.trim()) { alert("First name and last name are required"); return; }
+    if (!newFirstName.trim() || !newLastName.trim()) { showError("First name and last name are required"); return; }
     newEntry[3] = `${newFirstName.trim()} ${newLastName.trim()}`;
     setLoading(true);
     try {
@@ -257,10 +259,10 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
               if (data.link) links.push(data.link);
             } else {
               const errText = await uploadRes.text();
-              alert(`File upload failed: ${errText}. Entry will be saved without ID document.`);
+              showError("File upload failed. Entry will be saved without ID document.", errText);
             }
           } catch (err: any) {
-            alert(`File upload error: ${err?.message || "Network error"}. Entry will be saved without ID document.`);
+            showError("File upload error. Entry will be saved without ID document.", err?.message || "Network error");
           }
         }
         if (links.length > 0) entry[14] = links.join(" | ");
@@ -274,10 +276,10 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
   };
 
   const addPastEntry = async () => {
-    if (!pastFirstName.trim() || !pastLastName.trim()) { alert("First name and last name are required"); return; }
+    if (!pastFirstName.trim() || !pastLastName.trim()) { showError("First name and last name are required"); return; }
     pastEntry[3] = `${pastFirstName.trim()} ${pastLastName.trim()}`;
-    if (!pastEntry[1]) { alert("Arrival date is required for past records"); return; }
-    if (pastCheckoutDate && pastCheckoutDate < pastEntry[1]) { alert("Checkout date must be on or after arrival date"); return; }
+    if (!pastEntry[1]) { showError("Arrival date is required for past records"); return; }
+    if (pastCheckoutDate && pastCheckoutDate < pastEntry[1]) { showError("Checkout date must be on or after arrival date"); return; }
     setLoading(true);
     try {
       const entry = [...pastEntry]; entry[0] = new Date().toISOString();
@@ -294,10 +296,10 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
               if (data.link) links.push(data.link);
             } else {
               const errText = await uploadRes.text();
-              alert(`File upload failed: ${errText}. Entry will be saved without ID document.`);
+              showError("File upload failed. Entry will be saved without ID document.", errText);
             }
           } catch (err: any) {
-            alert(`File upload error: ${err?.message || "Network error"}. Entry will be saved without ID document.`);
+            showError("File upload error. Entry will be saved without ID document.", err?.message || "Network error");
           }
         }
         if (links.length > 0) entry[14] = links.join(" | ");
@@ -307,7 +309,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       const formCData = isForeigner ? JSON.stringify(pastFormCFields) : undefined;
       const res = await apiCall({ action: "addPast", entry, checkoutDate: pastCheckoutDate, formCData, bookingPlatform: pastBookingPlatform, bookingId: pastBookingId, dob: pastDob });
       if (res.ok) { setShowPastForm(false); setPastEntry(getDefaults()); setPastFirstName(""); setPastLastName(""); setPastIdFiles([]); setPastCheckoutDate(""); setPastFormCFields({}); setPastBookingPlatform(""); setPastBookingId(""); setPastDob(""); refresh(); }
-      else { const errData = await res.json().catch(() => ({})); alert(errData.error || "Failed to save past record"); }
+      else { const errData = await res.json().catch(() => ({})); showError("Failed to save past record", errData.error); }
     } finally { setLoading(false); }
   };
 
@@ -328,7 +330,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       const checkinId = parseInt(rows[origIdx][17] || "0", 10);
       const res = await apiCall({ action: "undoCheckout", checkinId });
       if (res.ok) refresh();
-      else { const d = await res.json(); alert(d.error || "Failed"); }
+      else { const d = await res.json(); showError("Failed", d.error); }
     } finally { setLoading(false); }
   };
 
@@ -343,7 +345,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
 
   const handleInlineUpload = async () => {
     if (!uploadPopup || uploadFiles.length === 0) return;
-    if (uploadPopup.type === "id" && !uploadIdType) { alert("Please select ID type"); return; }
+    if (uploadPopup.type === "id" && !uploadIdType) { showError("Please select ID type"); return; }
     setUploading(true);
     try {
       const links: string[] = [];
@@ -359,7 +361,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
           if (data.link) links.push(data.link);
         } else {
           const errText = await res.text();
-          alert(`Upload failed (${res.status}): ${errText}`);
+          showError("Upload failed", `${res.status}: ${errText}`);
         }
       }
       if (links.length > 0) {
@@ -374,10 +376,10 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
         const updateRes = await apiCall({ action: "update", rowId, entry: updated, tab: currentTab });
         if (!updateRes.ok) {
           const errData = await updateRes.json();
-          alert(`Record update failed: ${errData.error || "Unknown error"}`);
+          showError("Record update failed", errData.error || "Unknown error");
         }
       } else if (uploadFiles.length > 0) {
-        alert("All file uploads failed. Please try again.");
+        showError("All file uploads failed. Please try again.");
       }
       setUploadPopup(null);
       setUploadFiles([]);
@@ -1199,8 +1201,8 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                       if (res.ok) {
                         const d = await res.json();
                         setFormCPopup({ ...formCPopup, data: d.formCData ? JSON.parse(d.formCData) : formCPopup.data });
-                        alert("Data re-extracted from images!");
-                      } else { alert("Re-extraction failed"); }
+                        showSuccess("Data re-extracted from images!");
+                      } else { showError("Re-extraction failed"); }
                     } finally { setFormCLoading(false); }
                   }} className="rounded-lg bg-purple-100 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-200">
                     Re-extract
@@ -1335,7 +1337,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                       if (res.ok) {
                         setFormCPopup({ ...formCPopup, data: updatedData });
                         setFormCEditing(false);
-                      } else { alert("Failed to save"); }
+                      } else { showError("Failed to save"); }
                     } finally { setFormCSaving(false); }
                   }}>{formCSaving ? "Saving..." : "Save Changes"}</Button>
                   <Button type="button" variant="ghost" onClick={() => setFormCEditing(false)}>Cancel</Button>
@@ -1535,7 +1537,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                     const apiUrl = `${window.location.origin}/api/form-c/${checkinId}?token=${token}`;
                     const script = `fetch('${apiUrl}').then(r=>r.json()).then(d=>{const fmtD=(s)=>{if(!s)return'';if(/^\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]\\d{4}$/.test(s))return s.replace(/[.-]/g,'/');const m=s.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);if(m)return m[3]+'/'+m[2]+'/'+m[1];const mn={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};const tm=s.match(/^(\\d{1,2})\\s+([A-Za-z]{3,})\\s+(\\d{4})$/);if(tm){const mo=mn[tm[2].toUpperCase().slice(0,3)];if(mo)return tm[1].padStart(2,'0')+'/'+mo+'/'+tm[3];}return s;};const FD=(n,v)=>{if(!v)return;const fv=fmtD(v);if(!fv)return;const el=document.querySelector('input[name=\"'+n+'\"]');if(el){el.removeAttribute('readonly');el.removeAttribute('disabled');el.value=fv;el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery&&jQuery(el).datepicker){try{const p=fv.split('/');if(p.length===3)jQuery(el).datepicker('setDate',new Date(+p[2],+p[1]-1,+p[0]));}catch{}}}};const F=(n,v)=>{if(!v)return;const els=document.querySelectorAll('input[name=\"'+n+'\"],select[name=\"'+n+'\"],textarea[name=\"'+n+'\"]');if(els.length){els.forEach(el=>{if(el.tagName==='SELECT'){const opts=[...el.options];const match=opts.find(o=>o.text.toUpperCase().includes(v.toUpperCase())||o.value.toUpperCase().includes(v.toUpperCase()));if(match){el.value=match.value;el.dispatchEvent(new Event('change',{bubbles:true}));}else el.value=v;}else if(el.type==='radio'){if(el.value.toLowerCase()===v.toLowerCase())el.checked=true;}else{el.removeAttribute('readonly');el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}});}};const n2=d.extractedPassport||{};const v2=d.extractedVisa||{};F('applicant_surname',n2.surname||d.guestName?.split(' ').pop()||'');F('applicant_givenname',n2.givenName||d.guestName?.split(' ').slice(0,-1).join(' ')||'');F('applicant_sex',n2.sex||'');F('dobformat','DD/MM/YYYY');FD('applicant_dob',n2.dateOfBirth||'');F('applicant_special_category','Others');F('applicant_nationality',d.nationality||'');F('applicant_permaddr',[d.homeAddress,d.homeCity].filter(Boolean).join(', ')||'');F('applicant_permcity',d.homeCity||'');F('applicant_permcountry',d.nationality||'');F('applicant_refaddr','Near Hema Shree, Gokarna Main Beach');F('applicant_refstate','KARNATAKA');F('applicant_refpincode','581421');F('applicant_passpno',n2.passportNumber||'');F('applicant_passplcofissue',n2.placeOfIssue||'');F('passport_issue_country',d.nationality||'');FD('applicant_passpdoissue',n2.dateOfIssue||'');FD('applicant_passpvalidtill',n2.expiryDate||'');F('applicant_visano',v2.visaNumber||'');F('applicant_visaplcoissue',v2.placeOfIssue||'');F('visa_issue_country','INDIA');FD('applicant_visadoissue',v2.dateOfIssue||'');FD('applicant_visavalidtill',v2.validTill||'');F('applicant_visatype',v2.type||'Tourist');F('applicant_arrivedfromcountry',d.arrivedFromCountry||'');F('applicant_arrivedfromcity',d.arrivedFromCity||'');F('applicant_arrivedfromplace',d.arrivedFromPlace||'');FD('applicant_doarrivalindia',d.dateOfArrivalInIndia||'');FD('applicant_doarrivalhotel',d.arrivalDate||'');F('applicant_timeoarrivalhotel',d.arrivalTime||'');F('applicant_intnddurhotel',d.stayingDays||'');F('applicant_purpovisit',d.purposeOfVisit||'Tourism');F('applicant_contactnoinindia',d.contact||'');F('applicant_mcontactnoinindia',d.contact||'');F('applicant_contactnoperm',d.homeCountryPhone||'');F('applicant_mcontactnoperm',d.homeCountryPhone||'');setTimeout(()=>{FD('applicant_dob',n2.dateOfBirth||'');FD('applicant_passpdoissue',n2.dateOfIssue||'');FD('applicant_passpvalidtill',n2.expiryDate||'');FD('applicant_visadoissue',v2.dateOfIssue||'');FD('applicant_visavalidtill',v2.validTill||'');FD('applicant_doarrivalindia',d.dateOfArrivalInIndia||'');FD('applicant_doarrivalhotel',d.arrivalDate||'');},500);alert('Form C fields filled! Review dates and click Temporary Save.');}).catch(e=>alert('Error: '+e.message))`;
                     navigator.clipboard.writeText(script).then(() => {
-                      alert("Copied! On FRRO Form C page, open browser console (F12) and paste.");
+                      showSuccess("Copied! On FRRO Form C page, open browser console (F12) and paste.");
                     }).catch(() => {
                       prompt("Copy this, paste in FRRO page console (F12):", script);
                     });
@@ -1559,9 +1561,9 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                     const hash = btoa(payload + ":" + secret).replace(/=/g, "");
                     const token = `${btoa(payload).replace(/=/g, "")}.${hash}`;
                     const res = await fetch(`/api/form-c/${checkinId}?token=${token}`);
-                    if (!res.ok) { alert("Failed to fetch photo"); return; }
+                    if (!res.ok) { showError("Failed to fetch photo"); return; }
                     const data = await res.json();
-                    if (!data.passportPhotoBase64) { alert("No photo available for this guest"); return; }
+                    if (!data.passportPhotoBase64) { showError("No photo available for this guest"); return; }
                     const img = new Image();
                     img.onload = () => {
                       const canvas = document.createElement("canvas");
@@ -1580,7 +1582,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                       a.click();
                     };
                     img.src = "data:image/jpeg;base64," + data.passportPhotoBase64;
-                  } catch (e: any) { alert("Error: " + e.message); }
+                  } catch (e: any) { showError("Error", e.message); }
                 }}
                 className="w-full rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-200"
               >
@@ -1608,7 +1610,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                   <button type="button" onClick={async () => {
                     await apiCall({ action: "setSetting", key: "frro_username", value: frroUsername });
                     await apiCall({ action: "setSetting", key: "frro_password", value: frroPassword });
-                    alert("FRRO credentials saved");
+                    showSuccess("FRRO credentials saved");
                   }} className="sm:col-span-2 rounded-md bg-brand-green/10 px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/20">
                     Save Credentials
                   </button>

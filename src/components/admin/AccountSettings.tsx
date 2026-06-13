@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BulkExpenseImport } from "./BulkExpenseImport";
 import { BulkIncomeImport } from "./BulkIncomeImport";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
@@ -51,6 +52,7 @@ const ACCOUNT_TYPES = [
 type SettingsSection = "accounts" | "employees" | "vendors" | "bulkExpenses" | "bulkIncome";
 
 export function AccountSettings({ password, username, role }: { password: string; username?: string; role: Role }) {
+  const { showError } = useAdminToast();
   const [section, setSection] = useState<SettingsSection>("accounts");
   const [loading, setLoading] = useState(false);
 
@@ -190,7 +192,7 @@ export function AccountSettings({ password, username, role }: { password: string
     if (!payingEmployee) return;
     const amt = parseFloat(salaryAmount);
     if (!amt || amt <= 0) return;
-    if (salaryMethod === "online" && !salaryAccountId) { alert("Please select an account for online payment"); return; }
+    if (salaryMethod === "online" && !salaryAccountId) { showError("Please select an account for online payment"); return; }
     setPayingSalary(true);
     try {
       await apiCall({

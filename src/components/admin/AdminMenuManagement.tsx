@@ -11,6 +11,7 @@ import {
   ChevronDownIcon, ToggleLeftIcon, ToggleRightIcon, PackagePlusIcon,
 } from "lucide-react";
 import type { Role } from "./types";
+import { useAdminToast } from "@/components/admin/AdminToast";
 
 type Category = {
   id: number;
@@ -123,6 +124,8 @@ export function AdminMenuManagement({ password, username, role }: { password: st
   const scrollBackCatId = useRef<number | null>(null);
   const scrollBackItemId = useRef<number | null>(null);
 
+  const { showError, showSuccess } = useAdminToast();
+
   const apiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
     if (username) payload.username = username;
@@ -183,7 +186,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
   };
 
   const saveCategory = async () => {
-    if (!categoryForm.name.trim()) { alert("Name is required"); return; }
+    if (!categoryForm.name.trim()) { showError("Name is required"); return; }
     setSaving(true);
     try {
       const payload = {
@@ -207,7 +210,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         }
       } else {
         const d = await res.json();
-        alert(d.error || "Failed to save");
+        showError("Failed to save", d.error);
       }
     } finally { setSaving(false); }
   };
@@ -222,7 +225,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         await loadAll();
       } else {
         const d = await res.json();
-        alert(d.error || "Failed to delete");
+        showError("Failed to delete", d.error);
       }
     } finally { setSaving(false); }
   };
@@ -282,10 +285,10 @@ export function AdminMenuManagement({ password, username, role }: { password: st
   };
 
   const saveItem = async () => {
-    if (!itemForm.name.trim()) { alert("Name is required"); return; }
-    if (!itemForm.categoryId) { alert("Select a category"); return; }
+    if (!itemForm.name.trim()) { showError("Name is required"); return; }
+    if (!itemForm.categoryId) { showError("Select a category"); return; }
     const pricePaise = priceDisplayToPaise(itemForm.priceDisplay);
-    if (pricePaise <= 0) { alert("Enter a valid price"); return; }
+    if (pricePaise <= 0) { showError("Enter a valid price"); return; }
 
     setSaving(true);
     try {
@@ -334,7 +337,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         }
       } else {
         const d = await res.json();
-        alert(d.error || "Failed to save");
+        showError("Failed to save", d.error);
       }
     } finally { setSaving(false); }
   };
@@ -345,7 +348,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
     try {
       const res = await apiCall({ action: "deleteMenuItem", id });
       if (res.ok) await loadItems();
-      else { const d = await res.json(); alert(d.error || "Failed to delete"); }
+      else { const d = await res.json(); showError("Failed to delete", d.error); }
     } finally { setSaving(false); }
   };
 
@@ -367,7 +370,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
 
   const handleAddStock = async (menuItemId: number) => {
     const qty = parseInt(addStockQty);
-    if (!qty || qty < 1) { alert("Enter a valid quantity"); return; }
+    if (!qty || qty < 1) { showError("Enter a valid quantity"); return; }
     setSaving(true);
     try {
       const res = await apiCall({ action: "addStock", menuItemId, quantity: qty });
@@ -377,7 +380,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         await loadItems();
       } else {
         const d = await res.json();
-        alert(d.error || "Failed to add stock");
+        showError("Failed to add stock", d.error);
       }
     } finally { setSaving(false); }
   };

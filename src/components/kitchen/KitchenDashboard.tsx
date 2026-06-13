@@ -25,6 +25,7 @@ import {
   HistoryIcon,
 } from "lucide-react";
 import { isBluetoothSupported, printOrderTicket } from "@/lib/thermalPrint";
+import { useAdminToast } from "@/components/admin/AdminToast";
 
 interface OrderItem {
   id: number;
@@ -129,6 +130,7 @@ const REJECT_REASONS = [
 ];
 
 export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) {
+  const { showError } = useAdminToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [kitchenCategories, setKitchenCategories] = useState<KitchenCategory[]>([]);
@@ -417,7 +419,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
         createdAt: order.createdAt,
       });
     } catch (err: any) {
-      alert(`Print failed: ${err.message || "Unknown error"}`);
+      showError("Print failed", err.message);
     }
   };
 

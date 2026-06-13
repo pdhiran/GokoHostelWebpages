@@ -9,6 +9,7 @@ import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
 import type { Role } from "./types";
 import { hasPermission } from "./types";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
+import { useAdminToast } from "@/components/admin/AdminToast";
 
 type FoodTab = "summary" | "place" | "combined" | "payment" | "active";
 
@@ -116,6 +117,7 @@ interface PrefillGuest {
 }
 
 export function AdminFoodOrders({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
+  const { showError, showSuccess } = useAdminToast();
   const [prefillGuest, setPrefillGuest] = useState<PrefillGuest | null>(null);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
@@ -688,6 +690,7 @@ interface SummaryGroup {
 }
 
 function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }: { apiCall: (body: any) => Promise<Response>; onOrderMore: (guest: PrefillGuest) => void; onAddNewOrder?: () => void; role?: Role; permissions?: Record<string, boolean> }) {
+  const { showError, showSuccess } = useAdminToast();
   const [hostelGuests, setHostelGuests] = useState<GuestWithTab[]>([]);
   const [walkinOrders, setWalkinOrders] = useState<Order[]>([]);
   const [hostelOrdersMap, setHostelOrdersMap] = useState<Record<number, Order[]>>({});
@@ -994,9 +997,9 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
         taxRate: 5,
         discount: discount || undefined,
       });
-      alert("Bill printed successfully!");
+      showSuccess("Bill printed successfully!");
     } catch (err: any) {
-      alert(`Print failed: ${err.message || "Unknown error"}`);
+      showError("Print failed", err.message || "Unknown error");
     } finally {
       setPrintingGroup(null);
     }
@@ -1005,7 +1008,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
   const handleKitchenPrint = async (group: SummaryGroup) => {
     const orders = getGroupOrders(group);
     const activeOrders = orders.filter(o => o.status !== "cancelled" && o.status !== "served");
-    if (activeOrders.length === 0) { alert("No active orders to print for kitchen"); return; }
+    if (activeOrders.length === 0) { showError("No active orders to print for kitchen"); return; }
     setPrintingGroup(group.key);
     try {
       for (const order of activeOrders) {
@@ -1021,9 +1024,9 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
           createdAt: order.createdAt,
         });
       }
-      alert("Kitchen ticket(s) printed!");
+      showSuccess("Kitchen ticket(s) printed!");
     } catch (err: any) {
-      alert(`Print failed: ${err.message || "Unknown error"}`);
+      showError("Print failed", err.message || "Unknown error");
     } finally {
       setPrintingGroup(null);
     }
@@ -1232,7 +1235,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                                 if (items.length === 0) return;
                                 try {
                                   await printOrderTicket({ orderNumber: order.orderNumber, guestName: selectedGroup.guestName, guestType: selectedGroup.guestType === "hostel" ? "hostel" : "walkin", roomInfo: selectedGroup.roomInfo || undefined, items, specialInstructions: order.specialInstructions || undefined, createdAt: order.createdAt });
-                                } catch (err: any) { alert(`Print failed: ${err.message || "Unknown error"}`); }
+                                } catch (err: any) { showError("Print failed", err.message || "Unknown error"); }
                               }}
                               className="rounded p-1 text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
                               title="Print kitchen ticket"
@@ -1588,6 +1591,7 @@ function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
 // ─── Combined Bill ───────────────────────────────────────────────────────────
 
 function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
+  const { showError, showSuccess } = useAdminToast();
   const [guests, setGuests] = useState<GuestWithTab[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1645,9 +1649,9 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
         ),
       }));
       await printCombinedBill(guestData, preview.grandTotal, 5);
-      alert("Combined bill printed successfully!");
+      showSuccess("Combined bill printed successfully!");
     } catch (err: any) {
-      alert(`Print failed: ${err.message || "Unknown error"}`);
+      showError("Print failed", err.message || "Unknown error");
     } finally {
       setPrintingCombined(false);
     }
@@ -2501,6 +2505,7 @@ function PaymentHistoryPanel({ apiCall, onClose }: { apiCall: (body: any) => Pro
 // ─── Order History ───────────────────────────────────────────────────────────
 
 export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
+  const { showError, showSuccess } = useAdminToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
@@ -2788,9 +2793,9 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                               total: order.total,
                               taxRate: 5,
                             });
-                            alert("Bill printed successfully!");
+                            showSuccess("Bill printed successfully!");
                           } catch (err: any) {
-                            alert(`Print failed: ${err.message || "Unknown error"}`);
+                            showError("Print failed", err.message || "Unknown error");
                           } finally {
                             setPrinting(null);
                           }

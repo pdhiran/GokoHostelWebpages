@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAdminApi } from "./useAdminApi";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +81,7 @@ const ALL_PERMISSION_GROUPS = [
 
 export function ManagementUsers({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { apiCall } = useAdminApi(password, username);
+  const { showError } = useAdminToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -109,7 +111,7 @@ export function ManagementUsers({ password, username, role }: { password: string
 
   const saveUser = async () => {
     if (!formUsername || !formDisplayName || (!editingUser && !formPassword)) {
-      alert("Please fill all required fields");
+      showError("Please fill all required fields");
       return;
     }
     setSaving(true);
@@ -137,7 +139,7 @@ export function ManagementUsers({ password, username, role }: { password: string
         }
       } else {
         const d = await res.json();
-        alert(d.error || "Failed to save user");
+        showError("Failed to save user", d.error);
       }
     } finally { setSaving(false); }
   };
@@ -146,7 +148,7 @@ export function ManagementUsers({ password, username, role }: { password: string
     if (!confirm("Delete this user? This cannot be undone.")) return;
     const res = await apiCall({ action: "deleteUser", userId });
     if (res.ok) await loadUsers();
-    else { const d = await res.json(); alert(d.error || "Failed"); }
+    else { const d = await res.json(); showError("Failed to delete user", d.error); }
   };
 
   const resetForm = () => {

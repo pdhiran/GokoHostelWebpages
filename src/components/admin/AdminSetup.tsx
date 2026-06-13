@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAdminApi } from "./useAdminApi";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { AdminLoading } from "./AdminLoading";
 import { cn } from "@/lib/utils";
 import { PlusIcon, Trash2Icon } from "lucide-react";
@@ -12,6 +13,7 @@ import { parseBedRow, type BedRow } from "./types";
 
 export function AdminSetup({ password, username }: { password: string; username?: string }) {
   const { apiCall } = useAdminApi(password, username);
+  const { showError } = useAdminToast();
   const [beds, setBeds] = useState<BedRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [newDorm, setNewDorm] = useState("");
@@ -38,13 +40,13 @@ export function AdminSetup({ password, username }: { password: string; username?
   };
 
   const addDorm = async () => {
-    if (!newDorm.trim()) { alert("Enter a dorm name"); return; }
+    if (!newDorm.trim()) { showError("Enter a dorm name"); return; }
     const count = parseInt(newBedCount) || 6;
     setLoading(true);
     try {
       const res = await apiCall({ action: "initDorms", dormName: newDorm.trim(), bedCount: count, bedType: newBedType });
       if (res.ok) { setNewDorm(""); await loadBeds(); }
-      else { const d = await res.json(); alert(d.error || "Failed"); }
+      else { const d = await res.json(); showError("Failed to add dorm", d.error); }
     } finally { setLoading(false); }
   };
 
@@ -54,20 +56,20 @@ export function AdminSetup({ password, username }: { password: string; username?
     try {
       const res = await apiCall({ action: "removeBed", bedId: bedIdx });
       if (res.ok) await loadBeds();
-      else { const d = await res.json(); alert(d.error || "Failed"); }
+      else { const d = await res.json(); showError("Failed to remove bed", d.error); }
     } finally { setLoading(false); }
   };
 
   const removeDorm = async (dormName: string) => {
     const dormBeds = beds.filter((b) => b.dormName === dormName);
     const hasOccupied = dormBeds.some((b) => b.status !== "available");
-    if (hasOccupied) { alert("Cannot delete dorm with occupied or cleanup beds. Checkout all guests first."); return; }
+    if (hasOccupied) { showError("Cannot delete dorm with occupied or cleanup beds. Checkout all guests first."); return; }
     if (!confirm(`Delete entire dorm "${dormName}" and all ${dormBeds.length} beds?`)) return;
     setLoading(true);
     try {
       const res = await apiCall({ action: "removeDorm", dormName });
       if (res.ok) await loadBeds();
-      else { const d = await res.json(); alert(d.error || "Failed"); }
+      else { const d = await res.json(); showError("Failed to remove dorm", d.error); }
     } finally { setLoading(false); }
   };
 
@@ -97,8 +99,8 @@ export function AdminSetup({ password, username }: { password: string; username?
   const saveAgeRange = async () => {
     const min = parseInt(minAge);
     const max = parseInt(maxAge);
-    if (isNaN(min) || isNaN(max) || min < 1 || max < 1) { alert("Enter valid age values"); return; }
-    if (min >= max) { alert("Min age must be less than max age"); return; }
+    if (isNaN(min) || isNaN(max) || min < 1 || max < 1) { showError("Enter valid age values"); return; }
+    if (min >= max) { showError("Min age must be less than max age"); return; }
     setAgeSaving(true);
     try {
       await Promise.all([

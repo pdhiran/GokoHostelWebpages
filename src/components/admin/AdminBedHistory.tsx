@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useAdminApi } from "./useAdminApi";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { DownloadIcon, Trash2Icon } from "lucide-react";
 import type { Role } from "./types";
 import { AdminLoading } from "./AdminLoading";
@@ -13,6 +14,7 @@ const HISTORY_COLUMNS = ["Timestamp", "Bed ID", "Dorm", "Action", "Guest Name", 
 
 export function AdminBedHistory({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { apiCall } = useAdminApi(password, username);
+  const { showError } = useAdminToast();
   const [rows, setRows] = useState<string[][]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -41,7 +43,7 @@ export function AdminBedHistory({ password, username, role }: { password: string
       const rowId = parseInt(rows[origIdx][6] || "0", 10);
       const res = await apiCall({ action: "deleteBedHistory", rowId });
       if (res.ok) await loadHistory();
-      else { const d = await res.json(); alert(d.error || "Failed to delete"); }
+      else { const d = await res.json(); showError("Failed to delete", d.error); }
     } finally { setDeletingIdx(null); }
   };
 

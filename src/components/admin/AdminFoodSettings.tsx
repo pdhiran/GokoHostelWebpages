@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAdminToast } from "@/components/admin/AdminToast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +58,7 @@ function rupeesToPaise(rupees: string): string {
 }
 
 export function AdminFoodSettings({ password, username, role }: { password: string; username?: string; role: Role }) {
+  const { showError } = useAdminToast();
   const [settings, setSettings] = useState<FoodSettings>({ ...DEFAULT_SETTINGS });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -130,7 +132,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
         setDirty(false);
       } else {
         const d = await res.json();
-        alert(d.error || "Failed to save settings");
+        showError("Failed to save settings", d.error);
       }
     } finally {
       setSaving(false);
@@ -150,7 +152,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
         setSavedSettings((prev) => ({ ...prev, food_kitchen_busy: newValue }));
       } else {
         const d = await res.json();
-        alert(d.error || "Failed to toggle");
+        showError("Failed to toggle", d.error);
       }
     } finally {
       setSaving(false);
@@ -482,7 +484,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
                   try {
                     const res = await apiCall({ action: "updateFoodSettings", settings: { food_confirm_with_guest: newValue } });
                     if (res.ok) { setSettings((prev) => ({ ...prev, food_confirm_with_guest: newValue })); setSavedSettings((prev) => ({ ...prev, food_confirm_with_guest: newValue })); }
-                    else { const d = await res.json().catch(() => ({})); alert(d.error || "Failed to toggle"); }
+                    else { const d = await res.json().catch(() => ({})); showError("Failed to toggle", d.error); }
                   } finally { setSaving(false); }
                 }}
                 disabled={saving}

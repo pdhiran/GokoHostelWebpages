@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
+import { AdminToastProvider } from "@/components/admin/AdminToast";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { AdminRecords } from "@/components/admin/AdminRecords";
 import { AdminBeds } from "@/components/admin/AdminBeds";
@@ -26,7 +27,9 @@ export default function AdminPage() {
         <p className="text-sm text-brand-green-dark/50">Loading...</p>
       </section>
     }>
-      <AdminPageInner />
+      <AdminToastProvider>
+        <AdminPageInner />
+      </AdminToastProvider>
     </Suspense>
   );
 }
