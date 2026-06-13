@@ -107,8 +107,13 @@ export default function ReviewPage() {
       }
       const data = await res.json();
       if (data.redirectToGoogle) {
-        setGoogleReviewUrl(data.googleReviewUrl || googleReviewUrl);
-        setView("thankyou");
+        const url = data.googleReviewUrl || googleReviewUrl;
+        setGoogleReviewUrl(url);
+        if (url) {
+          window.location.href = url;
+        } else {
+          setView("thankyou");
+        }
       } else {
         setView("feedback");
       }
@@ -277,6 +282,13 @@ export default function ReviewPage() {
               </a>
             </>
           )}
+          <button
+            type="button"
+            onClick={() => window.close()}
+            className="mt-4 w-full rounded-xl border-2 border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            Close
+          </button>
         </div>
       </div>
     );
