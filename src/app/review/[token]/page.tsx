@@ -358,6 +358,13 @@ export default function ReviewPage() {
           <p className="mt-2 text-sm text-gray-600">
             Your feedback has been shared with our team. We&apos;ll work on making your next stay better.
           </p>
+          <button
+            type="button"
+            onClick={() => window.close()}
+            className="mt-8 w-full rounded-xl border-2 border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            Close
+          </button>
         </div>
       </div>
     );
