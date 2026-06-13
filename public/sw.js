@@ -1,4 +1,4 @@
-const CACHE_NAME = "goko-admin-v1";
+const CACHE_NAME = "goko-admin-v2";
 const OFFLINE_URL = "/admin";
 
 self.addEventListener("install", (event) => {
@@ -10,28 +10,43 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  if (!event.data) return;
+  const showNotif = async () => {
+    let title = "Goko Hostel";
+    let body = "";
+    let icon = "/icons/icon-192.png";
+    let url = "/admin";
+    let tag = "goko-notification";
 
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch {
-    payload = { title: "Goko Hostel", body: event.data.text() };
-  }
+    if (event.data) {
+      try {
+        const payload = event.data.json();
+        if (payload && typeof payload === "object") {
+          title = payload.title || title;
+          body = payload.body || body;
+          icon = payload.icon || icon;
+          url = payload.url || url;
+          tag = payload.tag || tag;
+        }
+      } catch {
+        const text = event.data.text();
+        if (text && text.length < 200) {
+          body = text;
+        }
+      }
+    }
 
-  const { title = "Goko Hostel", body = "", icon = "/icons/icon-192.png", url = "/admin" } = payload;
-
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
+    await self.registration.showNotification(title, {
+      body: body || "You have a new update",
       icon,
       badge: "/icons/icon-192.png",
       data: { url },
       vibrate: [200, 100, 200],
-      tag: payload.tag || "goko-notification",
+      tag,
       renotify: true,
-    })
-  );
+    });
+  };
+
+  event.waitUntil(showNotif());
 });
 
 self.addEventListener("notificationclick", (event) => {
