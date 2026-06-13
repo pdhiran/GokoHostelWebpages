@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon } from "lucide-react";
+import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import { AdminToastProvider } from "@/components/admin/AdminToast";
@@ -16,6 +16,7 @@ import { AdminManagement } from "@/components/admin/AdminManagement";
 import { AdminTimeline } from "@/components/admin/AdminTimeline";
 import { AdminFoodOrders } from "@/components/admin/AdminFoodOrders";
 import { AdminExpenditure } from "@/components/admin/AdminExpenditure";
+import { AdminReviews } from "@/components/admin/AdminReviews";
 import type { Role, AdminSection, ManagementTab } from "@/components/admin/types";
 import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
 import { SyncStatusBar } from "@/components/admin/SyncStatusBar";
@@ -42,7 +43,7 @@ function AdminPageInner() {
   const [error, setError] = useState("");
   const [section, setSection] = useTabWithHistory<AdminSection>("section", "dashboard", {
     clearParams: ["tab"],
-    validValues: ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "management"],
+    validValues: ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "reviews", "management"],
   });
   const [managementTab, setManagementTab] = useState<ManagementTab | undefined>();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -120,11 +121,11 @@ function AdminPageInner() {
 
   useEffect(() => {
     if (!role || role === "admin") return;
-    const navIds: AdminSection[] = ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "management"];
+    const navIds: AdminSection[] = ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "reviews", "management"];
     const permKeys: Record<AdminSection, string> = {
       dashboard: "canViewDashboard", bookings: "canViewBookings", beds: "canViewBeds",
       timeline: "canViewTimeline", records: "canViewRecords", foodOrders: "canViewFoodOrders",
-      expenditure: "canViewAccounts", management: "canViewManagement",
+      expenditure: "canViewAccounts", reviews: "canViewReviews", management: "canViewManagement",
     };
     const isVisible = (id: AdminSection) => permissions[permKeys[id]] || false;
     if (!isVisible(section)) {
@@ -268,6 +269,7 @@ function AdminPageInner() {
     { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" />, permission: "canViewRecords" },
     { id: "foodOrders", label: "Food Orders", icon: <span className="text-base leading-none">🍽️</span>, permission: "canViewFoodOrders" },
     { id: "expenditure", label: "Accounts", icon: <WalletIcon className="h-4 w-4" />, permission: "canViewAccounts" },
+    { id: "reviews", label: "Reviews", icon: <StarIcon className="h-4 w-4" />, permission: "canViewReviews" },
     { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" />, permission: "canViewManagement" },
   ];
 
@@ -390,6 +392,7 @@ function AdminPageInner() {
         {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}
         {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} permissions={permissions} />}
         {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
+        {section === "reviews" && <AdminReviews password={password} username={username} role={role} permissions={permissions} />}
         {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} initialTab={managementTab} onTabUsed={() => setManagementTab(undefined)} />}
       </div>
 

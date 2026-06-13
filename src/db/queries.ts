@@ -1,6 +1,6 @@
-import { eq, desc, and, sql, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
-import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses } from "./schema";
+import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback } from "./schema";
 
 // --- Check-ins ---
 
@@ -935,4 +935,153 @@ export async function deleteOrderItemsByOrderIds(orderIds: number[]) {
   const db = getDb();
   const result = await db.delete(foodOrderItems).where(inArray(foodOrderItems.orderId, orderIds));
   return (result as any).rowsAffected ?? (result as any).changes ?? orderIds.length;
+}
+
+// --- Review Funnel ---
+
+export async function createReviewRequest(data: {
+  token: string; checkinId: number; guestName: string; guestContact: string;
+  propertyId?: string; bookingId?: string;
+}) {
+  const db = getDb();
+  return db.insert(reviewRequests).values({
+    ...data,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function getReviewRequestByToken(token: string) {
+  const db = getDb();
+  const rows = await db.select().from(reviewRequests).where(and(eq(reviewRequests.token, token), sql`${reviewRequests.deletedAt} IS NULL`)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getReviewRequestByCheckinId(checkinId: number) {
+  const db = getDb();
+  const rows = await db.select().from(reviewRequests).where(and(eq(reviewRequests.checkinId, checkinId), sql`${reviewRequests.deletedAt} IS NULL`)).limit(1);
+  return rows[0] || null;
+}
+
+export async function recordWhatsAppSent(id: number) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  return db.update(reviewRequests).set({
+    whatsappSentCount: sql`${reviewRequests.whatsappSentCount} + 1`,
+    whatsappLastSentAt: now,
+  }).where(eq(reviewRequests.id, id));
+}
+
+export async function submitReviewRating(token: string, rating: number) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  return db.update(reviewRequests).set({
+    rating,
+    ratedAt: now,
+    redirectedToGoogle: rating >= 4 ? 1 : 0,
+  }).where(eq(reviewRequests.token, token));
+}
+
+export async function submitReviewFeedback(data: {
+  reviewRequestId: number; rating: number; improvementAreas: string[]; comments: string;
+}) {
+  const db = getDb();
+  return db.insert(reviewFeedback).values({
+    reviewRequestId: data.reviewRequestId,
+    rating: data.rating,
+    improvementAreas: JSON.stringify(data.improvementAreas),
+    comments: data.comments,
+    submittedAt: new Date().toISOString(),
+  });
+}
+
+export async function getReviewRequestsForAdmin(filters: { fromDate?: string; toDate?: string; property?: string }) {
+  const db = getDb();
+  const conditions = [sql`${reviewRequests.deletedAt} IS NULL`];
+  if (filters.fromDate) conditions.push(gte(reviewRequests.createdAt, filters.fromDate));
+  if (filters.toDate) conditions.push(lte(reviewRequests.createdAt, filters.toDate + "T23:59:59"));
+  if (filters.property) conditions.push(eq(reviewRequests.propertyId, filters.property));
+  return db.select().from(reviewRequests).where(and(...conditions)).orderBy(desc(reviewRequests.createdAt));
+}
+
+export async function getReviewFeedbackList(filters: { fromDate?: string; toDate?: string; property?: string; rating?: number; improvementArea?: string }) {
+  const db = getDb();
+  const conditions: any[] = [sql`${reviewFeedback.deletedAt} IS NULL`];
+  if (filters.fromDate) conditions.push(gte(reviewFeedback.submittedAt, filters.fromDate));
+  if (filters.toDate) conditions.push(lte(reviewFeedback.submittedAt, filters.toDate + "T23:59:59"));
+  if (filters.rating != null) conditions.push(eq(reviewFeedback.rating, filters.rating));
+  if (filters.property) conditions.push(eq(reviewRequests.propertyId, filters.property));
+
+  const rows = await db
+    .select({
+      id: reviewFeedback.id,
+      reviewRequestId: reviewFeedback.reviewRequestId,
+      rating: reviewFeedback.rating,
+      improvementAreas: reviewFeedback.improvementAreas,
+      comments: reviewFeedback.comments,
+      submittedAt: reviewFeedback.submittedAt,
+      guestName: reviewRequests.guestName,
+      guestContact: reviewRequests.guestContact,
+      propertyId: reviewRequests.propertyId,
+      bookingId: reviewRequests.bookingId,
+    })
+    .from(reviewFeedback)
+    .innerJoin(reviewRequests, eq(reviewFeedback.reviewRequestId, reviewRequests.id))
+    .where(and(...conditions))
+    .orderBy(desc(reviewFeedback.submittedAt));
+
+  if (filters.improvementArea) {
+    return rows.filter((r) => {
+      try {
+        const areas: string[] = JSON.parse(r.improvementAreas || "[]");
+        return areas.includes(filters.improvementArea!);
+      } catch { return false; }
+    });
+  }
+  return rows;
+}
+
+export async function getReviewAnalytics(filters: { fromDate?: string; toDate?: string; property?: string }) {
+  const db = getDb();
+  const conditions = [sql`${reviewRequests.deletedAt} IS NULL`];
+  if (filters.fromDate) conditions.push(gte(reviewRequests.createdAt, filters.fromDate));
+  if (filters.toDate) conditions.push(lte(reviewRequests.createdAt, filters.toDate + "T23:59:59"));
+  if (filters.property) conditions.push(eq(reviewRequests.propertyId, filters.property));
+
+  const allRequests = await db.select().from(reviewRequests).where(and(...conditions));
+
+  const totalSent = allRequests.filter((r) => (r.whatsappSentCount || 0) > 0).length;
+  const totalRated = allRequests.filter((r) => r.rating !== null).length;
+  const googleRedirects = allRequests.filter((r) => r.redirectedToGoogle === 1).length;
+  const ratingDist = [0, 0, 0, 0, 0];
+  for (const r of allRequests) {
+    if (r.rating && r.rating >= 1 && r.rating <= 5) ratingDist[r.rating - 1]++;
+  }
+
+  const feedbackConditions: any[] = [sql`${reviewFeedback.deletedAt} IS NULL`];
+  if (filters.fromDate) feedbackConditions.push(gte(reviewFeedback.submittedAt, filters.fromDate));
+  if (filters.toDate) feedbackConditions.push(lte(reviewFeedback.submittedAt, filters.toDate + "T23:59:59"));
+  if (filters.property) feedbackConditions.push(eq(reviewRequests.propertyId, filters.property));
+  const feedbackRows = await db.select({ improvementAreas: reviewFeedback.improvementAreas })
+    .from(reviewFeedback)
+    .innerJoin(reviewRequests, eq(reviewFeedback.reviewRequestId, reviewRequests.id))
+    .where(and(...feedbackConditions));
+
+  const improvementCounts: Record<string, number> = {};
+  for (const f of feedbackRows) {
+    try {
+      const areas: string[] = JSON.parse(f.improvementAreas || "[]");
+      for (const area of areas) improvementCounts[area] = (improvementCounts[area] || 0) + 1;
+    } catch {}
+  }
+
+  return {
+    totalRequests: allRequests.length,
+    totalSent,
+    totalRated,
+    googleRedirects,
+    feedbackSubmissions: feedbackRows.length,
+    responseRate: totalSent > 0 ? Math.round((totalRated / totalSent) * 100) : 0,
+    ratingDistribution: ratingDist,
+    improvementAreas: improvementCounts,
+  };
 }

@@ -466,6 +466,42 @@ export const syncConflicts = sqliteTable("sync_conflicts", {
   index("idx_sync_conflicts_table").on(table.tableName),
 ]);
 
+// --- Review Funnel ---
+
+export const reviewRequests = sqliteTable("review_requests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  token: text("token").notNull().unique(),
+  checkinId: integer("checkin_id").notNull(),
+  guestName: text("guest_name").notNull(),
+  guestContact: text("guest_contact").notNull(),
+  propertyId: text("property_id").default("goko_hostel"),
+  bookingId: text("booking_id").default(""),
+  whatsappSentCount: integer("whatsapp_sent_count").default(0),
+  whatsappLastSentAt: text("whatsapp_last_sent_at"),
+  rating: integer("rating"),
+  ratedAt: text("rated_at"),
+  redirectedToGoogle: integer("redirected_to_google").default(0),
+  createdAt: text("created_at").notNull(),
+  ...syncColumnsWithDelete,
+}, (table) => [
+  index("idx_review_requests_checkin").on(table.checkinId),
+  index("idx_review_requests_created").on(table.createdAt),
+  index("idx_review_requests_property").on(table.propertyId),
+]);
+
+export const reviewFeedback = sqliteTable("review_feedback", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  reviewRequestId: integer("review_request_id").notNull().references(() => reviewRequests.id),
+  rating: integer("rating").notNull(),
+  improvementAreas: text("improvement_areas").notNull().default("[]"),
+  comments: text("comments").default(""),
+  submittedAt: text("submitted_at").notNull(),
+  ...syncColumnsWithDelete,
+}, (table) => [
+  index("idx_review_feedback_request").on(table.reviewRequestId),
+  index("idx_review_feedback_submitted").on(table.submittedAt),
+]);
+
 export const syncIdMap = sqliteTable("sync_id_map", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   tableName: text("table_name").notNull(),

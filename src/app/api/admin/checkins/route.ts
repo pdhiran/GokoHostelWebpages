@@ -13,6 +13,7 @@ import {
   getAllUsers, getUserByUsername, createUser, updateUser, deleteUser as deleteUserById,
   addAuditEntry, getAuditEntries,
   addSystemLog, getSystemLogs,
+  createReviewRequest, getReviewRequestByCheckinId,
 } from "@/db/queries";
 import { beds, checkins, foodOrders } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -608,7 +609,23 @@ export async function POST(req: NextRequest) {
           await db.update(checkins).set({ status: "checked_out", checkedOutAt: new Date().toISOString() }).where(
             and(eq(checkins.contact, bed.guestContact), eq(checkins.status, "active"))
           );
-        } catch {}
+          // Auto-create review request for checked-out guest
+          const guestRows = await db.select().from(checkins).where(and(eq(checkins.contact, bed.guestContact), eq(checkins.status, "checked_out"))).limit(1);
+          if (guestRows.length > 0) {
+            const guest = guestRows[0];
+            const existing = await getReviewRequestByCheckinId(guest.id);
+            if (!existing) {
+              const bytes = new Uint8Array(18);
+              crypto.getRandomValues(bytes);
+              const token = Array.from(bytes).map((b) => b.toString(36).padStart(2, "0")).join("").slice(0, 24);
+              createReviewRequest({ token, checkinId: guest.id, guestName: guest.name, guestContact: guest.contact, bookingId: guest.bookingId || "" }).catch((e) => {
+                addSystemLog({ level: "warn", source: "review-funnel", message: `Failed to create review request for checkin ${guest.id}: ${e?.message || "unknown"}` }).catch(() => {});
+              });
+            }
+          }
+        } catch (e: any) {
+          addSystemLog({ level: "warn", source: "review-funnel", message: `Checkout review creation failed: ${e?.message || "unknown"}` }).catch(() => {});
+        }
       }
 
       await addAuditEntry({ username: actingUser, action: "bed_checkout", target: `${bed.bedId} ${bed.guestName || ""}` });
@@ -628,6 +645,23 @@ export async function POST(req: NextRequest) {
       const changed = (result as any)?.rowsAffected ?? (result as any)?.changes ?? 1;
       if (changed === 0) {
         return NextResponse.json({ error: "Guest not found or already checked out" }, { status: 400 });
+      }
+
+      // Auto-create review request for directly checked-out guest
+      try {
+        const existing = await getReviewRequestByCheckinId(checkinId);
+        if (!existing) {
+          const guestRows = await db.select().from(checkins).where(eq(checkins.id, checkinId)).limit(1);
+          if (guestRows.length > 0) {
+            const guest = guestRows[0];
+            const bytes = new Uint8Array(18);
+            crypto.getRandomValues(bytes);
+            const token = Array.from(bytes).map((b) => b.toString(36).padStart(2, "0")).join("").slice(0, 24);
+            await createReviewRequest({ token, checkinId: guest.id, guestName: guest.name, guestContact: guest.contact, bookingId: guest.bookingId || "" });
+          }
+        }
+      } catch (e: any) {
+        addSystemLog({ level: "warn", source: "review-funnel", message: `Direct checkout review creation failed: ${e?.message || "unknown"}` }).catch(() => {});
       }
 
       await addAuditEntry({ username: actingUser, action: "guest_checkout_direct", target: checkoutGuestName || `id:${checkinId}` });

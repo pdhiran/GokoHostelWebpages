@@ -28,6 +28,7 @@ const NAV_PERMISSION_OPTIONS = [
   { key: "canViewRecords", label: "View Records" },
   { key: "canViewFoodOrders", label: "View Food Orders" },
   { key: "canViewAccounts", label: "View Accounts" },
+  { key: "canViewReviews", label: "View Reviews" },
   { key: "canViewManagement", label: "View Management" },
 ];
 
