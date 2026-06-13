@@ -234,6 +234,10 @@ export async function POST(req: NextRequest) {
     }
   } catch (err: any) {
     console.error("Admin food API error:", err);
-    return NextResponse.json({ error: err?.message || "Internal error" }, { status: 500 });
+    const raw = err?.message || "Internal error";
+    const userMessage = raw.includes("Failed query") || raw.includes("D1_ERROR")
+      ? "Database temporarily unavailable. Please try again."
+      : raw;
+    return NextResponse.json({ error: userMessage }, { status: 500 });
   }
 }

@@ -971,6 +971,10 @@ export async function POST(req: NextRequest) {
     try {
       await addSystemLog({ level: "error", source: "admin-checkins-api", message: error?.message || "Unknown error", details: error?.stack });
     } catch {}
-    return NextResponse.json({ error: error?.message || "Internal server error", role }, { status: 500 });
+    const raw = error?.message || "Internal server error";
+    const userMessage = raw.includes("Failed query") || raw.includes("D1_ERROR")
+      ? "Database temporarily unavailable. Please try again."
+      : raw;
+    return NextResponse.json({ error: userMessage, role }, { status: 500 });
   }
 }
