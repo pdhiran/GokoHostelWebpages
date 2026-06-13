@@ -760,7 +760,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                             )}>
                               {item.isAvailable ? "Available" : "Unavailable"}
                             </span>
-                            {item.trackInventory && (
+                            {!!item.trackInventory && (
                               <span className={cn(
                                 "rounded-full px-1.5 py-0.5 text-[9px] font-bold",
                                 isZeroStock ? "bg-red-100 text-red-700" :
@@ -786,7 +786,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                             <div><span className="text-brand-green-dark/50">Price:</span> <span className="font-medium text-brand-green-dark">₹{pricePaiseToDisplay(item.price)}{item.priceText ? ` ${item.priceText}` : ""}</span></div>
                             {item.description && <div className="col-span-2"><span className="text-brand-green-dark/50">Description:</span> <span className="text-brand-green-dark">{item.description}</span></div>}
                             <div><span className="text-brand-green-dark/50">Order:</span> <span className="text-brand-green-dark">{item.displayOrder}</span></div>
-                            {item.trackInventory && <div><span className="text-brand-green-dark/50">Stock:</span> <span className="text-brand-green-dark">{item.stockQuantity} (low: {item.lowStockThreshold})</span></div>}
+                            {!!item.trackInventory && <div><span className="text-brand-green-dark/50">Stock:</span> <span className="text-brand-green-dark">{item.stockQuantity} (low: {item.lowStockThreshold})</span></div>}
                           </div>
 
                           {tags.length > 0 && (
