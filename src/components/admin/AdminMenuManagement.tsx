@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   PlusIcon, Trash2Icon, PencilIcon, CheckIcon, XIcon,
   ChevronDownIcon, ToggleLeftIcon, ToggleRightIcon, PackagePlusIcon,
+  LayoutListIcon, TableIcon,
 } from "lucide-react";
 import type { Role } from "./types";
 import { useAdminToast } from "@/components/admin/AdminToast";
@@ -121,6 +122,8 @@ export function AdminMenuManagement({ password, username, role }: { password: st
   const itemFormRef = useRef<HTMLDivElement>(null);
   const [addStockItemId, setAddStockItemId] = useState<number | null>(null);
   const [addStockQty, setAddStockQty] = useState("");
+  const [itemViewMode, setItemViewMode] = useState<"card" | "table">(() => typeof window !== "undefined" && window.innerWidth < 1024 ? "card" : "table");
+  const [expandedItemCard, setExpandedItemCard] = useState<number | null>(null);
   const scrollBackCatId = useRef<number | null>(null);
   const scrollBackItemId = useRef<number | null>(null);
 
@@ -541,6 +544,14 @@ export function AdminMenuManagement({ password, username, role }: { password: st
             <Button type="button" variant="cta" size="sm" onClick={openAddItem} disabled={saving || categories.length === 0}>
               <PlusIcon className="mr-1 h-4 w-4" /> Add Item
             </Button>
+            <div className="flex rounded-lg border border-brand-mist bg-white p-0.5">
+              <button type="button" onClick={() => setItemViewMode("card")} className={cn("rounded-md p-1.5 transition-colors", itemViewMode === "card" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Card view">
+                <LayoutListIcon className="h-3.5 w-3.5" />
+              </button>
+              <button type="button" onClick={() => setItemViewMode("table")} className={cn("rounded-md p-1.5 transition-colors", itemViewMode === "table" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Table view">
+                <TableIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -723,80 +734,86 @@ export function AdminMenuManagement({ password, username, role }: { password: st
             {selectedCategoryId ? "No items in this category." : "No menu items yet."}
           </p>
         ) : (
-          <div className="mt-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-brand-mist text-xs text-brand-green-dark/50">
-                    <th className="pb-2 pr-3 font-medium">Item</th>
-                    <th className="pb-2 pr-3 font-medium">Category</th>
-                    <th className="pb-2 pr-3 font-medium text-right">Price</th>
-                    <th className="pb-2 pr-3 font-medium">Tags</th>
-                    <th className="pb-2 pr-3 font-medium">Status</th>
-                    <th className="pb-2 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item) => {
-                    const tags = parseTags(item.tags);
-                    const isLowStock = item.trackInventory && item.stockQuantity <= item.lowStockThreshold;
-                    const isZeroStock = item.trackInventory && item.stockQuantity === 0;
-                    return (
-                      <tr key={item.id} data-item-id={item.id} className={cn("border-b border-brand-mist/50 last:border-0", !item.isAvailable && "opacity-60")}>
-                        <td className="py-2.5 pr-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-brand-green-dark">{item.name}</span>
-                            {item.trackInventory ? (
+          <>
+            {/* Card View */}
+            {itemViewMode === "card" && (
+              <div className="mt-4 space-y-2">
+                {filteredItems.map((item) => {
+                  const tags = parseTags(item.tags);
+                  const isLowStock = item.trackInventory && item.stockQuantity <= item.lowStockThreshold;
+                  const isZeroStock = item.trackInventory && item.stockQuantity === 0;
+                  const isExpanded = expandedItemCard === item.id;
+                  return (
+                    <div key={item.id} data-item-id={item.id} className={cn("rounded-xl border border-brand-mist bg-white shadow-sm", !item.isAvailable && "opacity-60")}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedItemCard(isExpanded ? null : item.id)}
+                        className="flex w-full items-start justify-between gap-2 p-3 text-left"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-brand-green-dark">{item.name}</span>
+                            <span className="rounded-full bg-brand-green/10 px-2 py-0.5 text-xs font-bold text-brand-green-dark">₹{pricePaiseToDisplay(item.price)}</span>
+                            <span className={cn(
+                              "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+                              item.isAvailable ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                            )}>
+                              {item.isAvailable ? "Available" : "Unavailable"}
+                            </span>
+                            {item.trackInventory && (
                               <span className={cn(
-                                "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                                "rounded-full px-1.5 py-0.5 text-[9px] font-bold",
                                 isZeroStock ? "bg-red-100 text-red-700" :
                                 isLowStock ? "bg-orange-100 text-orange-700" :
                                 "bg-green-100 text-green-700"
                               )}>
                                 {item.stockQuantity} in stock
                               </span>
-                            ) : null}
+                            )}
                           </div>
-                          {item.nameKannada && <div className="text-xs text-brand-green-dark/50">{item.nameKannada}</div>}
-                        </td>
-                        <td className="py-2.5 pr-3 text-xs text-brand-green-dark/60">{item.categoryName}</td>
-                        <td className="py-2.5 pr-3 text-right font-medium text-brand-green-dark">
-                          ₹{pricePaiseToDisplay(item.price)}
-                          {item.priceText && <span className="ml-1 text-[10px] font-normal text-brand-green-dark/40">{item.priceText}</span>}
-                        </td>
-                        <td className="py-2.5 pr-3">
-                          <div className="flex flex-wrap gap-1">
-                            {tags.map((tag) => {
-                              const lc = tag.toLowerCase();
-                              let classes = "bg-gray-100 text-gray-600";
-                              if (lc === "veg") classes = "bg-green-100 text-green-700";
-                              else if (lc === "non-veg") classes = "bg-red-100 text-red-700";
-                              else if (lc === "spicy") classes = "bg-amber-100 text-amber-700";
-                              else if (lc === "seafood") classes = "bg-blue-100 text-blue-700";
-                              else if (lc === "chicken") classes = "bg-orange-100 text-orange-700";
-                              else if (lc === "mutton") classes = "bg-red-100 text-red-800";
-                              else if (lc === "egg") classes = "bg-yellow-100 text-yellow-700";
-                              else if (lc === "chef-special") classes = "bg-purple-100 text-purple-700";
-                              else if (lc === "goko-special") classes = "bg-indigo-100 text-indigo-700";
-                              const display = lc.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-                              return (
-                                <span key={tag} className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${classes}`}>
-                                  {display}
-                                </span>
-                              );
-                            })}
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-green-dark/60">
+                            <span>{item.categoryName}</span>
+                            {item.nameKannada && <span>{item.nameKannada}</span>}
                           </div>
-                        </td>
-                        <td className="py-2.5 pr-3">
-                          <span className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                            item.isAvailable ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-                          )}>
-                            {item.isAvailable ? "Available" : "Unavailable"}
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        </div>
+                        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-brand-green-dark/40 transition-transform mt-1", isExpanded && "rotate-180")} />
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-brand-mist px-3 pb-3 pt-2">
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                            <div><span className="text-brand-green-dark/50">Category:</span> <span className="text-brand-green-dark">{item.categoryName}</span></div>
+                            <div><span className="text-brand-green-dark/50">Price:</span> <span className="font-medium text-brand-green-dark">₹{pricePaiseToDisplay(item.price)}{item.priceText ? ` ${item.priceText}` : ""}</span></div>
+                            {item.description && <div className="col-span-2"><span className="text-brand-green-dark/50">Description:</span> <span className="text-brand-green-dark">{item.description}</span></div>}
+                            <div><span className="text-brand-green-dark/50">Order:</span> <span className="text-brand-green-dark">{item.displayOrder}</span></div>
+                            {item.trackInventory && <div><span className="text-brand-green-dark/50">Stock:</span> <span className="text-brand-green-dark">{item.stockQuantity} (low: {item.lowStockThreshold})</span></div>}
+                          </div>
+
+                          {tags.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {tags.map((tag) => {
+                                const lc = tag.toLowerCase();
+                                let classes = "bg-gray-100 text-gray-600";
+                                if (lc === "veg") classes = "bg-green-100 text-green-700";
+                                else if (lc === "non-veg") classes = "bg-red-100 text-red-700";
+                                else if (lc === "spicy") classes = "bg-amber-100 text-amber-700";
+                                else if (lc === "seafood") classes = "bg-blue-100 text-blue-700";
+                                else if (lc === "chicken") classes = "bg-orange-100 text-orange-700";
+                                else if (lc === "mutton") classes = "bg-red-100 text-red-800";
+                                else if (lc === "egg") classes = "bg-yellow-100 text-yellow-700";
+                                else if (lc === "chef-special") classes = "bg-purple-100 text-purple-700";
+                                else if (lc === "goko-special") classes = "bg-indigo-100 text-indigo-700";
+                                const display = lc.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+                                return (
+                                  <span key={tag} className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${classes}`}>
+                                    {display}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-brand-mist pt-2">
                             {item.trackInventory && (
                               addStockItemId === item.id ? (
                                 <div className="flex items-center gap-1">
@@ -809,29 +826,141 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                                   </button>
                                 </div>
                               ) : (
-                                <button type="button" onClick={() => { setAddStockItemId(item.id); setAddStockQty(""); }} className="rounded p-1 text-brand-green-dark/40 hover:bg-green-50 hover:text-green-600" title="Add Stock">
-                                  <PackagePlusIcon className="h-3.5 w-3.5" />
+                                <button type="button" onClick={() => { setAddStockItemId(item.id); setAddStockQty(""); }} className="flex items-center gap-1 rounded-lg bg-green-50 px-2 py-1 text-[10px] font-medium text-green-700 hover:bg-green-100">
+                                  <PackagePlusIcon className="h-3 w-3" /> Add Stock
                                 </button>
                               )
                             )}
-                            <button type="button" onClick={() => toggleItemAvailability(item)} className="rounded p-1 text-brand-green-dark/40 hover:bg-brand-sand/50 hover:text-brand-green-dark" title="Toggle availability">
-                              {item.isAvailable ? <ToggleRightIcon className="h-4 w-4 text-green-600" /> : <ToggleLeftIcon className="h-4 w-4" />}
+                            <button type="button" onClick={() => toggleItemAvailability(item)} className="flex items-center gap-1 rounded-lg bg-brand-sand px-2 py-1 text-[10px] font-medium text-brand-green-dark/70 hover:bg-brand-green/10">
+                              {item.isAvailable ? <ToggleRightIcon className="h-3 w-3 text-green-600" /> : <ToggleLeftIcon className="h-3 w-3" />}
+                              {item.isAvailable ? "Mark Unavailable" : "Mark Available"}
                             </button>
-                            <button type="button" onClick={() => openEditItem(item)} className="rounded p-1 text-brand-green-dark/40 hover:bg-brand-sand/50 hover:text-brand-green-dark" title="Edit">
-                              <PencilIcon className="h-3.5 w-3.5" />
+                            <button type="button" onClick={() => openEditItem(item)} className="flex items-center gap-1 rounded-lg bg-brand-sand px-2 py-1 text-[10px] font-medium text-brand-green-dark/70 hover:bg-brand-green/10">
+                              <PencilIcon className="h-3 w-3" /> Edit
                             </button>
-                            <button type="button" onClick={() => deleteItem(item.id, item.name)} className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600" title="Delete">
-                              <Trash2Icon className="h-3.5 w-3.5" />
+                            <button type="button" onClick={() => deleteItem(item.id, item.name)} className="flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100">
+                              <Trash2Icon className="h-3 w-3" /> Delete
                             </button>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Table View */}
+            {itemViewMode === "table" && (
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+                <table className="w-full min-w-[800px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-brand-mist bg-brand-sand/50">
+                      <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Item</th>
+                      <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Category</th>
+                      <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70 text-right">Price</th>
+                      <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Tags</th>
+                      <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Status</th>
+                      <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.map((item) => {
+                      const tags = parseTags(item.tags);
+                      const isLowStock = item.trackInventory && item.stockQuantity <= item.lowStockThreshold;
+                      const isZeroStock = item.trackInventory && item.stockQuantity === 0;
+                      return (
+                        <tr key={item.id} data-item-id={item.id} className={cn("border-b border-brand-mist/60 last:border-b-0 hover:bg-brand-sand/30", !item.isAvailable && "opacity-60")}>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-brand-green-dark">{item.name}</span>
+                              {item.trackInventory ? (
+                                <span className={cn(
+                                  "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                                  isZeroStock ? "bg-red-100 text-red-700" :
+                                  isLowStock ? "bg-orange-100 text-orange-700" :
+                                  "bg-green-100 text-green-700"
+                                )}>
+                                  {item.stockQuantity} in stock
+                                </span>
+                              ) : null}
+                            </div>
+                            {item.nameKannada && <div className="text-xs text-brand-green-dark/50">{item.nameKannada}</div>}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/60">{item.categoryName}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right font-medium text-brand-green-dark">
+                            ₹{pricePaiseToDisplay(item.price)}
+                            {item.priceText && <span className="ml-1 text-[10px] font-normal text-brand-green-dark/40">{item.priceText}</span>}
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {tags.map((tag) => {
+                                const lc = tag.toLowerCase();
+                                let classes = "bg-gray-100 text-gray-600";
+                                if (lc === "veg") classes = "bg-green-100 text-green-700";
+                                else if (lc === "non-veg") classes = "bg-red-100 text-red-700";
+                                else if (lc === "spicy") classes = "bg-amber-100 text-amber-700";
+                                else if (lc === "seafood") classes = "bg-blue-100 text-blue-700";
+                                else if (lc === "chicken") classes = "bg-orange-100 text-orange-700";
+                                else if (lc === "mutton") classes = "bg-red-100 text-red-800";
+                                else if (lc === "egg") classes = "bg-yellow-100 text-yellow-700";
+                                else if (lc === "chef-special") classes = "bg-purple-100 text-purple-700";
+                                else if (lc === "goko-special") classes = "bg-indigo-100 text-indigo-700";
+                                const display = lc.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+                                return (
+                                  <span key={tag} className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${classes}`}>
+                                    {display}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className={cn(
+                              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                              item.isAvailable ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                            )}>
+                              {item.isAvailable ? "Available" : "Unavailable"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {item.trackInventory && (
+                                addStockItemId === item.id ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input type="number" min="1" value={addStockQty} onChange={(e) => setAddStockQty(e.target.value)} className="h-7 w-16 text-xs" placeholder="Qty" autoFocus />
+                                    <button type="button" onClick={() => handleAddStock(item.id)} className="rounded p-1 text-green-600 hover:bg-green-50" title="Confirm" disabled={saving}>
+                                      <CheckIcon className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button type="button" onClick={() => { setAddStockItemId(null); setAddStockQty(""); }} className="rounded p-1 text-gray-400 hover:bg-gray-50" title="Cancel">
+                                      <XIcon className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button type="button" onClick={() => { setAddStockItemId(item.id); setAddStockQty(""); }} className="rounded p-1 text-brand-green-dark/40 hover:bg-green-50 hover:text-green-600" title="Add Stock">
+                                    <PackagePlusIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                )
+                              )}
+                              <button type="button" onClick={() => toggleItemAvailability(item)} className="rounded p-1 text-brand-green-dark/40 hover:bg-brand-sand/50 hover:text-brand-green-dark" title="Toggle availability">
+                                {item.isAvailable ? <ToggleRightIcon className="h-4 w-4 text-green-600" /> : <ToggleLeftIcon className="h-4 w-4" />}
+                              </button>
+                              <button type="button" onClick={() => openEditItem(item)} className="rounded p-1 text-brand-green-dark/40 hover:bg-brand-sand/50 hover:text-brand-green-dark" title="Edit">
+                                <PencilIcon className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" onClick={() => deleteItem(item.id, item.name)} className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600" title="Delete">
+                                <Trash2Icon className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

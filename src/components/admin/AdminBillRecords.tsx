@@ -5,7 +5,7 @@ import { useAdminToast } from "@/components/admin/AdminToast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ExternalLinkIcon, PencilIcon, Trash2Icon, XIcon, Loader2Icon } from "lucide-react";
+import { ExternalLinkIcon, PencilIcon, Trash2Icon, XIcon, Loader2Icon, LayoutListIcon, TableIcon, ChevronDownIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
@@ -41,6 +41,8 @@ export function AdminBillRecords({
   const [currentMonth, setCurrentMonth] = useState("");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"card" | "table">(() => typeof window !== "undefined" && window.innerWidth < 1024 ? "card" : "table");
+  const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
   const [editModal, setEditModal] = useState<any | null>(null);
   const [editAmount, setEditAmount] = useState("");
@@ -181,9 +183,101 @@ export function AdminBillRecords({
         <p className="sm:ml-auto text-sm text-brand-green-dark/70">
           {filteredExpenses.length}{filteredExpenses.length !== expenses.length ? ` of ${expenses.length}` : ""} records
         </p>
+        <div className="flex rounded-lg border border-brand-mist bg-white p-0.5">
+          <button type="button" onClick={() => setViewMode("card")} className={cn("rounded-md p-1.5 transition-colors", viewMode === "card" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Card view">
+            <LayoutListIcon className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={() => setViewMode("table")} className={cn("rounded-md p-1.5 transition-colors", viewMode === "table" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Table view">
+            <TableIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+      {/* Card View */}
+      {viewMode === "card" && (
+        <div className="mt-4 space-y-2">
+          {filteredExpenses.length === 0 ? (
+            <p className="py-12 text-center text-brand-green-dark/50">{expenses.length === 0 ? "No expense records" : "No matches"}</p>
+          ) : (
+            filteredExpenses.map((exp: any, i: number) => {
+              const isExpanded = expandedCard === i;
+              return (
+                <div key={exp.id || i} className="rounded-xl border border-brand-mist bg-white shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCard(isExpanded ? null : i)}
+                    className="flex w-full items-start justify-between gap-2 p-3 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-brand-green-dark">{exp.category || "Uncategorized"}</span>
+                        <span className="rounded-full bg-brand-green/10 px-2 py-0.5 text-xs font-bold text-brand-green-dark">₹{((exp.amount || 0) / 100).toFixed(0)}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-green-dark/60">
+                        <span>{exp.createdAt ? new Date(exp.createdAt).toLocaleDateString() : "—"}</span>
+                        {exp.purpose && <span className="truncate max-w-[180px]">{exp.purpose}</span>}
+                      </div>
+                    </div>
+                    <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-brand-green-dark/40 transition-transform mt-1", isExpanded && "rotate-180")} />
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-brand-mist px-3 pb-3 pt-2">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                        <div><span className="text-brand-green-dark/50">Date:</span> <span className="text-brand-green-dark">{exp.createdAt ? new Date(exp.createdAt).toLocaleDateString() : "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">Category:</span> <span className="text-brand-green-dark">{exp.category || "—"}</span></div>
+                        <div className="col-span-2"><span className="text-brand-green-dark/50">Purpose:</span> <span className="text-brand-green-dark">{exp.purpose || "—"}</span></div>
+                        <div><span className="text-brand-green-dark/50">Amount:</span> <span className="font-medium text-brand-green-dark">₹{((exp.amount || 0) / 100).toFixed(0)}</span></div>
+                        <div><span className="text-brand-green-dark/50">By:</span> <span className="text-brand-green-dark">{exp.createdBy || "—"}</span></div>
+                      </div>
+
+                      {exp.billImageLink && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {exp.billImageLink.split(",").map((link: string, li: number) => (
+                            <a
+                              key={li}
+                              href={link.trim()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-md bg-brand-green/[0.06] px-2 py-1 text-[10px] font-medium text-brand-green hover:bg-brand-green/[0.12]"
+                            >
+                              Bill {exp.billImageLink.includes(",") ? `#${li + 1}` : ""} <ExternalLinkIcon className="h-2.5 w-2.5" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {(hasPermission(role, permissions, "canEditExpense") || hasPermission(role, permissions, "canDeleteExpense")) && (
+                        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-brand-mist pt-2">
+                          {hasPermission(role, permissions, "canEditExpense") && (
+                            <button type="button" onClick={() => openEdit(exp)} className="flex items-center gap-1 rounded-lg bg-brand-sand px-2 py-1 text-[10px] font-medium text-brand-green-dark/70 hover:bg-brand-green/10">
+                              <PencilIcon className="h-3 w-3" /> Edit
+                            </button>
+                          )}
+                          {hasPermission(role, permissions, "canDeleteExpense") && (
+                            <button type="button" onClick={() => deleteExpense(exp.id, exp.billImageLink)} className="flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100">
+                              <Trash2Icon className="h-3 w-3" /> Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+          {filteredExpenses.length > 0 && (
+            <div className="rounded-xl border border-brand-mist bg-brand-sand/30 px-4 py-3 text-right">
+              <span className="font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Total: </span>
+              <span className="font-display text-sm font-bold text-brand-green-dark">₹{(totalPaise / 100).toFixed(0)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Table View */}
+      {viewMode === "table" && <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
         <table className="w-full min-w-[800px] text-left text-sm">
           <thead>
             <tr className="border-b border-brand-mist bg-brand-sand/50">
@@ -278,7 +372,7 @@ export function AdminBillRecords({
             </tfoot>
           )}
         </table>
-      </div>
+      </div>}
 
       {editModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setEditModal(null)}>
