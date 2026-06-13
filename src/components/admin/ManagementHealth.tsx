@@ -107,12 +107,14 @@ export function ManagementHealth({ password, role }: { password: string; role: R
     const params = new URLSearchParams(window.location.search);
     if (params.get("oauth_success") === "true") {
       setSuccessMsg("Google account reconnected successfully!");
-      window.history.replaceState({}, "", window.location.pathname);
+      params.delete("oauth_success");
+      window.history.replaceState({}, "", `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
     }
     const oauthErr = params.get("oauth_error");
     if (oauthErr) {
       setErrorMsg(`Google reconnect failed: ${oauthErr.replace(/_/g, " ")}`);
-      window.history.replaceState({}, "", window.location.pathname);
+      params.delete("oauth_error");
+      window.history.replaceState({}, "", `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
     }
   }, []);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { PhoneEntry, type GuestInfo } from "@/components/food/PhoneEntry";
@@ -90,6 +90,39 @@ export default function FoodOrderPage() {
   const [reorderToast, setReorderToast] = useState("");
 
   const [autoReorder, setAutoReorder] = useState(false);
+  const viewRef = useRef<View>("loading");
+  const isPopStateNav = useRef(false);
+
+  // Sync view changes to browser history for back navigation
+  useEffect(() => {
+    if (view === "loading") return;
+    if (viewRef.current === "loading") {
+      viewRef.current = view;
+      return;
+    }
+    if (isPopStateNav.current) {
+      isPopStateNav.current = false;
+      return;
+    }
+    if (view !== viewRef.current) {
+      viewRef.current = view;
+      history.pushState({ foodView: view }, "");
+    }
+  }, [view]);
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      const state = e.state as { foodView?: View } | null;
+      if (state?.foodView) {
+        isPopStateNav.current = true;
+        viewRef.current = state.foodView;
+        setView(state.foodView);
+      }
+    };
+    history.replaceState({ foodView: "phone" }, "");
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     const stored = loadCartFromStorage();

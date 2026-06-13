@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { AdminRecords } from "@/components/admin/AdminRecords";
 import { AdminBeds } from "@/components/admin/AdminBeds";
@@ -19,12 +20,27 @@ import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
 import { SyncStatusBar } from "@/components/admin/SyncStatusBar";
 
 export default function AdminPage() {
+  return (
+    <Suspense fallback={
+      <section className="flex min-h-screen items-center justify-center bg-brand-sand">
+        <p className="text-sm text-brand-green-dark/50">Loading...</p>
+      </section>
+    }>
+      <AdminPageInner />
+    </Suspense>
+  );
+}
+
+function AdminPageInner() {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [section, setSection] = useState<AdminSection>("dashboard");
+  const [section, setSection] = useTabWithHistory<AdminSection>("section", "dashboard", {
+    clearParams: ["tab"],
+    validValues: ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "management"],
+  });
   const [managementTab, setManagementTab] = useState<ManagementTab | undefined>();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<"admin" | "manager" | null>(null);
@@ -37,9 +53,7 @@ export default function AdminPage() {
   const [cpLoading, setCpLoading] = useState(false);
   const [cpError, setCpError] = useState("");
   const [cpSuccess, setCpSuccess] = useState("");
-  const [showExitDialog, setShowExitDialog] = useState(false);
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
-  const exitIntentRef = useRef(false);
 
   const handleChangePassword = async () => {
     setCpError("");
@@ -114,31 +128,7 @@ export default function AdminPage() {
       const first = navIds.find(isVisible);
       if (first) setSection(first);
     }
-  }, [role, permissions, section]);
-
-  const handlePopState = useCallback(() => {
-    if (exitIntentRef.current) return;
-    history.pushState({ gokoAdmin: true }, "");
-    setShowExitDialog(true);
-  }, []);
-
-  useEffect(() => {
-    if (!role) return;
-    history.pushState({ gokoAdmin: true }, "");
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [role, handlePopState]);
-
-  const confirmExit = () => {
-    exitIntentRef.current = true;
-    setShowExitDialog(false);
-    history.go(-2);
-    setTimeout(() => { exitIntentRef.current = false; }, 500);
-  };
-
-  const cancelExit = () => {
-    setShowExitDialog(false);
-  };
+  }, [role, permissions, section, setSection]);
 
   const login = async () => {
     setLoading(true);
@@ -433,33 +423,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Exit Confirmation Dialog */}
-      {showExitDialog && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-xs rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
-            <h3 className="font-display text-base font-bold text-brand-green-dark">Exit Management?</h3>
-            <p className="mt-2 text-sm text-brand-green-dark/70">
-              Do you want to leave the Goko management page?
-            </p>
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={cancelExit}
-                className="flex-1 rounded-lg border border-brand-mist px-4 py-2 text-sm font-medium text-brand-green-dark hover:bg-brand-sand"
-              >
-                No, stay
-              </button>
-              <button
-                type="button"
-                onClick={confirmExit}
-                className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-              >
-                Yes, exit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

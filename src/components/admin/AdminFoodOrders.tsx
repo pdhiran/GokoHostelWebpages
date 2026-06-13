@@ -8,6 +8,7 @@ import { generateGuestBill, generateCombinedBill, type CombinedBillData, type Bi
 import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
 import type { Role } from "./types";
 import { hasPermission } from "./types";
+import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 
 type FoodTab = "summary" | "place" | "combined" | "payment" | "active";
 
@@ -144,7 +145,7 @@ export function AdminFoodOrders({ password, username, role, permissions = {} }: 
     { id: "active" as FoodTab, label: "Active Orders" },
   ] as { id: FoodTab; label: string }[]).filter((t) => hasPermission(role, permissions, TAB_PERMISSIONS[t.id]));
 
-  const [tab, setTab] = useState<FoodTab>(TABS[0]?.id || "summary");
+  const [tab, setTab] = useTabWithHistory<FoodTab>("tab", TABS[0]?.id || "summary");
 
   return (
     <div>

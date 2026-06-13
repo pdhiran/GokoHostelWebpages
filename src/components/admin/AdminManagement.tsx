@@ -17,6 +17,7 @@ import { AdminBulkImport } from "./AdminBulkImport";
 import { QRGenerator } from "./qr-generator";
 import { AccountSettings } from "./AccountSettings";
 import { ServerSync } from "./ServerSync";
+import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role, ManagementTab } from "./types";
 
 const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly?: boolean; permission?: string }[] = [
@@ -43,7 +44,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
     return true;
   });
   const defaultTab = visibleTabs[0]?.id || "history";
-  const [tab, setTab] = useState<ManagementTab>(initialTab || defaultTab);
+  const [tab, setTab] = useTabWithHistory<ManagementTab>("tab", defaultTab);
 
   useEffect(() => {
     if (initialTab && visibleTabs.some((t) => t.id === initialTab)) {

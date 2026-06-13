@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { PlusCircleIcon, FileTextIcon, IndianRupeeIcon, BookOpenIcon, ScaleIcon } from "lucide-react";
 import { AdminAddExpense } from "./AdminAddExpense";
@@ -8,6 +7,7 @@ import { AdminBillRecords } from "./AdminBillRecords";
 import { AdminFoodBill } from "./AdminFoodBill";
 import { DailyLedger } from "./DailyLedger";
 import { DailyReconcile } from "./DailyReconcile";
+import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role } from "./types";
 
 type AccountsTab = "addExpense" | "dailyLedger" | "billRecords" | "foodBill" | "reconcile";
@@ -33,7 +33,7 @@ export function AdminExpenditure({
 }) {
   const visibleTabs = TABS.filter((t) => !t.permission || role === "admin" || !!permissions[t.permission!]);
   const defaultTab = visibleTabs[0]?.id || "addExpense";
-  const [tab, setTab] = useState<AccountsTab>(defaultTab);
+  const [tab, setTab] = useTabWithHistory<AccountsTab>("tab", defaultTab);
 
   return (
     <div>
