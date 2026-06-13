@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateIdDocument } from "@/lib/validateIdDocument";
+import { validateIdDocument, validateMultipleFiles } from "@/lib/validateIdDocument";
 import { driveUploadFile, driveGetOrCreateFolder } from "@/lib/googleApiFetch";
 import { addCheckin, incrementStat, getSetting, getMonthKey, addAuditEntry, addSystemLog } from "@/db/queries";
 import { sendPushToAll } from "@/lib/pushNotify";
@@ -113,8 +113,23 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const idValidation = await validateFile(idImages[0], "id", idType, name);
-        serverVisionCalls++;
+        let idValidation;
+        if (idImages.length > 1) {
+          for (const f of idImages) {
+            if (!f.type.startsWith("image/") && f.type !== "application/pdf") {
+              return NextResponse.json({ error: "Only images and PDFs accepted", field: "idImages" }, { status: 422 });
+            }
+          }
+          const buffers = await Promise.all(idImages.map(async (f) => ({
+            buffer: Buffer.from(await f.arrayBuffer()),
+            mimeType: f.type,
+          })));
+          idValidation = await validateMultipleFiles(buffers, "id", idType as any, name);
+          serverVisionCalls += idImages.length;
+        } else {
+          idValidation = await validateFile(idImages[0], "id", idType, name);
+          serverVisionCalls++;
+        }
         if (idValidation.ocrText) {
           idOcrText = idValidation.ocrText;
           if (idType === "passport") {
@@ -134,8 +149,23 @@ export async function POST(req: NextRequest) {
 
       if (visaImages.length > 0 && !reusingPrevVisa) {
         try {
-          const visaValidation = await validateFile(visaImages[0], "visa");
-          serverVisionCalls++;
+          let visaValidation;
+          if (visaImages.length > 1) {
+            for (const f of visaImages) {
+              if (!f.type.startsWith("image/") && f.type !== "application/pdf") {
+                return NextResponse.json({ error: "Only images and PDFs accepted", field: "visaImages" }, { status: 422 });
+              }
+            }
+            const buffers = await Promise.all(visaImages.map(async (f) => ({
+              buffer: Buffer.from(await f.arrayBuffer()),
+              mimeType: f.type,
+            })));
+            visaValidation = await validateMultipleFiles(buffers, "visa");
+            serverVisionCalls += visaImages.length;
+          } else {
+            visaValidation = await validateFile(visaImages[0], "visa");
+            serverVisionCalls++;
+          }
           if (visaValidation.ocrText) {
             visaOcrText = visaValidation.ocrText;
           }

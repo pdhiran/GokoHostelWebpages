@@ -116,33 +116,43 @@ function checkSafeSearch(safeSearch: VisionAnalysis["safeSearch"]): { safe: bool
   return { safe: true, reason: "" };
 }
 
-const GUARDIAN_PATTERN = /\b[SDWC]\/O\b/i;
+const GUARDIAN_PATTERN = /\b[SDWC]\/O\b|पिता|माता|पति|पुत्र|पुत्री/i;
+
+function wordBoundaryMatch(text: string, name: string): boolean {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(?:^|[\\s,.:;/\\-])${escaped}(?:$|[\\s,.:;/\\-])`, "i");
+  return pattern.test(text);
+}
 
 function checkNameMatch(text: string, guestName?: string): boolean {
   if (!guestName || guestName.trim().length < 2) return true;
-  const textLower = text.toLowerCase();
-  const parts = guestName.trim().split(/\s+/);
 
+  const parts = guestName.trim().split(/\s+/);
   const firstName = parts[0]?.toLowerCase();
   const lastName = parts.length > 1 ? parts[parts.length - 1]?.toLowerCase() : null;
 
-  const firstFound = firstName && firstName.length >= 2 && textLower.includes(firstName);
-  const lastFound = lastName && lastName.length >= 2 && textLower.includes(lastName);
-
-  if (!firstFound && !lastFound) return false;
-
   const lines = text.split(/\n/);
-  const nonGuardianText = lines
-    .filter((line) => !GUARDIAN_PATTERN.test(line))
+  const nonGuardianLines = lines.filter((line) => !GUARDIAN_PATTERN.test(line));
+  const nonGuardianText = nonGuardianLines.join("\n");
+
+  const normalizedText = nonGuardianLines
+    .map((line) => {
+      const collapsed = line.replace(/(?<!\p{L})\p{L}(\s\p{L}){2,}(?!\p{L})/gu, (m) => m.replace(/\s/g, ""));
+      return collapsed;
+    })
     .join("\n")
     .toLowerCase();
 
-  if (firstFound) {
-    return nonGuardianText.includes(firstName!);
-  }
+  const searchTexts = [nonGuardianText.toLowerCase(), normalizedText];
 
-  if (lastFound) {
-    return nonGuardianText.includes(lastName!);
+  const firstValid = firstName && firstName.length >= 2;
+  const lastValid = lastName && lastName.length >= 2;
+
+  if (!firstValid && !lastValid) return true;
+
+  for (const searchText of searchTexts) {
+    if (firstValid && wordBoundaryMatch(searchText, firstName!)) return true;
+    if (lastValid && wordBoundaryMatch(searchText, lastName!)) return true;
   }
 
   return false;
@@ -409,7 +419,7 @@ export async function validateMultipleFiles(
       layers.push("safesearch_ok");
     }
 
-    return { ...textResult, layers, message: textResult.message, spoofWarning: spoofWarningMulti };
+    return { ...textResult, layers, message: textResult.message, ocrText: combinedText, spoofWarning: spoofWarningMulti };
   } catch (error) {
     console.error("Multi-file validation error:", error);
     return { valid: true, documentType: "unknown", confidence: "low", message: "Validation service unavailable, document accepted." };

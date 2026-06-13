@@ -292,6 +292,7 @@ export function SelfCheckinForm() {
   const [validationEnabled, setValidationEnabled] = useState(true);
   const [validationLoaded, setValidationLoaded] = useState(false);
   const [detectedIdType, setDetectedIdType] = useState<string | null>(null);
+  const prefilledNameRef = useRef<{ firstName: string; lastName: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -338,7 +339,19 @@ export function SelfCheckinForm() {
   const bookingId = watch("bookingId");
   const numberOfPersons = watch("numberOfPersons");
   const stayingDays = watch("stayingDays");
+  const firstName = watch("firstName");
+  const lastName = watch("lastName");
   const needsBookingId = bookingPlatform && bookingPlatform !== "Offline booking" && bookingPlatform !== "Walk-in";
+
+  useEffect(() => {
+    if (!prefilledNameRef.current || !prevIdCardLink || idFiles.length > 0) return;
+    const { firstName: origFirst, lastName: origLast } = prefilledNameRef.current;
+    if (firstName !== origFirst || lastName !== origLast) {
+      setPrevIdCardLink("");
+      setValue("prevIdCardLink", undefined);
+      setIdValidated(false);
+    }
+  }, [firstName, lastName, prevIdCardLink, idFiles.length, setValue]);
 
   const handlePhoneLookup = async () => {
     const cleaned = phoneInput.replace(/[\s\-]/g, "");
@@ -376,6 +389,7 @@ export function SelfCheckinForm() {
         const nameParts = (d.name || "").trim().split(/\s+/);
         const prefillFirst = nameParts[0] || "";
         const prefillLast = nameParts.slice(1).join(" ") || "";
+        prefilledNameRef.current = { firstName: prefillFirst, lastName: prefillLast };
 
         reset({
           arrivalDate: nowDate,
@@ -404,6 +418,7 @@ export function SelfCheckinForm() {
         setReturnGuest(null);
         setPrevIdCardLink("");
         setPrevVisaLink("");
+        prefilledNameRef.current = null;
         setValue("contactNumber", cleaned);
       }
       setStep("form");
@@ -418,6 +433,7 @@ export function SelfCheckinForm() {
     setReturnGuest(null);
     setPrevIdCardLink("");
     setPrevVisaLink("");
+    prefilledNameRef.current = null;
     const cleaned = phoneInput.replace(/[\s\-]/g, "");
     if (cleaned.length >= 7) {
       setValue("contactNumber", cleaned);
@@ -492,19 +508,26 @@ export function SelfCheckinForm() {
       }
 
       const result = await res.json();
-      setIdValidationMsg({ valid: result.valid, message: result.message });
 
-      if (result.valid) {
+      if (result.valid && result.needsBackSide) {
+        setIdValidationMsg({ valid: true, message: result.message || "Please also upload the back side of your Aadhaar." });
         setIdValidated(true);
         setDetectedIdType(null);
-      } else if (result.layers?.includes("type_mismatch") && result.documentType !== "unknown") {
-        setIdValidated(false);
-        setDetectedIdType(result.documentType);
-      } else {
-        setIdValidated(false);
+      } else if (result.valid) {
+        setIdValidationMsg({ valid: true, message: result.message });
+        setIdValidated(true);
         setDetectedIdType(null);
-        setIdFiles([]);
-        setValue("idImages", null, { shouldValidate: true });
+      } else {
+        setIdValidationMsg({ valid: false, message: result.message });
+        if (result.layers?.includes("type_mismatch") && result.documentType !== "unknown") {
+          setIdValidated(false);
+          setDetectedIdType(result.documentType);
+        } else {
+          setIdValidated(false);
+          setDetectedIdType(null);
+          setIdFiles([]);
+          setValue("idImages", null, { shouldValidate: true });
+        }
       }
     } catch {
       setIdValidationMsg({ valid: false, message: "Validation service temporarily unavailable. You can still submit — staff will verify manually." });
@@ -644,6 +667,7 @@ export function SelfCheckinForm() {
         } else {
           setIdServerError(false);
           setIdValidated(false);
+          setIdValidationMsg({ valid: false, message: errData.error || "ID validation failed. Please re-upload your document." });
         }
         return;
       }
