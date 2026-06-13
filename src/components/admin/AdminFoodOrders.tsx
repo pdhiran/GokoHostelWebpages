@@ -10,6 +10,7 @@ import type { Role } from "./types";
 import { hasPermission } from "./types";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import { useAdminToast } from "@/components/admin/AdminToast";
+import { usePanelHistory } from "@/hooks/usePanelHistory";
 
 type FoodTab = "summary" | "place" | "combined" | "payment" | "active";
 
@@ -699,6 +700,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<SummaryFilter>("all");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+  usePanelHistory(selectedGroupKey !== null, () => setSelectedGroupKey(null));
   const [loadingOrders, setLoadingOrders] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [btSupported, setBtSupported] = useState(false);
@@ -1807,12 +1809,14 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<PaymentFilter>("all");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+  usePanelHistory(selectedGroupKey !== null, () => { setSelectedGroupKey(null); setPaymentEditOrder(null); setRevertConfirmOrder(null); });
   const [loadingOrders, setLoadingOrders] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [paymentEditOrder, setPaymentEditOrder] = useState<Order | null>(null);
   const [revertConfirmOrder, setRevertConfirmOrder] = useState<Order | null>(null);
   const [paidVisibilityDays, setPaidVisibilityDays] = useState(7);
   const [showHistory, setShowHistory] = useState(false);
+  usePanelHistory(showHistory, () => setShowHistory(false));
 
   const load = useCallback(async () => {
     setLoading(true);
