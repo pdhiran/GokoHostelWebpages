@@ -5,7 +5,7 @@ import {
   createReviewRequest, getReviewRequestByCheckinId,
 } from "@/db/queries";
 import { getDb } from "@/db";
-import { checkins, reviewRequests } from "@/db/schema";
+import { checkins, reviewRequests, reviewFeedback } from "@/db/schema";
 import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
 
 type UserRole = "admin" | "manager" | "staff";
@@ -157,6 +157,41 @@ export async function POST(req: NextRequest) {
         if (key.startsWith("review_")) {
           await setSetting(key, String(value));
         }
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "editReviewRequest") {
+      const { reviewRequestId, rating, whatsappSentCount } = rest;
+      if (!reviewRequestId) return NextResponse.json({ error: "Missing reviewRequestId" }, { status: 400 });
+
+      const db = getDb();
+      const updateData: Record<string, any> = {};
+      if (rating !== undefined) {
+        updateData.rating = rating === null ? null : Number(rating);
+        updateData.ratedAt = rating === null ? null : new Date().toISOString();
+        updateData.redirectedToGoogle = rating !== null && rating >= 4 ? 1 : 0;
+      }
+      if (whatsappSentCount !== undefined) {
+        updateData.whatsappSentCount = Number(whatsappSentCount);
+      }
+
+      await db.update(reviewRequests).set(updateData).where(eq(reviewRequests.id, reviewRequestId));
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "resetReviewRequest") {
+      const { checkinId } = rest;
+      if (!checkinId) return NextResponse.json({ error: "Missing checkinId" }, { status: 400 });
+
+      const db = getDb();
+      // Delete associated feedback
+      const existing = await db.select({ id: reviewRequests.id }).from(reviewRequests).where(eq(reviewRequests.checkinId, checkinId));
+      if (existing.length > 0) {
+        for (const rr of existing) {
+          await db.delete(reviewFeedback).where(eq(reviewFeedback.reviewRequestId, rr.id));
+        }
+        await db.delete(reviewRequests).where(eq(reviewRequests.checkinId, checkinId));
       }
       return NextResponse.json({ success: true });
     }

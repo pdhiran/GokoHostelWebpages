@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2Icon, RefreshCwIcon, SendIcon, CheckCircleIcon, SettingsIcon, XIcon } from "lucide-react";
+import { Loader2Icon, RefreshCwIcon, SendIcon, CheckCircleIcon, SettingsIcon, XIcon, PencilIcon, RotateCcwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ReviewRequest {
@@ -61,6 +61,11 @@ export function ReviewAskTab({ password, username }: Props) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [editGuest, setEditGuest] = useState<GuestRow | null>(null);
+  const [editRating, setEditRating] = useState<string>("");
+  const [editSentCount, setEditSentCount] = useState<string>("0");
+  const [editSaving, setEditSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -150,6 +155,40 @@ export function ReviewAskTab({ password, username }: Props) {
       }
     } catch {}
     setSendingId(null);
+  };
+
+  const openEditModal = (guest: GuestRow) => {
+    setEditGuest(guest);
+    setEditRating(guest.reviewRequest?.rating?.toString() || "");
+    setEditSentCount(guest.reviewRequest?.whatsappSentCount?.toString() || "0");
+  };
+
+  const handleEditSave = async () => {
+    if (!editGuest?.reviewRequest) return;
+    setEditSaving(true);
+    try {
+      await apiCall({
+        action: "editReviewRequest",
+        reviewRequestId: editGuest.reviewRequest.id,
+        rating: editRating === "" ? null : Number(editRating),
+        whatsappSentCount: Number(editSentCount) || 0,
+      });
+      await loadGuests();
+      setEditGuest(null);
+    } catch {}
+    setEditSaving(false);
+  };
+
+  const handleReset = async () => {
+    if (!editGuest) return;
+    if (!confirm(`Reset review data for ${editGuest.guestName}? This will delete all review and feedback data for this guest. The process will start fresh.`)) return;
+    setResetting(true);
+    try {
+      await apiCall({ action: "resetReviewRequest", checkinId: editGuest.checkinId });
+      await loadGuests();
+      setEditGuest(null);
+    } catch {}
+    setResetting(false);
   };
 
   const getButtonStyle = (guest: GuestRow) => {
@@ -274,21 +313,31 @@ export function ReviewAskTab({ password, username }: Props) {
                       <td className="px-4 py-3 text-brand-green-dark/70">{formatDate(g.checkedOutAt)}</td>
                       <td className="px-4 py-3 text-brand-green-dark/70">{g.bookingPlatform || "Walk-in"}</td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleSendWhatsApp(g)}
-                          disabled={btn.disabled || sendingId === g.checkinId}
-                          className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors", btn.className)}
-                        >
-                          {sendingId === g.checkinId ? (
-                            <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-                          ) : btn.disabled ? (
-                            <CheckCircleIcon className="h-3.5 w-3.5" />
-                          ) : (
-                            <SendIcon className="h-3.5 w-3.5" />
-                          )}
-                          {btn.label}
-                        </button>
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleSendWhatsApp(g)}
+                            disabled={btn.disabled || sendingId === g.checkinId}
+                            className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors", btn.className)}
+                          >
+                            {sendingId === g.checkinId ? (
+                              <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+                            ) : btn.disabled ? (
+                              <CheckCircleIcon className="h-3.5 w-3.5" />
+                            ) : (
+                              <SendIcon className="h-3.5 w-3.5" />
+                            )}
+                            {btn.label}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(g)}
+                            className="rounded-lg p-1.5 text-brand-green-dark/40 hover:text-brand-green-dark hover:bg-brand-green/[0.06]"
+                            title="Edit"
+                          >
+                            <PencilIcon className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -311,25 +360,102 @@ export function ReviewAskTab({ password, username }: Props) {
                         {formatDate(g.checkedOutAt)} · {g.bookingPlatform || "Walk-in"}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleSendWhatsApp(g)}
-                      disabled={btn.disabled || sendingId === g.checkinId}
-                      className={cn("ml-2 flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors", btn.className)}
-                    >
-                      {sendingId === g.checkinId ? (
-                        <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-                      ) : btn.disabled ? (
-                        <CheckCircleIcon className="h-3.5 w-3.5" />
-                      ) : (
-                        <SendIcon className="h-3.5 w-3.5" />
-                      )}
-                      {btn.label}
-                    </button>
+                    <div className="ml-2 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSendWhatsApp(g)}
+                        disabled={btn.disabled || sendingId === g.checkinId}
+                        className={cn("flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors", btn.className)}
+                      >
+                        {sendingId === g.checkinId ? (
+                          <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+                        ) : btn.disabled ? (
+                          <CheckCircleIcon className="h-3.5 w-3.5" />
+                        ) : (
+                          <SendIcon className="h-3.5 w-3.5" />
+                        )}
+                        {btn.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(g)}
+                        className="rounded-lg p-1.5 text-brand-green-dark/40 hover:text-brand-green-dark"
+                        title="Edit"
+                      >
+                        <PencilIcon className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editGuest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-base font-bold text-brand-green-dark">Edit Review Status</h3>
+              <button type="button" onClick={() => setEditGuest(null)} className="rounded-md p-1 text-brand-green-dark/40 hover:text-brand-green-dark">
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-brand-green-dark/50">{editGuest.guestName} · {editGuest.guestContact}</p>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-brand-green-dark/70 mb-1">Rating</label>
+                <select
+                  value={editRating}
+                  onChange={(e) => setEditRating(e.target.value)}
+                  className="w-full rounded-lg border border-brand-mist px-3 py-2 text-sm"
+                >
+                  <option value="">Not rated</option>
+                  <option value="1">1 Star</option>
+                  <option value="2">2 Stars</option>
+                  <option value="3">3 Stars</option>
+                  <option value="4">4 Stars</option>
+                  <option value="5">5 Stars</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-brand-green-dark/70 mb-1">WhatsApp Sent Count</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editSentCount}
+                  onChange={(e) => setEditSentCount(e.target.value)}
+                  className="w-full rounded-lg border border-brand-mist px-3 py-2 text-sm"
+                />
+              </div>
+
+              {editGuest.reviewRequest && (
+                <button
+                  type="button"
+                  onClick={handleEditSave}
+                  disabled={editSaving}
+                  className="w-full rounded-lg bg-brand-green px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-green/90 disabled:opacity-50"
+                >
+                  {editSaving ? "Saving..." : "Save Changes"}
+                </button>
+              )}
+
+              <div className="border-t border-brand-mist pt-3">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={resetting}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border-2 border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  <RotateCcwIcon className="h-3.5 w-3.5" />
+                  {resetting ? "Resetting..." : "Reset (Start Fresh)"}
+                </button>
+                <p className="mt-1.5 text-[10px] text-brand-green-dark/40 text-center">Deletes all review data for this guest. They can be sent a new review request.</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
