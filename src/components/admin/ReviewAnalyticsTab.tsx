@@ -18,9 +18,10 @@ interface Analytics {
 interface Props {
   password: string;
   username: string;
+  onNavigateToResponses?: () => void;
 }
 
-export function ReviewAnalyticsTab({ password, username }: Props) {
+export function ReviewAnalyticsTab({ password, username, onNavigateToResponses }: Props) {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [fromDate, setFromDate] = useState("");
@@ -115,8 +116,8 @@ export function ReviewAnalyticsTab({ password, username }: Props) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard icon={<SendIcon className="h-4 w-4 text-blue-600" />} label="Requests Sent" value={analytics.totalSent} bgClass="bg-blue-50" />
         <MetricCard icon={<StarIcon className="h-4 w-4 text-amber-600" />} label="Ratings Received" value={analytics.totalRated} bgClass="bg-amber-50" />
-        <MetricCard icon={<ExternalLinkIcon className="h-4 w-4 text-green-600" />} label="Google Redirects" value={analytics.googleRedirects} bgClass="bg-green-50" />
-        <MetricCard icon={<MessageSquareIcon className="h-4 w-4 text-red-600" />} label="Feedback Submitted" value={analytics.feedbackSubmissions} bgClass="bg-red-50" />
+        <MetricCard icon={<ExternalLinkIcon className="h-4 w-4 text-green-600" />} label="Google Redirects" value={analytics.googleRedirects} bgClass="bg-green-50" onClick={() => window.open("https://search.google.com/local/reviews?placeid=ChIJ0VfULgOBvjsRiCk-2gxFE4I", "_blank")} />
+        <MetricCard icon={<MessageSquareIcon className="h-4 w-4 text-red-600" />} label="Feedback Submitted" value={analytics.feedbackSubmissions} bgClass="bg-red-50" onClick={onNavigateToResponses} />
         <MetricCard icon={<TrendingUpIcon className="h-4 w-4 text-purple-600" />} label="Response Rate" value={`${analytics.responseRate}%`} bgClass="bg-purple-50" />
       </div>
 
@@ -170,12 +171,17 @@ export function ReviewAnalyticsTab({ password, username }: Props) {
   );
 }
 
-function MetricCard({ icon, label, value, bgClass }: { icon: React.ReactNode; label: string; value: number | string; bgClass: string }) {
+function MetricCard({ icon, label, value, bgClass, onClick }: { icon: React.ReactNode; label: string; value: number | string; bgClass: string; onClick?: () => void }) {
+  const Wrapper = onClick ? "button" : "div";
   return (
-    <div className="rounded-xl border border-brand-mist bg-white p-3">
+    <Wrapper
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={cn("rounded-xl border border-brand-mist bg-white p-3 text-left", onClick && "cursor-pointer hover:shadow-soft transition-shadow")}
+    >
       <div className={cn("inline-flex rounded-lg p-2", bgClass)}>{icon}</div>
       <p className="mt-2 text-xl font-bold text-brand-green-dark">{value}</p>
       <p className="text-xs text-brand-green-dark/50">{label}</p>
-    </div>
+    </Wrapper>
   );
 }

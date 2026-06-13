@@ -45,7 +45,7 @@ export function AdminReviews({ password, username, role, permissions }: Props) {
 
       {tab === "askReview" && <ReviewAskTab password={password} username={username} />}
       {tab === "responses" && <ReviewResponsesTab password={password} username={username} />}
-      {tab === "analytics" && <ReviewAnalyticsTab password={password} username={username} />}
+      {tab === "analytics" && <ReviewAnalyticsTab password={password} username={username} onNavigateToResponses={() => setTab("responses")} />}
     </div>
   );
 }
