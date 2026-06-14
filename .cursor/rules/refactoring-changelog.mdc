@@ -1,0 +1,46 @@
+---
+description: Changelog of all optimization/refactoring commits from the codebase audit. Check here first when debugging regressions.
+alwaysApply: true
+---
+
+# Refactoring & Optimization Changelog
+
+When something breaks or behaves unexpectedly, check this log first to see if a recent refactoring commit may have caused it.
+
+## Commit Log
+
+### 1. Dead Code Removal (June 14, 2026)
+
+**What changed:**
+- Deleted `src/lib/frroBookmarklet.ts` (entire file) — was never imported; FRRO bookmarklet logic is inlined in `AdminRecords.tsx`
+- Removed npm deps: `@anthropic-ai/sdk`, `html-to-image`, `pdf-parse` — none were imported in `src/`
+- Removed `extractFormCData()` + `FormCExtractedData` type from `src/lib/parsePassportData.ts`
+- Removed `generateDailySummary()` + `DailySummaryData` type from `src/components/admin/FoodBillGenerator.tsx`
+- Removed `BED_HEADERS` constant from `src/components/admin/types.ts`
+- Removed `PastEventCard` export alias from `src/components/sections/CardWithModal.tsx`
+- Deleted stale `drizzle/migrations/` directory (production uses `migrations/` via Wrangler)
+- Deleted 3 unreferenced food images: `gulab-jamun.jpg`, `rasmalai.jpg`, `palak-paneer.jpg`
+
+**What could break:**
+- If any external script or tool imported `frroBookmarklet.ts` directly (none found in repo)
+- If a menu item references the deleted food images by filename in the DB (none found in seed data)
+- If `drizzle-kit generate` is run, it will need a fresh output directory (was already stale)
+- If code elsewhere used `DailySummaryData` type or `generateDailySummary()` (none found)
+- If code elsewhere used `extractFormCData()` (none found; callers use `parsePassportMRZ` + `parseVisaFromText` directly)
+
+**How to verify:** `npm run build` passes. All 47 pages + 27 API routes compile.
+
+**Rollback:** `git revert <commit-hash>`
+
+---
+
+## Planned Future Commits (from audit plan)
+
+These haven't been done yet but are planned:
+
+- Phase 1: Security hardening (PII endpoints, Form C tokens, rate limiting)
+- Phase 2: Performance (dynamic imports, N+1 fixes, DB indexes, image compression)
+- Phase 3: Auth & RBAC overhaul (centralized auth, session cookies, middleware)
+- Phase 4: Structural decomposition (split god routes/components)
+- Phase 5: Data integrity (transactions, sync fixes, cleanup orphans)
+- Phase 6: Observability (tests, bundle analyzer, CI audit)
