@@ -377,47 +377,44 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, backfilled: result });
       }
 
-      case "shutdownPi": {
-        if (isPiRuntime()) {
-          exec("sudo /sbin/shutdown -h +1 'GokoWeb admin initiated shutdown'", (err) => {
-            if (err) console.error("[sync] Shutdown error:", err.message);
-          });
-          return NextResponse.json({ ok: true, message: "Raspberry Pi will shut down in 1 minute. Unplug power after the green LED stops flashing." });
-        }
-        const piUrlShutdown = process.env.PI_PUBLIC_URL;
-        if (!piUrlShutdown) {
-          return NextResponse.json({ error: "PI_PUBLIC_URL not configured" }, { status: 400 });
-        }
-        const shutdownRes = await fetch(`${piUrlShutdown}/api/sync`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: process.env.ADMIN_PASSWORD, action: "shutdownPi" }),
-          signal: AbortSignal.timeout(10000),
-        });
-        const shutdownData = await shutdownRes.json();
-        return NextResponse.json(shutdownData, { status: shutdownRes.status });
-      }
-
+      case "shutdownPi":
       case "deployUpdate": {
+        const isPiAction = action === "shutdownPi" || action === "deployUpdate";
+
         if (isPiRuntime()) {
-          const scriptPath = `${process.cwd()}/scripts/check-and-deploy.sh`;
-          exec(`flock -n /tmp/goko-deploy-manual.lock bash ${scriptPath} >> /home/goko/deploy.log 2>&1`, (err) => {
-            if (err) console.error("[sync] Deploy error:", err.message);
+          if (action === "shutdownPi") {
+            exec("nohup sudo /sbin/shutdown -h +1 'GokoWeb admin initiated shutdown' &", (err) => {
+              if (err) console.error("[sync] Shutdown error:", err.message);
+            });
+            return NextResponse.json({ ok: true, message: "Raspberry Pi will shut down in 1 minute. Unplug power after the green LED stops flashing." });
+          } else {
+            const scriptPath = `${process.cwd()}/scripts/check-and-deploy.sh`;
+            exec(`nohup bash -c 'sleep 2 && flock -n /tmp/goko-deploy-manual.lock bash ${scriptPath}' >> /home/goko/deploy.log 2>&1 &`, (err) => {
+              if (err) console.error("[sync] Deploy error:", err.message);
+            });
+            return NextResponse.json({ ok: true, message: "Deploy triggered. The Pi will pull the latest code, rebuild, and restart. This may take 5-10 minutes." });
+          }
+        }
+
+        const piUrl = process.env.PI_PUBLIC_URL;
+        if (!piUrl) {
+          return NextResponse.json({ error: "PI_PUBLIC_URL not configured — cannot reach the Pi" }, { status: 400 });
+        }
+        try {
+          const proxyRes = await fetch(`${piUrl}/api/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: process.env.ADMIN_PASSWORD, action }),
+            signal: AbortSignal.timeout(15000),
           });
-          return NextResponse.json({ ok: true, message: "Deploy triggered. The Pi will pull the latest code, rebuild, and restart. This may take 5-10 minutes." });
+          const proxyData = await proxyRes.json();
+          return NextResponse.json(proxyData, { status: proxyRes.status });
+        } catch (proxyErr: any) {
+          return NextResponse.json(
+            { error: `Failed to reach Pi: ${proxyErr.message || "timeout"}` },
+            { status: 502 },
+          );
         }
-        const piUrlDeploy = process.env.PI_PUBLIC_URL;
-        if (!piUrlDeploy) {
-          return NextResponse.json({ error: "PI_PUBLIC_URL not configured" }, { status: 400 });
-        }
-        const deployRes = await fetch(`${piUrlDeploy}/api/sync`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: process.env.ADMIN_PASSWORD, action: "deployUpdate" }),
-          signal: AbortSignal.timeout(10000),
-        });
-        const deployData = await deployRes.json();
-        return NextResponse.json(deployData, { status: deployRes.status });
       }
 
       default:
