@@ -881,6 +881,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
 
   const selectGroup = async (group: SummaryGroup) => {
     setSelectedGroupKey(group.key);
+    setModHistoryOrderId(null);
 
     if (group.guestType === "hostel" && !hostelOrdersMap[parseInt(group.key.replace("hostel_", ""), 10)]) {
       const checkinId = parseInt(group.key.replace("hostel_", ""), 10);
@@ -1391,10 +1392,11 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                               ) : (
                                 modHistoryData.map((mod, mi) => (
                                   <div key={mi} className="rounded bg-amber-50 px-2 py-1 text-[10px]">
-                                    <span className="font-medium text-amber-700">{mod.action}</span>
-                                    {mod.oldValue && mod.newValue && <span className="text-amber-600"> {mod.oldValue} → {mod.newValue}</span>}
-                                    {mod.reason && <span className="text-amber-500"> — {mod.reason}</span>}
-                                    <span className="text-amber-400"> by {mod.modifiedBy}</span>
+                                    <div className="font-medium text-amber-700">{formatAdminModification(mod)}</div>
+                                    <div className="text-amber-400">
+                                      {new Date(mod.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                                      {" · "}{mod.modifiedBy}
+                                    </div>
                                   </div>
                                 ))
                               )}
@@ -1748,7 +1750,12 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 <span className="text-sm font-bold">₹{(g.subtotal / 100).toFixed(0)}</span>
               </div>
               {g.roomInfo && <p className="text-xs text-brand-green-dark/50">{g.roomInfo}</p>}
-              <p className="text-xs text-brand-green-dark/40">{g.orders.length} order(s)</p>
+              <p className="text-xs text-brand-green-dark/40">
+                {g.orders.length} order(s)
+                {g.orders.some((o: any) => o.hasModifications) && (
+                  <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                )}
+              </p>
             </div>
           ))}
           <div className="mt-3 flex items-center justify-between border-t border-brand-mist pt-3">
@@ -1850,6 +1857,21 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
   const [paidVisibilityDays, setPaidVisibilityDays] = useState(7);
   const [showHistory, setShowHistory] = useState(false);
   usePanelHistory(showHistory, () => setShowHistory(false));
+  const [modHistoryOrderId, setModHistoryOrderId] = useState<number | null>(null);
+  const [modHistoryData, setModHistoryData] = useState<OrderModification[]>([]);
+  const [modHistoryLoading, setModHistoryLoading] = useState(false);
+
+  const toggleModHistory = async (orderId: number) => {
+    if (modHistoryOrderId === orderId) { setModHistoryOrderId(null); return; }
+    setModHistoryOrderId(orderId);
+    setModHistoryLoading(true);
+    try {
+      const res = await apiCall({ action: "getOrderModifications", orderId });
+      if (res.ok) { const data = await res.json(); setModHistoryData(data.modifications || []); }
+      else { setModHistoryData([]); }
+    } catch { setModHistoryData([]); }
+    finally { setModHistoryLoading(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1972,6 +1994,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
 
   const selectGroup = async (group: PaymentGroup) => {
     setSelectedGroupKey(group.key);
+    setModHistoryOrderId(null);
     if (group.guestType === "hostel" && !detailOrders[group.key]) {
       const checkinId = parseInt(group.key.replace("hostel_", ""), 10);
       setLoadingOrders(group.key);
@@ -2242,6 +2265,9 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
                           <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                           <StatusBadge status={order.status} />
                           <PaymentBadge status={order.paymentStatus} />
+                          {order.hasModifications && (
+                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                          )}
                         </div>
                         <span className="text-sm font-semibold text-brand-green-dark">{fmt(order.total)}</span>
                       </div>
@@ -2301,6 +2327,32 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
                                 Revert to Pending
                               </button>
                             </>
+                          )}
+                        </div>
+                      )}
+                      {order.hasModifications && (
+                        <div className="mt-1.5 border-t border-brand-mist pt-1.5">
+                          <button type="button" onClick={() => toggleModHistory(order.id)} className="text-[10px] font-medium text-amber-600 hover:text-amber-700">
+                            {modHistoryOrderId === order.id ? "Hide history" : "View modifications"}
+                          </button>
+                          {modHistoryOrderId === order.id && (
+                            <div className="mt-1 space-y-1">
+                              {modHistoryLoading ? (
+                                <p className="text-[10px] text-brand-green-dark/40">Loading...</p>
+                              ) : modHistoryData.length === 0 ? (
+                                <p className="text-[10px] text-brand-green-dark/40">No modifications</p>
+                              ) : (
+                                modHistoryData.map((mod, mi) => (
+                                  <div key={mi} className="rounded bg-amber-50 px-2 py-1 text-[10px]">
+                                    <div className="font-medium text-amber-700">{formatAdminModification(mod)}</div>
+                                    <div className="text-amber-400">
+                                      {new Date(mod.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                                      {" · "}{mod.modifiedBy}
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
                           )}
                         </div>
                       )}

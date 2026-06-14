@@ -76,17 +76,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
     }
 
+    async function getModCountMap(orderIds?: number[]) {
+      if (orderIds && orderIds.length === 0) return new Map<number, number>();
+      const db = getDb();
+      const q = db.select({
+        orderId: orderModifications.orderId,
+        count: sql<number>`COUNT(*)`,
+      }).from(orderModifications);
+      const modCounts = orderIds
+        ? await q.where(inArray(orderModifications.orderId, orderIds)).groupBy(orderModifications.orderId)
+        : await q.groupBy(orderModifications.orderId);
+      return new Map(modCounts.map((r) => [r.orderId, r.count]));
+    }
+
     switch (action) {
       case "listOrders": {
         const { status, dateFrom, dateTo, guestType, phone, limit: rawLimit } = rest;
         const limitNum = Math.min(Number(rawLimit) || 50, 200);
 
         const db = getDb();
-        const modCounts = await db.select({
-          orderId: orderModifications.orderId,
-          count: sql<number>`COUNT(*)`,
-        }).from(orderModifications).groupBy(orderModifications.orderId);
-        const modCountMap = new Map(modCounts.map((r) => [r.orderId, r.count]));
+        const modCountMap = await getModCountMap();
 
         if (status === "active" || (!status && !dateFrom)) {
           const orders = await getActiveFoodOrders();
@@ -276,8 +285,16 @@ export async function POST(req: NextRequest) {
         const { checkinId } = rest;
         if (!checkinId) return NextResponse.json({ error: "checkinId required" }, { status: 400 });
         const orders = await getGuestFoodTab(checkinId);
-        const itemsMap = await getFoodOrderItemsBatch(orders.map((o) => o.id));
-        const withItems = orders.map((o) => ({ ...o, items: itemsMap.get(o.id) || [] }));
+        const orderIds = orders.map((o) => o.id);
+        const [itemsMap, modCountMap] = await Promise.all([
+          getFoodOrderItemsBatch(orderIds),
+          getModCountMap(orderIds),
+        ]);
+        const withItems = orders.map((o) => ({
+          ...o,
+          items: itemsMap.get(o.id) || [],
+          hasModifications: (modCountMap.get(o.id) || 0) > 0,
+        }));
         const tabTotal = await getGuestTabTotal(checkinId);
         return NextResponse.json({ role, orders: withItems, tabTotal });
       }
@@ -591,8 +608,16 @@ export async function POST(req: NextRequest) {
         }
 
         const orders = await getFoodOrdersByCheckinIds(checkinIds);
-        const itemsMap = await getFoodOrderItemsBatch(orders.map((o) => o.id));
-        const withItems = orders.map((o) => ({ ...o, items: itemsMap.get(o.id) || [] }));
+        const orderIds = orders.map((o) => o.id);
+        const [itemsMap, modCountMap] = await Promise.all([
+          getFoodOrderItemsBatch(orderIds),
+          getModCountMap(orderIds),
+        ]);
+        const withItems = orders.map((o) => ({
+          ...o,
+          items: itemsMap.get(o.id) || [],
+          hasModifications: (modCountMap.get(o.id) || 0) > 0,
+        }));
 
         const grouped: Record<number, { checkinId: number; guestName: string; roomInfo: string; orders: any[]; subtotal: number }> = {};
         for (const o of withItems) {
@@ -635,10 +660,15 @@ export async function POST(req: NextRequest) {
           )
           .orderBy(desc(foodOrders.createdAt));
 
-        const itemsMap = await getFoodOrderItemsBatch(orders.map((o) => o.id));
+        const orderIds = orders.map((o) => o.id);
+        const [itemsMap, modCountMap] = await Promise.all([
+          getFoodOrderItemsBatch(orderIds),
+          getModCountMap(orderIds),
+        ]);
         const withItems = orders.map((o) => ({
           ...o,
           items: itemsMap.get(o.id) || [],
+          hasModifications: (modCountMap.get(o.id) || 0) > 0,
         }));
         return NextResponse.json({ role, orders: withItems });
       }
@@ -693,8 +723,16 @@ export async function POST(req: NextRequest) {
         const { checkinId } = rest;
         if (!checkinId) return NextResponse.json({ error: "checkinId required" }, { status: 400 });
         const orders = await getGuestAllFoodOrders(checkinId);
-        const itemsMap = await getFoodOrderItemsBatch(orders.map((o) => o.id));
-        const withItems = orders.map((o) => ({ ...o, items: itemsMap.get(o.id) || [] }));
+        const orderIds = orders.map((o) => o.id);
+        const [itemsMap, modCountMap] = await Promise.all([
+          getFoodOrderItemsBatch(orderIds),
+          getModCountMap(orderIds),
+        ]);
+        const withItems = orders.map((o) => ({
+          ...o,
+          items: itemsMap.get(o.id) || [],
+          hasModifications: (modCountMap.get(o.id) || 0) > 0,
+        }));
         return NextResponse.json({ role, orders: withItems });
       }
 
