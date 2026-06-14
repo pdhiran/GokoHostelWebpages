@@ -203,46 +203,49 @@ export function AdminDashboard({
 
       {/* Checkouts due */}
       {todayCheckouts.length > 0 && (
-        <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-4">
-          <div className="flex items-center gap-2">
+        <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3 sm:p-4">
+          <div className="flex items-center gap-2 px-1">
             <AlertTriangleIcon className="h-5 w-5 text-orange-600" />
             <span className="font-medium text-orange-800">{todayCheckouts.length} guest{todayCheckouts.length !== 1 ? "s" : ""} due for checkout</span>
           </div>
-          <div className="mt-2 space-y-2">
+          <div className="mt-3 space-y-2.5">
             {todayCheckouts.map((co, i) => (
-              <div key={i} className="rounded-lg bg-white px-3 py-2">
-                <div className="flex flex-wrap gap-2 items-center justify-between">
-                  <div>
-                    <span className="font-medium text-brand-green-dark">{co.name}</span>
-                    <span className="ml-2 text-xs text-brand-green-dark/50">{co.dorm} / {co.bedId}</span>
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold text-brand-green-dark">{co.name}</p>
+                    <p className="mt-0.5 text-xs text-brand-green-dark/50">{co.dorm} / {co.bedId}</p>
                   </div>
                   <button type="button" onClick={() => handleCheckoutClick(co)} disabled={busyIdx === co.bedIdx}
-                    className="flex items-center gap-1 rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200 disabled:opacity-50">
-                    {busyIdx === co.bedIdx ? <Loader2Icon className="h-3 w-3 animate-spin" /> : <LogOutIcon className="h-3 w-3" />}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50">
+                    {busyIdx === co.bedIdx ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <LogOutIcon className="h-3.5 w-3.5" />}
                     Checkout
                   </button>
                 </div>
                 {co.totalOrders > 0 && (
-                  <div className="mt-1.5 flex items-center gap-3 text-xs">
-                    {co.pendingTab > 0 ? (
-                      <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
-                        ₹{(co.pendingTab / 100).toFixed(0)} pending
-                        <span className="font-normal text-red-500">({co.pendingOrders} order{co.pendingOrders !== 1 ? "s" : ""})</span>
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-700">All paid</span>
-                    )}
-                    {co.paidTotal > 0 && (
-                      <span className="text-brand-green-dark/40">₹{(co.paidTotal / 100).toFixed(0)} paid</span>
-                    )}
+                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-gray-100 pt-2.5">
+                    <div className="flex items-center gap-2">
+                      {co.pendingTab > 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+                          <BanknoteIcon className="h-3 w-3" />
+                          ₹{(co.pendingTab / 100).toFixed(0)}
+                          <span className="font-normal text-red-500">({co.pendingOrders})</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700">
+                          <CheckCircleIcon className="h-3 w-3" />
+                          All paid
+                        </span>
+                      )}
+                    </div>
                     {co.contact && (
                       <a
                         href={`/my-bills?phone=${encodeURIComponent(co.contact)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="ml-auto flex items-center gap-1 font-medium text-blue-600 hover:text-blue-800"
+                        className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100 active:bg-blue-200"
                       >
-                        View Bills <ExternalLinkIcon className="h-3 w-3" />
+                        Bills <ExternalLinkIcon className="h-3 w-3" />
                       </a>
                     )}
                   </div>
@@ -259,7 +262,7 @@ export function AdminDashboard({
         {todayCheckins.length === 0 ? (
           <p className="mt-2 text-sm text-brand-green-dark/50">No check-ins today yet</p>
         ) : (
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 space-y-2.5">
             {todayCheckins.map((item, i) => {
               const age = getAgeFromDob(item.dob);
               const isFlagged = age !== null && !item.vibeMatched && (age < ageRange.min || age > ageRange.max);
@@ -268,59 +271,61 @@ export function AdminDashboard({
               const isAnyFlagged = isFlagged || hasDobMismatch;
               const checkinId = parseInt(item.row[15]);
               return (
-              <div key={i} className={cn("flex flex-wrap gap-2 items-center justify-between rounded-xl border bg-white px-4 py-3", isAnyFlagged ? "border-orange-300 bg-orange-50/40" : "border-brand-mist")}>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-brand-green-dark">{item.row[3]}</p>
-                    {item.row[14] === "yes" ? (
-                      <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">ID verified</span>
-                    ) : item.row[14] === "no" ? (
-                      <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">ID rejected</span>
-                    ) : item.row[14] === "spoof_warning" ? (
-                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Possibly fake ID</span>
-                    ) : !item.row[14] || item.row[14] === "pending" ? (
-                      <span className="rounded-full bg-yellow-100 px-1.5 py-0.5 text-[9px] font-semibold text-yellow-700">ID pending</span>
-                    ) : null}
-                    {isFlagged && (
-                      <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", isUnderage ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700")}>
-                        {isUnderage ? `Underage (${age})` : `Overage (${age})`}
-                      </span>
-                    )}
-                    {hasDobMismatch && (
-                      <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">DOB mismatch</span>
-                    )}
-                    {item.vibeMatched === 1 && (
-                      (age !== null && (age < ageRange.min || age > ageRange.max)) ||
-                      (item.dob && item.dobFromId && !dobsMatch(item.dob, item.dobFromId))
-                    ) && (
-                      <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">Vibe OK</span>
-                    )}
+              <div key={i} className={cn("rounded-xl border bg-white p-3 shadow-sm", isAnyFlagged ? "border-orange-300 bg-orange-50/40" : "border-gray-100")}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold text-brand-green-dark">{item.row[3]}</p>
+                    <p className="mt-0.5 text-xs text-brand-green-dark/60">{item.row[7]}, {item.row[8]} · {item.row[4]} person{item.row[4] !== "1" ? "s" : ""} · {item.row[6]} days</p>
                   </div>
-                  <p className="text-xs text-brand-green-dark/60">{item.row[7]}, {item.row[8]} · {item.row[4]} person{item.row[4] !== "1" ? "s" : ""} · {item.row[6]} days</p>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {item.assignedBed ? (
+                      <span className="rounded-lg bg-brand-green/10 px-2.5 py-1 text-xs font-semibold text-brand-green">
+                        {item.assignedBed}
+                      </span>
+                    ) : (
+                      <button type="button" onClick={() => onNavigate("beds")}
+                        className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 active:bg-blue-200">
+                        Assign bed
+                      </button>
+                    )}
+                    <span className="text-[11px] text-brand-green-dark/40">{item.row[2]}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {item.row[14] === "yes" ? (
+                    <span className="rounded-md bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">ID verified</span>
+                  ) : item.row[14] === "no" ? (
+                    <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">ID rejected</span>
+                  ) : item.row[14] === "spoof_warning" ? (
+                    <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Possibly fake ID</span>
+                  ) : !item.row[14] || item.row[14] === "pending" ? (
+                    <span className="rounded-md bg-yellow-50 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-700">ID pending</span>
+                  ) : null}
+                  {isFlagged && (
+                    <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-semibold", isUnderage ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700")}>
+                      {isUnderage ? `Underage (${age})` : `Overage (${age})`}
+                    </span>
+                  )}
+                  {hasDobMismatch && (
+                    <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">DOB mismatch</span>
+                  )}
+                  {item.vibeMatched === 1 && (
+                    (age !== null && (age < ageRange.min || age > ageRange.max)) ||
+                    (item.dob && item.dobFromId && !dobsMatch(item.dob, item.dobFromId))
+                  ) && (
+                    <span className="rounded-md bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">Vibe OK</span>
+                  )}
                   {isAnyFlagged && (
                     <button
                       type="button"
                       onClick={() => handleVibeMatch(checkinId)}
                       disabled={vibeMatchingId === checkinId}
-                      className="flex items-center gap-1 rounded-md bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700 hover:bg-green-200 disabled:opacity-50"
+                      className="ml-auto flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1 text-[11px] font-medium text-green-700 transition-colors hover:bg-green-100 active:bg-green-200 disabled:opacity-50"
                     >
                       <CheckCircleIcon className="h-3 w-3" />
-                      {vibeMatchingId === checkinId ? "..." : "Vibe Matches"}
+                      {vibeMatchingId === checkinId ? "..." : "Vibe OK"}
                     </button>
                   )}
-                  {item.assignedBed ? (
-                    <span className="rounded-full bg-brand-green/10 px-2.5 py-1 text-[11px] font-semibold text-brand-green">
-                      {item.assignedBed}
-                    </span>
-                  ) : (
-                    <button type="button" onClick={() => onNavigate("beds")}
-                      className="rounded-md bg-blue-100 px-3 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-200">
-                      Assign bed
-                    </button>
-                  )}
-                  <span className="text-xs text-brand-green-dark/40">{item.row[2]}</span>
                 </div>
               </div>
               );
