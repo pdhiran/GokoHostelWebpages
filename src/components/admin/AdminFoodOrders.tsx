@@ -207,6 +207,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
   const [menuSearch, setMenuSearch] = useState("");
   const [confirmWithGuest, setConfirmWithGuest] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [occupiedTables, setOccupiedTables] = useState<Map<number, string>>(new Map());
   const cartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -221,6 +222,23 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         setConfirmWithGuest(data.confirmWithGuest === true);
       }
       setLoadingMenu(false);
+    })();
+    (async () => {
+      const res = await apiCall({ action: "getWalkinOrders" });
+      if (res.ok) {
+        const data = await res.json();
+        const tableMap = new Map<number, string>();
+        for (const order of (data.orders || [])) {
+          const match = order.roomInfo?.match(/^Table (\d+)$/i);
+          if (match) {
+            const tableNum = parseInt(match[1], 10);
+            if (!tableMap.has(tableNum)) {
+              tableMap.set(tableNum, order.guestName || `Table ${tableNum}`);
+            }
+          }
+        }
+        setOccupiedTables(tableMap);
+      }
     })();
   }, [apiCall]);
 
@@ -400,22 +418,38 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
           <div>
             <p className="mb-2 text-xs font-medium text-brand-green-dark/70">Select table:</p>
             <div className="flex flex-wrap gap-2">
-              {Array.from({ length: cafeTableCount }, (_, i) => i + 1).map((num) => (
+              {Array.from({ length: cafeTableCount }, (_, i) => i + 1).map((num) => {
+                const occupant = occupiedTables.get(num);
+                return (
                 <button
                   key={num}
                   type="button"
-                  onClick={() => { setSelectedTable(num); setTableGuestName(`Table ${num}`); }}
+                  onClick={() => { setSelectedTable(num); setTableGuestName(occupant || `Table ${num}`); if (occupant) { /* pre-fill session for existing table */ } }}
                   className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-lg text-sm font-bold transition-colors",
+                    "flex flex-col items-center justify-center rounded-lg text-sm font-bold transition-colors",
+                    occupant ? "h-14 w-14" : "h-12 w-12",
                     selectedTable === num
                       ? "bg-brand-green text-white shadow-md"
-                      : "border border-brand-mist text-brand-green-dark hover:bg-brand-green/[0.06]"
+                      : occupant
+                        ? "border-2 border-amber-400 bg-amber-50 text-amber-700"
+                        : "border border-brand-mist text-brand-green-dark hover:bg-brand-green/[0.06]"
                   )}
+                  title={occupant ? `Occupied: ${occupant}` : `Table ${num}`}
                 >
-                  {num}
+                  <span>{num}</span>
+                  {occupant && selectedTable !== num && (
+                    <span className="mt-0.5 max-w-[3rem] truncate text-[9px] font-medium leading-tight text-amber-600">{occupant.split(" ")[0]}</span>
+                  )}
                 </button>
-              ))}
+                );
+              })}
             </div>
+            {occupiedTables.size > 0 && (
+              <p className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-600">
+                <span className="inline-block h-2.5 w-2.5 rounded border-2 border-amber-400 bg-amber-50" />
+                Occupied (unpaid order)
+              </p>
+            )}
             {selectedTable && (
               <div className="mt-3">
                 <label className="mb-0.5 block text-xs font-medium text-brand-green-dark/70">Guest name (optional)</label>
