@@ -9,6 +9,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "analyze": "ANALYZE=true next build",
     "cf:build": "opennextjs-cloudflare build",
     "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
@@ -47,6 +50,7 @@
     "better-sqlite3": "^11.8.1"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.9",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
@@ -62,6 +66,7 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.22.3",
     "typescript": "^5.7.0",
+    "vitest": "^4.1.8",
     "wrangler": "^4.80.0"
   }
 }

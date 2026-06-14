@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const isPi = process.env.GOKO_RUNTIME === "pi";
 
@@ -24,4 +25,5 @@ if (process.env.NODE_ENV === "development" && shouldInitOpenNextDev) {
   );
 }
 
-export default nextConfig;
+const analyzeBundles = withBundleAnalyzer({ enabled: process.env.ANALYZE === "true" });
+export default analyzeBundles(nextConfig);
