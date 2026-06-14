@@ -1068,7 +1068,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
     }
   };
 
-  const handlePdfGroup = (group: SummaryGroup) => {
+  const handlePdfGroup = async (group: SummaryGroup) => {
     const orders = getGroupOrders(group);
     if (orders.length === 0) return;
     const billOrders: BillOrder[] = orders.map(o => ({
@@ -1087,7 +1087,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       discount: o.discount || 0,
       specialInstructions: o.specialInstructions || undefined,
     }));
-    generateGuestBill({
+    await generateGuestBill({
       guestName: group.guestName,
       guestPhone: group.contactInfo || "",
       roomInfo: group.roomInfo || undefined,
@@ -1769,7 +1769,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
             )}
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 if (!preview) return;
                 const combinedData: CombinedBillData = {
                   guests: preview.guests.map((g: any) => ({
@@ -1801,7 +1801,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   taxRate: 5,
                   billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
                 };
-                generateCombinedBill(combinedData);
+                await generateCombinedBill(combinedData);
               }}
               className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
             >
@@ -2846,7 +2846,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                     )}
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const billOrders: BillOrder[] = [{
                           orderNumber: order.orderNumber,
                           createdAt: order.createdAt,
@@ -2862,7 +2862,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                           total: order.total,
                           specialInstructions: order.specialInstructions || undefined,
                         }];
-                        generateGuestBill({
+                        await generateGuestBill({
                           guestName: order.guestName,
                           guestPhone: order.guestPhone || "",
                           roomInfo: order.roomInfo || undefined,

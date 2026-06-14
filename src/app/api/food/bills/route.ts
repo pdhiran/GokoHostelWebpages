@@ -3,7 +3,7 @@ import { getActiveCheckins, getGuestAllFoodOrders, getFoodOrderItems, getFoodOrd
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { getDb } from "@/db/index";
 import { foodOrders, checkins } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const phone = req.nextUrl.searchParams.get("phone") || "";
@@ -80,11 +80,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2) Walk-in orders by phone match (filtered in SQL with index)
+    // 2) Walk-in orders by phone match (exact normalized match, with suffix fallback for legacy data)
     const walkinRows = await db
       .select()
       .from(foodOrders)
-      .where(and(eq(foodOrders.guestType, "walkin"), eq(foodOrders.guestPhone, normalized)))
+      .where(and(
+        eq(foodOrders.guestType, "walkin"),
+        normalized.length === 10
+          ? sql`(${foodOrders.guestPhone} = ${normalized} OR ${foodOrders.guestPhone} LIKE ${"%" + normalized})`
+          : eq(foodOrders.guestPhone, normalized),
+      ))
       .orderBy(desc(foodOrders.createdAt));
 
     for (const o of walkinRows) {
