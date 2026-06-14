@@ -53,6 +53,27 @@ When something breaks or behaves unexpectedly, check this log first to see if a 
 
 ---
 
+### 3. Database Integrity Fixes (June 14, 2026)
+
+**What changed:**
+- `src/app/api/food/order/route.ts` — food order creation (order + items + stock) wrapped in `db.transaction()` for atomicity
+- `src/db/queries.ts` — `decrementStock`, `addStock`, `restoreStock` rewritten to use atomic SQL (`SET qty = qty - ?`) instead of read-modify-write; new `deleteOrdersByIds()` function for full order cleanup
+- `src/app/api/admin/food-orders/route.ts` — `cleanupOldOrders` now fully deletes orders (modifications + items + order row) instead of only deleting items
+- `src/db/schema.ts` — added `uniqueIndex` on `daily_ledger(date, account_id)`
+- `migrations/0027_ledger_unique_constraint.sql` — cleans existing duplicate ledger rows, adds unique constraint
+
+**What could break:**
+- If D1's `db.transaction()` behaves unexpectedly (unlikely — standard Drizzle/D1 API)
+- Atomic stock decrement uses `MAX(0, qty - ?)` — stock can't go negative, but if the validation check passes and another order decrements first, stock reaches 0 and item becomes unavailable (correct behavior, but different from previous silent-overcount)
+- `cleanupOldOrders` now fully removes order rows — if any code reads old cleaned-up orders by ID, it will get 404 instead of an order with no items (checked: no code references cleaned orders)
+- Migration 0027 must be applied: `npm run db:migrate:prod` or `npm run db:migrate:local`
+
+**How to verify:** `npm run build` passes. Place a food order, verify items + stock decrement. Run cleanup, verify no orphan rows.
+
+**Rollback:** `git revert 00a152c`
+
+---
+
 ## Planned Future Commits (from audit plan)
 
 These haven't been done yet but are planned:
