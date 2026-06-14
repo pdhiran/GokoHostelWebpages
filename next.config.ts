@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["better-sqlite3"],
   ...(isPi ? { output: "standalone" } : {}),
+  env: {
+    BUILD_VERSION: process.env.BUILD_VERSION || "unknown",
+  },
 };
 
 // OpenNext runs Wrangler + monkey-patches Node's `vm` during dev. Loading it only
