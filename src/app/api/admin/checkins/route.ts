@@ -111,6 +111,36 @@ export async function POST(req: NextRequest) {
     permissions = authResult.permissions;
     const actingUser = username || role;
 
+    const ACTION_PERMISSIONS: Record<string, string | "admin_only"> = {
+      list: "canViewRecords", add: "canAddCheckin", addPast: "admin_only",
+      update: "canEditRecords", delete: "canDeleteRecords",
+      verifyCheckin: "canViewRecords", getFormCData: "canViewRecords",
+      reExtractFormC: "admin_only", updateFormCData: "admin_only",
+      getDashboard: "canViewDashboard", markVibeMatched: "canViewDashboard",
+      checkoutBed: "canViewDashboard", checkoutGuest: "canViewDashboard", undoCheckout: "canViewDashboard",
+      getBeds: "canViewBeds", assignBed: "canViewBeds", unassignBed: "canViewBeds",
+      changeBed: "canViewBeds", markClean: "canMarkClean",
+      getBedHistory: "canViewBeds", deleteBedHistory: "admin_only",
+      initDorms: "admin_only", removeDorm: "admin_only", removeBed: "admin_only",
+      getSetting: "admin_only", setSetting: "admin_only", getStats: "admin_only", healthCheck: "admin_only",
+      getBookings: "canViewBookings", getUpcomingBookings: "canViewBookings",
+      addBooking: "canAddBooking", updateBookingStatus: "canViewBookings", deleteBooking: "canDeleteBooking",
+      getUsers: "admin_only", createUser: "admin_only", updateUser: "admin_only", deleteUser: "admin_only",
+      getAuditLog: "admin_only", getSystemLogs: "admin_only", runBackup: "admin_only",
+      getLatestRateScrape: "admin_only", getRateScrapeStatus: "admin_only",
+      startRateScrape: "admin_only", updateRateScrapeResults: "admin_only",
+      backfillManagerPermissions: "admin_only",
+    };
+
+    const requiredPerm = action ? ACTION_PERMISSIONS[action] : ACTION_PERMISSIONS["list"];
+    if (requiredPerm === "admin_only") {
+      if (role !== "admin") {
+        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      }
+    } else if (requiredPerm && role !== "admin" && !permissions[requiredPerm]) {
+      return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
+    }
+
     // --- Check-in Records ---
 
     if (action === "list" || !action) {
@@ -165,7 +195,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "addPast") {
-      if (role !== "admin") return NextResponse.json({ error: "Only admin can add past records" }, { status: 403 });
       const { entry, checkoutDate, formCData, bookingPlatform, bookingId: rawBookingId, dob: pastDob } = rest;
       if (!entry) return NextResponse.json({ error: "No entry data" }, { status: 400 });
 
@@ -208,7 +237,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "update") {
-      if (role !== "admin") return NextResponse.json({ error: "Only admin can modify entries" }, { status: 403 });
       const { rowId, entry } = rest;
       if (!isValidId(rowId) || !entry) return NextResponse.json({ error: "Missing data" }, { status: 400 });
 
@@ -228,7 +256,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "delete") {
-      if (role !== "admin") return NextResponse.json({ error: "Only admin can delete entries" }, { status: 403 });
       const { rowId, driveFileIds, guestName } = rest;
       if (!isValidId(rowId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
@@ -269,7 +296,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "reExtractFormC") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { rowId } = rest;
       if (!isValidId(rowId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
@@ -368,7 +394,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "updateFormCData") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { rowId, formCData } = rest;
       if (!isValidId(rowId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
       const db = getDb();
@@ -380,8 +405,6 @@ export async function POST(req: NextRequest) {
     // --- Health Check ---
 
     if (action === "healthCheck") {
-      if (role !== "admin") return NextResponse.json({ error: "Only admin can run health checks" }, { status: 403 });
-
       const d1 = await (async () => {
         try {
           const db = getDb();
@@ -421,7 +444,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "setSetting") {
-      if (role !== "admin") return NextResponse.json({ error: "Only admin can change settings" }, { status: 403 });
       const { key, value } = rest;
       await setSetting(key, value);
       await addAuditEntry({ username: actingUser, action: "setting_changed", target: key });
@@ -449,7 +471,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "deleteBedHistory") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { rowId } = rest;
       if (!isValidId(rowId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
       await deleteBedHistoryEntry(rowId);
@@ -719,7 +740,6 @@ export async function POST(req: NextRequest) {
     // --- Dorm Setup ---
 
     if (action === "initDorms") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { dormName, bedCount, bedType } = rest;
       if (!dormName || !bedCount) return NextResponse.json({ error: "Missing data" }, { status: 400 });
 
@@ -754,7 +774,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "removeDorm") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { dormName } = rest;
       if (!dormName) return NextResponse.json({ error: "Missing dorm name" }, { status: 400 });
 
@@ -772,7 +791,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "removeBed") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { bedId } = rest;
       if (!isValidId(bedId)) return NextResponse.json({ error: "Invalid bed ID" }, { status: 400 });
 
@@ -798,7 +816,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "createUser") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { newUsername, displayName, userPassword: userPass, role: userRole, permissions: perms } = rest;
       if (!newUsername || !displayName || !userPass) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
       const existing = await getUserByUsername(newUsername);
@@ -810,7 +827,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "updateUser") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { userId, displayName, userPassword: userPass, role: userRole, permissions: perms } = rest;
       if (!isValidId(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
       const data: any = {};
@@ -824,7 +840,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "deleteUser") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { userId } = rest;
       if (!isValidId(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
       await deleteUserById(userId);
@@ -875,7 +890,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "runBackup") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       if (isOfflineMode()) {
         return NextResponse.json({ error: "Backup requires internet" }, { status: 503 });
       }
@@ -913,7 +927,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "deleteBooking") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const { bookingId } = rest;
       if (!isValidId(bookingId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
       await deleteBooking(bookingId);
@@ -972,7 +985,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "backfillManagerPermissions") {
-      if (role !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
       const db = getDb();
       const allUsers = await getAllUsers();
       const managers = allUsers.filter((u) => u.role === "manager");

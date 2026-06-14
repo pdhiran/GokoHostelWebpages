@@ -51,24 +51,28 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
   return computed === hash;
 }
 
-async function authenticateUser(password: string, username?: string): Promise<{ role: UserRole; displayName: string } | null> {
+type AuthResult = { role: UserRole; displayName: string; permissions: Record<string, boolean> };
+
+async function authenticateUser(password: string, username?: string): Promise<AuthResult | null> {
   if (!password) return null;
 
   if (!username) {
-    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", displayName: "Admin" };
-    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", displayName: "Manager" };
+    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", displayName: "Admin", permissions: {} };
+    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", displayName: "Manager", permissions: {} };
     return null;
   }
 
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return { role: "admin", displayName: "Admin" };
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return { role: "manager", displayName: "Manager" };
+  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return { role: "admin", displayName: "Admin", permissions: {} };
+  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return { role: "manager", displayName: "Manager", permissions: {} };
 
   try {
     const user = await getUserByUsername(username);
     if (!user) return null;
     const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) return null;
-    return { role: (user.role as UserRole) || "manager", displayName: user.displayName || username };
+    let permissions: Record<string, boolean> = {};
+    try { permissions = JSON.parse(user.permissions || "{}"); } catch {}
+    return { role: (user.role as UserRole) || "manager", displayName: user.displayName || username, permissions };
   } catch {
     return null;
   }
@@ -84,8 +88,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { role, displayName } = auth;
+    const { role, displayName, permissions } = auth;
     const actorName = username || displayName;
+
+    const ACTION_PERMISSIONS: Record<string, string | "admin_only"> = {
+      listOrders: "canViewFoodOrders", getOrderDetails: "canViewFoodOrders",
+      getOrderModifications: "canViewFoodOrders", getActiveGuests: "canViewFoodOrders",
+      getGuestsWithTabs: "canViewFoodOrders", getGuestTab: "canViewFoodOrders",
+      getGuestAllOrders: "canViewFoodOrders", getWalkinOrders: "canViewFoodOrders",
+      getCombinedBill: "canViewFoodOrders", getMenu: "canViewFoodOrders",
+      updateOrderStatus: "canViewFoodOrders", placeOrderForGuest: "canViewFoodOrders",
+      voidItem: "canViewFoodOrders", updateItemQuantity: "canViewFoodOrders",
+      reassignOrder: "canViewFoodOrders",
+      markOrderPaid: "canMarkPaid", updatePaymentDetails: "canMarkPaid",
+      applyDiscount: "canMarkPaid", removeDiscount: "canMarkPaid",
+      cleanupOldOrders: "admin_only",
+    };
+
+    const requiredPerm = ACTION_PERMISSIONS[action];
+    if (requiredPerm === "admin_only") {
+      if (role !== "admin") {
+        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      }
+    } else if (requiredPerm && role !== "admin" && !permissions[requiredPerm]) {
+      return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
+    }
 
     switch (action) {
       case "listOrders": {
@@ -660,10 +687,6 @@ export async function POST(req: NextRequest) {
       }
 
       case "cleanupOldOrders": {
-        if (role !== "admin") {
-          return NextResponse.json({ error: "Admin only" }, { status: 403 });
-        }
-
         const orderIds = await getOrdersForCleanup();
         if (orderIds.length === 0) {
           return NextResponse.json({ success: true, role, ordersCleanedCount: 0, itemsDeletedCount: 0 });

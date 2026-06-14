@@ -10,21 +10,34 @@ async function hashPassword(password: string): Promise<string> {
   return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function authenticate(password: string, username?: string): Promise<boolean> {
-  if (!password) return false;
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return true;
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return true;
-  if (username) {
-    try {
-      const db = getDb();
-      const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
-      if (user) {
-        const computed = await hashPassword(password);
-        if (computed === user.passwordHash) return true;
-      }
-    } catch { /* ignore */ }
+type UserRole = "admin" | "manager" | "staff";
+type AuthResult = { role: UserRole; permissions: Record<string, boolean> };
+
+async function authenticate(password: string, username?: string): Promise<AuthResult | null> {
+  if (!password) return null;
+
+  if (!username) {
+    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", permissions: {} };
+    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", permissions: {} };
+    return null;
   }
-  return false;
+
+  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return { role: "admin", permissions: {} };
+  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return { role: "manager", permissions: {} };
+
+  try {
+    const db = getDb();
+    const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    if (user) {
+      const computed = await hashPassword(password);
+      if (computed === user.passwordHash) {
+        let permissions: Record<string, boolean> = {};
+        try { permissions = JSON.parse(user.permissions || "{}"); } catch {}
+        return { role: (user.role as UserRole) || "manager", permissions };
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -32,8 +45,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { password, username, action, ...rest } = body;
 
-    if (!await authenticate(password, username)) {
+    const auth = await authenticate(password, username);
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { role, permissions } = auth;
+    if (role !== "admin" && !permissions["canManageAccounts"]) {
+      return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
     }
 
     const db = getDb();
