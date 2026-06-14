@@ -30,7 +30,7 @@ function getRemoteUrl(): string | null {
   if (isPiRuntime()) {
     return process.env.CLOUDFLARE_SITE_URL || null;
   }
-  return null;
+  return process.env.PI_PUBLIC_URL || null;
 }
 
 async function fetchRemoteHeartbeat(
