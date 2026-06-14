@@ -25,6 +25,7 @@ import {
   getSetting,
   getOrdersForCleanup,
   deleteOrderItemsByOrderIds,
+  deleteOrdersByIds,
   decrementStock,
   restoreStock,
   addStock,
@@ -689,23 +690,23 @@ export async function POST(req: NextRequest) {
       case "cleanupOldOrders": {
         const orderIds = await getOrdersForCleanup();
         if (orderIds.length === 0) {
-          return NextResponse.json({ success: true, role, ordersCleanedCount: 0, itemsDeletedCount: 0 });
+          return NextResponse.json({ success: true, role, ordersCleanedCount: 0, ordersDeletedCount: 0 });
         }
 
-        const itemsDeleted = await deleteOrderItemsByOrderIds(orderIds);
+        const ordersDeleted = await deleteOrdersByIds(orderIds);
 
         await addAuditEntry({
           username: actorName,
           action: "food_cleanup",
           target: `orders:${orderIds.length}`,
-          details: `Cleaned ${orderIds.length} orders, deleted ${itemsDeleted} item records`,
+          details: `Fully deleted ${ordersDeleted} orders (items + modifications + order rows)`,
         });
 
         return NextResponse.json({
           success: true,
           role,
           ordersCleanedCount: orderIds.length,
-          itemsDeletedCount: itemsDeleted,
+          ordersDeletedCount: ordersDeleted,
         });
       }
 

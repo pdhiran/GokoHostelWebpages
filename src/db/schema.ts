@@ -394,6 +394,7 @@ export const dailyLedger = sqliteTable("daily_ledger", {
 }, (table) => [
   index("idx_daily_ledger_date").on(table.date),
   index("idx_daily_ledger_account").on(table.accountId),
+  uniqueIndex("idx_daily_ledger_date_account_unique").on(table.date, table.accountId),
 ]);
 
 // --- Expenses ---

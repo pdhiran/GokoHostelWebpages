@@ -804,24 +804,16 @@ export async function decrementStock(menuItemId: number, quantity: number) {
   const item = await db.select().from(menuItems).where(eq(menuItems.id, menuItemId)).limit(1);
   if (!item[0] || !item[0].trackInventory) return;
 
-  const newQty = Math.max(0, item[0].stockQuantity - quantity);
-  const updates: any = { stockQuantity: newQty };
-
-  if (newQty === 0) {
-    updates.isAvailable = 0;
-  }
-
-  await db.update(menuItems).set(updates).where(eq(menuItems.id, menuItemId));
+  await db.update(menuItems).set({
+    stockQuantity: sql`MAX(0, ${menuItems.stockQuantity} - ${quantity})`,
+    isAvailable: sql`CASE WHEN ${menuItems.stockQuantity} - ${quantity} <= 0 THEN 0 ELSE ${menuItems.isAvailable} END`,
+  }).where(eq(menuItems.id, menuItemId));
 }
 
 export async function addStock(menuItemId: number, quantity: number) {
   const db = getDb();
-  const item = await db.select().from(menuItems).where(eq(menuItems.id, menuItemId)).limit(1);
-  if (!item[0]) return;
-
-  const newQty = item[0].stockQuantity + quantity;
   await db.update(menuItems).set({
-    stockQuantity: newQty,
+    stockQuantity: sql`${menuItems.stockQuantity} + ${quantity}`,
     isAvailable: 1,
   }).where(eq(menuItems.id, menuItemId));
 }
@@ -832,14 +824,12 @@ export async function restoreStock(orderId: number) {
     .where(and(eq(foodOrderItems.orderId, orderId), sql`${foodOrderItems.status} != 'voided'`));
 
   for (const item of items) {
-    const menuItem = await db.select().from(menuItems).where(eq(menuItems.id, item.menuItemId)).limit(1);
-    if (!menuItem[0] || !menuItem[0].trackInventory) continue;
-
-    const newQty = menuItem[0].stockQuantity + item.quantity;
     await db.update(menuItems).set({
-      stockQuantity: newQty,
+      stockQuantity: sql`${menuItems.stockQuantity} + ${item.quantity}`,
       isAvailable: 1,
-    }).where(eq(menuItems.id, item.menuItemId));
+    }).where(
+      and(eq(menuItems.id, item.menuItemId), eq(menuItems.trackInventory, 1))
+    );
   }
 }
 
@@ -934,6 +924,15 @@ export async function deleteOrderItemsByOrderIds(orderIds: number[]) {
   if (orderIds.length === 0) return 0;
   const db = getDb();
   const result = await db.delete(foodOrderItems).where(inArray(foodOrderItems.orderId, orderIds));
+  return (result as any).rowsAffected ?? (result as any).changes ?? orderIds.length;
+}
+
+export async function deleteOrdersByIds(orderIds: number[]) {
+  if (orderIds.length === 0) return 0;
+  const db = getDb();
+  await db.delete(orderModifications).where(inArray(orderModifications.orderId, orderIds));
+  await db.delete(foodOrderItems).where(inArray(foodOrderItems.orderId, orderIds));
+  const result = await db.delete(foodOrders).where(inArray(foodOrders.id, orderIds));
   return (result as any).rowsAffected ?? (result as any).changes ?? orderIds.length;
 }
 
