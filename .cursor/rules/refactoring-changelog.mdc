@@ -34,6 +34,25 @@ When something breaks or behaves unexpectedly, check this log first to see if a 
 
 ---
 
+### 2. Server-Side RBAC Enforcement (June 14, 2026)
+
+**What changed:**
+- `src/app/api/admin/checkins/route.ts` — added centralized `ACTION_PERMISSIONS` map gating all 45 actions; removed 17 inline `role !== "admin"` checks; `update` relaxed from admin-only to `canEditRecords`; `delete` relaxed to `canDeleteRecords`; `deleteBooking` relaxed to `canDeleteBooking`; `getSetting` restricted to admin-only
+- `src/app/api/admin/food-orders/route.ts` — `authenticateUser` upgraded to return permissions; 20 actions gated (view=`canViewFoodOrders`, payment=`canMarkPaid`, cleanup=admin-only)
+- `src/app/api/admin/expenses/route.ts` — `authenticateUser` upgraded to return permissions; 13 actions gated across 7 permission keys
+- `src/app/api/admin/account-settings/route.ts` — `authenticate()` rewritten from boolean to `{ role, permissions }`; all 13 actions require `canManageAccounts`
+
+**What could break:**
+- Staff/manager users created in the DB with missing permission keys will now be denied actions they previously could access (UI already hid these, but API allowed them)
+- Managers using env `MANAGER_PASSWORD` (no username) get `permissions: {}` — BUT the centralized check only denies when `role !== "admin" && !permissions[key]`. Managers with empty permissions object will be denied. If this is a problem, those managers need DB user accounts with proper permissions, or use the admin env password.
+- `getSetting` is now admin-only — staff/managers can no longer read arbitrary settings (this is intentional, fixes H-2)
+
+**How to verify:** `npm run build` passes. Test admin login with admin password (full access). Test a staff user — they should only access actions matching their permission keys.
+
+**Rollback:** `git revert bbbf894`
+
+---
+
 ## Planned Future Commits (from audit plan)
 
 These haven't been done yet but are planned:
