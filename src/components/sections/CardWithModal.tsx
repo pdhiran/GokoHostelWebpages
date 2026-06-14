@@ -93,8 +93,6 @@ function PhotoCarousel({ photos, alt }: { photos: string[]; alt: string }) {
 
 const fallbackImg = "/images/IMG_3345.jpg";
 
-export { EventCard as PastEventCard };
-
 export function EventCard({ ev }: { ev: EventItem }) {
   const [open, setOpen] = useState(false);
   const photos = ev.photos?.length ? ev.photos : [ev.cover ?? fallbackImg];

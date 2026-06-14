@@ -20,11 +20,6 @@ export type BedRow = {
   stayingDays: string;
 };
 
-export const BED_HEADERS = [
-  "Dorm Name", "Bed ID", "Position", "Type", "Status",
-  "Guest Name", "Guest Contact", "Check-in Date", "Expected Checkout", "Staying Days",
-];
-
 export function parseBedRow(row: string[]): BedRow {
   return {
     id: parseInt(row[10] || "0", 10),

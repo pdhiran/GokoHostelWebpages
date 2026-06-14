@@ -25,10 +25,6 @@ export type VisaData = {
   country: string;
 };
 
-export type FormCExtractedData = {
-  passport?: Partial<PassportData>;
-  visa?: Partial<VisaData>;
-};
 
 const COUNTRY_CODES: Record<string, string> = {
   // ISO alpha-3 and common MRZ codes
@@ -461,9 +457,3 @@ export function parseVisaFromText(text: string): Partial<VisaData> {
   return result;
 }
 
-export function extractFormCData(passportOcrText: string, visaOcrText: string): FormCExtractedData {
-  return {
-    passport: parsePassportMRZ(passportOcrText),
-    visa: parseVisaFromText(visaOcrText),
-  };
-}
