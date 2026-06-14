@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getActiveCheckins, getGuestAllFoodOrders, getFoodOrderItems, getFoodOrderItemsBatch } from "@/db/queries";
+import { getActiveCheckins, getGuestAllFoodOrders, getFoodOrderItemsBatch } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { getDb } from "@/db/index";
 import { foodOrders, checkins } from "@/db/schema";
@@ -36,47 +36,46 @@ export async function GET(req: NextRequest) {
       checkinId: number | null;
     }> = [];
 
-    // 1) Hostel guest orders via all checkins (active + checked out)
+    // 1) Hostel guest orders — current/latest stay only
     const db = getDb();
     const allCheckinRows = await db.select().from(checkins).where(eq(checkins.contact, normalized));
     const activeCheckinsList = await getActiveCheckins();
-    const matchedCheckinIds = new Map<number, { id: number; status: string; arrivalDate: string }>();
-    for (const c of allCheckinRows) matchedCheckinIds.set(c.id, { id: c.id, status: c.status, arrivalDate: c.arrivalDate });
+    const matchedCheckins: Array<{ id: number; status: string; arrivalDate: string }> = [];
+    const seen = new Set<number>();
+    for (const c of allCheckinRows) { matchedCheckins.push({ id: c.id, status: c.status, arrivalDate: c.arrivalDate }); seen.add(c.id); }
     for (const c of activeCheckinsList) {
-      if (phonesMatch(c.contact, normalized) && !matchedCheckinIds.has(c.id))
-        matchedCheckinIds.set(c.id, { id: c.id, status: c.status, arrivalDate: c.arrivalDate });
+      if (phonesMatch(c.contact, normalized) && !seen.has(c.id))
+        matchedCheckins.push({ id: c.id, status: c.status, arrivalDate: c.arrivalDate });
     }
 
     // Find latest checkin (active preferred, then most recent by arrival date)
     let latestCheckinId: number | null = null;
     let latestDate = "";
-    for (const c of matchedCheckinIds.values()) {
+    for (const c of matchedCheckins) {
       if (c.status === "active") { latestCheckinId = c.id; break; }
       if (c.arrivalDate > latestDate) { latestDate = c.arrivalDate; latestCheckinId = c.id; }
     }
 
-    for (const checkinId of matchedCheckinIds.keys()) {
-      const orders = await getGuestAllFoodOrders(checkinId);
+    if (latestCheckinId) {
+      const orders = await getGuestAllFoodOrders(latestCheckinId);
       for (const o of orders) {
-        if (!orderMap.has(o.id)) {
-          orderMap.set(o.id, true);
-          allOrders.push({
-            id: o.id,
-            orderNumber: o.orderNumber,
-            status: o.status,
-            guestType: o.guestType,
-            guestName: o.guestName,
-            roomInfo: o.roomInfo,
-            subtotal: o.subtotal,
-            tax: o.tax,
-            total: o.total,
-            discount: o.discount,
-            paymentStatus: o.paymentStatus,
-            paymentMethod: o.paymentMethod,
-            createdAt: o.createdAt,
-            checkinId: o.checkinId,
-          });
-        }
+        orderMap.set(o.id, true);
+        allOrders.push({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          status: o.status,
+          guestType: o.guestType,
+          guestName: o.guestName,
+          roomInfo: o.roomInfo,
+          subtotal: o.subtotal,
+          tax: o.tax,
+          total: o.total,
+          discount: o.discount,
+          paymentStatus: o.paymentStatus,
+          paymentMethod: o.paymentMethod,
+          createdAt: o.createdAt,
+          checkinId: o.checkinId,
+        });
       }
     }
 
