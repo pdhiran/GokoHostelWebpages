@@ -381,10 +381,21 @@ export async function POST(request: NextRequest) {
         if (!isPiRuntime()) {
           return NextResponse.json({ error: "Shutdown is only available on the Raspberry Pi" }, { status: 400 });
         }
-        exec("sudo shutdown -h +1 'GokoWeb admin initiated shutdown'", (err) => {
+        exec("sudo /sbin/shutdown -h +1 'GokoWeb admin initiated shutdown'", (err) => {
           if (err) console.error("[sync] Shutdown error:", err.message);
         });
         return NextResponse.json({ ok: true, message: "Raspberry Pi will shut down in 1 minute. Unplug power after the green LED stops flashing." });
+      }
+
+      case "deployUpdate": {
+        if (!isPiRuntime()) {
+          return NextResponse.json({ error: "Deploy is only available on the Raspberry Pi" }, { status: 400 });
+        }
+        const scriptPath = `${process.cwd()}/scripts/check-and-deploy.sh`;
+        exec(`bash ${scriptPath} >> /home/goko/deploy.log 2>&1`, (err) => {
+          if (err) console.error("[sync] Deploy error:", err.message);
+        });
+        return NextResponse.json({ ok: true, message: "Deploy triggered. The Pi will pull the latest code, rebuild, and restart. This may take 5-10 minutes." });
       }
 
       default:

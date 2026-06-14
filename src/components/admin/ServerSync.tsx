@@ -19,6 +19,7 @@ import {
   ToggleRightIcon,
   ChevronDownIcon,
   PowerIcon,
+  DownloadIcon,
 } from "lucide-react";
 import type { Role } from "./types";
 
@@ -113,6 +114,8 @@ export function ServerSync({ password, username, role }: { password: string; use
   const [confirmShutdown, setConfirmShutdown] = useState(false);
   const [shuttingDown, setShuttingDown] = useState(false);
   const [shutdownMessage, setShutdownMessage] = useState<string | null>(null);
+  const [deploying, setDeploying] = useState(false);
+  const [deployMessage, setDeployMessage] = useState<string | null>(null);
 
   const apiCall = useCallback(async (action: string, extra?: Record<string, unknown>) => {
     try {
@@ -232,6 +235,19 @@ export function ServerSync({ password, username, role }: { password: string; use
     setConfirmShutdown(false);
   };
 
+  const handleDeployUpdate = async () => {
+    setDeploying(true);
+    setDeployMessage(null);
+    const res = await apiCall("deployUpdate");
+    if (res && res.ok) {
+      const data = await res.json();
+      setDeployMessage(data.message || "Deploy triggered.");
+    } else {
+      setDeployMessage("Failed to trigger deploy.");
+    }
+    setDeploying(false);
+  };
+
   if (role !== "admin") {
     return <p className="py-10 text-center text-brand-green-dark/50">Only admins can manage server sync.</p>;
   }
@@ -346,7 +362,35 @@ export function ServerSync({ password, username, role }: { password: string; use
           </div>
         )}
 
-        {/* Pi Shutdown Control */}
+        {/* Pi Deploy & Shutdown Controls */}
+        {status.pi.online && (
+          <div className="rounded-xl border border-brand-mist bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <DownloadIcon className="h-5 w-5 text-blue-500" />
+                <div>
+                  <p className="text-sm font-medium text-brand-green-dark">Update Pi Build</p>
+                  <p className="text-xs text-brand-green-dark/60">Pull latest code from GitHub, rebuild, and restart</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleDeployUpdate}
+                disabled={deploying}
+                className="flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-1.5 text-[11px] font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-50"
+              >
+                {deploying ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <DownloadIcon className="h-3.5 w-3.5" />}
+                {deploying ? "Deploying..." : "Deploy Now"}
+              </button>
+            </div>
+            {deployMessage && (
+              <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                <p className="text-xs font-medium text-blue-800">{deployMessage}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {status.pi.online && (
           <div className="rounded-xl border border-brand-mist bg-white p-4">
             <div className="flex items-center justify-between">
