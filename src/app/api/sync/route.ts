@@ -378,24 +378,46 @@ export async function POST(request: NextRequest) {
       }
 
       case "shutdownPi": {
-        if (!isPiRuntime()) {
-          return NextResponse.json({ error: "Shutdown is only available on the Raspberry Pi" }, { status: 400 });
+        if (isPiRuntime()) {
+          exec("sudo /sbin/shutdown -h +1 'GokoWeb admin initiated shutdown'", (err) => {
+            if (err) console.error("[sync] Shutdown error:", err.message);
+          });
+          return NextResponse.json({ ok: true, message: "Raspberry Pi will shut down in 1 minute. Unplug power after the green LED stops flashing." });
         }
-        exec("sudo /sbin/shutdown -h +1 'GokoWeb admin initiated shutdown'", (err) => {
-          if (err) console.error("[sync] Shutdown error:", err.message);
+        const piUrlShutdown = process.env.PI_PUBLIC_URL;
+        if (!piUrlShutdown) {
+          return NextResponse.json({ error: "PI_PUBLIC_URL not configured" }, { status: 400 });
+        }
+        const shutdownRes = await fetch(`${piUrlShutdown}/api/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: process.env.ADMIN_PASSWORD, action: "shutdownPi" }),
+          signal: AbortSignal.timeout(10000),
         });
-        return NextResponse.json({ ok: true, message: "Raspberry Pi will shut down in 1 minute. Unplug power after the green LED stops flashing." });
+        const shutdownData = await shutdownRes.json();
+        return NextResponse.json(shutdownData, { status: shutdownRes.status });
       }
 
       case "deployUpdate": {
-        if (!isPiRuntime()) {
-          return NextResponse.json({ error: "Deploy is only available on the Raspberry Pi" }, { status: 400 });
+        if (isPiRuntime()) {
+          const scriptPath = `${process.cwd()}/scripts/check-and-deploy.sh`;
+          exec(`bash ${scriptPath} >> /home/goko/deploy.log 2>&1`, (err) => {
+            if (err) console.error("[sync] Deploy error:", err.message);
+          });
+          return NextResponse.json({ ok: true, message: "Deploy triggered. The Pi will pull the latest code, rebuild, and restart. This may take 5-10 minutes." });
         }
-        const scriptPath = `${process.cwd()}/scripts/check-and-deploy.sh`;
-        exec(`bash ${scriptPath} >> /home/goko/deploy.log 2>&1`, (err) => {
-          if (err) console.error("[sync] Deploy error:", err.message);
+        const piUrlDeploy = process.env.PI_PUBLIC_URL;
+        if (!piUrlDeploy) {
+          return NextResponse.json({ error: "PI_PUBLIC_URL not configured" }, { status: 400 });
+        }
+        const deployRes = await fetch(`${piUrlDeploy}/api/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: process.env.ADMIN_PASSWORD, action: "deployUpdate" }),
+          signal: AbortSignal.timeout(10000),
         });
-        return NextResponse.json({ ok: true, message: "Deploy triggered. The Pi will pull the latest code, rebuild, and restart. This may take 5-10 minutes." });
+        const deployData = await deployRes.json();
+        return NextResponse.json(deployData, { status: deployRes.status });
       }
 
       default:
