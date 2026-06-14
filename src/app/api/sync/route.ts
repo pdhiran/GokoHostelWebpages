@@ -12,9 +12,10 @@ import {
   getUnresolvedConflictsCount,
   type SyncBundle,
 } from "@/lib/syncEngine";
-import { getRuntimeName } from "@/lib/runtime";
+import { getRuntimeName, isPiRuntime } from "@/lib/runtime";
 import { eq, and } from "drizzle-orm";
 import * as schema from "@/db/schema";
+import { exec } from "child_process";
 
 function authenticateSync(password: string, syncSecret?: string): boolean {
   const adminPw = process.env.ADMIN_PASSWORD;
@@ -160,6 +161,16 @@ export async function POST(request: NextRequest) {
         const source = body.source || getRuntimeName();
         const result = await backfillSyncIds(db, source);
         return NextResponse.json({ ok: true, backfilled: result });
+      }
+
+      case "shutdownPi": {
+        if (!isPiRuntime()) {
+          return NextResponse.json({ error: "Shutdown is only available on the Raspberry Pi" }, { status: 400 });
+        }
+        exec("sudo shutdown -h +1 'GokoWeb admin initiated shutdown'", (err) => {
+          if (err) console.error("[sync] Shutdown error:", err.message);
+        });
+        return NextResponse.json({ ok: true, message: "Raspberry Pi will shut down in 1 minute. Unplug power after the green LED stops flashing." });
       }
 
       default:

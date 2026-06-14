@@ -18,6 +18,7 @@ import {
   ToggleLeftIcon,
   ToggleRightIcon,
   ChevronDownIcon,
+  PowerIcon,
 } from "lucide-react";
 import type { Role } from "./types";
 
@@ -109,6 +110,9 @@ export function ServerSync({ password, username, role }: { password: string; use
   const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
   const [logLimit, setLogLimit] = useState(20);
   const [confirmSwitch, setConfirmSwitch] = useState(false);
+  const [confirmShutdown, setConfirmShutdown] = useState(false);
+  const [shuttingDown, setShuttingDown] = useState(false);
+  const [shutdownMessage, setShutdownMessage] = useState<string | null>(null);
 
   const apiCall = useCallback(async (action: string, extra?: Record<string, unknown>) => {
     try {
@@ -196,6 +200,20 @@ export function ServerSync({ password, username, role }: { password: string; use
     await apiCall("switchPrimary", { primary: newPrimary });
     setStatus((prev) => ({ ...prev, primaryServer: newPrimary }));
     setConfirmSwitch(false);
+  };
+
+  const handleShutdownPi = async () => {
+    setShuttingDown(true);
+    setShutdownMessage(null);
+    const res = await apiCall("shutdownPi");
+    if (res && res.ok) {
+      const data = await res.json();
+      setShutdownMessage(data.message || "Shutdown initiated.");
+    } else {
+      setShutdownMessage("Failed to initiate shutdown.");
+    }
+    setShuttingDown(false);
+    setConfirmShutdown(false);
   };
 
   if (role !== "admin") {
@@ -309,6 +327,55 @@ export function ServerSync({ password, username, role }: { password: string; use
           <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
             <CheckCircleIcon className="h-4 w-4 text-emerald-600" />
             <p className="text-xs font-medium text-emerald-800">Builds match: <code className="rounded bg-emerald-100 px-1">{status.cloudflare.build}</code></p>
+          </div>
+        )}
+
+        {/* Pi Shutdown Control */}
+        {status.pi.online && (
+          <div className="rounded-xl border border-brand-mist bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <PowerIcon className="h-5 w-5 text-red-400" />
+                <div>
+                  <p className="text-sm font-medium text-brand-green-dark">Raspberry Pi Power</p>
+                  <p className="text-xs text-brand-green-dark/60">Safely shut down the Pi before unplugging power</p>
+                </div>
+              </div>
+              {confirmShutdown ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleShutdownPi}
+                    disabled={shuttingDown}
+                    className="flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {shuttingDown ? <Loader2Icon className="h-3 w-3 animate-spin" /> : <PowerIcon className="h-3 w-3" />}
+                    Yes, Shut Down
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmShutdown(false)}
+                    className="rounded-lg bg-brand-mist px-3 py-1.5 text-[11px] font-semibold text-brand-green-dark/60 hover:bg-brand-mist/80"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmShutdown(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-50"
+                >
+                  <PowerIcon className="h-3.5 w-3.5" />
+                  Shutdown Pi
+                </button>
+              )}
+            </div>
+            {shutdownMessage && (
+              <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-3">
+                <p className="text-xs font-medium text-amber-800">{shutdownMessage}</p>
+              </div>
+            )}
           </div>
         )}
       </section>
