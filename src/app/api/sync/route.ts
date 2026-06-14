@@ -401,7 +401,7 @@ export async function POST(request: NextRequest) {
       case "deployUpdate": {
         if (isPiRuntime()) {
           const scriptPath = `${process.cwd()}/scripts/check-and-deploy.sh`;
-          exec(`bash ${scriptPath} >> /home/goko/deploy.log 2>&1`, (err) => {
+          exec(`flock -n /tmp/goko-deploy-manual.lock bash ${scriptPath} >> /home/goko/deploy.log 2>&1`, (err) => {
             if (err) console.error("[sync] Deploy error:", err.message);
           });
           return NextResponse.json({ ok: true, message: "Deploy triggered. The Pi will pull the latest code, rebuild, and restart. This may take 5-10 minutes." });
