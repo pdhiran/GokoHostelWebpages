@@ -123,6 +123,23 @@ When something breaks or behaves unexpectedly, check this log first to see if a 
 
 ---
 
+### 6. Auth Centralization (June 14, 2026)
+
+**What changed:**
+- New `src/lib/auth.ts` — single shared module with `hashPassword`, `verifyPassword`, `authenticateUser`, `authenticateSimple`, `authenticateKitchen`
+- Removed 8 inline copies of `hashPassword` and 10 inline auth functions across: `admin/checkins`, `admin/food-orders`, `admin/expenses`, `admin/account-settings`, `admin/reviews`, `admin/food`, `admin/qr-history`, `admin/bulk-import-accounts`, `food/kitchen`, `push`
+- Net: +92 lines (shared module), -317 lines (removed duplicates) = -225 lines
+
+**What could break:**
+- If any route had a subtle auth difference we missed (verified: all were identical logic, just different return shapes)
+- `admin/food` now extracts `role` from full `AuthResult` instead of receiving just a role string (adapted at call site)
+
+**How to verify:** `npm test` (45 pass). `npm run build`. Login with admin, manager, and staff accounts.
+
+**Rollback:** `git revert 69aca76`
+
+---
+
 ## Planned Future Commits (from audit plan)
 
 These haven't been done yet but are planned:
