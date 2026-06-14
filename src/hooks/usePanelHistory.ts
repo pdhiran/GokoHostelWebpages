@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * Pushes a browser history entry when a panel/modal opens, so that
@@ -15,7 +15,7 @@ export function usePanelHistory(isOpen: boolean, onClose: () => void) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  // When panel opens, push a history entry
+  // When panel opens, push a history entry (same URL, just state marker)
   useEffect(() => {
     if (isOpen && !hasPushed.current) {
       hasPushed.current = true;
@@ -23,7 +23,8 @@ export function usePanelHistory(isOpen: boolean, onClose: () => void) {
     }
   }, [isOpen]);
 
-  // When panel closes programmatically (not via back), remove our history entry
+  // When panel closes programmatically (X button, backdrop click),
+  // remove our history entry so back behaves naturally
   useEffect(() => {
     if (!isOpen && hasPushed.current && !closingViaPopstate.current) {
       hasPushed.current = false;
@@ -33,6 +34,15 @@ export function usePanelHistory(isOpen: boolean, onClose: () => void) {
       closingViaPopstate.current = false;
     }
   }, [isOpen]);
+
+  // On unmount, if panel was still open, clean up
+  useEffect(() => {
+    return () => {
+      if (hasPushed.current) {
+        hasPushed.current = false;
+      }
+    };
+  }, []);
 
   // Listen for back button — close the panel
   useEffect(() => {

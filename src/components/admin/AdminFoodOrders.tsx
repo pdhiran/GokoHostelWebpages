@@ -1455,7 +1455,6 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                       guestPhone: isTable ? tablePhone : (selectedGroup.contactInfo || undefined),
                       roomInfo: selectedGroup.roomInfo || undefined,
                     });
-                    setSelectedGroupKey(null);
                   }}
                   className="flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
                 >
