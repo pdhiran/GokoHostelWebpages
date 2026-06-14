@@ -135,12 +135,15 @@ export function ServerSync({ password, username, role }: { password: string; use
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
-    const res = await apiCall("status");
-    if (res && res.ok) {
-      const data = await res.json();
-      if (data.status) setStatus(data.status);
+    try {
+      const res = await apiCall("status");
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data.status) setStatus(data.status);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [apiCall]);
 
   const loadConflicts = useCallback(async () => {
@@ -155,7 +158,20 @@ export function ServerSync({ password, username, role }: { password: string; use
     const res = await apiCall("getSyncLog", { limit: logLimit });
     if (res && res.ok) {
       const data = await res.json();
-      if (data.log) setSyncLog(data.log);
+      if (data.logs) {
+        setSyncLog(
+          data.logs.map((row: any) => ({
+            id: String(row.id),
+            timestamp: row.startedAt || row.completedAt || "",
+            type: row.direction === "full" ? "Full Sync" : row.direction === "pull" ? "Pull Only" : "Manual Push",
+            pulled: row.recordsPulled ?? 0,
+            pushed: row.recordsPushed ?? 0,
+            conflicts: row.conflictsFound ?? 0,
+            status: row.status === "completed" ? (row.conflictsFound > 0 ? "warning" : "success") : row.status === "error" ? "error" : "success",
+            errorMessage: row.errorMessage || undefined,
+          })),
+        );
+      }
     }
   }, [apiCall, logLimit]);
 
@@ -184,7 +200,7 @@ export function ServerSync({ password, username, role }: { password: string; use
   };
 
   const handleBulkResolve = async (resolution: "cloud" | "pi") => {
-    await apiCall("resolveAllConflicts", { resolution });
+    await apiCall("resolveAll", { resolution });
     await loadConflicts();
     await loadStatus();
   };
@@ -192,12 +208,12 @@ export function ServerSync({ password, username, role }: { password: string; use
   const handleToggleAutoSync = async () => {
     const newValue = !status.autoSync;
     setStatus((prev) => ({ ...prev, autoSync: newValue }));
-    await apiCall("setAutoSync", { enabled: newValue });
+    await apiCall("toggleAutoSync", { enabled: newValue });
   };
 
   const handleSwitchPrimary = async () => {
     const newPrimary = status.primaryServer === "cloudflare" ? "pi" : "cloudflare";
-    await apiCall("switchPrimary", { primary: newPrimary });
+    await apiCall("setPrimary", { server: newPrimary });
     setStatus((prev) => ({ ...prev, primaryServer: newPrimary }));
     setConfirmSwitch(false);
   };

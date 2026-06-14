@@ -9,11 +9,11 @@ import {
   getHeartbeatData,
   getSyncStatus,
   backfillSyncIds,
-  getUnresolvedConflictsCount,
   type SyncBundle,
+  type HeartbeatPayload,
 } from "@/lib/syncEngine";
 import { getRuntimeName, isPiRuntime } from "@/lib/runtime";
-import { eq, and } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { exec } from "child_process";
 
@@ -24,6 +24,29 @@ function authenticateSync(password: string, syncSecret?: string): boolean {
   if (adminPw && password === adminPw) return true;
   if (secret && syncSecret === secret) return true;
   return false;
+}
+
+function getRemoteUrl(): string | null {
+  if (isPiRuntime()) {
+    return process.env.CLOUDFLARE_SITE_URL || null;
+  }
+  return null;
+}
+
+async function fetchRemoteHeartbeat(
+  remoteUrl: string,
+): Promise<HeartbeatPayload | null> {
+  try {
+    const res = await fetch(`${remoteUrl}/api/sync`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as HeartbeatPayload;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -45,9 +68,216 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case "status": {
-        const status = await getSyncStatus(db);
-        const heartbeat = await getHeartbeatData(db);
-        return NextResponse.json({ ...status, heartbeat });
+        const syncStatus = await getSyncStatus(db);
+        const localHeartbeat = await getHeartbeatData(db);
+        const localRuntime = getRuntimeName();
+        const totalRecords = Object.values(localHeartbeat.dbCounts).reduce((a, b) => a + b, 0);
+
+        const localServer = {
+          online: true,
+          build: localHeartbeat.buildVersion,
+          records: totalRecords,
+          lastSeen: new Date().toISOString(),
+        };
+
+        let remoteServer = { online: false, build: "unknown", records: 0, lastSeen: null as string | null };
+        let internetConnected = false;
+
+        const remoteUrl = getRemoteUrl();
+        if (remoteUrl) {
+          const remoteHeartbeat = await fetchRemoteHeartbeat(remoteUrl);
+          if (remoteHeartbeat) {
+            internetConnected = true;
+            const remoteTotal = Object.values(remoteHeartbeat.dbCounts).reduce((a, b) => a + b, 0);
+            remoteServer = {
+              online: true,
+              build: remoteHeartbeat.buildVersion,
+              records: remoteTotal,
+              lastSeen: new Date().toISOString(),
+            };
+          }
+        } else {
+          internetConnected = true;
+        }
+
+        const settingsRows = await db
+          .select()
+          .from(schema.settings)
+          .where(eq(schema.settings.key, "primary_server"));
+        const primaryServer = (settingsRows[0]?.value || "cloudflare") as "cloudflare" | "pi";
+
+        const autoSyncRows = await db
+          .select()
+          .from(schema.settings)
+          .where(eq(schema.settings.key, "auto_sync_enabled"));
+        const autoSync = autoSyncRows[0]?.value === "true";
+
+        const lastLogRows = await db
+          .select()
+          .from(schema.syncLog)
+          .where(eq(schema.syncLog.status, "completed"))
+          .orderBy(sql`${schema.syncLog.id} DESC`)
+          .limit(1);
+        const lastLog = lastLogRows[0];
+
+        const status = {
+          cloudflare: localRuntime === "cloudflare" ? localServer : remoteServer,
+          pi: localRuntime === "pi" ? localServer : remoteServer,
+          internetConnected,
+          primaryServer,
+          lastSync: syncStatus.lastSync !== "1970-01-01T00:00:00.000Z" ? syncStatus.lastSync : null,
+          recordsPulled: lastLog?.recordsPulled ?? 0,
+          recordsPushed: lastLog?.recordsPushed ?? 0,
+          conflicts: syncStatus.unresolvedConflicts,
+          pendingChanges: syncStatus.pendingChanges,
+          autoSync,
+        };
+
+        const barStatus = {
+          runtime: localRuntime,
+          internetConnected,
+          piOnline: localRuntime === "pi" ? true : remoteServer.online,
+          lastSync: status.lastSync,
+          pendingChanges: syncStatus.pendingChanges,
+          buildsMatch: status.cloudflare.build === status.pi.build,
+          syncFailed: syncStatus.lastStatus === "error",
+          piUnreachableSince: (localRuntime === "cloudflare" && !remoteServer.online)
+            ? new Date().toISOString()
+            : null,
+        };
+
+        return NextResponse.json({ status, barStatus });
+      }
+
+      case "sync": {
+        const { mode = "full" } = body;
+        const localRuntime = getRuntimeName();
+        const remoteUrl = getRemoteUrl();
+        const remotePassword = process.env.ADMIN_PASSWORD;
+
+        if (!remoteUrl) {
+          return NextResponse.json(
+            { error: "No remote server URL configured. Set CLOUDFLARE_SITE_URL on the Pi." },
+            { status: 400 },
+          );
+        }
+
+        const now = new Date().toISOString();
+        const logRows = await db
+          .select()
+          .from(schema.syncLog)
+          .where(eq(schema.syncLog.status, "completed"))
+          .orderBy(sql`${schema.syncLog.id} DESC`)
+          .limit(1);
+        const sinceTs = logRows[0]?.completedAt || "1970-01-01T00:00:00.000Z";
+
+        const direction = mode === "pull" ? "pull" : mode === "push" ? "push" : "full";
+
+        const [logEntry] = await db
+          .insert(schema.syncLog)
+          .values({
+            direction,
+            status: "started",
+            startedAt: now,
+          })
+          .returning();
+
+        let pulled = 0;
+        let pushed = 0;
+        let conflictsFound = 0;
+
+        try {
+          if (mode === "pull" || mode === "full") {
+            const pullRes = await fetch(`${remoteUrl}/api/sync`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "pull",
+                password: remotePassword,
+                since: sinceTs,
+              }),
+              signal: AbortSignal.timeout(30000),
+            });
+
+            if (!pullRes.ok) {
+              const errBody = await pullRes.json().catch(() => ({}));
+              throw new Error(`Remote pull failed (${pullRes.status}): ${(errBody as any).error || "Unknown"}`);
+            }
+
+            const pullData = await pullRes.json();
+            const payloads = (pullData as any).payloads || [];
+
+            if (payloads.length > 0) {
+              const remoteSource = localRuntime === "pi" ? "cloudflare" : "pi";
+              const pullResult = await applyPullRecords(db, payloads, remoteSource as "cloudflare" | "pi");
+              pulled = pullResult.applied;
+              conflictsFound += pullResult.conflicts.length;
+            }
+          }
+
+          if (mode === "push" || mode === "full") {
+            const pushBundles = await preparePushPayload(db, sinceTs, localRuntime);
+            if (pushBundles.length > 0) {
+              const pushRes = await fetch(`${remoteUrl}/api/sync`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "push",
+                  password: remotePassword,
+                  bundles: pushBundles,
+                  source: localRuntime,
+                }),
+                signal: AbortSignal.timeout(30000),
+              });
+
+              if (!pushRes.ok) {
+                const errBody = await pushRes.json().catch(() => ({}));
+                throw new Error(`Remote push failed (${pushRes.status}): ${(errBody as any).error || "Unknown"}`);
+              }
+
+              const pushResult = await pushRes.json();
+              pushed = (pushResult as any).applied || 0;
+              conflictsFound += ((pushResult as any).conflicts?.length || 0);
+            }
+          }
+
+          const completedAt = new Date().toISOString();
+          await db
+            .update(schema.syncLog)
+            .set({
+              status: "completed",
+              recordsPulled: pulled,
+              recordsPushed: pushed,
+              conflictsFound,
+              completedAt,
+            })
+            .where(eq(schema.syncLog.id, logEntry.id));
+
+          return NextResponse.json({
+            ok: true,
+            pulled,
+            pushed,
+            conflicts: conflictsFound,
+            direction,
+          });
+        } catch (syncErr: any) {
+          await db
+            .update(schema.syncLog)
+            .set({
+              status: "error",
+              errorMessage: syncErr.message || "Sync failed",
+              completedAt: new Date().toISOString(),
+              recordsPulled: pulled,
+              recordsPushed: pushed,
+              conflictsFound,
+            })
+            .where(eq(schema.syncLog.id, logEntry.id));
+
+          return NextResponse.json(
+            { error: syncErr.message || "Sync failed", pulled, pushed, conflicts: conflictsFound },
+            { status: 500 },
+          );
+        }
       }
 
       case "pull": {
@@ -67,22 +297,6 @@ export async function POST(request: NextRequest) {
         const validSource = pushSource === "pi" ? "pi" : "cloudflare";
         const result = await applyPushRecords(db, bundles, validSource as "cloudflare" | "pi");
         return NextResponse.json(result);
-      }
-
-      case "syncNow": {
-        const { since, source } = body;
-        const currentSource = source || getRuntimeName();
-        const otherSource = currentSource === "pi" ? "cloudflare" : "pi";
-        const sinceTs = since || "1970-01-01T00:00:00Z";
-
-        const pullPayloads = await preparePullResponse(db, sinceTs);
-        const pushPayload = await preparePushPayload(db, sinceTs, currentSource);
-
-        return NextResponse.json({
-          pullPayloads,
-          pushPayload,
-          source: currentSource,
-        });
       }
 
       case "getConflicts": {
@@ -124,7 +338,7 @@ export async function POST(request: NextRequest) {
         const rows = await db
           .select()
           .from(schema.syncLog)
-          .orderBy(schema.syncLog.id)
+          .orderBy(sql`${schema.syncLog.id} DESC`)
           .limit(logLimit)
           .offset(offset);
         return NextResponse.json({ logs: rows });
