@@ -572,11 +572,27 @@ export async function POST(req: NextRequest) {
           .groupBy(foodOrders.checkinId);
 
         const checkinIds = tabOrders.map((r) => r.checkinId).filter((id): id is number => id != null);
-        const allBeds = checkinIds.length > 0 ? await getAllBeds() : [];
-        const checkinRows = checkinIds.length > 0
-          ? await db.select().from(checkins).where(inArray(checkins.id, checkinIds))
-          : [];
+        const [allBeds, checkinRows, tabOrderRows] = await Promise.all([
+          checkinIds.length > 0 ? getAllBeds() : Promise.resolve([]),
+          checkinIds.length > 0
+            ? db.select().from(checkins).where(inArray(checkins.id, checkinIds))
+            : Promise.resolve([]),
+          checkinIds.length > 0
+            ? db.select({ id: foodOrders.id, checkinId: foodOrders.checkinId })
+                .from(foodOrders)
+                .where(and(inArray(foodOrders.checkinId, checkinIds), eq(foodOrders.paymentStatus, "on_tab")))
+            : Promise.resolve([]),
+        ]);
         const checkinMap = new Map(checkinRows.map((c) => [c.id, c]));
+
+        const allTabOrderIds = tabOrderRows.map((r) => r.id);
+        const modCountMap = await getModCountMap(allTabOrderIds);
+        const checkinHasMods = new Map<number, boolean>();
+        for (const row of tabOrderRows) {
+          if (row.checkinId && (modCountMap.get(row.id) || 0) > 0) {
+            checkinHasMods.set(row.checkinId, true);
+          }
+        }
 
         const guestsWithTabs = [];
         for (const row of tabOrders) {
@@ -596,6 +612,7 @@ export async function POST(req: NextRequest) {
             tabTotal: row.tabTotal,
             orderCount: row.orderCount,
             latestOrderTime: row.latestOrderTime || "",
+            hasModifications: checkinHasMods.get(row.checkinId) || false,
           });
         }
         return NextResponse.json({ role, guests: guestsWithTabs });

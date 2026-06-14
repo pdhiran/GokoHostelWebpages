@@ -80,6 +80,7 @@ interface GuestWithTab {
   tabTotal: number;
   orderCount: number;
   latestOrderTime: string;
+  hasModifications?: boolean;
 }
 
 interface MenuItem {
@@ -722,6 +723,7 @@ interface SummaryGroup {
   orderCount: number;
   latestOrderTime: string;
   earliestOrderTime: string;
+  hasModifications: boolean;
 }
 
 function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }: { apiCall: (body: any) => Promise<Response>; onOrderMore: (guest: PrefillGuest) => void; onAddNewOrder?: () => void; role?: Role; permissions?: Record<string, boolean> }) {
@@ -821,6 +823,9 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
         orderCount: g.orderCount,
         latestOrderTime: hostelLatest,
         earliestOrderTime: hostelEarliest,
+        hasModifications: cachedOrders.length > 0
+          ? cachedOrders.some((o) => o.hasModifications)
+          : (g.hasModifications || false),
       });
     }
 
@@ -848,6 +853,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
         orderCount: groupOrders.length,
         latestOrderTime: latest,
         earliestOrderTime: earliest,
+        hasModifications: groupOrders.some((o) => o.hasModifications),
       });
     }
 
@@ -1202,7 +1208,12 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
               )}
               <p className="mt-2 text-lg font-bold text-brand-green">₹{(group.totalAmount / 100).toFixed(0)}</p>
               <div className="mt-1 flex items-center justify-between text-xs text-brand-green-dark/50">
-                <span>{group.orderCount} order{group.orderCount !== 1 ? "s" : ""}</span>
+                <span>
+                  {group.orderCount} order{group.orderCount !== 1 ? "s" : ""}
+                  {group.hasModifications && (
+                    <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                  )}
+                </span>
                 {timeSince && <span className="text-brand-green-dark/40">{timeSince}</span>}
               </div>
             </button>
@@ -2184,6 +2195,9 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
               </div>
               <div className="mt-1 text-xs text-brand-green-dark/40">
                 {group.orderCount} order{group.orderCount !== 1 ? "s" : ""}
+                {group.orders.some((o) => o.hasModifications) && (
+                  <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                )}
               </div>
             </button>
           );
