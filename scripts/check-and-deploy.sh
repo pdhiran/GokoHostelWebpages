@@ -2,8 +2,9 @@
 # Auto-deploy script for GokoWeb on Raspberry Pi.
 # Polls GitHub for new commits and rebuilds if needed.
 #
-# Add to crontab:
-#   */5 * * * * flock -n /tmp/goko-deploy.lock /home/goko/goko-web/scripts/check-and-deploy.sh >> /home/goko/deploy.log 2>&1
+# Add to goko's crontab (not root's, to avoid file ownership issues):
+#   0 */12 * * * flock -n /tmp/goko-deploy.lock /home/goko/goko-web/scripts/check-and-deploy.sh >> /home/goko/deploy.log 2>&1
+# Or trigger manually from the Server Sync UI via "Deploy Now" button.
 
 set -euo pipefail
 
