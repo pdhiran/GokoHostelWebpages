@@ -5,11 +5,10 @@ import { eq } from "drizzle-orm";
 import { sendPushToAll } from "@/lib/pushNotify";
 import { isOfflineMode } from "@/lib/runtime";
 
+import { authenticateSimple } from "@/lib/auth";
+
 async function authenticate(password: string): Promise<boolean> {
-  if (!password) return false;
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return true;
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return true;
-  return false;
+  return authenticateSimple(password);
 }
 
 export async function POST(req: NextRequest) {

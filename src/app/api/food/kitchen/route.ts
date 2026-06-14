@@ -24,36 +24,7 @@ import {
 import { getDb } from "@/db";
 import { foodOrderItems, foodOrders, orderModifications } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-
-type UserRole = "admin" | "manager" | "staff";
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + "goko-salt-2026");
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function authenticateKitchen(password: string): Promise<{ role: UserRole; displayName: string } | null> {
-  if (!password) return null;
-
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", displayName: "Admin" };
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", displayName: "Manager" };
-
-  try {
-    const allUsers = await import("@/db/queries").then((m) => m.getAllUsers());
-    for (const user of allUsers) {
-      const computed = await hashPassword(password);
-      if (computed === user.passwordHash) {
-        return { role: (user.role as UserRole) || "staff", displayName: user.displayName || user.username };
-      }
-    }
-  } catch {}
-
-  return null;
-}
+import { authenticateKitchen } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {

@@ -6,44 +6,7 @@ import {
   getSetting, setSetting,
   addStock as addStockQuery, getLowStockItems as getLowStockItemsQuery,
 } from "@/db/queries";
-import { getUserByUsername } from "@/db/queries";
-
-type UserRole = "admin" | "manager" | "staff";
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + "goko-salt-2026");
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const computed = await hashPassword(password);
-  return computed === hash;
-}
-
-async function authenticateUser(password: string, username?: string): Promise<UserRole | null> {
-  if (!password) return null;
-
-  if (!username) {
-    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return "admin";
-    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return "manager";
-    return null;
-  }
-
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return "admin";
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return "manager";
-
-  try {
-    const user = await getUserByUsername(username);
-    if (!user) return null;
-    const valid = await verifyPassword(password, user.passwordHash);
-    if (!valid) return null;
-    return (user.role as UserRole) || "manager";
-  } catch {
-    return null;
-  }
-}
+import { authenticateUser } from "@/lib/auth";
 
 const FOOD_SETTINGS_KEYS = [
   "food_kitchen_whatsapp",
@@ -69,10 +32,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { password, username, action, ...params } = body;
 
-    const role = await authenticateUser(password, username);
-    if (!role) {
+    const auth = await authenticateUser(password, username);
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { role } = auth;
     if (role !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }

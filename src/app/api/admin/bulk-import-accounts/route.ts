@@ -104,24 +104,7 @@ function generateTemplate(columns: { header: string; description: string }[], sh
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 }
 
-async function authenticate(password: string, username?: string): Promise<boolean> {
-  if (!password) return false;
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return true;
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return true;
-  if (username) {
-    try {
-      const { users } = await import("@/db/schema");
-      const db = getDb();
-      const encoder = new TextEncoder();
-      const data = encoder.encode(password + "goko-salt-2026");
-      const hash = await crypto.subtle.digest("SHA-256", data);
-      const computed = Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
-      const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
-      if (user && computed === user.passwordHash) return true;
-    } catch { /* ignore */ }
-  }
-  return false;
-}
+import { authenticateSimple } from "@/lib/auth";
 
 async function importExpenses(
   rows: Record<string, unknown>[],
@@ -388,7 +371,7 @@ export async function POST(req: NextRequest) {
     const password = body.password as string;
     const username = body.username as string | undefined;
 
-    if (!await authenticate(password, username)) {
+    if (!await authenticateSimple(password, username)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -422,7 +405,7 @@ export async function POST(req: NextRequest) {
   const username = formData.get("username") as string | undefined;
   const importType = formData.get("importType") as string;
 
-  if (!await authenticate(password, username)) {
+  if (!await authenticateSimple(password, username)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

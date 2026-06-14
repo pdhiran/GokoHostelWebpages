@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { driveDeleteFile } from "@/lib/googleApiFetch";
 import { getDb } from "@/db";
 import { isOfflineMode } from "@/lib/runtime";
+import { authenticateUser, hashPassword, verifyPassword, type UserRole } from "@/lib/auth";
 import {
   getCheckinsByMonth, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
   getAllBeds, getBedById, updateBedStatus, getAllDorms, getDormByName, addDorm, addBed, deleteBed, deleteDormAndBeds,
@@ -17,20 +18,6 @@ import {
 } from "@/db/queries";
 import { beds, checkins, foodOrders } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-
-type UserRole = "admin" | "manager" | "staff";
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + "goko-salt-2026");
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const computed = await hashPassword(password);
-  return computed === hash;
-}
 
 async function triggerGithubScrape(scrapeId: number, city: string, startDate: string, endDate: string, propertyType: string, proxyUrl: string = "") {
   const token = process.env.GITHUB_TOKEN;
@@ -51,33 +38,6 @@ async function triggerGithubScrape(scrapeId: number, city: string, startDate: st
     }),
   });
   if (!res.ok) throw new Error(`GitHub API error: ${res.status} ${await res.text()}`);
-}
-
-type AuthResult = { role: UserRole; displayName: string; permissions: Record<string, boolean> };
-
-async function authenticateUser(password: string, username?: string): Promise<AuthResult | null> {
-  if (!password) return null;
-
-  if (!username) {
-    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", displayName: "Admin", permissions: {} };
-    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", displayName: "Manager", permissions: {} };
-    return null;
-  }
-
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return { role: "admin", displayName: "Admin", permissions: {} };
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return { role: "manager", displayName: "Manager", permissions: {} };
-
-  try {
-    const user = await getUserByUsername(username);
-    if (!user) return null;
-    const valid = await verifyPassword(password, user.passwordHash);
-    if (!valid) return null;
-    let permissions: Record<string, boolean> = {};
-    try { permissions = JSON.parse(user.permissions || "{}"); } catch {}
-    return { role: (user.role as UserRole) || "manager", displayName: user.displayName || username, permissions };
-  } catch {
-    return null;
-  }
 }
 
 function isValidId(val: any): val is number {

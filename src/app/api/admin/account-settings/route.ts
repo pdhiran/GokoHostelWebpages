@@ -1,51 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { accounts, vendors, employees, users, salaryPayments, expenses } from "@/db/schema";
+import { accounts, vendors, employees, salaryPayments, expenses } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + "goko-salt-2026");
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-type UserRole = "admin" | "manager" | "staff";
-type AuthResult = { role: UserRole; permissions: Record<string, boolean> };
-
-async function authenticate(password: string, username?: string): Promise<AuthResult | null> {
-  if (!password) return null;
-
-  if (!username) {
-    if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) return { role: "admin", permissions: {} };
-    if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", permissions: {} };
-    return null;
-  }
-
-  if (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD && username === "admin") return { role: "admin", permissions: {} };
-  if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD && username === "manager") return { role: "manager", permissions: {} };
-
-  try {
-    const db = getDb();
-    const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
-    if (user) {
-      const computed = await hashPassword(password);
-      if (computed === user.passwordHash) {
-        let permissions: Record<string, boolean> = {};
-        try { permissions = JSON.parse(user.permissions || "{}"); } catch {}
-        return { role: (user.role as UserRole) || "manager", permissions };
-      }
-    }
-  } catch { /* ignore */ }
-  return null;
-}
+import { authenticateUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { password, username, action, ...rest } = body;
 
-    const auth = await authenticate(password, username);
+    const auth = await authenticateUser(password, username);
     if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
