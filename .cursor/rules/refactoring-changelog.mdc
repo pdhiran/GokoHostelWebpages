@@ -74,6 +74,28 @@ When something breaks or behaves unexpectedly, check this log first to see if a 
 
 ---
 
+### 4. Observability: Test Suite, Bundle Analyzer, CI Pipeline (June 14, 2026)
+
+**What changed:**
+- `vitest.config.ts` — Vitest configured with `@/*` path aliases and node environment
+- `package.json` — added `test`, `test:watch`, `analyze` scripts; added `vitest` and `@next/bundle-analyzer` as devDependencies
+- `src/__tests__/rbac.test.ts` — 20 tests verifying RBAC permission maps for all 4 admin routes (admin bypass, staff blocking, specific permissions, manager edge cases)
+- `src/__tests__/stock-operations.test.ts` — 13 tests for stock decrement/add logic, concurrent scenarios, order total calculation
+- `src/__tests__/data-cleanup.test.ts` — 12 tests for cleanup eligibility rules, deletion order, ledger uniqueness
+- `next.config.ts` — `@next/bundle-analyzer` integrated (enabled with `ANALYZE=true`)
+- `.github/workflows/ci.yml` — CI pipeline: install → test → lint → build → npm audit
+
+**What could break:**
+- Nothing — purely additive (tests, CI, analyzer). No production code changed.
+- CI will run on every push to main and PRs — if tests fail, the workflow will report failure
+- `npm run analyze` opens browser tabs with bundle visualization — dev-only, does not affect production
+
+**How to verify:** `npm test` (45 tests pass). `npm run build` succeeds. CI runs on next push.
+
+**Rollback:** `git revert 650e360`
+
+---
+
 ## Planned Future Commits (from audit plan)
 
 These haven't been done yet but are planned:
