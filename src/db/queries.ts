@@ -1,12 +1,15 @@
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
 import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback } from "./schema";
+import { dbRead, dbWrite } from "@/lib/dbRetry";
 
 // --- Check-ins ---
 
 export async function getCheckinsByMonth(month: string) {
-  const db = getDb();
-  return db.select().from(checkins).where(eq(checkins.createdMonth, month)).orderBy(desc(checkins.id));
+  return dbRead(() => {
+    const db = getDb();
+    return db.select().from(checkins).where(eq(checkins.createdMonth, month)).orderBy(desc(checkins.id));
+  });
 }
 
 export async function addCheckin(data: {
@@ -23,8 +26,10 @@ export async function addCheckin(data: {
 }
 
 export async function updateCheckin(id: number, data: Partial<typeof checkins.$inferInsert>) {
-  const db = getDb();
-  return db.update(checkins).set(data).where(eq(checkins.id, id));
+  return dbWrite(() => {
+    const db = getDb();
+    return db.update(checkins).set(data).where(eq(checkins.id, id));
+  }, { idempotentWrite: true });
 }
 
 export async function markVibeMatched(id: number) {
@@ -47,9 +52,11 @@ export async function getLatestCheckinByContact(contact: string) {
 }
 
 export async function getCheckinMonths(): Promise<string[]> {
-  const db = getDb();
-  const rows = await db.selectDistinct({ month: checkins.createdMonth }).from(checkins);
-  return rows.map((r) => r.month);
+  return dbRead(async () => {
+    const db = getDb();
+    const rows = await db.selectDistinct({ month: checkins.createdMonth }).from(checkins);
+    return rows.map((r) => r.month);
+  });
 }
 
 // --- Dorms ---
@@ -79,21 +86,23 @@ export async function deleteDormAndBeds(dormId: number) {
 // --- Beds ---
 
 export async function getAllBeds() {
-  const db = getDb();
-  return db.select({
-    id: beds.id,
-    dormId: beds.dormId,
-    bedId: beds.bedId,
-    position: beds.position,
-    type: beds.type,
-    status: beds.status,
-    guestName: beds.guestName,
-    guestContact: beds.guestContact,
-    checkinDate: beds.checkinDate,
-    expectedCheckout: beds.expectedCheckout,
-    stayingDays: beds.stayingDays,
-    dormName: dorms.name,
-  }).from(beds).innerJoin(dorms, eq(beds.dormId, dorms.id));
+  return dbRead(() => {
+    const db = getDb();
+    return db.select({
+      id: beds.id,
+      dormId: beds.dormId,
+      bedId: beds.bedId,
+      position: beds.position,
+      type: beds.type,
+      status: beds.status,
+      guestName: beds.guestName,
+      guestContact: beds.guestContact,
+      checkinDate: beds.checkinDate,
+      expectedCheckout: beds.expectedCheckout,
+      stayingDays: beds.stayingDays,
+      dormName: dorms.name,
+    }).from(beds).innerJoin(dorms, eq(beds.dormId, dorms.id));
+  });
 }
 
 export async function getBedById(bedId: number) {
@@ -123,8 +132,10 @@ export async function updateBedStatus(bedId: number, data: {
   expectedCheckout?: string;
   stayingDays?: string;
 }) {
-  const db = getDb();
-  return db.update(beds).set(data).where(eq(beds.id, bedId));
+  return dbWrite(() => {
+    const db = getDb();
+    return db.update(beds).set(data).where(eq(beds.id, bedId));
+  }, { idempotentWrite: true });
 }
 
 export async function addBed(data: { dormId: number; dormName: string; bedId: string; position: string; type: string }) {
@@ -159,9 +170,11 @@ export async function deleteBedHistoryEntry(id: number) {
 // --- Settings ---
 
 export async function getSetting(key: string): Promise<string | null> {
-  const db = getDb();
-  const rows = await db.select().from(settings).where(eq(settings.key, key));
-  return rows[0]?.value ?? null;
+  return dbRead(async () => {
+    const db = getDb();
+    const rows = await db.select().from(settings).where(eq(settings.key, key));
+    return rows[0]?.value ?? null;
+  });
 }
 
 export async function setSetting(key: string, value: string) {
@@ -214,14 +227,18 @@ export function getMonthKey(date?: Date): string {
 // --- Users ---
 
 export async function getAllUsers() {
-  const db = getDb();
-  return db.select().from(users).orderBy(users.id);
+  return dbRead(() => {
+    const db = getDb();
+    return db.select().from(users).orderBy(users.id);
+  });
 }
 
 export async function getUserByUsername(username: string) {
-  const db = getDb();
-  const rows = await db.select().from(users).where(eq(users.username, username)).limit(1);
-  return rows[0] || null;
+  return dbRead(async () => {
+    const db = getDb();
+    const rows = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    return rows[0] || null;
+  });
 }
 
 export async function createUser(data: {
@@ -240,13 +257,15 @@ export async function createUser(data: {
 export async function updateUser(userId: number, data: {
   displayName?: string; passwordHash?: string; role?: string; permissions?: string;
 }) {
-  const db = getDb();
-  const updateData: any = {};
-  if (data.displayName !== undefined) updateData.displayName = data.displayName;
-  if (data.passwordHash !== undefined) updateData.passwordHash = data.passwordHash;
-  if (data.role !== undefined) updateData.role = data.role;
-  if (data.permissions !== undefined) updateData.permissions = data.permissions;
-  return db.update(users).set(updateData).where(eq(users.id, userId));
+  return dbWrite(() => {
+    const db = getDb();
+    const updateData: any = {};
+    if (data.displayName !== undefined) updateData.displayName = data.displayName;
+    if (data.passwordHash !== undefined) updateData.passwordHash = data.passwordHash;
+    if (data.role !== undefined) updateData.role = data.role;
+    if (data.permissions !== undefined) updateData.permissions = data.permissions;
+    return db.update(users).set(updateData).where(eq(users.id, userId));
+  }, { idempotentWrite: true });
 }
 
 export async function deleteUser(userId: number) {

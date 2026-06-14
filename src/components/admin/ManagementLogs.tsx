@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
-import { DownloadIcon, AlertCircleIcon, AlertTriangleIcon, InfoIcon } from "lucide-react";
+import { DownloadIcon, AlertCircleIcon, AlertTriangleIcon, InfoIcon, CopyIcon, CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "./types";
 
-type LogEntry = {
+type LogEntryData = {
   id: number;
   timestamp: string;
   level: string;
@@ -19,7 +19,7 @@ type LogEntry = {
 
 export function ManagementLogs({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { apiCall } = useAdminApi(password, username);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logs, setLogs] = useState<LogEntryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterLevel, setFilterLevel] = useState("");
   const [filterSource, setFilterSource] = useState("");
@@ -127,26 +127,60 @@ export function ManagementLogs({ password, username, role }: { password: string;
           <p className="py-12 text-center text-sm text-brand-green-dark/50">No logs recorded yet. Logs appear when errors or important events occur.</p>
         ) : (
           filtered.slice(0, 100).map((l) => (
-            <div key={l.id} className={cn(
-              "rounded-xl border p-3",
-              l.level === "error" && "border-red-200 bg-red-50/50",
-              l.level === "warn" && "border-yellow-200 bg-yellow-50/50",
-              l.level === "info" && "border-blue-100 bg-blue-50/30",
-            )}>
-              <div className="flex items-start gap-2">
-                {levelIcon(l.level)}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-brand-green-dark">{l.message}</span>
-                    {l.source && <span className="rounded bg-brand-sand px-1.5 py-0.5 text-[9px] font-medium text-brand-green-dark/50">{l.source}</span>}
-                  </div>
-                  <p className="mt-0.5 text-[10px] text-brand-green-dark/40">{new Date(l.timestamp).toLocaleString()}</p>
-                  {l.details && <pre className="mt-1 max-h-20 overflow-auto rounded bg-brand-sand/50 p-2 text-[10px] text-brand-green-dark/60">{l.details}</pre>}
-                </div>
-              </div>
-            </div>
+            <LogEntryCard key={l.id} log={l} levelIcon={levelIcon} />
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+function LogEntryCard({ log, levelIcon }: { log: LogEntryData; levelIcon: (level: string) => React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyLog = () => {
+    const text = [
+      `[${log.level.toUpperCase()}] ${log.message}`,
+      `Source: ${log.source || "unknown"}`,
+      `Time: ${new Date(log.timestamp).toLocaleString()}`,
+      log.details ? `\nDetails:\n${log.details}` : "",
+    ].filter(Boolean).join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className={cn(
+      "rounded-xl border p-3 overflow-hidden",
+      log.level === "error" && "border-red-200 bg-red-50/50",
+      log.level === "warn" && "border-yellow-200 bg-yellow-50/50",
+      log.level === "info" && "border-blue-100 bg-blue-50/30",
+    )}>
+      <div className="flex items-start gap-2">
+        {levelIcon(log.level)}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-brand-green-dark break-all">{log.message}</span>
+                {log.source && <span className="shrink-0 rounded bg-brand-sand px-1.5 py-0.5 text-[9px] font-medium text-brand-green-dark/50">{log.source}</span>}
+              </div>
+              <p className="mt-0.5 text-[10px] text-brand-green-dark/40">{new Date(log.timestamp).toLocaleString()}</p>
+            </div>
+            <button
+              onClick={copyLog}
+              className="shrink-0 rounded-md p-1 text-brand-green-dark/40 hover:bg-brand-sand hover:text-brand-green-dark transition-colors"
+              title="Copy log entry"
+            >
+              {copied ? <CheckIcon className="h-3.5 w-3.5 text-green-500" /> : <CopyIcon className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+          {log.details && (
+            <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded bg-brand-sand/50 p-2 text-[10px] text-brand-green-dark/60">{log.details}</pre>
+          )}
+        </div>
       </div>
     </div>
   );
