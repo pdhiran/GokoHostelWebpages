@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,18 +9,21 @@ import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, Ca
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import { AdminToastProvider } from "@/components/admin/AdminToast";
-import { AdminDashboard } from "@/components/admin/AdminDashboard";
-import { AdminRecords } from "@/components/admin/AdminRecords";
-import { AdminBeds } from "@/components/admin/AdminBeds";
-import { AdminBookings } from "@/components/admin/AdminBookings";
-import { AdminManagement } from "@/components/admin/AdminManagement";
-import { AdminTimeline } from "@/components/admin/AdminTimeline";
-import { AdminFoodOrders } from "@/components/admin/AdminFoodOrders";
-import { AdminExpenditure } from "@/components/admin/AdminExpenditure";
-import { AdminReviews } from "@/components/admin/AdminReviews";
 import type { Role, AdminSection, ManagementTab } from "@/components/admin/types";
 import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
 import { SyncStatusBar } from "@/components/admin/SyncStatusBar";
+
+const tabLoader = () => <div className="flex items-center justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-green-dark border-t-transparent" /></div>;
+
+const AdminDashboard = dynamic(() => import("@/components/admin/AdminDashboard").then((m) => m.AdminDashboard), { loading: tabLoader });
+const AdminRecords = dynamic(() => import("@/components/admin/AdminRecords").then((m) => m.AdminRecords), { loading: tabLoader });
+const AdminBeds = dynamic(() => import("@/components/admin/AdminBeds").then((m) => m.AdminBeds), { loading: tabLoader });
+const AdminBookings = dynamic(() => import("@/components/admin/AdminBookings").then((m) => m.AdminBookings), { loading: tabLoader });
+const AdminManagement = dynamic(() => import("@/components/admin/AdminManagement").then((m) => m.AdminManagement), { loading: tabLoader });
+const AdminTimeline = dynamic(() => import("@/components/admin/AdminTimeline").then((m) => m.AdminTimeline), { loading: tabLoader });
+const AdminFoodOrders = dynamic(() => import("@/components/admin/AdminFoodOrders").then((m) => m.AdminFoodOrders), { loading: tabLoader });
+const AdminExpenditure = dynamic(() => import("@/components/admin/AdminExpenditure").then((m) => m.AdminExpenditure), { loading: tabLoader });
+const AdminReviews = dynamic(() => import("@/components/admin/AdminReviews").then((m) => m.AdminReviews), { loading: tabLoader });
 
 export default function AdminPage() {
   return (

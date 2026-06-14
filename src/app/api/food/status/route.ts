@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFoodOrderByNumber, getFoodOrderItems, getActiveCheckins, getGuestAllFoodOrders } from "@/db/queries";
+import { getFoodOrderByNumber, getFoodOrderItems, getFoodOrderItemsBatch, getActiveCheckins, getGuestAllFoodOrders } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 
 export async function GET(req: NextRequest) {
@@ -65,23 +65,23 @@ export async function GET(req: NextRequest) {
     }
 
     const allOrders = await getGuestAllFoodOrders(checkin.id);
-    const ordersWithItems = await Promise.all(
-      allOrders.map(async (o) => {
-        const items = await getFoodOrderItems(o.id);
-        return {
-          orderNumber: o.orderNumber,
-          status: o.status,
-          items: items.map((i) => ({
-            menuItemId: i.menuItemId,
-            name: i.itemName,
-            quantity: i.quantity,
-            price: i.itemPrice,
-            lineTotal: i.lineTotal,
-          })),
-          total: o.total,
-          createdAt: o.createdAt,
-        };
-      })
+    const itemsMap = await getFoodOrderItemsBatch(allOrders.map((o) => o.id));
+    const ordersWithItems = allOrders.map((o) => {
+      const items = itemsMap.get(o.id) || [];
+      return {
+        orderNumber: o.orderNumber,
+        status: o.status,
+        items: items.map((i) => ({
+          menuItemId: i.menuItemId,
+          name: i.itemName,
+          quantity: i.quantity,
+          price: i.itemPrice,
+          lineTotal: i.lineTotal,
+        })),
+        total: o.total,
+        createdAt: o.createdAt,
+      };
+    }
     );
 
     return NextResponse.json({ found: true, orders: ordersWithItems });

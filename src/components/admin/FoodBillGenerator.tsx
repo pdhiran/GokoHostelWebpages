@@ -1,6 +1,6 @@
 "use client";
 
-import jsPDF from "jspdf";
+import type jsPDF from "jspdf";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -186,7 +186,8 @@ function drawItemRow(doc: jsPDF, y: number, item: BillOrderItem): number {
 
 // ─── Guest Bill ──────────────────────────────────────────────────────────────
 
-export function generateGuestBill(data: GuestBillData): void {
+export async function generateGuestBill(data: GuestBillData): Promise<void> {
+  const { default: jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   let y = 20;
 
@@ -313,7 +314,8 @@ export function generateGuestBill(data: GuestBillData): void {
 
 // ─── Combined Bill ───────────────────────────────────────────────────────────
 
-export function generateCombinedBill(data: CombinedBillData): void {
+export async function generateCombinedBill(data: CombinedBillData): Promise<void> {
+  const { default: jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   let y = 20;
 

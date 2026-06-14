@@ -625,6 +625,19 @@ export async function getFoodOrderItems(orderId: number) {
   return db.select().from(foodOrderItems).where(eq(foodOrderItems.orderId, orderId));
 }
 
+export async function getFoodOrderItemsBatch(orderIds: number[]) {
+  if (orderIds.length === 0) return new Map<number, Awaited<ReturnType<typeof getFoodOrderItems>>>();
+  const db = getDb();
+  const allItems = await db.select().from(foodOrderItems).where(inArray(foodOrderItems.orderId, orderIds));
+  const grouped = new Map<number, typeof allItems>();
+  for (const item of allItems) {
+    const list = grouped.get(item.orderId) || [];
+    list.push(item);
+    grouped.set(item.orderId, list);
+  }
+  return grouped;
+}
+
 export async function areAllOrderItemsInventory(orderId: number): Promise<boolean> {
   const db = getDb();
   const rows = await db

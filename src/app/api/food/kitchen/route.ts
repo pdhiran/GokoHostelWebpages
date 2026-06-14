@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getActiveFoodOrders,
   getFoodOrderItems,
+  getFoodOrderItemsBatch,
   getOrderModifications,
   updateFoodOrderStatus,
   toggleMenuItemAvailability,
@@ -77,25 +78,24 @@ export async function POST(req: NextRequest) {
       }).from(orderModifications).groupBy(orderModifications.orderId);
       const modCountMap = new Map(modCounts.map((r) => [r.orderId, r.count]));
 
-      const ordersWithItems = await Promise.all(
-        orders.map(async (order) => {
-          const items = await getFoodOrderItems(order.id);
-          return {
-            ...order,
-            hasModifications: (modCountMap.get(order.id) || 0) > 0,
-            items: items.map((i) => ({
-              id: i.id,
-              menuItemId: i.menuItemId,
-              itemName: i.itemName,
-              itemPrice: i.itemPrice,
-              quantity: i.quantity,
-              lineTotal: i.lineTotal,
-              status: i.status,
-              tags: menuItemTags.get(i.menuItemId) || "[]",
-            })),
-          };
-        })
-      );
+      const itemsMap = await getFoodOrderItemsBatch(orders.map((o) => o.id));
+      const ordersWithItems = orders.map((order) => {
+        const items = itemsMap.get(order.id) || [];
+        return {
+          ...order,
+          hasModifications: (modCountMap.get(order.id) || 0) > 0,
+          items: items.map((i) => ({
+            id: i.id,
+            menuItemId: i.menuItemId,
+            itemName: i.itemName,
+            itemPrice: i.itemPrice,
+            quantity: i.quantity,
+            lineTotal: i.lineTotal,
+            status: i.status,
+            tags: menuItemTags.get(i.menuItemId) || "[]",
+          })),
+        };
+      });
 
       const isBusy = (await getSetting("food_kitchen_busy")) === "true";
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getActiveCheckins, getGuestAllFoodOrders, getFoodOrderItems } from "@/db/queries";
+import { getActiveCheckins, getGuestAllFoodOrders, getFoodOrderItems, getFoodOrderItemsBatch } from "@/db/queries";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { getDb } from "@/db/index";
 import { foodOrders, checkins } from "@/db/schema";
@@ -80,15 +80,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2) Walk-in orders by phone match
+    // 2) Walk-in orders by phone match (filtered in SQL with index)
     const walkinRows = await db
       .select()
       .from(foodOrders)
-      .where(and(eq(foodOrders.guestType, "walkin")))
+      .where(and(eq(foodOrders.guestType, "walkin"), eq(foodOrders.guestPhone, normalized)))
       .orderBy(desc(foodOrders.createdAt));
 
     for (const o of walkinRows) {
-      if (!phonesMatch(o.guestPhone, normalized)) continue;
       if (orderMap.has(o.id)) continue;
       orderMap.set(o.id, true);
       allOrders.push({
@@ -109,34 +108,32 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Attach items to each order
-    const ordersWithItems = await Promise.all(
-      allOrders.map(async (o) => {
-        const items = await getFoodOrderItems(o.id);
-        return {
-          orderNumber: o.orderNumber,
-          status: o.status,
-          guestType: o.guestType,
-          guestName: o.guestName,
-          roomInfo: o.roomInfo,
-          subtotal: o.subtotal,
-          tax: o.tax,
-          total: o.total,
-          discount: o.discount,
-          paymentStatus: o.paymentStatus,
-          paymentMethod: o.paymentMethod,
-          createdAt: o.createdAt,
-          checkinId: o.checkinId,
-          items: items.map((i) => ({
-            menuItemId: i.menuItemId,
-            name: i.itemName,
-            quantity: i.quantity,
-            price: i.itemPrice,
-            lineTotal: i.lineTotal,
-          })),
-        };
-      })
-    );
+    const itemsMap = await getFoodOrderItemsBatch(allOrders.map((o) => o.id));
+    const ordersWithItems = allOrders.map((o) => {
+      const items = itemsMap.get(o.id) || [];
+      return {
+        orderNumber: o.orderNumber,
+        status: o.status,
+        guestType: o.guestType,
+        guestName: o.guestName,
+        roomInfo: o.roomInfo,
+        subtotal: o.subtotal,
+        tax: o.tax,
+        total: o.total,
+        discount: o.discount,
+        paymentStatus: o.paymentStatus,
+        paymentMethod: o.paymentMethod,
+        createdAt: o.createdAt,
+        checkinId: o.checkinId,
+        items: items.map((i) => ({
+          menuItemId: i.menuItemId,
+          name: i.itemName,
+          quantity: i.quantity,
+          price: i.itemPrice,
+          lineTotal: i.lineTotal,
+        })),
+      };
+    });
 
     const unpaidOrders = ordersWithItems.filter(
       (o) => o.paymentStatus !== "paid" && o.status !== "cancelled"

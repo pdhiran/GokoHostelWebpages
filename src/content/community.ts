@@ -49,8 +49,8 @@ export const communitySpaces: CommunitySpace[] = [
     description:
       "Need to catch up on work? Our quiet co-working area offers fast WiFi, comfortable seating, and a productive atmosphere for digital nomads.",
     image:
-      "/images/community-area/workspace/Screenshot%20at%20Dec%2006%2022-19-37.png",
-    photos: ["/images/community-area/workspace/Screenshot%20at%20Dec%2006%2022-19-37.png"],
+      "/images/community-area/workspace/Screenshot%20at%20Dec%2006%2022-19-37.jpg",
+    photos: ["/images/community-area/workspace/Screenshot%20at%20Dec%2006%2022-19-37.jpg"],
   },
   {
     title: "Book exchange",
@@ -58,8 +58,8 @@ export const communitySpaces: CommunitySpace[] = [
     description:
       "A carefully curated collection of travel stories, novels, and local guides. Take a book, leave a book, share your favorite reads with fellow travelers.",
     image:
-      "/images/community-area/book-exchange/Screenshot%20at%20Dec%2006%2022-19-37.png",
-    photos: ["/images/community-area/book-exchange/Screenshot%20at%20Dec%2006%2022-19-37.png"],
+      "/images/community-area/book-exchange/Screenshot%20at%20Dec%2006%2022-19-37.jpg",
+    photos: ["/images/community-area/book-exchange/Screenshot%20at%20Dec%2006%2022-19-37.jpg"],
   },
 ];
 
