@@ -96,6 +96,33 @@ When something breaks or behaves unexpectedly, check this log first to see if a 
 
 ---
 
+### 5. Performance Quick Wins (June 14, 2026)
+
+**What changed:**
+- `src/app/admin/page.tsx` — 9 admin tab components converted to `next/dynamic` lazy imports (238KB → 13.5KB initial JS, -94%)
+- `src/components/admin/FoodBillGenerator.tsx` — `jsPDF` changed from top-level import to `await import("jspdf")` inside each generate function; functions now async
+- `src/db/queries.ts` — added `getFoodOrderItemsBatch(orderIds)` for single IN query instead of N+1
+- `src/app/api/admin/food-orders/route.ts` — 7 N+1 patterns replaced with batch query
+- `src/app/api/food/kitchen/route.ts` — N+1 replaced with batch query (kitchen poll: 51 → 2 queries)
+- `src/app/api/food/status/route.ts` — N+1 replaced with batch query
+- `src/app/api/food/bills/route.ts` — N+1 replaced with batch; walk-in phone filter moved to SQL
+- `migrations/0028_performance_indexes.sql` — `guest_phone` index + `sync_updated_at` indexes on 19 tables
+- `src/app/admin/loading.tsx`, `food-order/loading.tsx`, `kitchen/loading.tsx` — loading spinners
+- `src/content/community.ts` — image paths updated to compressed JPGs
+- `public/images/community-area/` — 28 duplicate PNGs deleted, 2 PNGs converted to JPG (101MB → 2.7MB)
+
+**What could break:**
+- Admin tabs now show a brief loading spinner on first click (by design)
+- `generateGuestBill` and `generateCombinedBill` are now async — callers must `await` them. Checked: all call sites already use `.then()` or are in async context
+- Walk-in bills now filter by exact normalized phone match in SQL — if a phone was stored unnormalized, it won't match (order creation already normalizes, so this should be safe)
+- Migration 0028 adds 20 indexes — safe on existing data, slight write overhead
+
+**How to verify:** `npm test` (45 pass). `npm run build`. Admin loads fast, tabs lazy-load. Community area page loads quickly.
+
+**Rollback:** `git revert a0006ea`
+
+---
+
 ## Planned Future Commits (from audit plan)
 
 These haven't been done yet but are planned:
