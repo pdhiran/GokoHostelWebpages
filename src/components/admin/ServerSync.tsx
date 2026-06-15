@@ -184,6 +184,16 @@ export function ServerSync({ password, username, role }: { password: string; use
     }
   }, [apiCall, logLimit]);
 
+  const loadFailoverStatus = useCallback(async () => {
+    const res = await apiCall("getFailoverStatus");
+    if (res && res.ok) {
+      const data = await res.json();
+      setFailoverEnabled(data.failoverEnabled ?? false);
+      setFailoverActive(data.failoverActive ?? false);
+      if (data.piLocalUrl) setPiLocalUrl(data.piLocalUrl);
+    }
+  }, [apiCall]);
+
   useEffect(() => {
     loadStatus();
     loadConflicts();
@@ -254,16 +264,6 @@ export function ServerSync({ password, username, role }: { password: string; use
     }
     setDeploying(false);
   };
-
-  const loadFailoverStatus = useCallback(async () => {
-    const res = await apiCall("getFailoverStatus");
-    if (res && res.ok) {
-      const data = await res.json();
-      setFailoverEnabled(data.failoverEnabled ?? false);
-      setFailoverActive(data.failoverActive ?? false);
-      if (data.piLocalUrl) setPiLocalUrl(data.piLocalUrl);
-    }
-  }, [apiCall]);
 
   const handleToggleFailover = async () => {
     setFailoverLoading(true);
