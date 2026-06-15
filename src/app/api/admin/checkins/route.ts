@@ -211,6 +211,31 @@ export async function POST(req: NextRequest) {
 
       await updateCheckin(rowId, data);
       const guestName = e ? e[3] || "" : entry.name || "";
+      const guestContact = e ? e[5] || "" : entry.contact || "";
+      const newStayingDays = e ? e[6] : entry.stayingDays;
+      const newArrivalDate = e ? e[1] : entry.arrivalDate;
+
+      // Sync bed if stayingDays or arrivalDate changed
+      if (newStayingDays && guestContact) {
+        const allBeds = await getAllBeds();
+        const guestBed = allBeds.find((b) => b.status === "occupied" && b.guestContact === guestContact);
+        if (guestBed) {
+          const days = parseInt(newStayingDays) || 1;
+          const checkin = newArrivalDate || guestBed.checkinDate || new Date().toISOString().split("T")[0];
+          const coDate = new Date(checkin + "T12:00:00Z");
+          coDate.setUTCDate(coDate.getUTCDate() + days);
+          const checkoutDate = coDate.toISOString().split("T")[0];
+          await updateBedStatus(allBeds.indexOf(guestBed), {
+            status: "occupied",
+            guestName: guestName || guestBed.guestName || "",
+            guestContact,
+            checkinDate: checkin,
+            expectedCheckout: checkoutDate,
+            stayingDays: String(days),
+          });
+        }
+      }
+
       await addAuditEntry({ username: actingUser, action: "record_edit", target: `${guestName} (id:${rowId})`, details: JSON.stringify({ fields: Object.keys(data).filter((k) => data[k]) }) });
       return NextResponse.json({ success: true });
     }

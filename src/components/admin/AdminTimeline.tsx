@@ -185,7 +185,7 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                           {isActive && (
                             <div className="absolute left-0 top-full z-30 mt-1 min-w-[150px] rounded-xl border border-brand-mist bg-white p-2.5 shadow-lift"
                               onClick={(e) => e.stopPropagation()}>
-                              {c.info.status === "free" && unassigned.length > 0 && (
+                              {c.info.status === "free" && bed.status === "available" && unassigned.length > 0 && (
                                 <div>
                                   <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-brand-green-dark/40">Assign</p>
                                   {unassigned.slice(0, 5).map((g, gi) => (
@@ -197,7 +197,10 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                                   ))}
                                 </div>
                               )}
-                              {c.info.status === "free" && unassigned.length === 0 && <p className="text-[10px] text-brand-green-dark/40">No guests to assign</p>}
+                              {c.info.status === "free" && bed.status !== "available" && (
+                                <p className="text-[10px] text-amber-600">Bed currently {bed.status === "cleanup" ? "needs cleaning" : "in use"}</p>
+                              )}
+                              {c.info.status === "free" && bed.status === "available" && unassigned.length === 0 && <p className="text-[10px] text-brand-green-dark/40">No guests to assign</p>}
                               {(c.info.status === "occupied" || c.info.status === "checkout") && (
                                 <div>
                                   <p className="mb-1 text-[11px] font-semibold">{bed.guestName}</p>
