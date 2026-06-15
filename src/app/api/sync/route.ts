@@ -414,6 +414,12 @@ export async function POST(request: NextRequest) {
           .where(eq(schema.settings.key, "failover_enabled"));
         const failoverEnabled = enabledRows[0]?.value === "true";
 
+        const piUrlRows = await db
+          .select()
+          .from(schema.settings)
+          .where(eq(schema.settings.key, "pi_local_url"));
+        const piLocalUrl = piUrlRows[0]?.value || null;
+
         let failoverActive = false;
         if (isPiRuntime()) {
           try {
@@ -426,8 +432,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           failoverEnabled,
           failoverActive,
+          piLocalUrl,
           runtime: getRuntimeName(),
         });
+      }
+
+      case "setPiLocalUrl": {
+        const { url: piUrl } = body;
+        await db
+          .insert(schema.settings)
+          .values({ key: "pi_local_url", value: piUrl || "" })
+          .onConflictDoUpdate({
+            target: schema.settings.key,
+            set: { value: piUrl || "" },
+          });
+        return NextResponse.json({ ok: true, piLocalUrl: piUrl });
       }
 
       case "shutdownPi":

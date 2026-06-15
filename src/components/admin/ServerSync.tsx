@@ -120,6 +120,8 @@ export function ServerSync({ password, username, role }: { password: string; use
   const [failoverEnabled, setFailoverEnabled] = useState(false);
   const [failoverActive, setFailoverActive] = useState(false);
   const [failoverLoading, setFailoverLoading] = useState(false);
+  const [piLocalUrl, setPiLocalUrl] = useState("");
+  const [piLocalUrlSaved, setPiLocalUrlSaved] = useState(false);
 
   const apiCall = useCallback(async (action: string, extra?: Record<string, unknown>) => {
     try {
@@ -259,6 +261,7 @@ export function ServerSync({ password, username, role }: { password: string; use
       const data = await res.json();
       setFailoverEnabled(data.failoverEnabled ?? false);
       setFailoverActive(data.failoverActive ?? false);
+      if (data.piLocalUrl) setPiLocalUrl(data.piLocalUrl);
     }
   }, [apiCall]);
 
@@ -269,8 +272,28 @@ export function ServerSync({ password, username, role }: { password: string; use
     if (res && res.ok) {
       setFailoverEnabled(newValue);
       if (!newValue) setFailoverActive(false);
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "UPDATE_FAILOVER_CONFIG",
+          config: { failoverEnabled: newValue, piLocalUrl: piLocalUrl || null },
+        });
+      }
     }
     setFailoverLoading(false);
+  };
+
+  const handleSavePiLocalUrl = async () => {
+    const res = await apiCall("setPiLocalUrl", { url: piLocalUrl.replace(/\/+$/, "") });
+    if (res && res.ok) {
+      setPiLocalUrlSaved(true);
+      setTimeout(() => setPiLocalUrlSaved(false), 2000);
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "UPDATE_FAILOVER_CONFIG",
+          config: { piLocalUrl: piLocalUrl || null },
+        });
+      }
+    }
   };
 
   if (role !== "admin") {
@@ -500,6 +523,25 @@ export function ServerSync({ password, username, role }: { password: string; use
               </span>
             </div>
           </div>
+          {failoverEnabled && (
+            <div className="mt-3 flex items-center gap-2">
+              <label className="text-xs font-medium text-brand-green-dark/60 whitespace-nowrap">Pi Local URL:</label>
+              <input
+                type="text"
+                value={piLocalUrl}
+                onChange={(e) => { setPiLocalUrl(e.target.value); setPiLocalUrlSaved(false); }}
+                placeholder="http://192.168.0.80"
+                className="flex-1 rounded-lg border border-brand-mist px-2.5 py-1.5 text-xs text-brand-green-dark placeholder:text-brand-green-dark/30 focus:border-brand-green focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleSavePiLocalUrl}
+                className="rounded-lg bg-brand-green/10 px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-green/20"
+              >
+                {piLocalUrlSaved ? "Saved!" : "Save"}
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
