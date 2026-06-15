@@ -141,14 +141,11 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const isVisibleOrder = (o: typeof ordersWithItems[0]) =>
-      o.status !== "cancelled" && o.total > 0;
-
     const unpaidOrders = ordersWithItems.filter(
-      (o) => o.paymentStatus !== "paid" && isVisibleOrder(o)
+      (o) => o.paymentStatus !== "paid" && o.status !== "cancelled" && o.total > 0
     );
     const paidOrders = ordersWithItems.filter(
-      (o) => o.paymentStatus === "paid" && isVisibleOrder(o)
+      (o) => o.paymentStatus === "paid" && o.status !== "cancelled"
     );
 
     return NextResponse.json({ unpaidOrders, paidOrders, latestCheckinId });

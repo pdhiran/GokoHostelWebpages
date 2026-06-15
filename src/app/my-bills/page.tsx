@@ -146,6 +146,7 @@ function MyBillsContent() {
 
   const unpaidTotal = unpaidOrders.reduce((sum, o) => sum + o.total, 0);
   const paidTotal = paidOrders.reduce((sum, o) => sum + o.total, 0);
+  const totalDiscount = [...unpaidOrders, ...paidOrders].reduce((sum, o) => sum + (o.discount || 0), 0);
   const totalSpent = unpaidTotal + paidTotal;
 
   return (
@@ -244,7 +245,13 @@ function MyBillsContent() {
                   <span className="text-sm font-medium text-gray-600">Total Spent</span>
                   <span className="text-xl font-bold text-gray-800">₹{Math.round(totalSpent / 100)}</span>
                 </div>
-                <div className="mt-2 flex items-center gap-4 border-t border-gray-100 pt-2">
+                <div className="mt-2 flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                  {totalDiscount > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 rounded-full bg-purple-500" />
+                      <span className="text-sm text-purple-700">₹{Math.round(totalDiscount / 100)} discount</span>
+                    </div>
+                  )}
                   {paidTotal > 0 && (
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-green-500" />
@@ -257,8 +264,11 @@ function MyBillsContent() {
                       <span className="text-sm font-semibold text-amber-700">₹{Math.round(totalSpent / 100) - Math.round(paidTotal / 100)} unpaid</span>
                     </div>
                   )}
-                  {unpaidTotal === 0 && paidTotal > 0 && (
+                  {unpaidTotal === 0 && paidTotal > 0 && !totalDiscount && (
                     <span className="text-sm font-semibold text-green-600">All paid</span>
+                  )}
+                  {unpaidTotal === 0 && paidTotal === 0 && totalDiscount > 0 && (
+                    <span className="text-sm font-semibold text-green-600">All settled</span>
                   )}
                 </div>
               </div>
@@ -386,9 +396,19 @@ function OrderCard({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-800">
-            ₹{Math.round(order.total / 100)}
-          </span>
+          <div className="text-right">
+            {order.discount > 0 && (
+              <span className="mr-1.5 text-xs text-gray-400 line-through">
+                ₹{Math.round((order.total + order.discount) / 100)}
+              </span>
+            )}
+            <span className="text-sm font-semibold text-gray-800">
+              ₹{Math.round(order.total / 100)}
+            </span>
+            {order.discount > 0 && (
+              <p className="text-[10px] text-green-600">-₹{Math.round(order.discount / 100)} off</p>
+            )}
+          </div>
           <svg
             className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
             fill="none"
