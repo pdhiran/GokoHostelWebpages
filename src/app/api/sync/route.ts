@@ -395,6 +395,41 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, backfilled: result });
       }
 
+      case "toggleFailover": {
+        const { enabled: failoverEnabled } = body;
+        await db
+          .insert(schema.settings)
+          .values({ key: "failover_enabled", value: failoverEnabled ? "true" : "false" })
+          .onConflictDoUpdate({
+            target: schema.settings.key,
+            set: { value: failoverEnabled ? "true" : "false" },
+          });
+        return NextResponse.json({ ok: true, failoverEnabled: failoverEnabled });
+      }
+
+      case "getFailoverStatus": {
+        const enabledRows = await db
+          .select()
+          .from(schema.settings)
+          .where(eq(schema.settings.key, "failover_enabled"));
+        const failoverEnabled = enabledRows[0]?.value === "true";
+
+        let failoverActive = false;
+        if (isPiRuntime()) {
+          try {
+            const fs = require("fs");
+            const hostsContent = fs.readFileSync("/etc/dnsmasq.d/failover-hosts", "utf-8").trim();
+            failoverActive = hostsContent.length > 0;
+          } catch {}
+        }
+
+        return NextResponse.json({
+          failoverEnabled,
+          failoverActive,
+          runtime: getRuntimeName(),
+        });
+      }
+
       case "shutdownPi":
       case "deployUpdate": {
         const isPiAction = action === "shutdownPi" || action === "deployUpdate";

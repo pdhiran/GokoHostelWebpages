@@ -433,11 +433,70 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
+## Local DNS Failover
+
+When the hostel's internet goes down, the Pi automatically redirects `gokohostel.com` traffic to itself so staff and guests on the local WiFi experience no disruption.
+
+### How It Works
+- The Pi runs `dnsmasq` as a local DNS server
+- A failover monitor checks internet every 30 seconds
+- If internet is down for 60 seconds, DNS override activates: `gokohostel.com` resolves to the Pi's local IP
+- When internet returns, the override is deactivated within 30 seconds
+- Toggle on/off from the admin UI: Management > Server Sync > Local DNS Failover
+
+### Services
+| Service | Purpose |
+|---------|---------|
+| `dnsmasq.service` | Local DNS server, forwards to 8.8.8.8/1.1.1.1 |
+| `goko-failover.service` | Monitors internet, activates/deactivates DNS override |
+
+### Commands
+```bash
+# Check failover status
+sudo systemctl status goko-failover
+cat /var/log/goko-failover.log
+
+# Check if failover is currently active (non-empty = active)
+cat /etc/dnsmasq.d/failover-hosts
+
+# Manually test DNS resolution
+dig @192.168.0.80 gokohostel.com +short
+
+# Restart dnsmasq
+sudo systemctl restart dnsmasq
+```
+
+### Router DNS Configuration (one-time per location)
+
+For the failover to work, devices on the hostel WiFi must use the Pi as their DNS server.
+
+**For D-Link routers (current setup):**
+1. Open `http://192.168.0.1` in a browser
+2. Go to Setup > Network Settings (or LAN Settings)
+3. Find DHCP Server Settings
+4. Set **Primary DNS** to `192.168.0.80` (the Pi's IP)
+5. Set **Secondary DNS** to `8.8.8.8` (fallback if Pi is down)
+6. Save and reboot router
+
+**For other routers:**
+- Find the DHCP settings and set the Pi's IP as the primary DNS
+- Always set a public DNS (8.8.8.8) as secondary
+
+**After configuring:** Devices will need to reconnect to WiFi (or wait for DHCP lease renewal) to pick up the new DNS server.
+
+### SSL Certificate
+- Self-signed certificate at `/etc/ssl/certs/goko-selfsigned.crt`
+- Valid for 10 years, covers `gokohostel.com` and `*.gokohostel.com`
+- Guests may see a browser SSL warning during failover (expected with self-signed certs)
+
+---
+
 ## Change Log
 
 | Date | Change |
 |------|--------|
 | 2026-06-14 | Fresh setup: Pi OS Lite 64-bit (Bookworm), Node 20, PM2, Nginx, SQLite, swap, scripts, fallback access methods |
+| 2026-06-15 | Added local DNS failover: dnsmasq, failover monitor, self-signed SSL, admin UI toggle |
 
 ---
 

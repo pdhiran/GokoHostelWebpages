@@ -20,6 +20,7 @@ import {
   ChevronDownIcon,
   PowerIcon,
   DownloadIcon,
+  ShieldIcon,
 } from "lucide-react";
 import type { Role } from "./types";
 
@@ -116,6 +117,9 @@ export function ServerSync({ password, username, role }: { password: string; use
   const [shutdownMessage, setShutdownMessage] = useState<string | null>(null);
   const [deploying, setDeploying] = useState(false);
   const [deployMessage, setDeployMessage] = useState<string | null>(null);
+  const [failoverEnabled, setFailoverEnabled] = useState(false);
+  const [failoverActive, setFailoverActive] = useState(false);
+  const [failoverLoading, setFailoverLoading] = useState(false);
 
   const apiCall = useCallback(async (action: string, extra?: Record<string, unknown>) => {
     try {
@@ -182,9 +186,10 @@ export function ServerSync({ password, username, role }: { password: string; use
     loadStatus();
     loadConflicts();
     loadSyncLog();
-    const interval = setInterval(loadStatus, 30000);
+    loadFailoverStatus();
+    const interval = setInterval(() => { loadStatus(); loadFailoverStatus(); }, 30000);
     return () => clearInterval(interval);
-  }, [loadStatus, loadConflicts, loadSyncLog]);
+  }, [loadStatus, loadConflicts, loadSyncLog, loadFailoverStatus]);
 
   const handleSync = async (mode: "full" | "pull" | "push") => {
     setSyncing(mode);
@@ -246,6 +251,26 @@ export function ServerSync({ password, username, role }: { password: string; use
       setDeployMessage("Failed to trigger deploy.");
     }
     setDeploying(false);
+  };
+
+  const loadFailoverStatus = useCallback(async () => {
+    const res = await apiCall("getFailoverStatus");
+    if (res && res.ok) {
+      const data = await res.json();
+      setFailoverEnabled(data.failoverEnabled ?? false);
+      setFailoverActive(data.failoverActive ?? false);
+    }
+  }, [apiCall]);
+
+  const handleToggleFailover = async () => {
+    setFailoverLoading(true);
+    const newValue = !failoverEnabled;
+    const res = await apiCall("toggleFailover", { enabled: newValue });
+    if (res && res.ok) {
+      setFailoverEnabled(newValue);
+      if (!newValue) setFailoverActive(false);
+    }
+    setFailoverLoading(false);
   };
 
   if (role !== "admin") {
@@ -438,6 +463,44 @@ export function ServerSync({ password, username, role }: { password: string; use
             )}
           </div>
         )}
+
+        {/* Local DNS Failover */}
+        <div className="rounded-xl border border-brand-mist bg-white p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <ShieldIcon className={cn("h-5 w-5", failoverActive ? "text-amber-500" : failoverEnabled ? "text-emerald-500" : "text-brand-green-dark/30")} />
+              <div>
+                <p className="text-sm font-medium text-brand-green-dark">Local DNS Failover</p>
+                <p className="text-xs text-brand-green-dark/60">
+                  {failoverActive
+                    ? "Active — local traffic redirected to Pi (internet is down)"
+                    : failoverEnabled
+                    ? "Standby — will activate automatically if internet goes down"
+                    : "Disabled — enable to auto-redirect traffic when internet drops"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {failoverActive && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">ACTIVE</span>
+              )}
+              <button
+                type="button"
+                onClick={handleToggleFailover}
+                disabled={failoverLoading}
+                className="text-brand-green transition-colors hover:text-brand-green-dark"
+                aria-label="Toggle failover"
+              >
+                {failoverEnabled
+                  ? <ToggleRightIcon className="h-6 w-6 text-brand-green" />
+                  : <ToggleLeftIcon className="h-6 w-6 text-brand-green-dark/30" />}
+              </button>
+              <span className={cn("text-xs font-semibold", failoverEnabled ? "text-brand-green" : "text-brand-green-dark/40")}>
+                {failoverEnabled ? "ON" : "OFF"}
+              </span>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Section B: Sync Controls */}
