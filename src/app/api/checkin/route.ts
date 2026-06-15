@@ -319,6 +319,12 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Check-in API error:", error?.message || error);
     addSystemLog({ level: "error", source: "checkin", message: error?.message || "Unknown error" }).catch(() => {});
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const raw = error?.message || "Internal server error";
+    const userMessage = raw.includes("Failed query") || raw.includes("D1_ERROR")
+      ? "Database temporarily unavailable. Please try again."
+      : raw.includes("UNIQUE") || raw.includes("unique")
+        ? "Duplicate entry detected. This check-in may already exist."
+        : "Check-in failed. Please try again.";
+    return NextResponse.json({ error: userMessage }, { status: 500 });
   }
 }

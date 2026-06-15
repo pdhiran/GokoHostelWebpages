@@ -193,15 +193,12 @@ export async function incrementStat(apiType: "vision" | "sheets" | "drive", coun
 
   const existing = await db.select().from(apiStats).where(eq(apiStats.month, month));
   if (existing.length > 0) {
-    const row = existing[0];
-    const updated = {
-      vision: row.vision + (apiType === "vision" ? count : 0),
-      sheets: row.sheets + (apiType === "sheets" ? count : 0),
-      drive: row.drive + (apiType === "drive" ? count : 0),
-      total: 0,
-    };
-    updated.total = updated.vision + updated.sheets + updated.drive;
-    await db.update(apiStats).set(updated).where(eq(apiStats.month, month));
+    await db.update(apiStats).set({
+      vision: sql`${apiStats.vision} + ${apiType === "vision" ? count : 0}`,
+      sheets: sql`${apiStats.sheets} + ${apiType === "sheets" ? count : 0}`,
+      drive: sql`${apiStats.drive} + ${apiType === "drive" ? count : 0}`,
+      total: sql`${apiStats.total} + ${count}`,
+    }).where(eq(apiStats.month, month));
   } else {
     const vision = apiType === "vision" ? count : 0;
     const sheets = apiType === "sheets" ? count : 0;

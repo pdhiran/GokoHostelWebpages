@@ -344,6 +344,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error: any) {
     console.error("Kitchen API error:", error?.message || error);
-    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
+    const raw = error?.message || "Internal server error";
+    const userMessage = raw.includes("Failed query") || raw.includes("D1_ERROR")
+      ? "Database temporarily unavailable. Please try again."
+      : "Something went wrong. Please try again.";
+    return NextResponse.json({ error: userMessage }, { status: 500 });
   }
 }

@@ -165,7 +165,12 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  } catch {
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Admin reviews API error:", error?.message || error);
+    const raw = error?.message || "Internal error";
+    const userMessage = raw.includes("Failed query") || raw.includes("D1_ERROR")
+      ? "Database temporarily unavailable. Please try again."
+      : raw;
+    return NextResponse.json({ error: userMessage }, { status: 500 });
   }
 }

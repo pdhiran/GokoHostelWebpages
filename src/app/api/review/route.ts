@@ -80,7 +80,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  } catch {
+  } catch (error: any) {
+    console.error("Review API error:", error?.message || error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

@@ -140,6 +140,40 @@ When something breaks or behaves unexpectedly, check this log first to see if a 
 
 ---
 
+### 7. D1 Transaction Bug Fix & Error Handling Audit (June 15, 2026)
+
+**What changed:**
+- `src/app/api/food/order/route.ts` — removed `db.transaction()` wrapper around order creation. On D1/SQLite, the inner functions (`createFoodOrder`, `addFoodOrderItems`, `decrementStock`) each call `getDb()` independently, creating separate Drizzle instances that conflict with the open transaction, causing 500 errors. The individual operations are now called sequentially without a transaction wrapper.
+- `src/db/queries.ts` — `incrementStat()` converted from read-modify-write to atomic SQL (`SET vision = vision + ?`), fixing a race condition where concurrent API calls could lose stat updates.
+- Error handling improved in 6 API routes:
+  - `admin/food-orders/route.ts` — D1-aware error message instead of generic "Internal server error"
+  - `admin/expenses/route.ts` — same D1-aware error message improvement
+  - `admin/reviews/route.ts` — added `console.error` logging (was silently swallowing errors) + D1-aware error message
+  - `review/route.ts` — added `console.error` logging (was silently swallowing errors)
+  - `checkin/route.ts` — user-friendly error messages for D1, duplicate, and generic failures
+  - `food/kitchen/route.ts` — filtered raw D1 error internals from kitchen staff-facing responses
+
+**What could break:**
+- Nothing — transaction removal was the bug fix (the transaction was the cause of 500 errors)
+- `incrementStat()` now uses SQL arithmetic; if the `apiStats` table schema doesn't support `SET vision = vision + ?`, the stats would fail (verified: SQLite/D1 handles this correctly)
+- Error messages changed from generic to more specific — if any client code parses error strings, it would see different text (unlikely, but possible)
+
+**What was NOT changed (confirmed safe):**
+- Codebase audit confirmed zero remaining `.transaction()` calls in `src/`
+- Zero `db.batch()` calls found
+- All atomic stock operations (`decrementStock`, `addStock`, `restoreStock`) already use SQL arithmetic (`SET qty = qty - ?`) — correctly implemented in commit 3
+- `deleteOrdersByIds()` does 3 sequential deletes without transaction — acceptable for admin-only cleanup operation
+- `deleteDormAndBeds()` and `deleteMenuCategory()` do multi-step deletes without transaction — acceptable for admin-only operations with pre-validation
+- All `sql` template literals use parameterized values — no SQL injection risk
+
+**Root cause of original bug:** Drizzle's `db.transaction(async (tx) => { ... })` expects all inner operations to use the `tx` parameter. But the query functions in `queries.ts` call `getDb()` internally, creating fresh Drizzle instances that bypass the transaction. On D1/SQLite, this creates conflicting connections that cause `SQLITE_BUSY` / `SQLITE_LOCKED` errors manifesting as 500s.
+
+**How to verify:** `npm run build` passes. `npm test` passes. Place a food order — should succeed without 500 errors.
+
+**Rollback:** `git revert <commit-hash>`
+
+---
+
 ## Planned Future Commits (from audit plan)
 
 These haven't been done yet but are planned:
