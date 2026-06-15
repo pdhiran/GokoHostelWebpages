@@ -207,6 +207,7 @@ export function AdminFoodBill({
                       <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Room/Bed</th>
                       <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Orders</th>
                       <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Total Spent</th>
+                      <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Discount</th>
                       <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Cash</th>
                       <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Online</th>
                       <th className="whitespace-nowrap px-3 py-3 font-display text-xs font-bold uppercase tracking-wide text-brand-green-dark/70">Unpaid</th>
@@ -221,6 +222,16 @@ export function AdminFoodBill({
                         <td className="whitespace-nowrap px-3 py-3 text-brand-green-dark/90">{g.orderCount || 0}</td>
                         <td className="whitespace-nowrap px-3 py-3 font-medium text-brand-green-dark">
                           ₹{((g.totalSpent || 0) / 100).toFixed(0)}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-purple-700">
+                          {(g.totalDiscount || 0) > 0 ? (
+                            <span>
+                              ₹{((g.totalDiscount || 0) / 100).toFixed(0)}
+                              <span className="ml-1 text-[10px] text-purple-500">
+                                ({Math.round(((g.totalDiscount || 0) / ((g.totalSpent || 0) + (g.totalDiscount || 0))) * 100)}%)
+                              </span>
+                            </span>
+                          ) : "—"}
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-emerald-700">
                           ₹{((g.cashPaid || 0) / 100).toFixed(0)}

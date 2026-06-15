@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
 
         const guestMap = new Map<string, {
           guestName: string; guestPhone: string; roomInfo: string; checkinId: number | null;
-          totalSpent: number; cashPaid: number; onlinePaid: number; unpaid: number; orderCount: number;
+          totalSpent: number; totalDiscount: number; cashPaid: number; onlinePaid: number; unpaid: number; orderCount: number;
         }>();
 
         for (const order of orders) {
@@ -280,11 +280,11 @@ export async function POST(req: NextRequest) {
           const existing = guestMap.get(key);
           if (existing) {
             existing.totalSpent += order.total;
+            existing.totalDiscount += order.discount || 0;
             existing.orderCount += 1;
             if (order.paymentStatus === "paid" && order.paymentMethod === "cash") existing.cashPaid += order.total;
             else if (order.paymentStatus === "paid") existing.onlinePaid += order.total;
             else existing.unpaid += order.total;
-            // Update contact/room if available and currently missing
             if (!existing.guestPhone && order.guestPhone) existing.guestPhone = order.guestPhone;
             if (!existing.roomInfo && order.roomInfo) existing.roomInfo = order.roomInfo;
           } else {
@@ -294,6 +294,7 @@ export async function POST(req: NextRequest) {
               roomInfo: order.roomInfo || "",
               checkinId: order.checkinId,
               totalSpent: order.total,
+              totalDiscount: order.discount || 0,
               cashPaid: order.paymentStatus === "paid" && order.paymentMethod === "cash" ? order.total : 0,
               onlinePaid: order.paymentStatus === "paid" && order.paymentMethod !== "cash" ? order.total : 0,
               unpaid: order.paymentStatus !== "paid" ? order.total : 0,
