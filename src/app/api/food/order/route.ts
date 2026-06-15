@@ -12,7 +12,6 @@ import {
   decrementStock,
   updateFoodOrderStatus,
 } from "@/db/queries";
-import { getDb } from "@/db";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
 import { sendPushToAll } from "@/lib/pushNotify";
@@ -182,54 +181,51 @@ export async function POST(req: NextRequest) {
     let orderNumber = await getNextOrderNumber();
     let order: any;
 
-    const db = getDb();
-    await db.transaction(async (tx) => {
-      const orderData = {
-        orderNumber,
-        idempotencyKey: idempotencyKey || undefined,
-        guestType: guestType || "walkin",
-        checkinId: checkinId || undefined,
-        guestName,
-        guestPhone: normalizePhone(guestPhone || ""),
-        roomInfo: roomInfo || "",
-        tableNumber: tableNumber || "",
-        specialInstructions: specialInstructions || "",
-        subtotal,
-        tax,
-        total,
-        status: initialStatus,
-        paymentStatus: guestType === "hostel" && checkinId ? "on_tab" : "pending",
-        createdBy: createdBy || "guest",
-      };
+    const orderData = {
+      orderNumber,
+      idempotencyKey: idempotencyKey || undefined,
+      guestType: guestType || "walkin",
+      checkinId: checkinId || undefined,
+      guestName,
+      guestPhone: normalizePhone(guestPhone || ""),
+      roomInfo: roomInfo || "",
+      tableNumber: tableNumber || "",
+      specialInstructions: specialInstructions || "",
+      subtotal,
+      tax,
+      total,
+      status: initialStatus,
+      paymentStatus: guestType === "hostel" && checkinId ? "on_tab" : "pending",
+      createdBy: createdBy || "guest",
+    };
 
-      try {
-        const result = await createFoodOrder(orderData);
+    try {
+      const result = await createFoodOrder(orderData);
+      order = result[0];
+    } catch (err: any) {
+      if (err?.message?.includes("UNIQUE") || err?.message?.includes("unique")) {
+        orderNumber = await getNextOrderNumber();
+        const result = await createFoodOrder({ ...orderData, orderNumber });
         order = result[0];
-      } catch (err: any) {
-        if (err?.message?.includes("UNIQUE") || err?.message?.includes("unique")) {
-          orderNumber = await getNextOrderNumber();
-          const result = await createFoodOrder({ ...orderData, orderNumber });
-          order = result[0];
-        } else {
-          throw err;
-        }
+      } else {
+        throw err;
       }
+    }
 
-      await addFoodOrderItems(
-        validatedItems.map((v) => ({
-          orderId: order.id,
-          menuItemId: v.menuItemId,
-          itemName: v.itemName,
-          itemPrice: v.itemPrice,
-          quantity: v.quantity,
-          lineTotal: v.lineTotal,
-        }))
-      );
+    await addFoodOrderItems(
+      validatedItems.map((v) => ({
+        orderId: order.id,
+        menuItemId: v.menuItemId,
+        itemName: v.itemName,
+        itemPrice: v.itemPrice,
+        quantity: v.quantity,
+        lineTotal: v.lineTotal,
+      }))
+    );
 
-      for (const v of validatedItems) {
-        await decrementStock(v.menuItemId, v.quantity);
-      }
-    });
+    for (const v of validatedItems) {
+      await decrementStock(v.menuItemId, v.quantity);
+    }
 
     // Auto-skip to "ready" if all items are inventory-tracked and order is placed (not pending)
     if (initialStatus === "placed" && validatedItems.length > 0 && validatedItems.every((v) => v.trackInventory)) {
@@ -252,7 +248,11 @@ export async function POST(req: NextRequest) {
       total,
     });
   } catch (error: any) {
-    console.error("Food order error:", error?.message || error);
-    return NextResponse.json({ error: "Failed to place order" }, { status: 500 });
+    const msg = error?.message || String(error);
+    console.error("Food order error:", msg);
+    return NextResponse.json(
+      { error: "Failed to place order", detail: msg },
+      { status: 500 }
+    );
   }
 }

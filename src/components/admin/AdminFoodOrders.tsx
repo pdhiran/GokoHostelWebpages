@@ -70,6 +70,7 @@ interface Guest {
   arrivalDate: string;
   stayingDays: string;
   bedInfo: string;
+  checkedOut?: boolean;
 }
 
 interface GuestWithTab {
@@ -478,6 +479,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
               <div className="mt-2 flex items-center justify-between rounded-lg bg-brand-green/[0.05] px-3 py-2">
                 <div>
                   <span className="text-sm font-medium text-brand-green-dark">{selectedGuest.name}</span>
+                  {selectedGuest.checkedOut && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Checked out</span>}
                   {selectedGuest.bedInfo && <span className="ml-2 text-xs text-brand-green-dark/60">{selectedGuest.bedInfo}</span>}
                 </div>
                 <button type="button" onClick={() => setSelectedGuest(null)} className="text-xs text-red-500">Change</button>
@@ -494,6 +496,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
                     className="w-full px-3 py-2 text-left text-sm hover:bg-brand-green/[0.04] border-b border-brand-mist last:border-0"
                   >
                     <span className="font-medium">{g.name}</span>
+                    {g.checkedOut && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Checked out</span>}
                     {g.bedInfo && <span className="ml-2 text-xs text-brand-green-dark/50">{g.bedInfo}</span>}
                   </button>
                 ))}

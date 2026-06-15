@@ -20,6 +20,7 @@ import {
   getGuestAllFoodOrders,
   getFoodOrdersByCheckinIds,
   getActiveCheckins,
+  getRecentlyCheckedOutGuests,
   getAllBeds,
   addAuditEntry,
   getUserByUsername,
@@ -540,10 +541,16 @@ export async function POST(req: NextRequest) {
       }
 
       case "getActiveGuests": {
-        const guests = await getActiveCheckins();
-        const allBeds = await getAllBeds();
+        const graceDaysStr = await getSetting("food_checkout_grace_days");
+        const graceDays = Number(graceDaysStr) || 10;
+        const [guests, allBeds, checkedOutGuests] = await Promise.all([
+          getActiveCheckins(),
+          getAllBeds(),
+          graceDays > 0 ? getRecentlyCheckedOutGuests(graceDays) : Promise.resolve([]),
+        ]);
         const occupiedBeds = allBeds.filter((b) => b.status === "occupied");
 
+        const activeIds = new Set(guests.map((g) => g.id));
         const guestList = guests.map((g) => {
           const bed = occupiedBeds.find(
             (b) => b.guestName === g.name || b.guestContact === g.contact
@@ -555,8 +562,23 @@ export async function POST(req: NextRequest) {
             arrivalDate: g.arrivalDate,
             stayingDays: g.stayingDays,
             bedInfo: bed ? `${bed.dormName} - Bed ${bed.bedId}` : "",
+            checkedOut: false,
           };
         });
+
+        for (const g of checkedOutGuests) {
+          if (activeIds.has(g.id)) continue;
+          guestList.push({
+            id: g.id,
+            name: g.name,
+            contact: g.contact,
+            arrivalDate: g.arrivalDate,
+            stayingDays: g.stayingDays,
+            bedInfo: "",
+            checkedOut: true,
+          });
+        }
+
         return NextResponse.json({ role, guests: guestList });
       }
 
