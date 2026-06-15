@@ -423,10 +423,11 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     }
   };
 
-  const pendingApprovalOrders = useMemo(() => orders.filter((o) => o.status === "pending_approval"), [orders]);
-  const placedOrders = useMemo(() => orders.filter((o) => o.status === "placed"), [orders]);
-  const preparingOrders = useMemo(() => orders.filter((o) => o.status === "preparing"), [orders]);
-  const readyOrders = useMemo(() => orders.filter((o) => o.status === "ready"), [orders]);
+  const hasActiveItems = (o: Order) => o.items.some((i) => i.status !== "voided");
+  const pendingApprovalOrders = useMemo(() => orders.filter((o) => o.status === "pending_approval" && hasActiveItems(o)), [orders]);
+  const placedOrders = useMemo(() => orders.filter((o) => o.status === "placed" && hasActiveItems(o)), [orders]);
+  const preparingOrders = useMemo(() => orders.filter((o) => o.status === "preparing" && hasActiveItems(o)), [orders]);
+  const readyOrders = useMemo(() => orders.filter((o) => o.status === "ready" && hasActiveItems(o)), [orders]);
 
   const displayMenuItems = useMemo(() => {
     if (kannadaDisplayEnabled) return menuItems;

@@ -129,21 +129,26 @@ export async function GET(req: NextRequest) {
         paymentMethod: o.paymentMethod,
         createdAt: o.createdAt,
         checkinId: o.checkinId,
-        items: items.map((i) => ({
-          menuItemId: i.menuItemId,
-          name: i.itemName,
-          quantity: i.quantity,
-          price: i.itemPrice,
-          lineTotal: i.lineTotal,
-        })),
+        items: items
+          .filter((i) => i.quantity > 0 && i.lineTotal > 0)
+          .map((i) => ({
+            menuItemId: i.menuItemId,
+            name: i.itemName,
+            quantity: i.quantity,
+            price: i.itemPrice,
+            lineTotal: i.lineTotal,
+          })),
       };
     });
 
+    const isVisibleOrder = (o: typeof ordersWithItems[0]) =>
+      o.status !== "cancelled" && o.total > 0;
+
     const unpaidOrders = ordersWithItems.filter(
-      (o) => o.paymentStatus !== "paid" && o.status !== "cancelled"
+      (o) => o.paymentStatus !== "paid" && isVisibleOrder(o)
     );
     const paidOrders = ordersWithItems.filter(
-      (o) => o.paymentStatus === "paid"
+      (o) => o.paymentStatus === "paid" && isVisibleOrder(o)
     );
 
     return NextResponse.json({ unpaidOrders, paidOrders, latestCheckinId });
