@@ -4,20 +4,23 @@ const OFFLINE_URL = "/admin";
 // --- Failover State ---
 let failoverConfig = { failoverEnabled: false, piLocalUrl: null, runtime: "cloudflare" };
 let lastConfigFetch = 0;
+let configPollTimer = null;
 const CONFIG_POLL_INTERVAL = 60000; // 1 minute
+const CONFIG_POLL_DISABLED_INTERVAL = 300000; // 5 minutes when disabled (light check)
 
 async function refreshFailoverConfig() {
   const now = Date.now();
-  if (now - lastConfigFetch < CONFIG_POLL_INTERVAL) return;
+  if (now - lastConfigFetch < 10000) return; // debounce: at most once per 10s
   lastConfigFetch = now;
 
   try {
     const res = await fetch("/api/failover-config", { cache: "no-store" });
     if (res.ok) {
+      const prev = failoverConfig.failoverEnabled;
       failoverConfig = await res.json();
+      scheduleConfigPoll();
     }
   } catch {
-    // Primary unreachable -- if we have a Pi URL, try fetching config from there
     if (failoverConfig.piLocalUrl) {
       try {
         const piRes = await fetch(`${failoverConfig.piLocalUrl}/api/failover-config`, { cache: "no-store" });
@@ -29,6 +32,14 @@ async function refreshFailoverConfig() {
   }
 }
 
+function scheduleConfigPoll() {
+  if (configPollTimer) clearInterval(configPollTimer);
+  const interval = failoverConfig.failoverEnabled
+    ? CONFIG_POLL_INTERVAL         // ON: poll every 60s
+    : CONFIG_POLL_DISABLED_INTERVAL; // OFF: light check every 5 min
+  configPollTimer = setInterval(refreshFailoverConfig, interval);
+}
+
 // --- Install & Activate ---
 
 self.addEventListener("install", (event) => {
@@ -37,7 +48,7 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    clients.claim().then(() => refreshFailoverConfig())
+    clients.claim().then(() => refreshFailoverConfig().then(scheduleConfigPoll))
   );
 });
 
@@ -58,11 +69,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/_next/")) return;
 
   // Only intercept if failover is enabled and we have a Pi URL
-  if (!failoverConfig.failoverEnabled || !failoverConfig.piLocalUrl) {
-    // Still refresh config periodically on normal requests
-    event.waitUntil(refreshFailoverConfig());
-    return;
-  }
+  if (!failoverConfig.failoverEnabled || !failoverConfig.piLocalUrl) return;
 
   event.respondWith(handleWithFailover(event.request));
 });
@@ -72,8 +79,6 @@ async function handleWithFailover(request) {
     // Try the primary server first (current origin)
     const response = await fetchWithTimeout(request.clone(), 8000);
     if (response.ok || response.status < 500) {
-      // Primary worked -- refresh config in background
-      refreshFailoverConfig();
       return response;
     }
     // 5xx error -- fall through to failover
@@ -137,6 +142,7 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "UPDATE_FAILOVER_CONFIG") {
     failoverConfig = { ...failoverConfig, ...event.data.config };
     lastConfigFetch = Date.now();
+    scheduleConfigPoll();
   }
   if (event.data?.type === "REFRESH_CONFIG") {
     lastConfigFetch = 0;
