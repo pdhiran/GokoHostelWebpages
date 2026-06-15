@@ -95,6 +95,24 @@ export async function POST(request: NextRequest) {
               records: remoteTotal,
               lastSeen: new Date().toISOString(),
             };
+            await db.insert(schema.settings).values({
+              key: "last_remote_heartbeat",
+              value: JSON.stringify(remoteServer),
+            }).onConflictDoUpdate({
+              target: schema.settings.key,
+              set: { value: JSON.stringify(remoteServer) },
+            });
+          } else {
+            const cachedRows = await db
+              .select()
+              .from(schema.settings)
+              .where(eq(schema.settings.key, "last_remote_heartbeat"));
+            if (cachedRows[0]?.value) {
+              try {
+                const cached = JSON.parse(cachedRows[0].value);
+                remoteServer = { ...cached, online: false };
+              } catch {}
+            }
           }
         } else {
           internetConnected = true;
