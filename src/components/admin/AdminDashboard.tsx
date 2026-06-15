@@ -18,7 +18,7 @@ export function AdminDashboard({
   password: string;
   username?: string;
   role: Role;
-  onNavigate: (section: AdminSection) => void;
+  onNavigate: (section: AdminSection, opts?: { assignGuestContact?: string }) => void;
   permissions?: Record<string, boolean>;
 }) {
   const { apiCall } = useAdminApi(password, username);
@@ -283,7 +283,7 @@ export function AdminDashboard({
                         {item.assignedBed}
                       </span>
                     ) : (
-                      <button type="button" onClick={() => onNavigate("beds")}
+                      <button type="button" onClick={() => onNavigate("beds", { assignGuestContact: item.row[5] })}
                         className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 active:bg-blue-200">
                         Assign bed
                       </button>

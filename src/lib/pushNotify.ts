@@ -50,6 +50,7 @@ export async function sendPushToAll(payload: PushPayload) {
           message: {
             payload: pushPayload,
             adminContact: "mailto:admin@gokohostel.com",
+            options: { urgency: "high" },
           },
         });
 
@@ -58,8 +59,12 @@ export async function sendPushToAll(payload: PushPayload) {
         if (res.status === 410 || res.status === 404) {
           await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
         }
-      } catch {
-        // Individual push failure should not break the loop
+
+        if (!res.ok && res.status !== 201) {
+          console.error(`Push delivery failed: ${res.status} ${res.statusText} for ${sub.endpoint.slice(0, 60)}...`);
+        }
+      } catch (err) {
+        console.error("Push send error:", err instanceof Error ? err.message : err);
       }
     })
   );

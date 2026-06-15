@@ -50,6 +50,7 @@ function AdminPageInner() {
     validValues: ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "reviews", "management"],
   });
   const [managementTab, setManagementTab] = useState<ManagementTab | undefined>();
+  const [pendingAssignGuest, setPendingAssignGuest] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<"admin" | "manager" | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
@@ -389,9 +390,9 @@ function AdminPageInner() {
 
       {/* Section content */}
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
-        {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={setSection} permissions={permissions} />}
+        {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); setSection(s); }} permissions={permissions} />}
         {section === "bookings" && <AdminBookings password={password} username={username} role={role} permissions={permissions} />}
-        {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} />}
+        {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} pendingAssignGuest={pendingAssignGuest} onPendingAssignConsumed={() => setPendingAssignGuest(null)} />}
         {section === "timeline" && <AdminTimeline password={password} username={username} role={role} permissions={permissions} />}
         {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}
         {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} permissions={permissions} />}

@@ -141,7 +141,7 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
   );
 }
 
-export function AdminBeds({ password, username, role, permissions = {} }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
+export function AdminBeds({ password, username, role, permissions = {}, pendingAssignGuest, onPendingAssignConsumed }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean>; pendingAssignGuest?: string | null; onPendingAssignConsumed?: () => void }) {
   const { apiCall } = useAdminApi(password, username);
   const { showError } = useAdminToast();
   const [beds, setBeds] = useState<BedRow[]>([]);
@@ -155,6 +155,16 @@ export function AdminBeds({ password, username, role, permissions = {} }: { pass
   const [checkingOut, setCheckingOut] = useState(false);
 
   useEffect(() => { loadBeds(); }, []);
+
+  useEffect(() => {
+    if (!pendingAssignGuest || loading || unassigned.length === 0) return;
+    const guest = unassigned.find((g) => g[5] === pendingAssignGuest);
+    if (guest) {
+      setChangingBed(null);
+      setAssigningGuest(guest);
+    }
+    onPendingAssignConsumed?.();
+  }, [pendingAssignGuest, loading, unassigned]);
 
   const loadBeds = async () => {
     setLoading(true);

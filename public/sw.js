@@ -1,4 +1,4 @@
-const CACHE_NAME = "goko-admin-v2";
+const CACHE_NAME = "goko-admin-v3";
 const OFFLINE_URL = "/admin";
 
 // --- Failover State ---
@@ -150,36 +150,44 @@ self.addEventListener("message", (event) => {
   }
 });
 
-// --- Push Notifications (unchanged) ---
+// --- Push Notifications ---
 
 self.addEventListener("push", (event) => {
   const showNotif = async () => {
-    let title = "Goko Hostel";
-    let body = "";
+    let title = "Goko";
+    let body = "You have a new update";
     let icon = "/icons/icon-192.png";
     let url = "/admin";
     let tag = "goko-notification";
 
-    if (event.data) {
-      try {
-        const payload = event.data.json();
-        if (payload && typeof payload === "object") {
-          title = payload.title || title;
-          body = payload.body || body;
-          icon = payload.icon || icon;
-          url = payload.url || url;
-          tag = payload.tag || tag;
+    try {
+      if (event.data) {
+        let data = null;
+        try {
+          data = event.data.json();
+        } catch {
+          // payload wasn't valid JSON — try plain text
         }
-      } catch {
-        const text = event.data.text();
-        if (text && text.length < 200) {
-          body = text;
+
+        if (data && typeof data === "object") {
+          if (data.title) title = String(data.title);
+          if (data.body) body = String(data.body);
+          if (data.icon) icon = String(data.icon);
+          if (data.url) url = String(data.url);
+          if (data.tag) tag = String(data.tag);
+        } else if (!data) {
+          const text = event.data.text();
+          if (text && text.length > 0 && text.length < 500) {
+            body = text;
+          }
         }
       }
+    } catch {
+      // Parsing failed entirely — fall through with defaults
     }
 
-    await self.registration.showNotification(title, {
-      body: body || "You have a new update",
+    return self.registration.showNotification(title, {
+      body,
       icon,
       badge: "/icons/icon-192.png",
       data: { url },

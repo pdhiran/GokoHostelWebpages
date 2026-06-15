@@ -869,6 +869,9 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                               <FileTextIcon className="h-3 w-3" /> Form C
                             </button>
                           )}
+                          {row[18] === "checked_out" && row[19] && (Date.now() - new Date(row[19]).getTime() < 24 * 60 * 60 * 1000) && hasPermission(role, permissions, "canEditRecords") && (
+                            <button type="button" onClick={() => undoCheckout(origIdx)} className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-100">Reactivate</button>
+                          )}
                           {hasPermission(role, permissions, "canEditRecords") && (
                             <button type="button" onClick={() => startEdit(origIdx)} className="flex items-center gap-1 rounded-lg bg-brand-sand px-2 py-1 text-[10px] font-medium text-brand-green-dark/70 hover:bg-brand-green/10">
                               <PencilIcon className="h-3 w-3" /> Edit
