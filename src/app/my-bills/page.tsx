@@ -249,7 +249,9 @@ function MyBillsContent() {
                   {totalDiscount > 0 && (
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-purple-500" />
-                      <span className="text-sm text-purple-700">₹{Math.round(totalDiscount / 100)} discount</span>
+                      <span className="text-sm text-purple-700">
+                        {Math.round((totalDiscount / (totalSpent + totalDiscount)) * 100)}% off (₹{Math.round(totalDiscount / 100)})
+                      </span>
                     </div>
                   )}
                   {paidTotal > 0 && (
@@ -406,7 +408,9 @@ function OrderCard({
               ₹{Math.round(order.total / 100)}
             </span>
             {order.discount > 0 && (
-              <p className="text-[10px] text-green-600">-₹{Math.round(order.discount / 100)} off</p>
+              <p className="text-[10px] text-green-600">
+                {Math.round((order.discount / (order.total + order.discount)) * 100)}% off (₹{Math.round(order.discount / 100)})
+              </p>
             )}
           </div>
           <svg
