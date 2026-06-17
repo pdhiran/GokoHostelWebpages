@@ -449,6 +449,87 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, piLocalUrl: piUrl });
       }
 
+      case "resetAndReseed": {
+        if (!isPiRuntime()) {
+          return NextResponse.json({ error: "resetAndReseed can only run on Pi" }, { status: 400 });
+        }
+        const SYNCED_TABLES = [
+          "order_modifications", "food_order_items", "food_orders",
+          "salary_payments", "daily_income", "daily_ledger",
+          "expenses", "bed_history", "beds", "bookings",
+          "menu_items", "menu_categories",
+          "accounts", "vendors", "employees",
+          "qr_history", "users", "checkins", "dorms",
+        ];
+        // Clear sync infrastructure
+        await db.delete(schema.syncConflicts);
+        await db.delete(schema.syncLog);
+        await db.delete(schema.syncIdMap);
+        // Clear all synced tables (children first due to FKs)
+        for (const t of SYNCED_TABLES) {
+          await db.run(sql.raw(`DELETE FROM "${t}"`));
+        }
+        // Clear syncable settings
+        await db.run(sql.raw(`DELETE FROM settings WHERE key NOT IN ('auto_sync_enabled','primary_server','pi_local_url','last_sync_at')`));
+
+        // Now pull everything from Cloudflare
+        const cfUrl = process.env.CLOUDFLARE_SITE_URL || "https://www.gokohostel.com";
+        const pullRes = await fetch(`${cfUrl}/api/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password: process.env.ADMIN_PASSWORD,
+            syncSecret: process.env.SYNC_SECRET,
+            action: "pull",
+            since: "1970-01-01T00:00:00Z",
+            limit: 10000,
+          }),
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (!pullRes.ok) {
+          const err = await pullRes.text();
+          return NextResponse.json({ error: `Failed to pull from Cloudflare: ${err}` }, { status: 502 });
+        }
+
+        const pullData = await pullRes.json();
+        const payloads = pullData.payloads || [];
+
+        let totalInserted = 0;
+        for (const payload of payloads) {
+          const result = await applyPullRecords(db, [payload], "pi");
+          totalInserted += result.applied;
+        }
+
+        // Update last sync timestamp
+        await db
+          .insert(schema.settings)
+          .values({ key: "last_sync_at", value: new Date().toISOString() })
+          .onConflictDoUpdate({
+            target: schema.settings.key,
+            set: { value: new Date().toISOString() },
+          });
+
+        // Log it
+        await db.insert(schema.syncLog).values({
+          direction: "reseed",
+          status: "completed",
+          recordsPulled: totalInserted,
+          recordsPushed: 0,
+          conflictsFound: 0,
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          details: `Reset and reseeded from Cloudflare. ${payloads.length} tables, ${totalInserted} records.`,
+        });
+
+        return NextResponse.json({
+          ok: true,
+          tablesCleared: SYNCED_TABLES.length,
+          recordsImported: totalInserted,
+          tablesImported: payloads.length,
+        });
+      }
+
       case "shutdownPi":
       case "deployUpdate": {
         const isPiAction = action === "shutdownPi" || action === "deployUpdate";
