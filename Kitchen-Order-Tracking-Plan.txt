@@ -1,0 +1,275 @@
+================================================================================
+         KITCHEN ORDER COMPLETION TRACKING — GokoWeb
+================================================================================
+
+Project: GokoWeb  |  Date: June 12, 2026  |  Status: Proposal (Pre-Implementation)
+
+Proposals to solve the "when is a table's entire order done?" problem within
+the existing kitchen ordering system, given the constraint that kitchen staff
+cannot maintain per-item statuses.
+
+================================================================================
+  1. CURRENT SYSTEM ANALYSIS
+================================================================================
+
+The existing order lifecycle in GokoWeb:
+
+    placed --> preparing --> ready --> served --> (disappears from kitchen view)
+
+Key observations from the codebase:
+
+  * Order-level status, not item-level: foodOrders.status tracks the whole
+    order (placed, preparing, ready, served, cancelled). Individual
+    foodOrderItems.status is only "active" or "voided" — no per-item
+    preparation tracking.
+
+  * Kitchen Dashboard is a Kanban board: Three columns — New / Preparing /
+    Ready. A single button press moves the entire order through each stage.
+
+  * "Served" is the terminal state: Clicking "MARK SERVED" sets
+    status = 'served' and the order disappears from the kitchen view.
+
+  * No table-level aggregation: Orders are per-guest/per-submission. If a
+    table of 4 places 3 separate orders, there is no concept of "Table 5
+    is fully served."
+
+  * tableNumber exists but is underused: The field is optional and not used
+    for grouping or completion logic.
+
+
+================================================================================
+  2. THE CORE PROBLEM
+================================================================================
+
+There is no mechanism to answer: "Have all orders associated with Table X
+been moved to served?"
+
+  1. Orders are individual, not grouped by table.
+  2. Even within a single order, "served" means the whole order card was
+     dismissed, but items were physically served incrementally.
+  3. Kitchen staff press one button per order when they think it is done,
+     but there is no verification or aggregation.
+
+
+================================================================================
+  3. PROPOSALS
+================================================================================
+
+--------------------------------------------------------------------------------
+  PROPOSAL A: "Last-Item Confirmation"                        [Very Low Effort]
+--------------------------------------------------------------------------------
+
+Concept: When the kitchen marks an order as "Ready", show a confirmation
+checklist of all items. Kitchen staff unchecks anything not yet done. If
+everything is checked, order moves to ready.
+
+  - Keep existing flow: placed --> preparing --> ready --> served
+  - Quick confirmation checklist shown before transitioning preparing --> ready
+  - If any item unchecked, order stays in preparing with a visual indicator
+  - No schema changes — purely a UI-level gate
+
+  PROS                                      CONS
+  ----------------------------------------  ----------------------------------------
+  Zero schema migration                     Does not solve multi-order-per-table
+  Single extra tap for kitchen staff        Relies on kitchen honesty at final moment
+  Works within existing Kanban flow         Only works at single-order level
+
+
+--------------------------------------------------------------------------------
+  PROPOSAL B: "Table-Level Order Grouping"                      [Medium Effort]
+--------------------------------------------------------------------------------
+
+Concept: Group all active orders by tableNumber and automatically detect
+when every order for a table has reached served.
+
+  - Make tableNumber mandatory for dine-in orders; use roomInfo for hostel
+  - Add "Tables" view — grid showing table number, active orders, completion %
+  - When all orders for a table reach served, show "FULLY SERVED" badge
+  - Optional tableSession concept — opens on first order, closes when clear
+
+  PROS                                      CONS
+  ----------------------------------------  ----------------------------------------
+  Solves multi-order-per-table directly     Requires consistent table number entry
+  "Bird's eye view" of the dining floor     Schema migration needed
+  Auto-completion, no extra taps needed     Does not solve within-order serving
+
+
+--------------------------------------------------------------------------------
+  PROPOSAL C: "Auto-Serve Timer"                                  [Low Effort]
+--------------------------------------------------------------------------------
+
+Concept: When kitchen marks an order as ready, start a configurable timer
+(e.g., 10 min). If staff doesn't tap "MARK SERVED" in time, system
+auto-transitions to served.
+
+  - Add readyAt timestamp to foodOrders
+  - Show countdown on ready orders; add undo mechanism
+  - Configurable via food_auto_serve_minutes setting
+
+  PROS                                      CONS
+  ----------------------------------------  ----------------------------------------
+  Reduces manual steps, orders clear auto   Heuristic — may mark served when not
+  Compensates for staff forgetting          Creates false data in the system
+  Very low implementation effort            No real-time item-level visibility
+
+
+--------------------------------------------------------------------------------
+  PROPOSAL D: "Item-Level Checkoff at Serving"              [Medium-High Effort]
+--------------------------------------------------------------------------------
+
+Concept: When an order is ready, instead of "MARK SERVED", show a checkoff
+list. Service staff taps items as they deliver (or "Serve All" for bulk).
+Auto-completes when all items checked.
+
+  - Add servedAt column to foodOrderItems; add "served" status to items
+  - Progress indicator in Ready column: "2/5 items served"
+  - "Serve All" shortcut keeps it fast for simple orders
+
+  PROS                                      CONS
+  ----------------------------------------  ----------------------------------------
+  Most accurate tracking of actual serving  Service staff must interact per-item
+  Directly solves "when is table done?"     Needs device at serving counter/staff
+  "Serve All" = zero-cost for simple orders More complex UI changes
+
+
+--------------------------------------------------------------------------------
+  PROPOSAL E: "All Out" Button                                [Very Low Effort]
+--------------------------------------------------------------------------------
+
+Concept (from Operations Critique): Add a single "ALL OUT" button in the
+kitchen that the cook taps when the last item of an order physically leaves
+the kitchen. Triggers a push notification to service staff. Digitizes the
+existing bell-ringing behavior.
+
+  - Split ready into ready (kitchen done) and dispatched (food left counter)
+  - One tap, one notification — zero behavioral change for kitchen staff
+  - Add dispatchedAt timestamp to foodOrders
+
+
+================================================================================
+  4. COMPARISON MATRIX
+================================================================================
+
+  Criteria              |  A         |  B        |  C          |  D           |  E
+  ----------------------+------------+-----------+-------------+--------------+-----------
+  Implementation effort |  Very Low  |  Medium   |  Low        |  Medium-High |  Very Low
+  Schema changes        |  None      |  Small    |  Small      |  Small       |  Tiny
+  Staff behavior change |  Minimal   |  Minimal  |  None       |  Moderate    |  None
+  Accuracy              |  Good      |  Good     |  UNRELIABLE |  Best        |  Good
+  Multi-order tables    |  No        |  Yes      |  Partially  |  Yes (w/ B)  |  No
+  Data integrity        |  High      |  High     |  LOW        |  Highest     |  High
+
+
+================================================================================
+  5. MULTI-AGENT DEBATE RESULTS
+================================================================================
+
+Four agents debated these proposals from distinct perspectives.
+
+
+AGENT 1: Minimalist Advocate (Pro-A)
+-------------------------------------
+Verdict: Ship A immediately (zero migrations, zero risk). Collect usage data.
+Evaluate D later based on evidence, not assumption. Skip B (unreliable data).
+Skip C permanently (don't automate human judgment about food delivery).
+
+Strongest critique: The tableNumber field is optional and underused. Making it
+mandatory will produce junk entries. Table grouping looks great in a demo but
+collapses with unreliable input data.
+
+
+AGENT 2: Systems Thinker (Pro-B+C)
+-------------------------------------
+Verdict: Build C first (2-3 hours), then B (1-2 days). Only B directly models
+the entity the problem is about: the table session.
+
+Strongest critique: A fundamentally cannot answer "Is Table 5 fully served?"
+when a table has multiple orders. Treats the symptom, not the disease.
+
+
+AGENT 3: Quality Advocate (Pro-D)
+-------------------------------------
+Verdict: D + B is the ideal combination. Skip C entirely — it adds complexity
+for inaccurate data.
+
+Strongest critique: Auto-serve (C) introduces lies into the data. Every metric
+built on this — table turnover, kitchen efficiency, revenue per hour — will be
+polluted by false timestamps.
+
+
+AGENT 4: Restaurant Operations Skeptic
+-----------------------------------------
+Verdict: All proposals overestimate staff willingness to interact with screens.
+Proposed Proposal E — digitize the bell-ringing behavior with one button and a
+push notification.
+
+Strongest critique: Is "not knowing when a table is done" actually the pain
+point? Or is it billing confusion, duplicate prep, or slow table turnover?
+
+
+  *** KEY CONSENSUS ***
+
+  Proposal C (auto-serve timer) drew the strongest criticism from ALL agents.
+  Auto-marking orders as served creates worse problems than it solves —
+  false confidence in completion data.
+
+
+================================================================================
+  6. REVISED RECOMMENDATION
+================================================================================
+
+PHASE 1: "All Out" Notification (1-2 days)              <-- RECOMMENDED START
+--------------------------------------------------------------------------------
+
+  - Split the current "ready" status into two: ready (kitchen done preparing)
+    and dispatched (food has left the kitchen counter).
+
+  - Add an "ALL OUT" button in the kitchen dashboard that transitions from
+    ready --> dispatched, sending a push notification to service staff.
+
+  - This digitizes the existing bell-ringing pattern with ZERO behavioral
+    change for kitchen staff.
+
+  - No new tables needed. Add dispatchedAt timestamp to foodOrders.
+
+  - Add stale order alerts: if an order sits in "Ready" for >5 minutes,
+    highlight it with a pulsing red border.
+
+  New flow:
+
+    placed --> preparing --> ready --> dispatched --> served
+
+
+PHASE 2: Table-Level View (3-5 days, if needed)
+--------------------------------------------------------------------------------
+
+  - Add the table-grouped completion view using tableNumber / roomInfo.
+
+  - Only pursue this IF Phase 1 data shows multi-order-per-table is a
+    real pattern.
+
+  - Use touch-friendly table selector buttons (not text input) to ensure
+    data quality.
+
+  - Optional: Add tableSessions table for formal table lifecycle tracking.
+
+
+WHAT TO DROP
+--------------------------------------------------------------------------------
+
+  DROP Proposal C entirely. Auto-serve creates false confidence. If staff
+  forget to mark served, that is a signal the system should surface (stale
+  order alerts), not hide.
+
+
+WHAT TO KEEP FOR LATER
+--------------------------------------------------------------------------------
+
+  Keep D as a future option if the restaurant grows and serving accuracy
+  becomes critical for analytics.
+
+
+================================================================================
+GokoWeb — Kitchen Order Completion Tracking Plan — June 2026
+Generated from multi-agent debate with 4 independent perspectives
+================================================================================

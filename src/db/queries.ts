@@ -2,6 +2,7 @@ import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
 import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
+import { syncInsert, syncUpdate } from "./syncMeta";
 
 // --- Check-ins ---
 
@@ -22,19 +23,19 @@ export async function addCheckin(data: {
   dob?: string; dobFromId?: string;
 }) {
   const db = getDb();
-  return db.insert(checkins).values(data);
+  return db.insert(checkins).values(syncInsert(data));
 }
 
 export async function updateCheckin(id: number, data: Partial<typeof checkins.$inferInsert>) {
   return dbWrite(() => {
     const db = getDb();
-    return db.update(checkins).set(data).where(eq(checkins.id, id));
+    return db.update(checkins).set(syncUpdate(data)).where(eq(checkins.id, id));
   }, { idempotentWrite: true });
 }
 
 export async function markVibeMatched(id: number) {
   const db = getDb();
-  return db.update(checkins).set({ vibeMatched: 1 }).where(eq(checkins.id, id));
+  return db.update(checkins).set(syncUpdate({ vibeMatched: 1 })).where(eq(checkins.id, id));
 }
 
 export async function deleteCheckin(id: number) {
@@ -74,7 +75,7 @@ export async function getDormByName(name: string) {
 
 export async function addDorm(name: string) {
   const db = getDb();
-  return db.insert(dorms).values({ name, createdAt: new Date().toISOString() });
+  return db.insert(dorms).values(syncInsert({ name, createdAt: new Date().toISOString() }));
 }
 
 export async function deleteDormAndBeds(dormId: number) {
@@ -134,13 +135,13 @@ export async function updateBedStatus(bedId: number, data: {
 }) {
   return dbWrite(() => {
     const db = getDb();
-    return db.update(beds).set(data).where(eq(beds.id, bedId));
+    return db.update(beds).set(syncUpdate(data)).where(eq(beds.id, bedId));
   }, { idempotentWrite: true });
 }
 
 export async function addBed(data: { dormId: number; dormName: string; bedId: string; position: string; type: string }) {
   const db = getDb();
-  return db.insert(beds).values({ ...data, status: "available", guestName: "", guestContact: "", checkinDate: "", expectedCheckout: "", stayingDays: "" });
+  return db.insert(beds).values(syncInsert({ ...data, status: "available", guestName: "", guestContact: "", checkinDate: "", expectedCheckout: "", stayingDays: "" }));
 }
 
 export async function deleteBed(bedId: number) {
@@ -154,7 +155,7 @@ export async function logBedHistoryEntry(data: {
   bedIdLabel: string; dormName: string; action: string; guestName: string; guestContact: string;
 }) {
   const db = getDb();
-  return db.insert(bedHistory).values({ ...data, createdAt: new Date().toISOString() });
+  return db.insert(bedHistory).values(syncInsert({ ...data, createdAt: new Date().toISOString() }));
 }
 
 export async function getBedHistoryAll() {
@@ -179,9 +180,9 @@ export async function getSetting(key: string): Promise<string | null> {
 
 export async function setSetting(key: string, value: string) {
   const db = getDb();
-  await db.insert(settings).values({ key, value }).onConflictDoUpdate({
+  await db.insert(settings).values({ key, value, ...syncUpdate({}) }).onConflictDoUpdate({
     target: settings.key,
-    set: { value },
+    set: syncUpdate({ value }),
   });
 }
 
@@ -243,12 +244,12 @@ export async function createUser(data: {
   role: string; permissions: string; createdBy?: string;
 }) {
   const db = getDb();
-  return db.insert(users).values({
+  return db.insert(users).values(syncInsert({
     ...data,
     createdAt: new Date().toISOString(),
     createdBy: data.createdBy || "",
     isSystem: 0,
-  });
+  }));
 }
 
 export async function updateUser(userId: number, data: {
@@ -261,7 +262,7 @@ export async function updateUser(userId: number, data: {
     if (data.passwordHash !== undefined) updateData.passwordHash = data.passwordHash;
     if (data.role !== undefined) updateData.role = data.role;
     if (data.permissions !== undefined) updateData.permissions = data.permissions;
-    return db.update(users).set(updateData).where(eq(users.id, userId));
+    return db.update(users).set(syncUpdate(updateData)).where(eq(users.id, userId));
   }, { idempotentWrite: true });
 }
 
@@ -350,7 +351,7 @@ export async function addBooking(data: {
   property?: string; rawData?: string;
 }) {
   const db = getDb();
-  return db.insert(bookings).values({
+  return db.insert(bookings).values(syncInsert({
     guestName: data.guestName,
     contact: data.contact || "",
     platform: data.platform,
@@ -367,12 +368,12 @@ export async function addBooking(data: {
     rawData: data.rawData || "",
     createdAt: new Date().toISOString(),
     syncedAt: "",
-  });
+  }));
 }
 
 export async function updateBookingStatus(id: number, status: string) {
   const db = getDb();
-  return db.update(bookings).set({ status }).where(eq(bookings.id, id));
+  return db.update(bookings).set(syncUpdate({ status })).where(eq(bookings.id, id));
 }
 
 export async function deleteBooking(id: number) {
@@ -438,19 +439,19 @@ export async function getAllMenuCategories() {
 
 export async function addMenuCategory(data: { name: string; nameKannada?: string; icon?: string; description?: string; displayOrder?: number }) {
   const db = getDb();
-  return db.insert(menuCategories).values({
+  return db.insert(menuCategories).values(syncInsert({
     name: data.name,
     nameKannada: data.nameKannada || "",
     icon: data.icon || "🍽️",
     description: data.description || "",
     displayOrder: data.displayOrder || 0,
     isActive: 1,
-  });
+  }));
 }
 
 export async function updateMenuCategory(id: number, data: Partial<typeof menuCategories.$inferInsert>) {
   const db = getDb();
-  return db.update(menuCategories).set(data).where(eq(menuCategories.id, id));
+  return db.update(menuCategories).set(syncUpdate(data)).where(eq(menuCategories.id, id));
 }
 
 export async function deleteMenuCategory(id: number) {
@@ -525,7 +526,7 @@ export async function addMenuItem(data: {
   trackInventory?: number; stockQuantity?: number; lowStockThreshold?: number;
 }) {
   const db = getDb();
-  return db.insert(menuItems).values({
+  return db.insert(menuItems).values(syncInsert({
     categoryId: data.categoryId,
     name: data.name,
     nameKannada: data.nameKannada || "",
@@ -540,12 +541,12 @@ export async function addMenuItem(data: {
     trackInventory: data.trackInventory ?? 0,
     stockQuantity: data.stockQuantity ?? 0,
     lowStockThreshold: data.lowStockThreshold ?? 5,
-  });
+  }));
 }
 
 export async function updateMenuItem(id: number, data: Partial<typeof menuItems.$inferInsert>) {
   const db = getDb();
-  return db.update(menuItems).set(data).where(eq(menuItems.id, id));
+  return db.update(menuItems).set(syncUpdate(data)).where(eq(menuItems.id, id));
 }
 
 export async function deleteMenuItem(id: number) {
@@ -555,7 +556,7 @@ export async function deleteMenuItem(id: number) {
 
 export async function toggleMenuItemAvailability(id: number, isAvailable: number) {
   const db = getDb();
-  return db.update(menuItems).set({ isAvailable }).where(eq(menuItems.id, id));
+  return db.update(menuItems).set(syncUpdate({ isAvailable })).where(eq(menuItems.id, id));
 }
 
 // --- Food Orders ---
@@ -569,7 +570,7 @@ export async function createFoodOrder(data: {
 }) {
   const db = getDb();
   const now = new Date().toISOString();
-  return db.insert(foodOrders).values({
+  return db.insert(foodOrders).values(syncInsert({
     orderNumber: data.orderNumber,
     idempotencyKey: data.idempotencyKey || null,
     guestType: data.guestType,
@@ -587,7 +588,7 @@ export async function createFoodOrder(data: {
     createdBy: data.createdBy || "guest",
     createdAt: now,
     updatedAt: now,
-  }).returning();
+  })).returning();
 }
 
 export async function addFoodOrderItems(items: Array<{
@@ -595,7 +596,7 @@ export async function addFoodOrderItems(items: Array<{
   itemPrice: number; quantity: number; lineTotal: number;
 }>) {
   const db = getDb();
-  return db.insert(foodOrderItems).values(items);
+  return db.insert(foodOrderItems).values(items.map((item) => syncInsert(item)));
 }
 
 export async function getFoodOrdersByStatus(status: string) {
@@ -675,7 +676,7 @@ export async function updateFoodOrderStatus(id: number, status: string, cancelle
     data.cancelledAt = new Date().toISOString();
     if (cancelledReason) data.cancelledReason = cancelledReason;
   }
-  return db.update(foodOrders).set(data).where(eq(foodOrders.id, id));
+  return db.update(foodOrders).set(syncUpdate(data)).where(eq(foodOrders.id, id));
 }
 
 export async function updateFoodOrderPayment(id: number, data: {
@@ -683,14 +684,14 @@ export async function updateFoodOrderPayment(id: number, data: {
   cashReceived?: number; changeGiven?: number;
 }) {
   const db = getDb();
-  return db.update(foodOrders).set({
+  return db.update(foodOrders).set(syncUpdate({
     paymentStatus: data.paymentStatus,
     paymentMethod: data.paymentMethod || "",
     paidBy: data.paidBy || "",
     cashReceived: data.cashReceived ?? 0,
     changeGiven: data.changeGiven ?? 0,
     updatedAt: new Date().toISOString(),
-  }).where(eq(foodOrders.id, id));
+  })).where(eq(foodOrders.id, id));
 }
 
 export async function getGuestFoodTab(checkinId: number) {
@@ -740,7 +741,7 @@ export async function addOrderModification(data: {
   oldValue?: string; newValue?: string; reason?: string; modifiedBy: string;
 }) {
   const db = getDb();
-  return db.insert(orderModifications).values({
+  return db.insert(orderModifications).values(syncInsert({
     orderId: data.orderId,
     action: data.action,
     itemId: data.itemId,
@@ -749,7 +750,7 @@ export async function addOrderModification(data: {
     reason: data.reason || "",
     modifiedBy: data.modifiedBy,
     createdAt: new Date().toISOString(),
-  });
+  }));
 }
 
 export async function getOrderModifications(orderId: number) {
@@ -786,10 +787,10 @@ export async function getFoodOrdersByCheckinIds(checkinIds: number[]) {
 
 export async function updateFoodOrder(id: number, data: Partial<typeof foodOrders.$inferInsert>) {
   const db = getDb();
-  return db.update(foodOrders).set({
+  return db.update(foodOrders).set(syncUpdate({
     ...data,
     updatedAt: new Date().toISOString(),
-  }).where(eq(foodOrders.id, id));
+  })).where(eq(foodOrders.id, id));
 }
 
 export async function deleteFoodOrderItem(id: number) {
@@ -799,10 +800,10 @@ export async function deleteFoodOrderItem(id: number) {
 
 export async function updateFoodOrderItemQuantity(orderItemId: number, newQuantity: number, itemPrice: number) {
   const db = getDb();
-  return db.update(foodOrderItems).set({
+  return db.update(foodOrderItems).set(syncUpdate({
     quantity: newQuantity,
     lineTotal: newQuantity * itemPrice,
-  }).where(eq(foodOrderItems.id, orderItemId));
+  })).where(eq(foodOrderItems.id, orderItemId));
 }
 
 // --- Active Checkins for Food Lookup ---
@@ -882,7 +883,7 @@ export async function addExpense(data: {
 }) {
   const db = getDb();
   const now = new Date().toISOString();
-  return db.insert(expenses).values({ ...data, createdAt: now, updatedAt: now });
+  return db.insert(expenses).values(syncInsert({ ...data, createdAt: now, updatedAt: now }));
 }
 
 export async function getExpensesByMonth(month: string) {
@@ -900,7 +901,7 @@ export async function getExpensesByUser(username: string, days: number) {
 
 export async function updateExpense(id: number, data: { amount?: number; category?: string; customCategory?: string; purpose?: string; billImageLink?: string; updatedBy: string }) {
   const db = getDb();
-  return db.update(expenses).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(expenses.id, id));
+  return db.update(expenses).set(syncUpdate({ ...data, updatedAt: new Date().toISOString() })).where(eq(expenses.id, id));
 }
 
 export async function deleteExpense(id: number) {
