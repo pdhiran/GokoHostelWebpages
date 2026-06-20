@@ -213,11 +213,11 @@ function AdminPageInner() {
                 exit="exit"
                 className="mt-6 space-y-3"
               >
-                <p className="text-center text-sm text-brand-green-dark/70 dark:text-zinc-400">Select your access level</p>
+                <p className="text-center text-sm text-brand-green-dark/70 dark:text-muted-foreground">Select your access level</p>
                 <button
                   type="button"
                   onClick={() => setSelectedRole("admin")}
-                  className="w-full rounded-xl border-2 border-brand-green bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:bg-brand-green/[0.04] dark:hover:bg-zinc-800 hover:shadow-soft dark:hover:shadow-none hover:-translate-y-0.5"
+                  className="w-full rounded-xl border-2 border-brand-green bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:bg-brand-green/[0.04] dark:hover:bg-accent hover:shadow-soft dark:hover:shadow-none hover:-translate-y-0.5"
                 >
                   <span className="font-display text-base font-bold text-brand-green">Admin Access</span>
                   <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-muted-foreground">Full access: view, add, modify, and delete entries</p>
@@ -225,9 +225,9 @@ function AdminPageInner() {
                 <button
                   type="button"
                   onClick={() => setSelectedRole("manager")}
-                  className="w-full rounded-xl border-2 border-brand-mist dark:border-zinc-700 bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:border-brand-green/30 hover:shadow-soft dark:hover:shadow-none hover:-translate-y-0.5"
+                  className="w-full rounded-xl border-2 border-brand-mist dark:border-border bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:border-brand-green/30 hover:shadow-soft dark:hover:shadow-none hover:-translate-y-0.5"
                 >
-                  <span className="font-display text-base font-bold text-brand-green-dark dark:text-zinc-200">Staff Access</span>
+                  <span className="font-display text-base font-bold text-brand-green-dark dark:text-foreground">Staff Access</span>
                   <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-muted-foreground">View records and add new entries</p>
                 </button>
               </motion.div>
@@ -241,7 +241,7 @@ function AdminPageInner() {
                 onSubmit={(e) => { e.preventDefault(); login(); }}
                 className="mt-6 space-y-4"
               >
-                <p className="text-center text-sm text-brand-green-dark/70 dark:text-zinc-400">
+                <p className="text-center text-sm text-brand-green-dark/70 dark:text-muted-foreground">
                   {selectedRole === "admin" ? "Enter admin password" : "Staff login"}
                 </p>
                 {selectedRole === "manager" && (
@@ -280,8 +280,8 @@ function AdminPageInner() {
                     </motion.p>
                   )}
                 </AnimatePresence>
-                <label className="flex items-center gap-2 text-sm text-brand-green-dark/70 dark:text-zinc-400">
-                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-brand-mist dark:border-zinc-600" />
+                <label className="flex items-center gap-2 text-sm text-brand-green-dark/70 dark:text-muted-foreground">
+                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-brand-mist dark:border-border" />
                   Keep me signed in
                 </label>
                 <Button type="submit" variant="cta" className="w-full" disabled={loading || !password || (selectedRole === "manager" && !username)}>
@@ -290,7 +290,7 @@ function AdminPageInner() {
                 <button
                   type="button"
                   onClick={() => { setSelectedRole(null); setPassword(""); setUsername(""); setError(""); }}
-                  className="w-full text-center text-sm text-brand-green-dark/60 dark:text-zinc-500 transition-colors hover:text-brand-green"
+                  className="w-full text-center text-sm text-brand-green-dark/60 dark:text-muted-foreground transition-colors hover:text-brand-green"
                 >
                   Back to role selection
                 </button>
@@ -323,13 +323,13 @@ function AdminPageInner() {
   return (
     <section className="min-h-screen bg-brand-sand dark:bg-background">
       {/* Top navigation */}
-      <nav className="sticky top-0 z-30 border-b border-brand-mist dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-none">
+      <nav className="sticky top-0 z-30 border-b border-brand-mist dark:border-border bg-white/90 dark:bg-card/90 backdrop-blur-md shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-none">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-2 sm:px-6">
           {/* Mobile/Tablet hamburger */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="rounded-lg p-2 text-brand-green-dark/70 dark:text-zinc-400 transition-colors hover:bg-brand-green/[0.06] dark:hover:bg-zinc-800 lg:hidden"
+            className="rounded-lg p-2 text-brand-green-dark/70 dark:text-muted-foreground transition-colors hover:bg-brand-green/[0.06] dark:hover:bg-accent lg:hidden"
           >
             <motion.div animate={{ rotate: mobileMenuOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
               {mobileMenuOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
@@ -347,7 +347,7 @@ function AdminPageInner() {
                   "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   section === item.id
                     ? "text-white"
-                    : "text-brand-green-dark/70 dark:text-zinc-400 hover:bg-brand-green/[0.06] dark:hover:bg-zinc-800"
+                    : "text-brand-green-dark/70 dark:text-muted-foreground hover:bg-brand-green/[0.06] dark:hover:bg-accent"
                 )}
               >
                 {section === item.id && (
@@ -366,13 +366,13 @@ function AdminPageInner() {
           </div>
 
           {/* Active section label on mobile/tablet */}
-          <span className="text-sm font-semibold text-brand-green-dark dark:text-zinc-200 lg:hidden">
+          <span className="text-sm font-semibold text-brand-green-dark dark:text-foreground lg:hidden">
             {NAV_ITEMS.find((i) => i.id === section)?.label || "Admin"}
           </span>
 
           <div className="flex items-center gap-3">
             <PwaInstallBanner password={password} username={username} />
-            <span className="hidden text-xs font-medium uppercase tracking-wide text-brand-green-dark/50 dark:text-zinc-500 sm:inline">
+            <span className="hidden text-xs font-medium uppercase tracking-wide text-brand-green-dark/50 dark:text-muted-foreground sm:inline">
               {username ? `${username} · ${role}` : role}
             </span>
             {username && (
@@ -407,7 +407,7 @@ function AdminPageInner() {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="overflow-hidden border-t border-brand-mist dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm lg:hidden"
+              className="overflow-hidden border-t border-brand-mist dark:border-border bg-white/95 dark:bg-card/95 backdrop-blur-sm lg:hidden"
             >
               <motion.div
                 variants={staggerContainer}
@@ -424,8 +424,8 @@ function AdminPageInner() {
                     className={cn(
                       "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                       section === item.id
-                        ? "bg-brand-green text-white dark:text-zinc-900 shadow-sm"
-                        : "text-brand-green-dark/70 dark:text-zinc-400 hover:bg-brand-green/[0.06] dark:hover:bg-zinc-800"
+                        ? "bg-brand-green text-white dark:text-primary-foreground shadow-sm"
+                        : "text-brand-green-dark/70 dark:text-muted-foreground hover:bg-brand-green/[0.06] dark:hover:bg-accent"
                     )}
                   >
                     {item.icon}
@@ -492,8 +492,8 @@ function AdminPageInner() {
                 className="pointer-events-auto w-full max-w-sm rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-xl dark:shadow-none sm:p-6"
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display text-lg font-bold text-brand-green-dark dark:text-zinc-100">Change Password</h3>
-                  <button type="button" onClick={() => setShowChangePassword(false)} className="rounded-md p-1 text-brand-green-dark/40 dark:text-zinc-500 transition-colors hover:text-brand-green-dark dark:hover:text-zinc-200">
+                  <h3 className="font-display text-lg font-bold text-brand-green-dark dark:text-foreground">Change Password</h3>
+                  <button type="button" onClick={() => setShowChangePassword(false)} className="rounded-md p-1 text-brand-green-dark/40 dark:text-muted-foreground transition-colors hover:text-brand-green-dark dark:hover:text-foreground">
                     <XIcon className="h-5 w-5" />
                   </button>
                 </div>
