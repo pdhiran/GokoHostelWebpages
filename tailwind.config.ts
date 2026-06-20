@@ -2,17 +2,18 @@ import type { Config } from "tailwindcss";
 import type { PluginAPI } from "tailwindcss/types/config";
 
 const config: Config = {
+  darkMode: "class",
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
       colors: {
         brand: {
-          red: "#EA3639",
-          "red-deep": "#D32F2F",
-          green: "#2d5c3f",
-          "green-dark": "#1a3d2a",
-          sand: "#faf8f4",
-          mist: "rgba(45, 92, 63, 0.08)",
+          red: "rgb(var(--brand-red) / <alpha-value>)",
+          "red-deep": "rgb(var(--brand-red-deep) / <alpha-value>)",
+          green: "rgb(var(--brand-green) / <alpha-value>)",
+          "green-dark": "rgb(var(--brand-green-dark) / <alpha-value>)",
+          sand: "rgb(var(--brand-sand) / <alpha-value>)",
+          mist: "rgb(var(--brand-mist) / 0.08)",
         },
         border: "var(--border)",
         input: "var(--input)",

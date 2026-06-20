@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { useAdminApi } from "./useAdminApi";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { staggerContainer, staggerItem } from "@/lib/animations";
 import { ChevronDownIcon, ChevronRightIcon, LogOutIcon, SparklesIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 import { parseBedRow, type Role, type BedRow } from "./types";
 import { AdminLoading } from "./AdminLoading";
@@ -108,6 +110,7 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
 
         {dorms.length === 0 && <div className="py-12 text-center text-sm text-brand-green-dark/40">No dorms configured</div>}
 
+        <motion.div variants={staggerContainer} initial="hidden" animate="visible">
         {dorms.map((dormName, dormIdx) => {
           const dormBeds = beds.map((b) => ({ bed: b, idx: b.id })).filter(({ bed }) => bed.dormName === dormName);
           const isOpen = !collapsed.has(dormName);
@@ -124,9 +127,9 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
           const dc = dormColors[dormIdx % dormColors.length];
 
           return (
-            <div key={dormName}>
+            <motion.div key={dormName} variants={staggerItem}>
               {/* Dorm header */}
-              <div className={cn("flex cursor-pointer border-b border-brand-mist border-l-4 hover:brightness-95", dc.border, dc.header)}
+              <div className={cn("flex cursor-pointer border-b border-brand-mist border-l-4 transition-all duration-200 hover:brightness-95", dc.border, dc.header)}
                 onClick={(e) => { e.stopPropagation(); setCollapsed((p) => { const n = new Set(p); n.has(dormName) ? n.delete(dormName) : n.add(dormName); return n; }); }}>
                 <div className="flex w-full items-center gap-2 px-3 py-2">
                   {isOpen ? <ChevronDownIcon className="h-3.5 w-3.5 text-brand-green-dark/40" /> : <ChevronRightIcon className="h-3.5 w-3.5 text-brand-green-dark/40" />}
@@ -156,7 +159,7 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                 }
 
                 return (
-                  <div key={idx} className={cn("flex border-b border-brand-mist/60 border-l-4", dc.border, isBusy && "opacity-40")}>
+                  <div key={idx} className={cn("flex border-b border-brand-mist/60 border-l-4 transition-all duration-200 hover:bg-brand-sand/20", dc.border, isBusy && "opacity-40")}>
                     <div className={cn("flex w-[140px] shrink-0 items-center gap-1.5 border-r border-brand-mist px-3 py-1.5", dc.bg)}>
                       {isBusy && <Loader2Icon className="h-3 w-3 animate-spin text-brand-green" />}
                       <span className="text-[11px] font-semibold text-brand-green-dark">{bed.bedId}</span>
@@ -191,7 +194,7 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                                   {unassigned.slice(0, 5).map((g, gi) => (
                                     <button key={gi} type="button"
                                       onClick={() => act("assignBed", idx, { guestName: g[3], guestContact: g[5], checkinDate: c.day, stayingDays: g[6] })}
-                                      className="block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-brand-sand">
+                                      className="block w-full rounded-md px-2 py-1 text-left text-[11px] transition-colors hover:bg-brand-sand">
                                       {g[3]} <span className="text-brand-green-dark/40">{g[6]}d</span>
                                     </button>
                                   ))}
@@ -205,18 +208,18 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                                 <div>
                                   <p className="mb-1 text-[11px] font-semibold">{bed.guestName}</p>
                                   <button type="button" onClick={() => act("checkoutBed", idx)}
-                                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-red-600 hover:bg-red-50">
+                                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-red-600 transition-colors hover:bg-red-50">
                                     <LogOutIcon className="h-3 w-3" /> Checkout
                                   </button>
                                   <button type="button" onClick={() => { if (confirm("Unassign this bed? (No cleanup needed)")) act("unassignBed", idx); }}
-                                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50">
+                                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-gray-600 transition-colors hover:bg-gray-50">
                                     <XCircleIcon className="h-3 w-3" /> Unassign
                                   </button>
                                 </div>
                               )}
                               {c.info.status === "cleanup" && (
                                 <button type="button" onClick={() => act("markClean", idx)}
-                                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-orange-600 hover:bg-orange-50">
+                                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-orange-600 transition-colors hover:bg-orange-50">
                                   <SparklesIcon className="h-3 w-3" /> Mark clean
                                 </button>
                               )}
@@ -228,9 +231,10 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                   </div>
                 );
               })}
-            </div>
+            </motion.div>
           );
         })}
+        </motion.div>
         </div>
       </div>
     </div>

@@ -144,38 +144,50 @@ export function FoodCart({
   if (orderSuccess) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         className="px-4 pb-24"
       >
-        <div className="mx-auto max-w-md rounded-2xl bg-white p-6 text-center shadow-lg">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-            <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="mx-auto max-w-md rounded-2xl bg-white dark:bg-card p-6 text-center shadow-lg">
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100"
+          >
+            <motion.svg
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold text-gray-800">Order Placed!</h2>
-          <p className="mt-2 text-gray-600">
-            Order #{orderSuccess.orderNumber}
-          </p>
-          <p className="mt-1 text-2xl font-bold text-gray-800">
-            {formatPrice(orderSuccess.total)}
-          </p>
+            </motion.svg>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <h2 className="text-xl font-bold text-gray-800 dark:text-foreground">Order Placed!</h2>
+            <p className="mt-2 text-gray-600 dark:text-muted-foreground">
+              Order #{orderSuccess.orderNumber}
+            </p>
+            <p className="mt-1 text-2xl font-bold text-gray-800 dark:text-foreground">
+              {formatPrice(orderSuccess.total)}
+            </p>
+          </motion.div>
 
-          <div className="mt-6 space-y-3">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="mt-6 space-y-3">
             <a
               href={`/food-order/status?order=${orderSuccess.orderNumber}&phone=${guestInfo.phone}`}
-              className="block w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3 text-center font-semibold text-white shadow-lg transition hover:shadow-xl"
+              className="block w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3 text-center font-semibold text-white shadow-lg transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5"
             >
               Track your order
             </a>
             <a
               href="/food-order?reorder=1"
-              className="block w-full rounded-xl border border-gray-200 py-3 text-center font-medium text-gray-700 transition hover:bg-gray-50"
+              className="block w-full rounded-xl border border-gray-200 py-3 text-center font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 hover:shadow-sm"
             >
               Place another order
             </a>
-          </div>
+          </motion.div>
         </div>
       </motion.div>
     );
@@ -188,10 +200,10 @@ export function FoodCart({
         animate={{ opacity: 1 }}
         className="px-4 pb-24"
       >
-        <div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
+        <div className="mx-auto max-w-md rounded-2xl bg-white dark:bg-card p-8 text-center shadow-sm">
           <span className="text-4xl">🛒</span>
-          <h2 className="mt-3 text-lg font-semibold text-gray-800">Your cart is empty</h2>
-          <p className="mt-1 text-sm text-gray-500">Browse the menu and add some dishes</p>
+          <h2 className="mt-3 text-lg font-semibold text-gray-800 dark:text-foreground">Your cart is empty</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-muted-foreground">Browse the menu and add some dishes</p>
           <button
             onClick={onBack}
             className="mt-5 rounded-xl bg-gray-100 px-6 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
@@ -212,13 +224,13 @@ export function FoodCart({
       <div className="mb-4 flex items-center gap-3">
         <button
           onClick={onBack}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 dark:bg-muted text-gray-600 dark:text-foreground transition hover:bg-gray-200 dark:hover:bg-accent"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h2 className="text-xl font-bold text-gray-800">Your Order</h2>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-foreground">Your Order</h2>
       </div>
 
       {/* Cart Items */}
@@ -231,10 +243,10 @@ export function FoodCart({
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20, height: 0 }}
-              className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm"
+              className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-3 shadow-sm"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-800">{item.name}</p>
+                <p className="truncate text-sm font-medium text-gray-800 dark:text-foreground">{item.name}</p>
                 {item.nameKannada && (
                   <p className="truncate text-xs text-gray-500">{item.nameKannada}</p>
                 )}
@@ -242,19 +254,21 @@ export function FoodCart({
               </div>
 
               <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-1.5 py-0.5">
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.85 }}
                   onClick={() => onUpdateQuantity(item.menuItemId, -1)}
-                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100"
                 >
                   −
-                </button>
-                <span className="min-w-[16px] text-center text-sm font-semibold">{item.quantity}</span>
-                <button
+                </motion.button>
+                <motion.span key={item.quantity} initial={{ scale: 1.3 }} animate={{ scale: 1 }} className="min-w-[16px] text-center text-sm font-semibold">{item.quantity}</motion.span>
+                <motion.button
+                  whileTap={{ scale: 0.85 }}
                   onClick={() => onUpdateQuantity(item.menuItemId, 1)}
-                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100"
                 >
                   +
-                </button>
+                </motion.button>
               </div>
 
               <span className="w-14 text-right text-sm font-semibold text-gray-800">
@@ -275,17 +289,17 @@ export function FoodCart({
       </div>
 
       {/* Totals */}
-      <div className="mt-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-        <div className="flex justify-between text-sm text-gray-600">
+      <div className="mt-4 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-4 shadow-sm">
+        <div className="flex justify-between text-sm text-gray-600 dark:text-muted-foreground">
           <span>Subtotal</span>
           <span>{formatPrice(subtotal)}</span>
         </div>
-        <div className="mt-1 flex justify-between text-sm text-gray-600">
+        <div className="mt-1 flex justify-between text-sm text-gray-600 dark:text-muted-foreground">
           <span>Tax ({taxRate}%)</span>
           <span>{formatPrice(taxAmount)}</span>
         </div>
-        <div className="mt-2 border-t border-gray-100 pt-2">
-          <div className="flex justify-between text-base font-bold text-gray-800">
+        <div className="mt-2 border-t border-gray-100 dark:border-border pt-2">
+          <div className="flex justify-between text-base font-bold text-gray-800 dark:text-foreground">
             <span>Total</span>
             <span>{formatPrice(total)}</span>
           </div>
@@ -293,7 +307,7 @@ export function FoodCart({
       </div>
 
       {/* Checkout Form */}
-      <div className="mt-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+      <div className="mt-4 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-4 shadow-sm">
         {guestInfo.guestType === "hostel" ? (
           <div className="mb-3 rounded-lg bg-blue-50 p-3">
             <p className="text-sm font-medium text-blue-800">{guestInfo.name}</p>
@@ -304,7 +318,7 @@ export function FoodCart({
           </div>
         ) : (
           <div className="mb-3">
-            <label className="mb-1 block text-xs font-medium text-gray-600">Your Name *</label>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-muted-foreground">Your Name *</label>
             <input
               type="text"
               value={walkinName}
@@ -313,19 +327,19 @@ export function FoodCart({
                 setError("");
               }}
               placeholder="Enter your name"
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-3 py-2.5 text-sm dark:text-foreground outline-none transition focus:border-blue-300 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30"
             />
           </div>
         )}
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Special Instructions</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-muted-foreground">Special Instructions</label>
           <textarea
             value={specialInstructions}
             onChange={(e) => setSpecialInstructions(e.target.value)}
             placeholder="Any dietary needs or requests…"
             rows={2}
-            className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            className="w-full resize-none rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-3 py-2.5 text-sm dark:text-foreground outline-none transition focus:border-blue-300 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30"
           />
         </div>
       </div>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { cn } from "@/lib/utils";
+import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
 import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon, CheckCircleIcon, UtensilsIcon } from "lucide-react";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import type { Role, AdminSection } from "./types";
@@ -135,7 +137,7 @@ export function AdminDashboard({
       <p className="mt-1 text-sm text-brand-green-dark/60">{today}</p>
 
       {/* Food Orders quick access */}
-      <button type="button" onClick={() => onNavigate("foodOrders")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-brand-mist bg-white p-4 shadow-card transition-all hover:shadow-soft">
+      <button type="button" onClick={() => onNavigate("foodOrders")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-4 shadow-card transition-all hover:shadow-soft">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50"><UtensilsIcon className="h-5 w-5 text-amber-600" /></div>
           <div>
@@ -147,48 +149,48 @@ export function AdminDashboard({
       </button>
 
       {/* Stats cards — compact 2x2 grid on mobile */}
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+      <motion.div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4" variants={staggerContainer} initial="hidden" animate="visible">
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4 transition-all duration-200 hover:shadow-lift hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50"><UsersIcon className="h-4 w-4 text-blue-600" /></div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10"><UsersIcon className="h-4 w-4 text-blue-600" /></div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-brand-green-dark leading-tight">{todayCheckins.length}</p>
               <p className="text-[10px] text-brand-green-dark/60 leading-tight">Check-ins today</p>
             </div>
           </div>
-        </div>
-        <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+        </motion.div>
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4 transition-all duration-200 hover:shadow-lift hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50"><CalendarCheckIcon className="h-4 w-4 text-orange-600" /></div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-500/10"><CalendarCheckIcon className="h-4 w-4 text-orange-600" /></div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-brand-green-dark leading-tight">{todayCheckouts.length}</p>
               <p className="text-[10px] text-brand-green-dark/60 leading-tight">Checkouts due</p>
             </div>
           </div>
-        </div>
-        <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+        </motion.div>
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4 transition-all duration-200 hover:shadow-lift hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-50"><BedDoubleIcon className="h-4 w-4 text-green-600" /></div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-50 dark:bg-green-500/10"><BedDoubleIcon className="h-4 w-4 text-green-600" /></div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-brand-green-dark leading-tight">{stats.available}</p>
               <p className="text-[10px] text-brand-green-dark/60 leading-tight">Beds available</p>
             </div>
           </div>
-        </div>
-        <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+        </motion.div>
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4 transition-all duration-200 hover:shadow-lift hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50"><BedDoubleIcon className="h-4 w-4 text-red-600" /></div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 dark:bg-red-500/10"><BedDoubleIcon className="h-4 w-4 text-red-600" /></div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-brand-green-dark leading-tight">{stats.occupied}/{stats.total}</p>
               <p className="text-[10px] text-brand-green-dark/60 leading-tight">Beds occupied</p>
             </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Occupancy bar */}
       {stats.total > 0 && (
-        <div className="mt-4 rounded-xl border border-brand-mist bg-white p-4">
+        <div className="mt-4 rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
           <div className="flex items-center justify-between text-xs text-brand-green-dark/70">
             <span>Occupancy: {Math.round((stats.occupied / stats.total) * 100)}%</span>
             <span>{stats.occupied} occupied, {stats.available} available, {stats.cleanup} cleanup</span>
@@ -208,9 +210,9 @@ export function AdminDashboard({
             <AlertTriangleIcon className="h-5 w-5 text-orange-600" />
             <span className="font-medium text-orange-800">{todayCheckouts.length} guest{todayCheckouts.length !== 1 ? "s" : ""} due for checkout</span>
           </div>
-          <div className="mt-3 space-y-2.5">
+          <motion.div className="mt-3 space-y-2.5" variants={staggerContainer} initial="hidden" animate="visible">
             {todayCheckouts.map((co, i) => (
-              <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+              <motion.div key={i} variants={staggerItem} className="rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-3 shadow-sm transition-all duration-200 hover:bg-brand-sand/50">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold text-brand-green-dark">{co.name}</p>
@@ -250,9 +252,9 @@ export function AdminDashboard({
                     )}
                   </div>
                 )}
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -262,7 +264,7 @@ export function AdminDashboard({
         {todayCheckins.length === 0 ? (
           <p className="mt-2 text-sm text-brand-green-dark/50">No check-ins today yet</p>
         ) : (
-          <div className="mt-3 space-y-2.5">
+          <motion.div className="mt-3 space-y-2.5" variants={staggerContainer} initial="hidden" animate="visible">
             {todayCheckins.map((item, i) => {
               const age = getAgeFromDob(item.dob);
               const isFlagged = age !== null && !item.vibeMatched && (age < ageRange.min || age > ageRange.max);
@@ -271,7 +273,7 @@ export function AdminDashboard({
               const isAnyFlagged = isFlagged || hasDobMismatch;
               const checkinId = parseInt(item.row[15]);
               return (
-              <div key={i} className={cn("rounded-xl border bg-white p-3 shadow-sm", isAnyFlagged ? "border-orange-300 bg-orange-50/40" : "border-gray-100")}>
+              <motion.div key={i} variants={staggerItem} className={cn("rounded-xl border bg-white dark:bg-card p-3 shadow-sm transition-all duration-200 hover:bg-brand-sand/50", isAnyFlagged ? "border-orange-300 bg-orange-50/40 dark:bg-orange-500/5" : "border-gray-100 dark:border-border")}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold text-brand-green-dark">{item.row[3]}</p>
@@ -327,21 +329,21 @@ export function AdminDashboard({
                     </button>
                   )}
                 </div>
-              </div>
+              </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         )}
       </div>
 
       {/* Quick actions */}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={() => onNavigate("beds")} className="rounded-xl border border-brand-mist bg-white p-4 text-left transition-all hover:shadow-soft">
+        <button type="button" onClick={() => onNavigate("beds")} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 text-left transition-all hover:shadow-soft">
           <BedDoubleIcon className="h-5 w-5 text-brand-green" />
           <p className="mt-2 font-medium text-brand-green-dark">Assign Beds</p>
           <p className="text-xs text-brand-green-dark/50">Manage dorm assignments</p>
         </button>
-        <button type="button" onClick={() => onNavigate("records")} className="rounded-xl border border-brand-mist bg-white p-4 text-left transition-all hover:shadow-soft">
+        <button type="button" onClick={() => onNavigate("records")} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 text-left transition-all hover:shadow-soft">
           <UsersIcon className="h-5 w-5 text-brand-green" />
           <p className="mt-2 font-medium text-brand-green-dark">View Records</p>
           <p className="text-xs text-brand-green-dark/50">All check-in entries</p>
@@ -350,7 +352,7 @@ export function AdminDashboard({
 
       {/* Validation toggle (admin only) */}
       {role === "admin" && (
-        <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-mist bg-white px-4 py-3">
+        <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-mist bg-white dark:bg-card px-4 py-3">
           <span className="text-sm font-medium text-brand-green-dark">ID Validation (Vision API)</span>
           <button type="button" onClick={toggleValidation} disabled={togglingValidation}
             className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", validationOn ? "bg-brand-green" : "bg-brand-green-dark/20")}>
@@ -363,10 +365,11 @@ export function AdminDashboard({
       )}
 
       {/* Checkout confirmation modal */}
+      <AnimatePresence>
       {checkoutModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <motion.div className="fixed inset-0 z-[60] flex items-center justify-center p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
           <div className="absolute inset-0 bg-black/40" onClick={() => !checkoutBusy && setCheckoutModal(null)} />
-          <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl">
+          <motion.div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card shadow-2xl" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
               <div>
                 <h3 className="text-base font-bold text-brand-green-dark">Checkout {checkoutModal.name}</h3>
@@ -415,9 +418,10 @@ export function AdminDashboard({
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

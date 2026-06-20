@@ -2,16 +2,19 @@
 
 import { useState, useEffect, Suspense } from "react";
 import dynamic from "next/dynamic";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 import { AdminToastProvider } from "@/components/admin/AdminToast";
 import type { Role, AdminSection, ManagementTab } from "@/components/admin/types";
 import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
 import { SyncStatusBar } from "@/components/admin/SyncStatusBar";
+import { fadeInUp, fadeInScale, slideDown, staggerContainer, staggerItem, overlayVariants, modalVariants, pageTransition } from "@/lib/animations";
 
 const tabLoader = () => <div className="flex items-center justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-green-dark border-t-transparent" /></div>;
 
@@ -28,8 +31,8 @@ const AdminReviews = dynamic(() => import("@/components/admin/AdminReviews").the
 export default function AdminPage() {
   return (
     <Suspense fallback={
-      <section className="flex min-h-screen items-center justify-center bg-brand-sand">
-        <p className="text-sm text-brand-green-dark/50">Loading...</p>
+      <section className="flex min-h-screen items-center justify-center bg-brand-sand dark:bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-green-dark border-t-transparent" />
       </section>
     }>
       <AdminToastProvider>
@@ -178,16 +181,21 @@ function AdminPageInner() {
 
   if (autoLogging) {
     return (
-      <section className="flex min-h-screen items-center justify-center bg-brand-sand">
-        <p className="text-sm text-brand-green-dark/50">Loading...</p>
+      <section className="flex min-h-screen items-center justify-center bg-brand-sand dark:bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-green-dark border-t-transparent" />
       </section>
     );
   }
 
   if (!role) {
     return (
-      <section className="flex min-h-screen items-center justify-center bg-brand-sand">
-        <div className="mx-4 w-full max-w-sm rounded-3xl border border-brand-mist bg-white p-6 shadow-card sm:mx-auto sm:p-8">
+      <section className="flex min-h-screen items-center justify-center bg-brand-sand dark:bg-background">
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeInScale}
+          className="mx-4 w-full max-w-sm rounded-3xl border border-brand-mist bg-white dark:bg-card p-6 shadow-card sm:mx-auto sm:p-8"
+        >
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green/[0.07]">
             <LockIcon className="h-6 w-6 text-brand-green" />
           </div>
@@ -195,73 +203,101 @@ function AdminPageInner() {
             Goko Check-in Panel
           </h1>
 
-          {!selectedRole ? (
-            <div className="mt-6 space-y-3">
-              <p className="text-center text-sm text-brand-green-dark/70">Select your access level</p>
-              <button
-                type="button"
-                onClick={() => setSelectedRole("admin")}
-                className="w-full rounded-xl border-2 border-brand-green bg-white px-4 py-4 text-left transition-all hover:bg-brand-green/[0.04] hover:shadow-soft"
+          <AnimatePresence mode="wait">
+            {!selectedRole ? (
+              <motion.div
+                key="role-select"
+                variants={fadeInUp}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="mt-6 space-y-3"
               >
-                <span className="font-display text-base font-bold text-brand-green">Admin Access</span>
-                <p className="mt-0.5 text-xs text-brand-green-dark/60">Full access: view, add, modify, and delete entries</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRole("manager")}
-                className="w-full rounded-xl border-2 border-brand-mist bg-white px-4 py-4 text-left transition-all hover:border-brand-green/30 hover:shadow-soft"
+                <p className="text-center text-sm text-brand-green-dark/70">Select your access level</p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole("admin")}
+                  className="w-full rounded-xl border-2 border-brand-green bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:bg-brand-green/[0.04] hover:shadow-soft hover:-translate-y-0.5"
+                >
+                  <span className="font-display text-base font-bold text-brand-green">Admin Access</span>
+                  <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-muted-foreground">Full access: view, add, modify, and delete entries</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole("manager")}
+                  className="w-full rounded-xl border-2 border-brand-mist bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:border-brand-green/30 hover:shadow-soft hover:-translate-y-0.5"
+                >
+                  <span className="font-display text-base font-bold text-brand-green-dark">Staff Access</span>
+                  <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-muted-foreground">View records and add new entries</p>
+                </button>
+              </motion.div>
+            ) : (
+              <motion.form
+                key="login-form"
+                variants={fadeInUp}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                onSubmit={(e) => { e.preventDefault(); login(); }}
+                className="mt-6 space-y-4"
               >
-                <span className="font-display text-base font-bold text-brand-green-dark">Staff Access</span>
-                <p className="mt-0.5 text-xs text-brand-green-dark/60">View records and add new entries</p>
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={(e) => { e.preventDefault(); login(); }} className="mt-6 space-y-4">
-              <p className="text-center text-sm text-brand-green-dark/70">
-                {selectedRole === "admin" ? "Enter admin password" : "Staff login"}
-              </p>
-              {selectedRole === "manager" && (
+                <p className="text-center text-sm text-brand-green-dark/70">
+                  {selectedRole === "admin" ? "Enter admin password" : "Staff login"}
+                </p>
+                {selectedRole === "manager" && (
+                  <div>
+                    <Label htmlFor="staff-user">Username</Label>
+                    <Input
+                      id="staff-user"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter username"
+                      autoFocus
+                    />
+                  </div>
+                )}
                 <div>
-                  <Label htmlFor="staff-user">Username</Label>
+                  <Label htmlFor="admin-pw">Password</Label>
                   <Input
-                    id="staff-user"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter username"
-                    autoFocus
+                    id="admin-pw"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    autoFocus={selectedRole === "admin"}
                   />
                 </div>
-              )}
-              <div>
-                <Label htmlFor="admin-pw">Password</Label>
-                <Input
-                  id="admin-pw"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  autoFocus={selectedRole === "admin"}
-                />
-              </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <label className="flex items-center gap-2 text-sm text-brand-green-dark/70">
-                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-brand-mist" />
-                Keep me signed in
-              </label>
-              <Button type="submit" variant="cta" className="w-full" disabled={loading || !password || (selectedRole === "manager" && !username)}>
-                {loading ? "Verifying..." : "Login"}
-              </Button>
-              <button
-                type="button"
-                onClick={() => { setSelectedRole(null); setPassword(""); setUsername(""); setError(""); }}
-                className="w-full text-center text-sm text-brand-green-dark/60 hover:text-brand-green"
-              >
-                Back to role selection
-              </button>
-            </form>
-          )}
-        </div>
+                <AnimatePresence>
+                  {error && (
+                    <motion.p
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="text-sm text-red-500"
+                    >
+                      {error}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+                <label className="flex items-center gap-2 text-sm text-brand-green-dark/70">
+                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-brand-mist" />
+                  Keep me signed in
+                </label>
+                <Button type="submit" variant="cta" className="w-full" disabled={loading || !password || (selectedRole === "manager" && !username)}>
+                  {loading ? "Verifying..." : "Login"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedRole(null); setPassword(""); setUsername(""); setError(""); }}
+                  className="w-full text-center text-sm text-brand-green-dark/60 transition-colors hover:text-brand-green"
+                >
+                  Back to role selection
+                </button>
+              </motion.form>
+            )}
+          </AnimatePresence>
+        </motion.div>
       </section>
     );
   }
@@ -278,40 +314,53 @@ function AdminPageInner() {
     { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" />, permission: "canViewManagement" },
   ];
 
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.adminOnly && role !== "admin") return false;
+    if (item.permission && role !== "admin" && !permissions[item.permission]) return false;
+    return true;
+  });
+
   return (
-    <section className="min-h-screen bg-brand-sand">
+    <section className="min-h-screen bg-brand-sand dark:bg-background">
       {/* Top navigation */}
-      <nav className="sticky top-0 z-30 border-b border-brand-mist bg-white/90 backdrop-blur-sm">
+      <nav className="sticky top-0 z-30 border-b border-brand-mist bg-white/90 dark:bg-card/90 backdrop-blur-md shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-2 sm:px-6">
           {/* Mobile/Tablet hamburger */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="rounded-lg p-2 text-brand-green-dark/70 hover:bg-brand-green/[0.06] lg:hidden"
+            className="rounded-lg p-2 text-brand-green-dark/70 transition-colors hover:bg-brand-green/[0.06] lg:hidden"
           >
-            {mobileMenuOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
+            <motion.div animate={{ rotate: mobileMenuOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
+              {mobileMenuOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
+            </motion.div>
           </button>
 
-          {/* Desktop nav */}
+          {/* Desktop nav with animated pill indicator */}
           <div className="hidden items-center gap-1 overflow-x-auto lg:flex">
-            {NAV_ITEMS.filter((item) => {
-              if (item.adminOnly && role !== "admin") return false;
-              if (item.permission && role !== "admin" && !permissions[item.permission]) return false;
-              return true;
-            }).map((item) => (
+            {visibleNavItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setSection(item.id)}
                 className={cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   section === item.id
-                    ? "bg-brand-green text-white"
+                    ? "text-white"
                     : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
                 )}
               >
-                {item.icon}
-                <span>{item.label}</span>
+                {section === item.id && (
+                  <motion.span
+                    layoutId="admin-nav-pill"
+                    className="absolute inset-0 rounded-lg bg-brand-green"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2">
+                  {item.icon}
+                  <span>{item.label}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -338,6 +387,7 @@ function AdminPageInner() {
                 <span className="hidden sm:inline">Change Password</span>
               </Button>
             )}
+            <DarkModeToggle className="text-brand-green-dark/70 hover:bg-brand-green/[0.06] dark:text-foreground dark:hover:bg-muted" />
             <Button
               type="button"
               variant="ghost"
@@ -349,33 +399,43 @@ function AdminPageInner() {
           </div>
         </div>
 
-        {/* Mobile/Tablet menu dropdown */}
-        {mobileMenuOpen && (
-          <div className="border-t border-brand-mist bg-white px-4 py-3 lg:hidden">
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-              {NAV_ITEMS.filter((item) => {
-                if (item.adminOnly && role !== "admin") return false;
-                if (item.permission && role !== "admin" && !permissions[item.permission]) return false;
-                return true;
-              }).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => { setSection(item.id); setMobileMenuOpen(false); }}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                    section === item.id
-                      ? "bg-brand-green text-white"
-                      : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
-                  )}
-                >
-                  {item.icon}
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Mobile/Tablet menu dropdown — animated */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              variants={slideDown}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="overflow-hidden border-t border-brand-mist bg-white/95 dark:bg-card/95 backdrop-blur-sm lg:hidden"
+            >
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-2 gap-1.5 px-4 py-3 sm:grid-cols-4"
+              >
+                {visibleNavItems.map((item) => (
+                  <motion.button
+                    key={item.id}
+                    variants={staggerItem}
+                    type="button"
+                    onClick={() => { setSection(item.id); setMobileMenuOpen(false); }}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                      section === item.id
+                        ? "bg-brand-green text-white shadow-sm"
+                        : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+                    )}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </motion.button>
+                ))}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* Sync status bar */}
@@ -388,52 +448,85 @@ function AdminPageInner() {
         />
       )}
 
-      {/* Section content */}
+      {/* Section content — animated tab transitions */}
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
-        {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); setSection(s); }} permissions={permissions} />}
-        {section === "bookings" && <AdminBookings password={password} username={username} role={role} permissions={permissions} />}
-        {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} pendingAssignGuest={pendingAssignGuest} onPendingAssignConsumed={() => setPendingAssignGuest(null)} />}
-        {section === "timeline" && <AdminTimeline password={password} username={username} role={role} permissions={permissions} />}
-        {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}
-        {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} permissions={permissions} />}
-        {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
-        {section === "reviews" && <AdminReviews password={password} username={username} role={role} permissions={permissions} />}
-        {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} initialTab={managementTab} onTabUsed={() => setManagementTab(undefined)} />}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={section}
+            variants={pageTransition}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); setSection(s); }} permissions={permissions} />}
+            {section === "bookings" && <AdminBookings password={password} username={username} role={role} permissions={permissions} />}
+            {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} pendingAssignGuest={pendingAssignGuest} onPendingAssignConsumed={() => setPendingAssignGuest(null)} />}
+            {section === "timeline" && <AdminTimeline password={password} username={username} role={role} permissions={permissions} />}
+            {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}
+            {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} permissions={permissions} />}
+            {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
+            {section === "reviews" && <AdminReviews password={password} username={username} role={role} permissions={permissions} />}
+            {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} initialTab={managementTab} onTabUsed={() => setManagementTab(undefined)} />}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
-      {/* Change Password Modal */}
-      {showChangePassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-lg font-bold text-brand-green-dark">Change Password</h3>
-              <button type="button" onClick={() => setShowChangePassword(false)} className="rounded-md p-1 text-brand-green-dark/40 hover:text-brand-green-dark">
-                <XIcon className="h-5 w-5" />
-              </button>
+      {/* Change Password Modal — animated */}
+      <AnimatePresence>
+        {showChangePassword && (
+          <>
+            <motion.div
+              variants={overlayVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              onClick={() => setShowChangePassword(false)}
+              className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+              <motion.div
+                variants={modalVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="pointer-events-auto w-full max-w-sm rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-xl sm:p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-lg font-bold text-brand-green-dark">Change Password</h3>
+                  <button type="button" onClick={() => setShowChangePassword(false)} className="rounded-md p-1 text-brand-green-dark/40 transition-colors hover:text-brand-green-dark">
+                    <XIcon className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <Label htmlFor="cp-current">Current Password</Label>
+                    <Input id="cp-current" type="password" value={cpCurrent} onChange={(e) => setCpCurrent(e.target.value)} placeholder="Enter current password" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cp-new">New Password</Label>
+                    <Input id="cp-new" type="password" value={cpNew} onChange={(e) => setCpNew(e.target.value)} placeholder="Enter new password" />
+                  </div>
+                  <div>
+                    <Label htmlFor="cp-confirm">Confirm New Password</Label>
+                    <Input id="cp-confirm" type="password" value={cpConfirm} onChange={(e) => setCpConfirm(e.target.value)} placeholder="Confirm new password" />
+                  </div>
+                  <AnimatePresence>
+                    {cpError && (
+                      <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="text-sm text-red-500">{cpError}</motion.p>
+                    )}
+                    {cpSuccess && (
+                      <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="text-sm text-green-600">{cpSuccess}</motion.p>
+                    )}
+                  </AnimatePresence>
+                  <Button type="button" variant="cta" className="w-full" onClick={handleChangePassword} disabled={cpLoading}>
+                    {cpLoading ? "Saving..." : "Save New Password"}
+                  </Button>
+                </div>
+              </motion.div>
             </div>
-            <div className="mt-4 space-y-3">
-              <div>
-                <Label htmlFor="cp-current">Current Password</Label>
-                <Input id="cp-current" type="password" value={cpCurrent} onChange={(e) => setCpCurrent(e.target.value)} placeholder="Enter current password" />
-              </div>
-              <div>
-                <Label htmlFor="cp-new">New Password</Label>
-                <Input id="cp-new" type="password" value={cpNew} onChange={(e) => setCpNew(e.target.value)} placeholder="Enter new password" />
-              </div>
-              <div>
-                <Label htmlFor="cp-confirm">Confirm New Password</Label>
-                <Input id="cp-confirm" type="password" value={cpConfirm} onChange={(e) => setCpConfirm(e.target.value)} placeholder="Confirm new password" />
-              </div>
-              {cpError && <p className="text-sm text-red-500">{cpError}</p>}
-              {cpSuccess && <p className="text-sm text-green-600">{cpSuccess}</p>}
-              <Button type="button" variant="cta" className="w-full" onClick={handleChangePassword} disabled={cpLoading}>
-                {cpLoading ? "Saving..." : "Save New Password"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
+          </>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

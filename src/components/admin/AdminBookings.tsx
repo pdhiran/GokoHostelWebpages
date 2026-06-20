@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlusIcon, Trash2Icon, CalendarIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
 import type { Role } from "./types";
 import { hasPermission } from "./types";
 
@@ -197,11 +199,11 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
       {todayArrivals.length > 0 && (
         <div className="rounded-2xl border-2 border-brand-green bg-brand-green/[0.03] p-5">
           <h3 className="mb-3 font-semibold text-brand-green">Today&apos;s Arrivals ({todayArrivals.length})</h3>
-          <div className="space-y-2">
+          <motion.div className="space-y-2" variants={staggerContainer} initial="hidden" animate="visible">
             {todayArrivals.map((b) => (
-              <div key={b.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-3 shadow-sm">
+              <motion.div key={b.id} variants={staggerItem} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-soft hover:-translate-y-0.5">
                 <div className="flex items-center gap-3">
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
+                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
                     {PLATFORM_LABELS[b.platform] || b.platform}
                   </span>
                   <div>
@@ -211,13 +213,13 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                 </div>
                 {hasPermission(role, permissions, "canAddBooking") && (
                   <button type="button" onClick={() => markStatus(b.id, "checked_in")}
-                    className="rounded-lg bg-brand-green px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-green-dark">
+                    className="rounded-lg bg-brand-green px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-green-dark">
                     Mark Arrived
                   </button>
                 )}
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -225,9 +227,9 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
       {upcoming.length > 0 && (
         <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">Upcoming ({upcoming.length})</h3>
-          <div className="space-y-2">
+          <motion.div className="space-y-2" variants={staggerContainer} initial="hidden" animate="visible">
             {upcoming.slice(0, 10).map((b) => (
-              <div key={b.id} className="flex items-center justify-between rounded-lg border border-brand-mist p-3">
+              <motion.div key={b.id} variants={staggerItem} className="flex items-center justify-between rounded-lg border border-brand-mist p-3 transition-all duration-200 hover:shadow-soft hover:-translate-y-0.5">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-brand-sand">
                     <span className="text-[10px] font-bold text-brand-green-dark/60">{new Date(b.checkinDate).toLocaleDateString("en", { day: "numeric" })}</span>
@@ -236,7 +238,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                   <div>
                     <p className="text-sm font-medium text-brand-green-dark">{b.guestName}</p>
                     <p className="text-xs text-brand-green-dark/50">
-                      <span className={cn("mr-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
+                      <span className={cn("mr-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide transition-colors", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
                         {PLATFORM_LABELS[b.platform] || b.platform}
                       </span>
                       {b.roomType || "Any"} · {b.persons}p
@@ -244,9 +246,9 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                   </div>
                 </div>
                 <span className="text-xs text-brand-green-dark/40">{b.checkoutDate ? `${b.checkinDate} → ${b.checkoutDate}` : b.checkinDate}</span>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -254,11 +256,11 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
       <div className="rounded-2xl border border-brand-mist bg-white shadow-sm">
         <div className="flex flex-wrap items-center gap-3 border-b border-brand-mist p-4">
           <h3 className="text-sm font-semibold text-brand-green-dark/70">All Bookings</h3>
-          <select value={filterPlatform} onChange={(e) => setFilterPlatform(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs">
+          <select value={filterPlatform} onChange={(e) => setFilterPlatform(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs transition-all duration-200">
             <option value="">All platforms</option>
             {allPlatforms.map((p) => <option key={p} value={p}>{PLATFORM_LABELS[p] || p}</option>)}
           </select>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs">
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs transition-all duration-200">
             <option value="">All statuses</option>
             {allStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -282,7 +284,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-brand-green-dark/50">No bookings yet</td></tr>
               ) : (
                 filtered.map((b) => (
-                  <tr key={b.id} className="border-b border-brand-mist/50 last:border-0 hover:bg-brand-sand/30">
+                    <tr key={b.id} className="border-b border-brand-mist/50 last:border-0 transition-colors duration-200 hover:bg-brand-sand/30">
                     <td className="px-4 py-3">
                       <p className="font-medium text-brand-green-dark">{b.guestName}</p>
                       {b.contact && <p className="text-[10px] text-brand-green-dark/50">{b.contact}</p>}
@@ -307,12 +309,12 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                       <div className="flex gap-1">
                         {b.status === "confirmed" && hasPermission(role, permissions, "canAddBooking") && (
                           <>
-                            <button type="button" onClick={() => markStatus(b.id, "cancelled")} className="rounded px-1.5 py-0.5 text-[9px] text-red-500 hover:bg-red-50">Cancel</button>
-                            <button type="button" onClick={() => markStatus(b.id, "no_show")} className="rounded px-1.5 py-0.5 text-[9px] text-yellow-600 hover:bg-yellow-50">No-show</button>
+                            <button type="button" onClick={() => markStatus(b.id, "cancelled")} className="rounded px-1.5 py-0.5 text-[9px] text-red-500 transition-colors hover:bg-red-50">Cancel</button>
+                            <button type="button" onClick={() => markStatus(b.id, "no_show")} className="rounded px-1.5 py-0.5 text-[9px] text-yellow-600 transition-colors hover:bg-yellow-50">No-show</button>
                           </>
                         )}
                         {hasPermission(role, permissions, "canDeleteBooking") && (
-                          <button type="button" onClick={() => deleteBookingEntry(b.id)} className="rounded p-1 text-red-400 hover:bg-red-50"><Trash2Icon className="h-3.5 w-3.5" /></button>
+                          <button type="button" onClick={() => deleteBookingEntry(b.id)} className="rounded p-1 text-red-400 transition-colors hover:bg-red-50"><Trash2Icon className="h-3.5 w-3.5" /></button>
                         )}
                       </div>
                     </td>
@@ -325,9 +327,10 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
       </div>
 
       {/* Add Booking Form */}
+      <AnimatePresence>
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green">Add Booking</h3>
               <button type="button" onClick={() => setShowForm(false)}><XIcon className="h-5 w-5 text-brand-green-dark/40" /></button>
@@ -402,9 +405,10 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
               <Button type="button" variant="cta" onClick={addBooking} disabled={saving}>{saving ? "Saving..." : "Add Booking"}</Button>
               <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

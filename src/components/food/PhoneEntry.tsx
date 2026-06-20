@@ -131,13 +131,13 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
         <p className="mt-1 text-sm text-blue-100">Beach-side dining</p>
       </div>
 
-      <div className="rounded-2xl bg-white/95 p-6 shadow-xl backdrop-blur-sm">
-        <h2 className="mb-1 text-lg font-semibold text-gray-800">Enter your phone number</h2>
-        <p className="mb-5 text-sm text-gray-500">We&apos;ll find your booking details</p>
+      <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-6 shadow-xl backdrop-blur-sm">
+        <h2 className="mb-1 text-lg font-semibold text-gray-800 dark:text-foreground">Enter your phone number</h2>
+        <p className="mb-5 text-sm text-gray-500 dark:text-muted-foreground">We&apos;ll find your booking details</p>
 
         <form onSubmit={handleSubmit}>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500 dark:text-muted-foreground">
               +91
             </span>
             <input
@@ -146,7 +146,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
               value={formatPhone(phone)}
               onChange={handlePhoneChange}
               placeholder="98765 43210"
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3.5 pl-12 pr-4 text-lg font-medium tracking-wide text-gray-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted py-3.5 pl-12 pr-4 text-lg font-medium tracking-wide text-gray-800 dark:text-foreground outline-none transition focus:border-blue-400 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30"
               autoFocus
               disabled={loading}
             />
@@ -208,7 +208,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
                   <button
                     key={g.checkinId}
                     onClick={() => handleSelectGuest(g)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50"
+                    className="flex w-full items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-gray-50 dark:bg-muted px-4 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50 dark:hover:bg-accent"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600">
                       {g.name.charAt(0).toUpperCase()}

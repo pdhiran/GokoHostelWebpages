@@ -7,6 +7,7 @@ import { PhoneEntry, type GuestInfo } from "@/components/food/PhoneEntry";
 import { MenuBrowser, type CartItem } from "@/components/food/MenuBrowser";
 import { FoodCart, type CartItemData, type GuestInfoData } from "@/components/food/FoodCart";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 type View = "loading" | "phone" | "menu" | "cart";
 
@@ -338,7 +339,7 @@ export default function FoodOrderPage() {
   // Loading state
   if (view === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
@@ -349,7 +350,7 @@ export default function FoodOrderPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400">
+    <div className="relative min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900">
       {/* Kitchen closed banner */}
       {kitchenClosed && settings && (
         <motion.div
@@ -430,6 +431,7 @@ export default function FoodOrderPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <DarkModeToggle className="text-white/80 hover:bg-white/20" />
                     <Link
                       href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
                       className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
@@ -451,7 +453,7 @@ export default function FoodOrderPage() {
                 </div>
               </div>
 
-              <div className={`rounded-t-3xl bg-gray-50 pt-5 ${kitchenClosed ? "pointer-events-none opacity-50" : ""}`}>
+              <div className={`rounded-t-3xl bg-gray-50 dark:bg-background pt-5 ${kitchenClosed ? "pointer-events-none opacity-50" : ""}`}>
                 <MenuBrowser
                   categories={categories}
                   items={items}
@@ -470,7 +472,7 @@ export default function FoodOrderPage() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -50 }}
             >
-              <div className="rounded-t-3xl bg-gray-50 pt-5">
+              <div className="rounded-t-3xl bg-gray-50 dark:bg-background pt-5">
                 <FoodCart
                   cart={cart as CartItemData[]}
                   guestInfo={guestInfo}
@@ -489,11 +491,13 @@ export default function FoodOrderPage() {
       </div>
 
       {/* Floating cart button */}
+      <AnimatePresence>
       {view === "menu" && cartCount > 0 && !kitchenClosed && (
         <motion.button
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
+          initial={{ y: 100, opacity: 0, scale: 0.9 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 100, opacity: 0, scale: 0.9 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setView("cart")}
           className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-4 shadow-2xl shadow-blue-500/30"
@@ -502,9 +506,14 @@ export default function FoodOrderPage() {
             <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
             </svg>
-            <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-600">
+            <motion.span
+              key={cartCount}
+              initial={{ scale: 1.5 }}
+              animate={{ scale: 1 }}
+              className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-600"
+            >
               {cartCount}
-            </span>
+            </motion.span>
           </div>
           <span className="text-sm font-bold text-white">View Cart</span>
           <span className="text-sm font-medium text-blue-100">
@@ -512,6 +521,7 @@ export default function FoodOrderPage() {
           </span>
         </motion.button>
       )}
+      </AnimatePresence>
 
       {/* Reorder toast */}
       <AnimatePresence>
@@ -543,12 +553,12 @@ export default function FoodOrderPage() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-[80] max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white pb-8 shadow-2xl"
+              className="fixed inset-x-0 bottom-0 z-[80] max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white dark:bg-card pb-8 shadow-2xl"
             >
-              <div className="sticky top-0 z-10 bg-white px-5 pb-3 pt-4">
-                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300" />
+              <div className="sticky top-0 z-10 bg-white dark:bg-card px-5 pb-3 pt-4">
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600" />
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-800">My Orders</h2>
+                  <h2 className="text-lg font-bold text-gray-800 dark:text-foreground">My Orders</h2>
                   <button
                     onClick={() => setShowMyOrders(false)}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
@@ -618,7 +628,7 @@ function MyOrdersList({ orders, onReorder }: { orders: PastOrder[]; onReorder: (
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{date}</p>
           <div className="space-y-3">
             {dateOrders.map((order) => (
-              <div key={order.orderNumber} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <div key={order.orderNumber} className="rounded-xl border border-gray-100 dark:border-border bg-gray-50 dark:bg-muted p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-bold text-gray-700">#{order.orderNumber}</span>

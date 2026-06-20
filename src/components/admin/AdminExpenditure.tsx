@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { PlusCircleIcon, FileTextIcon, IndianRupeeIcon, BookOpenIcon, ScaleIcon } from "lucide-react";
 import { AdminAddExpense } from "./AdminAddExpense";
@@ -49,14 +50,23 @@ export function AdminExpenditure({
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+              "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
               tab === t.id
-                ? "bg-brand-green/10 text-brand-green"
+                ? "text-brand-green"
                 : "text-brand-green-dark/60 hover:bg-brand-sand/50"
             )}
           >
-            {t.icon}
-            {t.label}
+            {tab === t.id && (
+              <motion.span
+                layoutId="expenditure-tab-pill"
+                className="absolute inset-0 rounded-lg bg-brand-green/10"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-1.5">
+              {t.icon}
+              {t.label}
+            </span>
           </button>
         ))}
       </div>

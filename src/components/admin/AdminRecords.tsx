@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExternalLinkIcon, Trash2Icon, PlusIcon, UploadIcon, PencilIcon, ShieldCheckIcon, ShieldAlertIcon, Loader2Icon, XIcon, FileTextIcon, LayoutListIcon, TableIcon, ChevronDownIcon, PhoneIcon, MapPinIcon, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
@@ -442,10 +444,13 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
         <div className="mt-4 flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button key={tab} type="button" onClick={() => loadTab(tab)}
-              className={cn("rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                tab === currentTab ? "bg-brand-green text-white" : "bg-white text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+              className={cn("relative rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                tab === currentTab ? "text-white" : "bg-white text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
               )}>
-              {tab}
+              {tab === currentTab && (
+                <motion.span layoutId="records-month-pill" className="absolute inset-0 rounded-full bg-brand-green" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
+              )}
+              <span className="relative z-10">{tab}</span>
             </button>
           ))}
         </div>
@@ -466,18 +471,22 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
         <div className="flex items-center gap-2">
           <p className="text-sm text-brand-green-dark/70">{filteredRows.length}{filteredRows.length !== rows.length ? ` of ${rows.length}` : ""} records</p>
           <div className="flex rounded-lg border border-brand-mist bg-white p-0.5">
-            <button type="button" onClick={() => setViewMode("card")} className={cn("rounded-md p-1.5 transition-colors", viewMode === "card" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Card view">
-              <LayoutListIcon className="h-3.5 w-3.5" />
+            <button type="button" onClick={() => setViewMode("card")} className={cn("relative rounded-md p-1.5 transition-colors", viewMode === "card" ? "text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Card view">
+              {viewMode === "card" && <motion.span layoutId="records-view-pill" className="absolute inset-0 rounded-md bg-brand-green" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
+              <LayoutListIcon className="relative z-10 h-3.5 w-3.5" />
             </button>
-            <button type="button" onClick={() => setViewMode("table")} className={cn("rounded-md p-1.5 transition-colors", viewMode === "table" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Table view">
-              <TableIcon className="h-3.5 w-3.5" />
+            <button type="button" onClick={() => setViewMode("table")} className={cn("relative rounded-md p-1.5 transition-colors", viewMode === "table" ? "text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Table view">
+              {viewMode === "table" && <motion.span layoutId="records-view-pill" className="absolute inset-0 rounded-md bg-brand-green" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
+              <TableIcon className="relative z-10 h-3.5 w-3.5" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Add entry form */}
+      <AnimatePresence>
       {showAddForm && (
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease: [0.33, 1, 0.68, 1] }} className="overflow-hidden">
         <div className="mt-4 rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-card">
           <h3 className="font-display text-lg font-bold text-brand-green">Add manual entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -598,10 +607,14 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
             <Button type="button" variant="ghost" onClick={() => setShowAddForm(false)}>Cancel</Button>
           </div>
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Past check-in form */}
+      <AnimatePresence>
       {showPastForm && (
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease: [0.33, 1, 0.68, 1] }} className="overflow-hidden">
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/30 p-4 sm:p-6 shadow-card">
           <h3 className="font-display text-lg font-bold text-amber-800">Add past check-in record</h3>
           <p className="mt-1 text-xs text-amber-700">This record is for archival purposes only — no bed assignment needed.</p>
@@ -727,7 +740,9 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
             <Button type="button" variant="ghost" onClick={() => setShowPastForm(false)}>Cancel</Button>
           </div>
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Edit form */}
       {editIndex !== null && (
@@ -794,7 +809,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
               const visaLinks = (row[15] || "").includes(" | ") ? (row[15] || "").split(" | ").filter((u: string) => u.startsWith("http")) : (row[15] || "").startsWith("http") ? [row[15]] : [];
 
               return (
-                <div key={origIdx} data-record-id={row[17] || origIdx} className={cn("rounded-xl border border-brand-mist bg-white shadow-sm", guestAnyFlag && "border-orange-200 bg-orange-50/30")}>
+                <div key={origIdx} data-record-id={row[17] || origIdx} className={cn("rounded-xl border border-brand-mist bg-white shadow-sm transition-all duration-200 hover:shadow-soft", guestAnyFlag && "border-orange-200 bg-orange-50/30")}>
                   {/* Collapsed — always visible */}
                   <button
                     type="button"
@@ -928,7 +943,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                 const guestDobMismatch = !!(guestDob && guestDobFromId && !guestVibeMatched && !dobsMatch(guestDob, guestDobFromId));
                 const guestAnyFlag = guestFlagged || guestDobMismatch;
                 return (
-                <tr key={origIdx} data-record-id={row[17] || origIdx} className={cn("border-b border-brand-mist/60 last:border-b-0 hover:bg-brand-sand/30", guestAnyFlag && "bg-orange-50/40")}>
+                <tr key={origIdx} data-record-id={row[17] || origIdx} className={cn("border-b border-brand-mist/60 last:border-b-0 transition-colors duration-150 hover:bg-brand-sand/40", guestAnyFlag && "bg-orange-50/40")}>
                   {CHECKIN_COLUMNS.map((col, ci) => {
                     if (ci === 0) return null;
                     const cell = row[ci] || "";

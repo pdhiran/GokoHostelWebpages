@@ -137,17 +137,24 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
         animate={{ opacity: 1 }}
         className="px-4 pb-24"
       >
-        <h2 className="mb-4 text-xl font-bold text-gray-800">Menu</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <h2 className="mb-4 text-xl font-bold text-gray-800 dark:text-foreground">Menu</h2>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } }}
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+        >
           {sortedCategories.map((cat) => (
             <motion.button
               key={cat.id}
+              variants={{ hidden: { opacity: 0, y: 16, scale: 0.95 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.35, ease: [0.33, 1, 0.68, 1] } } }}
               whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.03, y: -2 }}
               onClick={() => setSelectedCategory(cat.id)}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+              className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 dark:border-border bg-white dark:bg-card p-5 shadow-sm transition-shadow hover:border-blue-200 hover:shadow-lg"
             >
               <span className="text-3xl">{cat.icon}</span>
-              <span className="text-sm font-semibold text-gray-800">{cat.name}</span>
+              <span className="text-sm font-semibold text-gray-800 dark:text-foreground">{cat.name}</span>
               {cat.nameKannada && (
                 <span className="text-xs text-gray-500">{cat.nameKannada}</span>
               )}
@@ -158,7 +165,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
               )}
             </motion.button>
           ))}
-        </div>
+        </motion.div>
       </motion.div>
     );
   }
@@ -179,14 +186,14 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
             setDietFilter("all");
             setCuratedFilter(null);
           }}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 dark:bg-muted text-gray-600 dark:text-foreground transition hover:bg-gray-200 dark:hover:bg-accent"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         <div>
-          <h2 className="text-lg font-bold text-gray-800">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-foreground">
             {currentCategory?.icon} {currentCategory?.name}
           </h2>
           {currentCategory?.nameKannada && (
@@ -196,50 +203,66 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
       </div>
 
       {/* Search */}
-      <div className="mb-3">
+      <div className="mb-3 relative">
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search dishes…"
-          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
+          className="w-full rounded-xl border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-4 py-2.5 pr-9 text-sm dark:text-foreground outline-none transition-all duration-200 focus:border-blue-300 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30 focus:shadow-sm"
         />
+        <AnimatePresence>
+          {searchQuery && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-gray-300 text-white transition-colors hover:bg-gray-400"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Diet filter */}
       <div className="mb-2 flex flex-wrap gap-2">
-        <button
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => setDietFilter("all")}
-          className={`rounded-full px-4 py-2 text-xs font-medium transition ${
+          className={`rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 ${
             dietFilter === "all"
-              ? "bg-gray-800 text-white"
+              ? "bg-gray-800 text-white shadow-sm"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}
         >
           All
-        </button>
-        <button
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => setDietFilter("veg")}
-          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 ${
             dietFilter === "veg"
-              ? "bg-green-600 text-white"
+              ? "bg-green-600 text-white shadow-sm"
               : "bg-gray-100 text-gray-600 hover:bg-green-50"
           }`}
         >
           <span className="h-2 w-2 rounded-full bg-green-500" />
           Veg
-        </button>
-        <button
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => setDietFilter("nonveg")}
-          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 ${
             dietFilter === "nonveg"
-              ? "bg-red-600 text-white"
+              ? "bg-red-600 text-white shadow-sm"
               : "bg-gray-100 text-gray-600 hover:bg-red-50"
           }`}
         >
           <span className="h-2 w-2 rounded-full bg-red-500" />
           Non-veg
-        </button>
+        </motion.button>
       </div>
 
       {/* Curated filter chips */}
@@ -298,10 +321,10 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   whileTap={isUnavailable ? undefined : { scale: 0.98 }}
-                  className={`flex gap-3 rounded-2xl border bg-white p-3 shadow-sm transition ${
+                  className={`flex gap-3 rounded-2xl border bg-white dark:bg-card p-3 shadow-sm transition-all duration-200 ${
                     isUnavailable
-                      ? "border-gray-100 opacity-50"
-                      : "border-gray-100 hover:border-blue-100 hover:shadow-md"
+                      ? "border-gray-100 dark:border-border opacity-50"
+                      : "border-gray-100 dark:border-border hover:border-blue-200 hover:shadow-lg"
                   }`}
                 >
                   {/* Image */}
@@ -331,7 +354,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                   {/* Content */}
                   <div className="flex min-w-0 flex-1 flex-col justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-800 leading-tight">
+                      <h3 className="text-sm font-semibold text-gray-800 dark:text-foreground leading-tight">
                         {item.name}
                       </h3>
                       {item.nameKannada && (
@@ -373,7 +396,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
 
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-gray-800">
+                        <span className="text-sm font-bold text-gray-800 dark:text-foreground">
                           {isUnavailable ? (
                             <span className="text-gray-400">Unavailable</span>
                           ) : (
@@ -389,32 +412,51 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
 
                       {!isUnavailable && (
                         <>
+                          <AnimatePresence mode="wait">
                           {qty === 0 ? (
-                            <button
+                            <motion.button
+                              key="add"
+                              initial={{ scale: 0.9, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.9, opacity: 0 }}
+                              whileTap={{ scale: 0.92 }}
                               onClick={() => handleAdd(item)}
-                              className="rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
+                              className="rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition-shadow hover:shadow-md"
                             >
                               Add
-                            </button>
+                            </motion.button>
                           ) : (
-                            <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-1.5 py-0.5">
-                              <button
+                            <motion.div
+                              key="stepper"
+                              initial={{ scale: 0.9, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-1.5 py-0.5"
+                            >
+                              <motion.button
+                                whileTap={{ scale: 0.85 }}
                                 onClick={() => onRemoveFromCart(item.id)}
-                                className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition hover:bg-blue-100"
+                                className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition-colors hover:bg-blue-100"
                               >
                                 −
-                              </button>
-                              <span className="min-w-[16px] text-center text-sm font-semibold text-blue-700">
+                              </motion.button>
+                              <motion.span
+                                key={qty}
+                                initial={{ scale: 1.3 }}
+                                animate={{ scale: 1 }}
+                                className="min-w-[16px] text-center text-sm font-semibold text-blue-700"
+                              >
                                 {qty}
-                              </span>
-                              <button
+                              </motion.span>
+                              <motion.button
+                                whileTap={{ scale: 0.85 }}
                                 onClick={() => handleAdd(item)}
-                                className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition hover:bg-blue-100"
+                                className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition-colors hover:bg-blue-100"
                               >
                                 +
-                              </button>
-                            </div>
+                              </motion.button>
+                            </motion.div>
                           )}
+                          </AnimatePresence>
                         </>
                       )}
                     </div>

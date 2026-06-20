@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { LockIcon } from "lucide-react";
 import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
+import { fadeInScale } from "@/lib/animations";
 
 export default function KitchenPage() {
   const [password, setPassword] = useState("");
@@ -48,15 +50,20 @@ export default function KitchenPage() {
 
   if (!password) {
     return (
-      <section className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-lg">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50">
+      <section className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-background">
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeInScale}
+          className="w-full max-w-sm rounded-2xl border border-gray-200 dark:border-border bg-white dark:bg-card p-8 shadow-lg"
+        >
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 dark:bg-amber-500/10">
             <LockIcon className="h-6 w-6 text-amber-500" />
           </div>
-          <h1 className="mt-5 text-center text-xl font-bold text-gray-900">
+          <h1 className="mt-5 text-center text-xl font-bold text-gray-900 dark:text-foreground">
             Kitchen Dashboard
           </h1>
-          <p className="mt-1 text-center text-sm text-gray-500">
+          <p className="mt-1 text-center text-sm text-gray-500 dark:text-muted-foreground">
             Enter staff password to access
           </p>
           <form
@@ -72,18 +79,22 @@ export default function KitchenPage() {
               onChange={(e) => setInputPassword(e.target.value)}
               placeholder="Enter password"
               autoFocus
-              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              className="w-full rounded-xl border border-gray-300 dark:border-border bg-white dark:bg-muted px-4 py-3 text-gray-900 dark:text-foreground placeholder-gray-400 dark:placeholder-muted-foreground outline-none transition-all duration-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-500/30 focus:shadow-sm"
             />
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            <AnimatePresence>
+              {error && (
+                <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="text-sm text-red-500">{error}</motion.p>
+              )}
+            </AnimatePresence>
             <button
               type="submit"
               disabled={loading || !inputPassword}
-              className="w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-amber-400 disabled:opacity-50"
+              className="w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold text-white transition-all duration-200 hover:bg-amber-400 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
               {loading ? "Verifying..." : "Enter Kitchen"}
             </button>
           </form>
-        </div>
+        </motion.div>
       </section>
     );
   }

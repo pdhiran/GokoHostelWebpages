@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon, PencilIcon, TagIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill, printCombinedBill, printOrderTicket, type BillItem } from "@/lib/thermalPrint";
@@ -162,11 +163,14 @@ export function AdminFoodOrders({ password, username, role, permissions = {} }: 
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              tab === t.id ? "bg-brand-green text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+              "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              tab === t.id ? "text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
             )}
           >
-            {t.label}
+            {tab === t.id && (
+              <motion.span layoutId="food-orders-tab-pill" className="absolute inset-0 rounded-lg bg-brand-green" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
+            )}
+            <span className="relative z-10">{t.label}</span>
           </button>
         ))}
       </div>

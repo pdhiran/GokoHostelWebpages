@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role } from "./types";
@@ -34,11 +35,18 @@ export function AdminReviews({ password, username, role, permissions }: Props) {
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              tab === t.id ? "bg-brand-green text-white" : "text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+              "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              tab === t.id ? "text-brand-green" : "text-brand-green-dark/60 hover:bg-brand-sand/50"
             )}
           >
-            {t.label}
+            {tab === t.id && (
+              <motion.span
+                layoutId="reviews-tab-pill"
+                className="absolute inset-0 rounded-lg bg-brand-green/10"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+            <span className="relative z-10">{t.label}</span>
           </button>
         ))}
       </div>

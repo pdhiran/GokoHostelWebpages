@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { isBluetoothSupported, printOrderTicket } from "@/lib/thermalPrint";
 import { useAdminToast } from "@/components/admin/AdminToast";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 interface OrderItem {
   id: number;
@@ -470,13 +471,13 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-background text-gray-900 dark:text-foreground">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-40 border-b border-gray-200 dark:border-border bg-white/95 dark:bg-card/95 backdrop-blur-md shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <ChefHatIcon className="h-6 w-6 text-amber-500" />
-            <h1 className="text-lg font-bold text-gray-900">Kitchen</h1>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-foreground">Kitchen</h1>
             <AnimatePresence>
               {newOrderBadge > 0 && (
                 <motion.span
@@ -529,10 +530,11 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               )}
             </button>
 
+            <DarkModeToggle className="text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-muted" />
             <button
               type="button"
               onClick={onLogout}
-              className="rounded-lg bg-gray-100 p-2 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-900"
+              className="rounded-lg bg-gray-100 dark:bg-muted p-2 text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-accent hover:text-gray-900 dark:hover:text-foreground"
             >
               <LogOutIcon className="h-4 w-4" />
             </button>
@@ -540,7 +542,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
         </div>
 
         {/* Mobile tabs */}
-        <div className="flex border-t border-gray-200 md:hidden">
+        <div className="flex border-t border-gray-200 dark:border-border md:hidden">
           {(
             [
               { key: "new", label: "New", count: placedOrders.length, color: "amber" },
@@ -590,7 +592,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-b border-gray-200 bg-white"
+            className="overflow-hidden border-b border-gray-200 dark:border-border bg-white dark:bg-card"
           >
             <div className="px-4 py-4">
               <div className="mb-3 flex items-center justify-between">
@@ -637,19 +639,24 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                       key={cat.id}
                       type="button"
                       onClick={() => setSelectedMenuCategory(cat.id)}
-                      className={`flex flex-shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
+                      className={`relative flex flex-shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-all duration-200 ${
                         selectedMenuCategory === cat.id
-                          ? "bg-amber-100 text-amber-700 ring-1 ring-amber-300"
+                          ? "text-amber-700"
                           : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                       }`}
                     >
-                      <span>{cat.icon}</span>
-                      <span>{cat.name}</span>
-                      {catUnavail > 0 && (
-                        <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-bold text-red-600">
-                          {catUnavail}
-                        </span>
+                      {selectedMenuCategory === cat.id && (
+                        <motion.span layoutId="kitchen-cat-pill" className="absolute inset-0 rounded-lg bg-amber-100 ring-1 ring-amber-300" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
                       )}
+                      <span className="relative z-10 flex items-center gap-1.5">
+                        <span>{cat.icon}</span>
+                        <span>{cat.name}</span>
+                        {catUnavail > 0 && (
+                          <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-bold text-red-600">
+                            {catUnavail}
+                          </span>
+                        )}
+                      </span>
                     </button>
                   );
                 })}
@@ -710,7 +717,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
 
       {/* Aggregate Demand */}
       {placedOrders.length > 0 && (
-        <div className="border-b border-gray-200 bg-white">
+        <div className="border-b border-gray-200 dark:border-border bg-white dark:bg-card">
           <button
             type="button"
             onClick={() => setShowDemand(!showDemand)}
@@ -1002,7 +1009,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl"
+              className="w-full max-w-sm rounded-2xl border border-gray-200 dark:border-border bg-white dark:bg-card p-6 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center gap-3">
@@ -1141,14 +1148,17 @@ function OrderColumn({
   return (
     <div className="flex flex-col">
       <div
-        className={`mb-3 flex items-center justify-between rounded-lg px-4 py-2 ${headerBg}`}
+        className={`mb-3 flex items-center justify-between rounded-xl px-4 py-2.5 shadow-sm ${headerBg}`}
       >
         <span className="text-sm font-bold">{title}</span>
-        <span
+        <motion.span
+          key={orders.length}
+          initial={{ scale: 1.3 }}
+          animate={{ scale: 1 }}
           className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${badgeBg}`}
         >
           {orders.length}
-        </span>
+        </motion.span>
       </div>
 
       <div className="space-y-3">
@@ -1306,8 +1316,8 @@ function OrderCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.2 }}
-      className={`rounded-xl border border-gray-200 border-l-4 bg-white shadow-sm ${borderColor}`}
+      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      className={`rounded-xl border border-gray-200 dark:border-border border-l-4 bg-white dark:bg-card shadow-sm transition-shadow duration-200 hover:shadow-md ${borderColor}`}
     >
       <div className="p-4">
         {/* Header row */}
