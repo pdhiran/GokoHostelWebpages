@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
-import { DarkModeToggle } from "@/components/DarkModeToggle";
+// import { DarkModeToggle } from "@/components/DarkModeToggle";
 import { AdminToastProvider } from "@/components/admin/AdminToast";
 import type { Role, AdminSection, ManagementTab } from "@/components/admin/types";
 import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
@@ -387,7 +387,7 @@ function AdminPageInner() {
                 <span className="hidden sm:inline">Change Password</span>
               </Button>
             )}
-            <DarkModeToggle className="text-brand-green-dark/70 hover:bg-brand-green/[0.06] dark:text-foreground dark:hover:bg-muted" />
+            {/* <DarkModeToggle className="text-brand-green-dark/70 hover:bg-brand-green/[0.06] dark:text-foreground dark:hover:bg-muted" /> */}
             <Button
               type="button"
               variant="ghost"

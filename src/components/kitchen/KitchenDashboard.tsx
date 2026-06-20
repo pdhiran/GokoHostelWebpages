@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { isBluetoothSupported, printOrderTicket } from "@/lib/thermalPrint";
 import { useAdminToast } from "@/components/admin/AdminToast";
-import { DarkModeToggle } from "@/components/DarkModeToggle";
+// import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 interface OrderItem {
   id: number;
@@ -530,7 +530,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               )}
             </button>
 
-            <DarkModeToggle className="text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-muted" />
+            {/* <DarkModeToggle className="text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-muted" /> */}
             <button
               type="button"
               onClick={onLogout}

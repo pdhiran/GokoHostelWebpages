@@ -7,7 +7,7 @@ import { PhoneEntry, type GuestInfo } from "@/components/food/PhoneEntry";
 import { MenuBrowser, type CartItem } from "@/components/food/MenuBrowser";
 import { FoodCart, type CartItemData, type GuestInfoData } from "@/components/food/FoodCart";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
-import { DarkModeToggle } from "@/components/DarkModeToggle";
+// import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 type View = "loading" | "phone" | "menu" | "cart";
 
@@ -431,7 +431,7 @@ export default function FoodOrderPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <DarkModeToggle className="text-white/80 hover:bg-white/20" />
+                    {/* <DarkModeToggle className="text-white/80 hover:bg-white/20" /> */}
                     <Link
                       href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
                       className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
