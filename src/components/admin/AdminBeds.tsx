@@ -22,10 +22,10 @@ function getDaysRemaining(expectedCheckout: string): number {
 }
 
 function statusColor(status: string, isOverdue: boolean) {
-  if (status === "available") return { border: "border-green-400", bg: "bg-green-50", fill: "#22c55e" };
-  if (status === "occupied" && isOverdue) return { border: "border-yellow-400", bg: "bg-yellow-50", fill: "#eab308" };
-  if (status === "occupied") return { border: "border-red-400", bg: "bg-red-50", fill: "#ef4444" };
-  return { border: "border-orange-400", bg: "bg-orange-50", fill: "#f97316" };
+  if (status === "available") return { border: "border-green-400", bg: "bg-green-50 dark:bg-green-950", fill: "#22c55e" };
+  if (status === "occupied" && isOverdue) return { border: "border-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-950", fill: "#eab308" };
+  if (status === "occupied") return { border: "border-red-400", bg: "bg-red-50 dark:bg-red-950", fill: "#ef4444" };
+  return { border: "border-orange-400", bg: "bg-orange-50 dark:bg-orange-950", fill: "#f97316" };
 }
 
 function BedSlotSvg({ position, fill }: { position: string; fill: string }) {
@@ -66,10 +66,10 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
     <div className={cn(
       "relative rounded-xl border-2 p-3 transition-all duration-200",
       colors.border, colors.bg,
-      bed.status === "available" && !isLoading && onAssign && "hover:shadow-md hover:-translate-y-0.5 cursor-pointer",
+      bed.status === "available" && !isLoading && onAssign && "hover:shadow-md dark:hover:shadow-none hover:-translate-y-0.5 cursor-pointer",
     )} onClick={bed.status === "available" && !isLoading && onAssign ? onAssign : undefined}>
       {isLoading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/70">
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/70 dark:bg-card/70">
           <Loader2Icon className="h-5 w-5 animate-spin text-brand-green" />
         </div>
       )}
@@ -89,7 +89,7 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
       {bed.status === "available" && (
         <div className="mt-2 flex items-center gap-1.5 transition-colors">
           <UserPlusIcon className="h-3.5 w-3.5 text-green-600" />
-          <span className="text-[11px] font-medium text-green-700">Available</span>
+          <span className="text-[11px] font-medium text-green-700 dark:text-green-400">Available</span>
         </div>
       )}
 
@@ -111,7 +111,7 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
             )}
             {onUnassign && (
               <button type="button" onClick={(e) => { e.stopPropagation(); onUnassign(); }}
-                className="flex-1 rounded-lg bg-gray-100 px-1 py-1.5 text-[9px] font-semibold text-gray-600 transition-colors hover:bg-gray-200">
+                className="flex-1 rounded-lg bg-gray-100 dark:bg-muted px-1 py-1.5 text-[9px] font-semibold text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-accent">
                 Unassign
               </button>
             )}
@@ -129,7 +129,7 @@ function BedCard({ bed, onAssign, onCheckout, onMarkClean, onUnassign, onChangeB
         <div className="mt-2">
           <div className="flex items-center gap-1.5">
             <SparklesIcon className="h-3.5 w-3.5 text-orange-500" />
-            <span className="text-[11px] font-medium text-orange-700">Needs cleaning</span>
+            <span className="text-[11px] font-medium text-orange-700 dark:text-orange-400">Needs cleaning</span>
           </div>
           {onMarkClean && (
             <button type="button" onClick={(e) => { e.stopPropagation(); onMarkClean(); }}
@@ -312,18 +312,18 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
 
       {/* Unassigned guests */}
       {unassigned.length > 0 && !assigningGuest && (
-        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <h3 className="font-medium text-blue-800">{unassigned.length} guest{unassigned.length !== 1 ? "s" : ""} without bed assignment</h3>
+        <div className="mt-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 p-4">
+          <h3 className="font-medium text-blue-800 dark:text-blue-300">{unassigned.length} guest{unassigned.length !== 1 ? "s" : ""} without bed assignment</h3>
           <motion.div className="mt-2 space-y-2" variants={staggerContainer} initial="hidden" animate="visible">
             {unassigned.map((guest, i) => (
-              <motion.div key={i} variants={staggerItem} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-white px-3 py-2 transition-all duration-200 hover:shadow-soft">
+              <motion.div key={i} variants={staggerItem} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-white dark:bg-card px-3 py-2 transition-all duration-200 hover:shadow-soft dark:hover:shadow-none">
                 <div>
                   <span className="font-medium text-brand-green-dark">{guest[3]}</span>
                   <span className="ml-2 text-xs text-brand-green-dark/50">{guest[6]} days · {guest[7]}</span>
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setCheckoutConfirm(guest)}
-                    className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100">
+                    className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/50">
                     Checkout
                   </button>
                   <button type="button" onClick={() => { setChangingBed(null); setAssigningGuest(guest); }}
@@ -341,7 +341,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
       <AnimatePresence>
       {checkoutConfirm && (
         <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
-          <motion.div className="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div className="mx-4 w-full max-w-sm rounded-2xl bg-white dark:bg-card p-6 shadow-xl dark:shadow-none" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <h3 className="font-display text-lg font-bold text-brand-green-dark">Confirm Checkout</h3>
             <p className="mt-2 text-sm text-brand-green-dark/80">
               Are you sure you want to mark <strong>{checkoutConfirm[3]}</strong> as checked out?
@@ -377,9 +377,9 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
 
       {/* Changing bed banner */}
       {changingBed !== null && (
-        <div className="mt-4 rounded-xl border-2 border-blue-400 bg-blue-50/50 p-4">
+        <div className="mt-4 rounded-xl border-2 border-blue-400 bg-blue-50/50 dark:bg-blue-950/50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 truncate font-medium text-blue-700">Changing bed for: <strong>{beds[changingBed]?.guestName}</strong></p>
+            <p className="min-w-0 truncate font-medium text-blue-700 dark:text-blue-400">Changing bed for: <strong>{beds[changingBed]?.guestName}</strong></p>
             <button type="button" onClick={() => setChangingBed(null)} className="text-sm text-brand-green-dark/60 hover:text-brand-red">Cancel</button>
           </div>
           <p className="mt-1 text-xs text-blue-600/70">Click on any available (green) bed to move the guest there. Old bed will go to cleanup.</p>
@@ -393,7 +393,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
             <p className="col-span-full text-center text-brand-green-dark/50 py-10">No dorms configured. Go to Setup to add dorms and beds.</p>
           ) : dormStats.map((dorm) => (
             <motion.button key={dorm.name} type="button" variants={staggerItem} onClick={() => setSelectedDorm(dorm.name)}
-              className="rounded-2xl border border-brand-mist bg-white p-5 text-left shadow-card transition-all duration-200 hover:shadow-lift hover:-translate-y-0.5">
+              className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 text-left shadow-card dark:shadow-none transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
               <div className="flex items-center gap-3">
                 {/* Bunk layout icon */}
                 {dorm.layoutType === "1u2l" ? (
@@ -442,15 +442,15 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
                   </p>
                 </div>
               </div>
-              <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-gray-100">
+              <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-muted">
                 {dorm.occupied > 0 && <div className="bg-red-400" style={{ width: `${(dorm.occupied / dorm.total) * 100}%` }} />}
                 {dorm.cleanup > 0 && <div className="bg-orange-400" style={{ width: `${(dorm.cleanup / dorm.total) * 100}%` }} />}
                 {dorm.available > 0 && <div className="bg-green-400" style={{ width: `${(dorm.available / dorm.total) * 100}%` }} />}
               </div>
               <div className="mt-2 flex gap-3 text-xs">
-                <span className="text-green-700">{dorm.available} free</span>
-                <span className="text-red-700">{dorm.occupied} occupied</span>
-                {dorm.cleanup > 0 && <span className="text-orange-700">{dorm.cleanup} cleanup</span>}
+                <span className="text-green-700 dark:text-green-400">{dorm.available} free</span>
+                <span className="text-red-700 dark:text-red-400">{dorm.occupied} occupied</span>
+                {dorm.cleanup > 0 && <span className="text-orange-700 dark:text-orange-400">{dorm.cleanup} cleanup</span>}
               </div>
               <p className="mt-1 text-xs text-brand-green-dark/50">{dorm.total} beds total</p>
             </motion.button>
@@ -474,10 +474,10 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
 
           {/* Legend */}
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
-            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border-2 border-green-400 bg-green-50" /> Available</span>
-            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border-2 border-red-400 bg-red-50" /> Occupied</span>
-            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border-2 border-orange-400 bg-orange-50" /> Cleanup</span>
-            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border-2 border-yellow-400 bg-yellow-50" /> Overdue</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border-2 border-green-400 bg-green-50 dark:bg-green-950" /> Available</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border-2 border-red-400 bg-red-50 dark:bg-red-950" /> Occupied</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border-2 border-orange-400 bg-orange-50 dark:bg-orange-950" /> Cleanup</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border-2 border-yellow-400 bg-yellow-50 dark:bg-yellow-950" /> Overdue</span>
           </div>
 
           {/* Bunk bed groups */}
@@ -486,7 +486,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
               const upperNum = parseInt(group.upper?.bed.bedId.match(/\d+/)?.[0] || "0");
               const groupLabel = upperNum > 0 ? String(Math.ceil(upperNum / 2)) : `${gi + 1}`;
               return (
-                <motion.div key={gi} variants={staggerItem} className="relative overflow-hidden rounded-2xl border border-brand-mist bg-white shadow-card transition-all duration-200 hover:shadow-soft">
+                <motion.div key={gi} variants={staggerItem} className="relative overflow-hidden rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none transition-all duration-200 hover:shadow-soft dark:hover:shadow-none">
                   <div className="border-b border-brand-mist bg-brand-sand/30 px-3 py-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green-dark/40">Bunk {groupLabel}</span>
                   </div>
@@ -530,7 +530,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
               );
             })}
             {singles.map(({ bed, idx }) => (
-              <motion.div key={idx} variants={staggerItem} className="overflow-hidden rounded-2xl border border-brand-mist bg-white shadow-card transition-all duration-200 hover:shadow-soft">
+              <motion.div key={idx} variants={staggerItem} className="overflow-hidden rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none transition-all duration-200 hover:shadow-soft dark:hover:shadow-none">
                 <div className="border-b border-brand-mist bg-brand-sand/30 px-3 py-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green-dark/40">Single</span>
                 </div>

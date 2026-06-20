@@ -186,7 +186,7 @@ export function ManagementUsers({ password, username, role }: { password: string
       {/* User list */}
       <div className="space-y-3">
         {users.map((user) => (
-          <div key={user.id} data-user-id={user.id} className="flex items-center justify-between gap-3 rounded-xl border border-brand-mist bg-white p-4">
+          <div key={user.id} data-user-id={user.id} className="flex items-center justify-between gap-3 rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
             <div className="flex items-center gap-3">
               {user.isSystem ? <ShieldCheckIcon className="h-5 w-5 text-brand-green" /> : <ShieldIcon className="h-5 w-5 text-brand-green-dark/30" />}
               <div className="min-w-0">
@@ -200,7 +200,7 @@ export function ManagementUsers({ password, username, role }: { password: string
                   <button type="button" onClick={() => startEdit(user)} className="rounded-md p-1.5 text-brand-green-dark/40 hover:bg-brand-sand hover:text-brand-green">
                     <PencilIcon className="h-4 w-4" />
                   </button>
-                  <button type="button" onClick={() => deleteUser(user.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600">
+                  <button type="button" onClick={() => deleteUser(user.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600">
                     <Trash2Icon className="h-4 w-4" />
                   </button>
                 </>
@@ -213,7 +213,7 @@ export function ManagementUsers({ password, username, role }: { password: string
 
       {/* Add/Edit form */}
       {showForm && (
-        <div ref={formRef} className="rounded-2xl border border-brand-mist bg-white p-6 shadow-sm">
+        <div ref={formRef} className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-6 shadow-sm dark:shadow-none">
           <h4 className="mb-4 font-semibold text-brand-green-dark">{editingUser ? "Edit User" : "Add New User"}</h4>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

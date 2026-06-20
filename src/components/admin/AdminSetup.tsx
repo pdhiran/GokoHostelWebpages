@@ -122,7 +122,7 @@ export function AdminSetup({ password, username }: { password: string; username?
       <p className="mt-1 text-sm text-brand-green-dark/60">Configure dorms and beds. Only available beds can be removed.</p>
 
       {/* Add new dorm */}
-      <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-card">
+      <div className="mt-6 rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-card dark:shadow-none">
         <h3 className="font-display text-base font-bold text-brand-green-dark">Add new dorm</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-4">
           <div>
@@ -151,7 +151,7 @@ export function AdminSetup({ password, username }: { password: string; username?
 
       {/* Guest Age Range */}
       {ageLoaded && (
-        <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-card">
+        <div className="mt-6 rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-card dark:shadow-none">
           <h3 className="font-display text-base font-bold text-brand-green-dark">Guest Age Range</h3>
           <p className="mt-1 text-xs text-brand-green-dark/50">Guests outside this age range will be flagged for staff review. Staff can dismiss flags by marking &ldquo;Vibe Matches&rdquo;.</p>
           <div className="mt-4 flex items-end gap-3">
@@ -203,17 +203,17 @@ export function AdminSetup({ password, username }: { password: string; username?
           const bunkGroups = [...groupMap.values()];
 
           const statusFill = (s: string) => s === "available" ? "#22c55e" : s === "occupied" ? "#ef4444" : "#f97316";
-          const statusBg = (s: string) => s === "available" ? "bg-green-50 border-green-300" : s === "occupied" ? "bg-red-50 border-red-300" : "bg-orange-50 border-orange-300";
+          const statusBg = (s: string) => s === "available" ? "bg-green-50 dark:bg-green-950 border-green-300" : s === "occupied" ? "bg-red-50 dark:bg-red-950 border-red-300" : "bg-orange-50 dark:bg-orange-950 border-orange-300";
 
           return (
-            <div key={dormName} className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+            <div key={dormName} className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-display text-base font-bold text-brand-green-dark">{dormName}</h3>
                   <p className="text-xs text-brand-green-dark/50">{dormBeds.length} beds · {bunkGroups.length} bunks{singleBeds.length > 0 ? ` · ${singleBeds.length} singles` : ""}</p>
                 </div>
                 <button type="button" onClick={() => removeDorm(dormName)}
-                  className="flex items-center gap-1 rounded-md bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100">
+                  className="flex items-center gap-1 rounded-md bg-red-50 dark:bg-red-950 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50">
                   <Trash2Icon className="h-3.5 w-3.5" /> Delete dorm
                 </button>
               </div>

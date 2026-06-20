@@ -38,7 +38,7 @@ function StarDisplay({ rating }: { rating: number }) {
       {[1, 2, 3, 4, 5].map((s) => (
         <StarIcon
           key={s}
-          className={cn("h-3.5 w-3.5", s <= rating ? "fill-amber-400 text-amber-400" : "text-gray-300")}
+          className={cn("h-3.5 w-3.5", s <= rating ? "fill-amber-400 text-amber-400" : "text-gray-300 dark:text-gray-600")}
         />
       ))}
     </div>
@@ -89,7 +89,7 @@ export function ReviewResponsesTab({ password, username }: Props) {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+      <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <input
             type="date"
@@ -148,7 +148,7 @@ export function ReviewResponsesTab({ password, username }: Props) {
           <Loader2Icon className="h-5 w-5 animate-spin text-brand-green" />
         </div>
       ) : feedback.length === 0 ? (
-        <div className="rounded-xl border border-brand-mist bg-white p-8 text-center">
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-8 text-center">
           <p className="text-sm text-brand-green-dark/50">No feedback found for the selected filters.</p>
         </div>
       ) : (
@@ -160,7 +160,7 @@ export function ReviewResponsesTab({ password, username }: Props) {
             try { areas = JSON.parse(f.improvementAreas || "[]"); } catch {}
             const isExpanded = expandedId === f.id;
             return (
-              <div key={f.id} className="rounded-xl border border-brand-mist bg-white overflow-hidden">
+              <div key={f.id} className="rounded-xl border border-brand-mist bg-white dark:bg-card overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setExpandedId(isExpanded ? null : f.id)}
@@ -174,7 +174,7 @@ export function ReviewResponsesTab({ password, username }: Props) {
                       </div>
                       <div className="mt-1 flex items-center gap-2 flex-wrap">
                         {areas.map((a) => (
-                          <span key={a} className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700">
+                          <span key={a} className="rounded-full bg-red-50 dark:bg-red-950 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-400">
                             {a}
                           </span>
                         ))}

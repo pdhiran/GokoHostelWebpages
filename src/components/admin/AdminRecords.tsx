@@ -445,7 +445,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
           {tabs.map((tab) => (
             <button key={tab} type="button" onClick={() => loadTab(tab)}
               className={cn("relative rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                tab === currentTab ? "text-white" : "bg-white text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+                tab === currentTab ? "text-white" : "bg-white dark:bg-card text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
               )}>
               {tab === currentTab && (
                 <motion.span layoutId="records-month-pill" className="absolute inset-0 rounded-full bg-brand-green" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
@@ -470,7 +470,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
         </div>
         <div className="flex items-center gap-2">
           <p className="text-sm text-brand-green-dark/70">{filteredRows.length}{filteredRows.length !== rows.length ? ` of ${rows.length}` : ""} records</p>
-          <div className="flex rounded-lg border border-brand-mist bg-white p-0.5">
+          <div className="flex rounded-lg border border-brand-mist bg-white dark:bg-card p-0.5">
             <button type="button" onClick={() => setViewMode("card")} className={cn("relative rounded-md p-1.5 transition-colors", viewMode === "card" ? "text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Card view">
               {viewMode === "card" && <motion.span layoutId="records-view-pill" className="absolute inset-0 rounded-md bg-brand-green" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
               <LayoutListIcon className="relative z-10 h-3.5 w-3.5" />
@@ -487,7 +487,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       <AnimatePresence>
       {showAddForm && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease: [0.33, 1, 0.68, 1] }} className="overflow-hidden">
-        <div className="mt-4 rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-card">
+        <div className="mt-4 rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-card dark:shadow-none">
           <h3 className="font-display text-lg font-bold text-brand-green">Add manual entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {TEXT_FIELDS.map((field) => (
@@ -548,8 +548,8 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
               <Input type="date" value={newDob} onChange={(e) => setNewDob(e.target.value)} className="mt-1" />
             </div>
             {newEntry[8] && newEntry[8] !== "India" && (
-              <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 bg-blue-50/30 p-3">
-                <p className="mb-2 text-xs font-semibold text-blue-800">Form C fields (foreign guest)</p>
+              <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/30 p-3">
+                <p className="mb-2 text-xs font-semibold text-blue-800 dark:text-blue-300">Form C fields (foreign guest)</p>
                 <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                   {FORM_C_FIELDS.map((f) => (
                     <div key={f.key}>
@@ -584,7 +584,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                         <img src={URL.createObjectURL(file)} alt={`ID ${i + 1}`} className="h-20 w-20 rounded-lg border border-brand-mist object-cover" />
                       )}
                       <button type="button" onClick={() => setNewIdFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600">
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm dark:shadow-none hover:bg-red-600">
                         <XIcon className="h-3 w-3" />
                       </button>
                       <p className="mt-1 max-w-[80px] truncate text-center text-[10px] text-brand-green-dark/50">{i === 0 ? "Front" : i === 1 ? "Back" : `Page ${i + 1}`}</p>
@@ -615,9 +615,9 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       <AnimatePresence>
       {showPastForm && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease: [0.33, 1, 0.68, 1] }} className="overflow-hidden">
-        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/30 p-4 sm:p-6 shadow-card">
-          <h3 className="font-display text-lg font-bold text-amber-800">Add past check-in record</h3>
-          <p className="mt-1 text-xs text-amber-700">This record is for archival purposes only — no bed assignment needed.</p>
+        <div className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/30 p-4 sm:p-6 shadow-card dark:shadow-none">
+          <h3 className="font-display text-lg font-bold text-amber-800 dark:text-amber-300">Add past check-in record</h3>
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">This record is for archival purposes only — no bed assignment needed.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {TEXT_FIELDS.map((field) => (
               field.type === "name_split" ? (
@@ -681,8 +681,8 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
               </div>
             </div>
             {pastEntry[8] && pastEntry[8] !== "India" && (
-              <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 bg-blue-50/30 p-3">
-                <p className="mb-2 text-xs font-semibold text-blue-800">Form C fields (foreign guest)</p>
+              <div className="sm:col-span-2 md:col-span-3 rounded-lg border border-blue-100 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/30 p-3">
+                <p className="mb-2 text-xs font-semibold text-blue-800 dark:text-blue-300">Form C fields (foreign guest)</p>
                 <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                   {FORM_C_FIELDS.map((f) => (
                     <div key={f.key}>
@@ -717,7 +717,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                         <img src={URL.createObjectURL(file)} alt={`ID ${i + 1}`} className="h-20 w-20 rounded-lg border border-brand-mist object-cover" />
                       )}
                       <button type="button" onClick={() => setPastIdFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600">
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm dark:shadow-none hover:bg-red-600">
                         <XIcon className="h-3 w-3" />
                       </button>
                       <p className="mt-1 max-w-[80px] truncate text-center text-[10px] text-brand-green-dark/50">{i === 0 ? "Front" : i === 1 ? "Back" : `Page ${i + 1}`}</p>
@@ -726,7 +726,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                 </div>
               )}
               <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-brand-sand/50">
-                <UploadIcon className="h-4 w-4 text-amber-700" />
+                <UploadIcon className="h-4 w-4 text-amber-700 dark:text-amber-400" />
                 {pastIdFiles.length === 0 ? "Choose files" : "Add more photos"}
                 <input type="file" accept="image/*,.pdf" multiple className="hidden" onChange={(e) => { if (e.target.files) setPastIdFiles((prev) => [...prev, ...Array.from(e.target.files!)]); }} />
               </label>
@@ -746,7 +746,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
 
       {/* Edit form */}
       {editIndex !== null && (
-        <div ref={editFormRef} className="mt-4 rounded-2xl border-2 border-brand-green/20 bg-white p-4 sm:p-6 shadow-card">
+        <div ref={editFormRef} className="mt-4 rounded-2xl border-2 border-brand-green/20 bg-white dark:bg-card p-4 sm:p-6 shadow-card dark:shadow-none">
           <h3 className="font-display text-lg font-bold text-brand-green">Edit entry</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {CHECKIN_COLUMNS.map((col, i) => (
@@ -809,7 +809,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
               const visaLinks = (row[15] || "").includes(" | ") ? (row[15] || "").split(" | ").filter((u: string) => u.startsWith("http")) : (row[15] || "").startsWith("http") ? [row[15]] : [];
 
               return (
-                <div key={origIdx} data-record-id={row[17] || origIdx} className={cn("rounded-xl border border-brand-mist bg-white shadow-sm transition-all duration-200 hover:shadow-soft", guestAnyFlag && "border-orange-200 bg-orange-50/30")}>
+                <div key={origIdx} data-record-id={row[17] || origIdx} className={cn("rounded-xl border border-brand-mist bg-white dark:bg-card shadow-sm dark:shadow-none transition-all duration-200 hover:shadow-soft dark:hover:shadow-none", guestAnyFlag && "border-orange-200 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-950/30")}>
                   {/* Collapsed — always visible */}
                   <button
                     type="button"
@@ -820,16 +820,16 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold text-brand-green-dark">{row[3] || "—"}</span>
                         {verified === "yes" ? (
-                          <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700"><ShieldCheckIcon className="h-2.5 w-2.5" />Verified</span>
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-green-700 dark:text-green-400"><ShieldCheckIcon className="h-2.5 w-2.5" />Verified</span>
                         ) : verified === "no" ? (
-                          <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700"><ShieldAlertIcon className="h-2.5 w-2.5" />Rejected</span>
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-red-700 dark:text-red-400"><ShieldAlertIcon className="h-2.5 w-2.5" />Rejected</span>
                         ) : verified === "spoof_warning" ? (
-                          <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700"><ShieldAlertIcon className="h-2.5 w-2.5" />Spoof</span>
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400"><ShieldAlertIcon className="h-2.5 w-2.5" />Spoof</span>
                         ) : verified === "pending" ? (
-                          <span className="inline-flex items-center gap-0.5 rounded-full bg-yellow-100 px-1.5 py-0.5 text-[9px] font-semibold text-yellow-700"><ShieldAlertIcon className="h-2.5 w-2.5" />Pending</span>
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-yellow-700 dark:text-yellow-400"><ShieldAlertIcon className="h-2.5 w-2.5" />Pending</span>
                         ) : null}
-                        {guestFlagged && <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", guestUnderage ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700")}>{guestUnderage ? `Underage (${guestAge})` : `Overage (${guestAge})`}</span>}
-                        {guestDobMismatch && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">DOB mismatch</span>}
+                        {guestFlagged && <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", guestUnderage ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400" : "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400")}>{guestUnderage ? `Underage (${guestAge})` : `Overage (${guestAge})`}</span>}
+                        {guestDobMismatch && <span className="rounded-full bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-red-700 dark:text-red-400">DOB mismatch</span>}
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-green-dark/60">
                         <span className="flex items-center gap-1"><CalendarIcon className="h-3 w-3" />{row[1] || "—"} {row[2] || ""}</span>
@@ -866,11 +866,11 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                           </button>
                         ) : null}
                         {visaLinks.length > 0 ? visaLinks.map((url: string, li: number) => (
-                          <a key={`visa-${li}`} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-600 hover:bg-amber-100">
+                          <a key={`visa-${li}`} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950 px-2 py-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50">
                             Visa {visaLinks.length > 1 ? `#${li + 1}` : ""} <ExternalLinkIcon className="h-2.5 w-2.5" />
                           </a>
                         )) : (row[8] || "").toLowerCase() !== "india" && row[8] && hasPermission(role, permissions, "canEditRecords") ? (
-                          <button type="button" onClick={() => setUploadPopup({ origIdx, type: "visa", guestName: row[3] || "Guest" })} className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-600 hover:bg-amber-100">
+                          <button type="button" onClick={() => setUploadPopup({ origIdx, type: "visa", guestName: row[3] || "Guest" })} className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950 px-2 py-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50">
                             <UploadIcon className="h-2.5 w-2.5" /> Upload Visa
                           </button>
                         ) : null}
@@ -880,12 +880,12 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                       {(hasPermission(role, permissions, "canEditRecords") || hasPermission(role, permissions, "canDeleteRecords")) && (
                         <div className="mt-3 flex flex-wrap gap-1.5 border-t border-brand-mist pt-2">
                           {(row[8] || "").toLowerCase() !== "india" && row[8] && hasPermission(role, permissions, "canEditRecords") && (
-                            <button type="button" onClick={() => openFormC(origIdx, row)} className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 hover:bg-indigo-100">
+                            <button type="button" onClick={() => openFormC(origIdx, row)} className="flex items-center gap-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 px-2 py-1 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50">
                               <FileTextIcon className="h-3 w-3" /> Form C
                             </button>
                           )}
                           {row[18] === "checked_out" && row[19] && (Date.now() - new Date(row[19]).getTime() < 24 * 60 * 60 * 1000) && hasPermission(role, permissions, "canEditRecords") && (
-                            <button type="button" onClick={() => undoCheckout(origIdx)} className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-100">Reactivate</button>
+                            <button type="button" onClick={() => undoCheckout(origIdx)} className="flex items-center gap-1 rounded-lg bg-blue-50 dark:bg-blue-950 px-2 py-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50">Reactivate</button>
                           )}
                           {hasPermission(role, permissions, "canEditRecords") && (
                             <button type="button" onClick={() => startEdit(origIdx)} className="flex items-center gap-1 rounded-lg bg-brand-sand px-2 py-1 text-[10px] font-medium text-brand-green-dark/70 hover:bg-brand-green/10">
@@ -893,17 +893,17 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                             </button>
                           )}
                           {hasPermission(role, permissions, "canDeleteRecords") && (
-                            <button type="button" onClick={() => deleteRow(origIdx)} className="flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100">
+                            <button type="button" onClick={() => deleteRow(origIdx)} className="flex items-center gap-1 rounded-lg bg-red-50 dark:bg-red-950 px-2 py-1 text-[10px] font-medium text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50">
                               <Trash2Icon className="h-3 w-3" /> Delete
                             </button>
                           )}
                           {(verified === "pending" || verified === "spoof_warning") && (
-                            <button type="button" onClick={() => setVerifyPopup({ origIdx, row })} className="flex items-center gap-1 rounded-lg bg-yellow-50 px-2 py-1 text-[10px] font-medium text-yellow-700 hover:bg-yellow-100">
+                            <button type="button" onClick={() => setVerifyPopup({ origIdx, row })} className="flex items-center gap-1 rounded-lg bg-yellow-50 dark:bg-yellow-950 px-2 py-1 text-[10px] font-medium text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/50">
                               <ShieldAlertIcon className="h-3 w-3" /> Verify
                             </button>
                           )}
                           {guestAnyFlag && (
-                            <button type="button" onClick={() => handleVibeMatch(checkinId, origIdx)} disabled={vibeMatchingId === checkinId} className="rounded-lg bg-orange-50 px-2 py-1 text-[10px] font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50">
+                            <button type="button" onClick={() => handleVibeMatch(checkinId, origIdx)} disabled={vibeMatchingId === checkinId} className="rounded-lg bg-orange-50 dark:bg-orange-950 px-2 py-1 text-[10px] font-medium text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/50 disabled:opacity-50">
                               {vibeMatchingId === checkinId ? "..." : "Vibe?"}
                             </button>
                           )}
@@ -919,7 +919,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       )}
 
       {/* Table */}
-      {viewMode === "table" && <div className="mt-6 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+      {viewMode === "table" && <div className="mt-6 overflow-x-auto rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none">
         <table className="w-full min-w-[1000px] text-left text-sm">
           <thead>
             <tr className="border-b border-brand-mist bg-brand-sand/50">
@@ -943,7 +943,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                 const guestDobMismatch = !!(guestDob && guestDobFromId && !guestVibeMatched && !dobsMatch(guestDob, guestDobFromId));
                 const guestAnyFlag = guestFlagged || guestDobMismatch;
                 return (
-                <tr key={origIdx} data-record-id={row[17] || origIdx} className={cn("border-b border-brand-mist/60 last:border-b-0 transition-colors duration-150 hover:bg-brand-sand/40", guestAnyFlag && "bg-orange-50/40")}>
+                <tr key={origIdx} data-record-id={row[17] || origIdx} className={cn("border-b border-brand-mist/60 last:border-b-0 transition-colors duration-150 hover:bg-brand-sand/40", guestAnyFlag && "bg-orange-50/40 dark:bg-orange-950/40")}>
                   {CHECKIN_COLUMNS.map((col, ci) => {
                     if (ci === 0) return null;
                     const cell = row[ci] || "";
@@ -958,12 +958,12 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                               <span className="text-[10px] text-brand-green-dark/40">DOB: {guestDob}</span>
                             )}
                             {guestFlagged && (
-                              <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", guestUnderage ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700")}>
+                              <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", guestUnderage ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400" : "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400")}>
                                 {guestUnderage ? `Underage (${guestAge})` : `Overage (${guestAge})`}
                               </span>
                             )}
                             {guestDobMismatch && (
-                              <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700">DOB mismatch</span>
+                              <span className="rounded-full bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-red-700 dark:text-red-400">DOB mismatch</span>
                             )}
                           </div>
                         </td>
@@ -976,21 +976,21 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                         <td key={ci} className="whitespace-nowrap px-3 py-3">
                           <div className="flex flex-wrap items-center gap-1.5">
                             {cell === "yes" ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/50 px-2 py-0.5 text-[10px] font-semibold text-green-700 dark:text-green-400">
                                 <ShieldCheckIcon className="h-3 w-3" /> Verified
                               </span>
                             ) : cell === "no" ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 dark:bg-red-900/50 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-400">
                                 <ShieldAlertIcon className="h-3 w-3" /> Rejected
                               </span>
                             ) : cell === "spoof_warning" ? (
                               <button type="button" onClick={() => setVerifyPopup({ origIdx, row })}
-                                className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-200">
+                                className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-800">
                                 <ShieldAlertIcon className="h-3 w-3" /> Possibly fake
                               </button>
                             ) : (
                               <button type="button" onClick={() => setVerifyPopup({ origIdx, row })}
-                                className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700 hover:bg-yellow-200">
+                                className="inline-flex items-center gap-1 rounded-full bg-yellow-100 dark:bg-yellow-900/50 px-2 py-0.5 text-[10px] font-semibold text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-800">
                                 <ShieldAlertIcon className="h-3 w-3" /> Pending
                               </button>
                             )}
@@ -999,7 +999,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                                 type="button"
                                 onClick={() => handleVibeMatch(checkinId, origIdx)}
                                 disabled={vibeMatchingId === checkinId}
-                                className="rounded-full bg-orange-100 px-2 py-0.5 text-[9px] font-semibold text-orange-700 hover:bg-orange-200 disabled:opacity-50"
+                                className="rounded-full bg-orange-100 dark:bg-orange-900/50 px-2 py-0.5 text-[9px] font-semibold text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-800 disabled:opacity-50"
                               >
                                 {vibeMatchingId === checkinId ? "..." : "Vibe?"}
                               </button>
@@ -1008,7 +1008,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                               (guestAge !== null && (guestAge < ageRange.min || guestAge > ageRange.max)) ||
                               (guestDob && guestDobFromId && !dobsMatch(guestDob, guestDobFromId))
                             ) && (
-                              <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">Vibe OK</span>
+                              <span className="rounded-full bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-green-700 dark:text-green-400">Vibe OK</span>
                             )}
                           </div>
                         </td>
@@ -1032,7 +1032,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                           </button>
                         ) : col === "Visa" && !cell && (row[8] || "").trim() !== "" && (row[8] || "").toLowerCase() !== "india" && hasPermission(role, permissions, "canEditRecords") ? (
                           <button type="button" onClick={() => setUploadPopup({ origIdx, type: "visa", guestName: row[3] || "Guest" })}
-                            className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-600 hover:bg-amber-100">
+                            className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950 px-2 py-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50">
                             <UploadIcon className="h-3 w-3" /> Upload Visa
                           </button>
                         ) : <span className="text-brand-green-dark/90">{cell}</span>}
@@ -1044,18 +1044,18 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                       <div className="flex gap-1">
                         {(row[8] || "").toLowerCase() !== "india" && row[8] && hasPermission(role, permissions, "canEditRecords") && (
                           <button type="button" onClick={() => openFormC(origIdx, row)}
-                            className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 hover:bg-indigo-100">
+                            className="flex items-center gap-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 px-2 py-1 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50">
                             <FileTextIcon className="h-3 w-3" /> Form C
                           </button>
                         )}
                         {row[18] === "checked_out" && row[19] && (Date.now() - new Date(row[19]).getTime() < 24 * 60 * 60 * 1000) && hasPermission(role, permissions, "canEditRecords") && (
-                          <button type="button" onClick={() => undoCheckout(origIdx)} className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-100">Reactivate</button>
+                          <button type="button" onClick={() => undoCheckout(origIdx)} className="flex items-center gap-1 rounded-lg bg-blue-50 dark:bg-blue-950 px-2 py-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50">Reactivate</button>
                         )}
                         {hasPermission(role, permissions, "canEditRecords") && (
                           <button type="button" onClick={() => startEdit(origIdx)} className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-green/70 hover:bg-brand-green/[0.06]"><PencilIcon className="h-4 w-4" /></button>
                         )}
                         {hasPermission(role, permissions, "canDeleteRecords") && (
-                          <button type="button" onClick={() => deleteRow(origIdx)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50"><Trash2Icon className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => deleteRow(origIdx)} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-950"><Trash2Icon className="h-4 w-4" /></button>
                         )}
                       </div>
                     </td>
@@ -1071,7 +1071,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       {/* Manual verification popup */}
       {verifyPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setVerifyPopup(null)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-card p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">Manual ID Verification</h3>
               <button type="button" onClick={() => setVerifyPopup(null)} className="rounded-lg p-1 hover:bg-brand-sand">
@@ -1142,7 +1142,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       {/* Inline upload popup */}
       {uploadPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => { if (!uploading) { setUploadPopup(null); setUploadFiles([]); setUploadIdType(""); } }}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-card p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">
                 Upload {uploadPopup.type === "id" ? "ID Card" : "Visa"}
@@ -1205,9 +1205,9 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
       {/* Form C preview modal */}
       {formCPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => { if (!formCEditing) setFormCPopup(null); }}>
-          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-4 sm:p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white dark:bg-card p-4 sm:p-6 shadow-lift" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-lg font-bold text-indigo-800">Form C Data — {formCPopup.row[3]}</h3>
+              <h3 className="font-display text-lg font-bold text-indigo-800 dark:text-indigo-300">Form C Data — {formCPopup.row[3]}</h3>
               <div className="flex items-center gap-2">
                 {!formCEditing && (
                   <button type="button" onClick={async () => {
@@ -1222,7 +1222,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                         showSuccess("Data re-extracted from images!");
                       } else { showError("Re-extraction failed"); }
                     } finally { setFormCLoading(false); }
-                  }} className="rounded-lg bg-purple-100 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-200">
+                  }} className="rounded-lg bg-purple-100 dark:bg-purple-900/50 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-800">
                     Re-extract
                   </button>
                 )}
@@ -1440,29 +1440,29 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
 
             <div className="mt-6 space-y-3">
               {(formCPopup.data.frroApplicationId || formCPopup.data.frroSubmissions?.length > 0) && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                  <p className="text-sm font-semibold text-emerald-800">Form C submitted to FRRO</p>
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 p-4">
+                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Form C submitted to FRRO</p>
                   {formCPopup.data.frroSubmissions?.length > 0 ? (
                     <div className="mt-1 space-y-1.5">
                       {formCPopup.data.frroSubmissions.map((sub: { id: string; date: string }, i: number) => (
                         <div key={i} className="flex items-center gap-2">
-                          <span className="text-xs text-emerald-700">#{i + 1} Application ID: <span className="font-bold">{sub.id}</span></span>
+                          <span className="text-xs text-emerald-700 dark:text-emerald-400">#{i + 1} Application ID: <span className="font-bold">{sub.id}</span></span>
                           <span className="text-[10px] text-emerald-600">({new Date(sub.date).toLocaleString()})</span>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <>
-                      <p className="mt-1 text-xs text-emerald-700">Application ID: <span className="font-bold">{formCPopup.data.frroApplicationId}</span></p>
+                      <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">Application ID: <span className="font-bold">{formCPopup.data.frroApplicationId}</span></p>
                       {formCPopup.data.frroSubmittedAt && (
                         <p className="mt-0.5 text-[10px] text-emerald-600">Submitted: {new Date(formCPopup.data.frroSubmittedAt).toLocaleString()}</p>
                       )}
                     </>
                   )}
-                  <div className="mt-2 rounded-lg bg-emerald-100 p-2">
-                    <p className="text-[11px] text-emerald-800"><strong>Next steps:</strong> Review the details and submit permanently by logging in here:</p>
-                    <a href="https://indianfrro.gov.in/frro/FormC/login.jsp" target="_blank" rel="noopener" className="mt-1 inline-block text-xs font-medium text-emerald-700 underline hover:text-emerald-900">https://indianfrro.gov.in/frro/FormC/login.jsp</a>
-                    <p className="mt-1 text-[10px] text-emerald-700">Enter latest Application ID → review → click &quot;Save and Continue&quot; to submit permanently.</p>
+                  <div className="mt-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 p-2">
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300"><strong>Next steps:</strong> Review the details and submit permanently by logging in here:</p>
+                    <a href="https://indianfrro.gov.in/frro/FormC/login.jsp" target="_blank" rel="noopener" className="mt-1 inline-block text-xs font-medium text-emerald-700 dark:text-emerald-400 underline hover:text-emerald-900 dark:hover:text-emerald-300">https://indianfrro.gov.in/frro/FormC/login.jsp</a>
+                    <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-400">Enter latest Application ID → review → click &quot;Save and Continue&quot; to submit permanently.</p>
                   </div>
                 </div>
               )}
@@ -1539,7 +1539,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                     } catch (e: any) { setFrroStatus(e.message || "Connection failed"); }
                     finally { setFrroSubmitting(false); }
                   }}
-                  className="rounded-xl bg-brand-green px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-green-dark disabled:opacity-50"
+                  className="rounded-xl bg-brand-green px-4 py-3 text-sm font-semibold text-white shadow-sm dark:shadow-none transition-colors hover:bg-brand-green-dark disabled:opacity-50"
                 >
                   {frroSubmitting ? "Submitting..." : "Desktop: Auto-Submit"}
                 </button>
@@ -1560,7 +1560,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                       prompt("Copy this, paste in FRRO page console (F12):", script);
                     });
                   }}
-                  className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+                  className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm dark:shadow-none transition-colors hover:bg-indigo-700"
                 >
                   Mobile: Copy Script
                 </button>
@@ -1602,7 +1602,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                     img.src = "data:image/jpeg;base64," + data.passportPhotoBase64;
                   } catch (e: any) { showError("Error", e.message); }
                 }}
-                className="w-full rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-200"
+                className="w-full rounded-lg bg-amber-100 dark:bg-amber-900/50 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800"
               >
                 Download Photo for FRRO Upload (under 48KB)
               </button>
@@ -1619,11 +1619,11 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                 <div className="grid gap-2 rounded-lg border border-brand-mist bg-brand-sand/30 p-3 sm:grid-cols-2">
                   <div>
                     <label className="text-[10px] text-brand-green-dark/50">FRRO Username</label>
-                    <input type="text" value={frroUsername} onChange={(e) => setFrroUsername(e.target.value)} placeholder="Username" className="mt-0.5 w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm" />
+                    <input type="text" value={frroUsername} onChange={(e) => setFrroUsername(e.target.value)} placeholder="Username" className="mt-0.5 w-full rounded-md border border-input bg-white dark:bg-card px-2 py-1.5 text-sm" />
                   </div>
                   <div>
                     <label className="text-[10px] text-brand-green-dark/50">FRRO Password</label>
-                    <input type="password" value={frroPassword} onChange={(e) => setFrroPassword(e.target.value)} placeholder="••••••" className="mt-0.5 w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm" />
+                    <input type="password" value={frroPassword} onChange={(e) => setFrroPassword(e.target.value)} placeholder="••••••" className="mt-0.5 w-full rounded-md border border-input bg-white dark:bg-card px-2 py-1.5 text-sm" />
                   </div>
                   <button type="button" onClick={async () => {
                     await apiCall({ action: "setSetting", key: "frro_username", value: frroUsername });
@@ -1646,7 +1646,7 @@ function FormCSection({ title, items }: { title: string; items: { label: string;
   const hasUnreliable = items.some((i) => i.unreliable && i.value);
   const missingCount = items.filter((i) => !i.value).length;
   return (
-    <div className={cn("rounded-xl border p-4", missingCount > 0 ? "border-red-200 bg-red-50/20" : hasUnreliable ? "border-amber-200 bg-amber-50/20" : "border-brand-mist")}>
+    <div className={cn("rounded-xl border p-4", missingCount > 0 ? "border-red-200 dark:border-red-800 bg-red-50/20 dark:bg-red-950/20" : hasUnreliable ? "border-amber-200 dark:border-amber-800 bg-amber-50/20 dark:bg-amber-950/20" : "border-brand-mist")}>
       <h4 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-green-dark/50">
         {title}
         {missingCount > 0 && <span className="text-[9px] font-normal normal-case text-red-600">⚠ {missingCount} missing — fill before submitting</span>}
@@ -1659,7 +1659,7 @@ function FormCSection({ title, items }: { title: string; items: { label: string;
               {item.label}{!item.value ? " ⚠" : item.unreliable ? " ⚠" : ""}
             </span>
             {item.value ? (
-              <p className={cn("text-sm font-medium", item.unreliable ? "text-amber-800" : "text-brand-green-dark")}>{item.value}</p>
+              <p className={cn("text-sm font-medium", item.unreliable ? "text-amber-800 dark:text-amber-300" : "text-brand-green-dark")}>{item.value}</p>
             ) : (
               <p className="text-sm font-medium italic text-red-400">Missing — click Edit to fill</p>
             )}
@@ -1677,7 +1677,7 @@ function FormCEditSection({ title, fields, data, onChange }: {
   onChange: (d: Record<string, any>) => void;
 }) {
   return (
-    <div className="rounded-xl border border-indigo-100 bg-indigo-50/20 p-4">
+    <div className="rounded-xl border border-indigo-100 dark:border-indigo-800 bg-indigo-50/20 dark:bg-indigo-950/20 p-4">
       <h4 className="mb-3 text-xs font-bold uppercase tracking-wide text-indigo-600/70">{title}</h4>
       <div className="grid gap-2 sm:grid-cols-2">
         {fields.map((f) => (
@@ -1687,7 +1687,7 @@ function FormCEditSection({ title, fields, data, onChange }: {
               type="text"
               value={data[f.key] || ""}
               onChange={(e) => onChange({ ...data, [f.key]: e.target.value })}
-              className="mt-0.5 w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm"
+              className="mt-0.5 w-full rounded-md border border-input bg-white dark:bg-card px-2 py-1.5 text-sm"
               placeholder={f.label}
             />
           </div>

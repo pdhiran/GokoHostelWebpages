@@ -55,7 +55,7 @@ export function ManagementBackup({ password, username, role }: { password: strin
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-brand-green-dark">Backup to Google Sheets</h3>
 
-      <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-sm dark:shadow-none">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green/10">
             <DatabaseIcon className="h-6 w-6 text-brand-green" />
@@ -81,7 +81,7 @@ export function ManagementBackup({ password, username, role }: { password: strin
         </div>
 
         {result && (
-          <div className={`mt-4 rounded-xl p-3 text-sm ${result.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+          <div className={`mt-4 rounded-xl p-3 text-sm ${result.success ? "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400"}`}>
             {result.success && <CheckCircleIcon className="mr-1 inline h-4 w-4" />}
             {result.message}
           </div>

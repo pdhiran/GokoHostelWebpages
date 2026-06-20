@@ -99,15 +99,15 @@ interface KitchenDashboardProps {
 type MobileTab = "new" | "preparing" | "ready";
 
 const TAG_COLORS: Record<string, string> = {
-  veg: "bg-green-100 text-green-700",
-  "non-veg": "bg-red-100 text-red-700",
-  spicy: "bg-amber-100 text-amber-700",
-  seafood: "bg-blue-100 text-blue-700",
-  chicken: "bg-orange-100 text-orange-700",
-  mutton: "bg-red-100 text-red-800",
-  egg: "bg-yellow-100 text-yellow-700",
-  "chef-special": "bg-purple-100 text-purple-700",
-  "goko-special": "bg-indigo-100 text-indigo-700",
+  veg: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
+  "non-veg": "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400",
+  spicy: "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400",
+  seafood: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
+  chicken: "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400",
+  mutton: "bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300",
+  egg: "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400",
+  "chef-special": "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400",
+  "goko-special": "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400",
 };
 
 function parseTags(tagsStr: string): string[] {
@@ -500,7 +500,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 isBusy
                   ? "bg-orange-500/20 text-orange-600 ring-1 ring-orange-500/50"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  : "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-accent"
               }`}
             >
               {isBusy ? (
@@ -519,7 +519,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                 setShowMenuPanel(!showMenuPanel);
                 if (!showMenuPanel) fetchMenuItems();
               }}
-              className="relative flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-200"
+              className="relative flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-muted px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-accent"
             >
               <PackageIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Out of Stock</span>
@@ -563,7 +563,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                           ? "border-blue-500 text-blue-600"
                           : "border-emerald-500 text-emerald-600"
                     }`
-                  : "border-b-2 border-transparent text-gray-400"
+                  : "border-b-2 border-transparent text-gray-400 dark:text-gray-500"
               }`}
             >
               {tab.label}
@@ -571,10 +571,10 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                     tab.color === "amber"
-                      ? "bg-amber-100 text-amber-700"
+                      ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400"
                       : tab.color === "blue"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-emerald-100 text-emerald-700"
+                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400"
+                        : "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400"
                   }`}
                 >
                   {tab.count}
@@ -596,7 +596,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
           >
             <div className="px-4 py-4">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-700">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Menu Availability
                   {unavailableItems.length > 0 && (
                     <span className="ml-2 text-red-500">
@@ -607,7 +607,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               </div>
               {/* Low Stock Alert */}
               {lowStockItems.length > 0 && (
-                <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                <div className="mb-4 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950 p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-orange-600">
                     <AlertTriangleIcon className="h-4 w-4" />
                     Low Stock ({lowStockItems.length})
@@ -618,8 +618,8 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                         key={item.id}
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                           item.stockQuantity <= 1
-                            ? "bg-red-100 text-red-700"
-                            : "bg-orange-100 text-orange-700"
+                            ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400"
+                            : "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400"
                         }`}
                       >
                         {item.name} — <span className="font-bold">{item.stockQuantity}</span> left
@@ -641,18 +641,18 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                       onClick={() => setSelectedMenuCategory(cat.id)}
                       className={`relative flex flex-shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-all duration-200 ${
                         selectedMenuCategory === cat.id
-                          ? "text-amber-700"
-                          : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          ? "text-amber-700 dark:text-amber-400"
+                          : "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-accent"
                       }`}
                     >
                       {selectedMenuCategory === cat.id && (
-                        <motion.span layoutId="kitchen-cat-pill" className="absolute inset-0 rounded-lg bg-amber-100 ring-1 ring-amber-300" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
+                        <motion.span layoutId="kitchen-cat-pill" className="absolute inset-0 rounded-lg bg-amber-100 dark:bg-amber-900/50 ring-1 ring-amber-300 dark:ring-amber-700" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
                       )}
                       <span className="relative z-10 flex items-center gap-1.5">
                         <span>{cat.icon}</span>
                         <span>{cat.name}</span>
                         {catUnavail > 0 && (
-                          <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-bold text-red-600">
+                          <span className="ml-1 rounded-full bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 text-xs font-bold text-red-600 dark:text-red-400">
                             {catUnavail}
                           </span>
                         )}
@@ -670,12 +670,12 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                     key={item.id}
                     className={`flex items-center justify-between rounded-lg px-3 py-2 ${
                       item.isAvailable
-                        ? isLow ? "bg-orange-50 ring-1 ring-orange-200" : "bg-gray-50"
-                        : "bg-red-50 ring-1 ring-red-200"
+                        ? isLow ? "bg-orange-50 dark:bg-orange-950 ring-1 ring-orange-200 dark:ring-orange-800" : "bg-gray-50 dark:bg-muted"
+                        : "bg-red-50 dark:bg-red-950 ring-1 ring-red-200 dark:ring-red-800"
                     }`}
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
+                      <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{item.name}</p>
                       {item.nameKannada && (
                         <p className="truncate text-xs text-gray-500">
                           {item.nameKannada}
@@ -695,8 +695,8 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                       onClick={() => toggleAvailability(item.id, item.isAvailable)}
                       className={`ml-3 flex-shrink-0 rounded-full px-3 py-2 text-sm font-semibold transition-colors ${
                         item.isAvailable
-                          ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                          : "bg-red-100 text-red-700 hover:bg-red-200"
+                          ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900"
+                          : "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900"
                       }`}
                     >
                       {item.isAvailable ? "Available" : "Out of Stock"}
@@ -723,7 +723,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
             onClick={() => setShowDemand(!showDemand)}
             className="flex w-full items-center justify-between px-4 py-2 text-sm"
           >
-            <span className="flex items-center gap-2 font-medium text-gray-700">
+            <span className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
               <FlameIcon className="h-4 w-4 text-orange-500" />
               Demand Summary
             </span>
@@ -745,7 +745,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                   {demandSummary.map((d) => (
                     <span
                       key={d.name}
-                      className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700"
+                      className="rounded-full bg-gray-100 dark:bg-muted px-3 py-1 text-sm text-gray-700 dark:text-gray-300"
                     >
                       <span className="font-bold text-amber-600">{d.qty}x</span>{" "}
                       {d.name}
@@ -764,7 +764,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
 
       {/* Pending Approval */}
       {approvalInKitchen && pendingApprovalOrders.length > 0 && (
-        <div className="mx-4 mb-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
+        <div className="mx-4 mb-4 rounded-xl border-2 border-amber-400 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 p-4">
           <div className="mb-3 flex items-center gap-2">
             <span className="text-lg">⏳</span>
             <h3 className="font-bold text-amber-800">Pending Approval ({pendingApprovalOrders.length})</h3>
@@ -774,19 +774,19 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               const elapsed = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
               const elapsedStr = elapsed < 1 ? "<1m" : elapsed < 60 ? `${elapsed}m` : `${Math.floor(elapsed / 60)}h ${elapsed % 60}m`;
               return (
-                <div key={order.id} className="rounded-lg border border-amber-200 bg-white p-3">
+                <div key={order.id} className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-card p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <span className="font-mono text-sm font-bold text-amber-700">#{order.orderNumber}</span>
-                      <span className="ml-2 text-sm font-medium text-gray-800">{order.guestName}</span>
-                      {order.guestType === "hostel" && <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>}
+                      <span className="ml-2 text-sm font-medium text-gray-800 dark:text-gray-200">{order.guestName}</span>
+                      {order.guestType === "hostel" && <span className="ml-1.5 rounded-full bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">Goko</span>}
                       {order.roomInfo && <span className="ml-1.5 text-xs text-gray-400">{order.roomInfo}</span>}
                     </div>
                     <span className="text-xs text-amber-600">{elapsedStr} ago</span>
                   </div>
                   <div className="mt-2 space-y-0.5">
                     {order.items.filter(i => i.status !== "voided").map((item) => (
-                      <div key={item.id} className="text-sm text-gray-700">
+                      <div key={item.id} className="text-sm text-gray-700 dark:text-gray-300">
                         <span className="font-medium">{item.quantity}x</span> {item.itemName}
                         {kannadaDisplayEnabled && (() => { const mi = menuItems.find(m => m.id === item.menuItemId); return mi?.nameKannada ? <span className="ml-1 text-xs text-gray-400">{mi.nameKannada}</span> : null; })()}
                       </div>
@@ -806,7 +806,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                     <button
                       type="button"
                       onClick={() => updateStatus(order.id, "cancelled")}
-                      className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                      className="rounded-lg border border-red-300 dark:border-red-800 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
                     >
                       Reject
                     </button>
@@ -1009,16 +1009,16 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-sm rounded-2xl border border-gray-200 dark:border-border bg-white dark:bg-card p-6 shadow-xl"
+              className="w-full max-w-sm rounded-2xl border border-gray-200 dark:border-border bg-white dark:bg-card p-6 shadow-xl dark:shadow-none"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 dark:bg-red-950">
                   <AlertTriangleIcon className="h-5 w-5 text-red-500" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Reject Item</h3>
-                  <p className="text-sm text-gray-500">{rejectModal.itemName}</p>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Reject Item</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{rejectModal.itemName}</p>
                 </div>
               </div>
 
@@ -1030,8 +1030,8 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                     onClick={() => setRejectReason(reason)}
                     className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${
                       rejectReason === reason
-                        ? "bg-red-50 text-red-700 ring-1 ring-red-300"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        ? "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 ring-1 ring-red-300 dark:ring-red-800"
+                        : "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-accent"
                     }`}
                   >
                     {reason}
@@ -1046,7 +1046,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                   onChange={(e) => setRejectCustom(e.target.value)}
                   placeholder="Enter reason..."
                   autoFocus
-                  className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                  className="mt-3 w-full rounded-lg border border-gray-300 dark:border-white/15 bg-white dark:bg-muted px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
                 />
               )}
 
@@ -1054,7 +1054,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
                 <button
                   type="button"
                   onClick={() => setRejectModal(null)}
-                  className="flex-1 rounded-lg bg-gray-100 py-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-200"
+                  className="flex-1 rounded-lg bg-gray-100 dark:bg-muted py-3 text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-accent"
                 >
                   Cancel
                 </button>
@@ -1133,10 +1133,10 @@ function OrderColumn({
 
   const headerBg =
     color === "amber"
-      ? "bg-amber-50 text-amber-700"
+      ? "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
       : color === "blue"
-        ? "bg-blue-50 text-blue-700"
-        : "bg-emerald-50 text-emerald-700";
+        ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400"
+        : "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400";
 
   const badgeBg =
     color === "amber"
@@ -1148,7 +1148,7 @@ function OrderColumn({
   return (
     <div className="flex flex-col">
       <div
-        className={`mb-3 flex items-center justify-between rounded-xl px-4 py-2.5 shadow-sm ${headerBg}`}
+        className={`mb-3 flex items-center justify-between rounded-xl px-4 py-2.5 shadow-sm dark:shadow-none ${headerBg}`}
       >
         <span className="text-sm font-bold">{title}</span>
         <motion.span
@@ -1317,18 +1317,18 @@ function OrderCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ type: "spring", stiffness: 300, damping: 25 }}
-      className={`rounded-xl border border-gray-200 dark:border-border border-l-4 bg-white dark:bg-card shadow-sm transition-shadow duration-200 hover:shadow-md ${borderColor}`}
+      className={`rounded-xl border border-gray-200 dark:border-border border-l-4 bg-white dark:bg-card shadow-sm dark:shadow-none transition-shadow duration-200 hover:shadow-md dark:hover:shadow-none ${borderColor}`}
     >
       <div className="p-4">
         {/* Header row */}
         <div className="mb-3 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl font-bold tracking-tight text-gray-900">
+              <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                 #{order.orderNumber}
               </span>
               {order.hasModifications && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                <span className="rounded-full bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
                   Modified
                 </span>
               )}
@@ -1336,7 +1336,7 @@ function OrderCard({
                 <button
                   type="button"
                   onClick={onStartEdit}
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-accent hover:text-gray-700 dark:hover:text-gray-300"
                   title="Edit order"
                 >
                   <PencilIcon className="h-3.5 w-3.5" />
@@ -1344,19 +1344,19 @@ function OrderCard({
               )}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-gray-600">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 {order.guestName}
               </span>
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${
                   order.guestType === "hostel"
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-gray-200 text-gray-600"
+                    ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400"
+                    : "bg-gray-200 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400"
                 }`}
               >
                 {order.guestType === "hostel" ? "Hostel" : "Walk-in"}
               </span>
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
+              <span className="rounded-full bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400">
                 {createdByLabel}
               </span>
             </div>
@@ -1386,7 +1386,7 @@ function OrderCard({
                     <button
                       type="button"
                       onClick={() => onUpdateQuantity(item, -1)}
-                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-accent"
                       title="Decrease quantity"
                     >
                       <MinusIcon className="h-3 w-3" />
@@ -1397,7 +1397,7 @@ function OrderCard({
                     <button
                       type="button"
                       onClick={() => onUpdateQuantity(item, 1)}
-                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-accent"
                       title="Increase quantity"
                     >
                       <PlusIcon className="h-3 w-3" />
@@ -1406,7 +1406,7 @@ function OrderCard({
                 ) : (
                   <span className="min-w-[1.5rem] text-center font-bold text-amber-600">{item.quantity}</span>
                 )}
-                <span className={`min-w-0 text-gray-800 ${displayQty === 0 ? "line-through opacity-50" : ""}`}>
+                <span className={`min-w-0 text-gray-800 dark:text-gray-200 ${displayQty === 0 ? "line-through opacity-50" : ""}`}>
                   {item.itemName}
                   {kannadaMap.get(item.menuItemId) && (
                     <span className="ml-1.5 text-xs text-gray-400">{kannadaMap.get(item.menuItemId)}</span>
@@ -1417,7 +1417,7 @@ function OrderCard({
                     {itemTags.map((tag) => (
                       <span
                         key={tag}
-                        className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${TAG_COLORS[tag.toLowerCase()] || "bg-gray-100 text-gray-500"}`}
+                        className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${TAG_COLORS[tag.toLowerCase()] || "bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400"}`}
                       >
                         {tagDisplayName(tag)}
                       </span>
@@ -1429,7 +1429,7 @@ function OrderCard({
                 <button
                   type="button"
                   onClick={() => onRejectItem(item)}
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-50 text-red-500 transition-all hover:bg-red-100"
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-50 dark:bg-red-950 text-red-500 transition-all hover:bg-red-100 dark:hover:bg-red-900/50"
                   title="Reject item"
                 >
                   <XIcon className="h-4 w-4" />
@@ -1439,7 +1439,7 @@ function OrderCard({
             );
           })}
           {voidedItems.length > 0 && (
-            <div className="mt-1 border-t border-gray-200 pt-1">
+            <div className="mt-1 border-t border-gray-200 dark:border-white/10 pt-1">
               {voidedItems.map((item) => (
                 <div
                   key={item.id}
@@ -1464,14 +1464,14 @@ function OrderCard({
                   setShowAddItem(true);
                   if (menuCategories.length > 0 && !addItemCategory) setAddItemCategory(menuCategories[0].id);
                 }}
-                className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-emerald-400 hover:text-emerald-600"
+                className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 dark:border-white/15 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors hover:border-emerald-400 hover:text-emerald-600"
               >
                 <PlusIcon className="h-4 w-4" /> Add Item
               </button>
             ) : (
-              <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5">
+              <div className="mb-3 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/50 p-2.5">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-emerald-700">Add Item to Order</span>
+                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Add Item to Order</span>
                   <button type="button" onClick={() => { setShowAddItem(false); setAddItemSearch(""); setAddItemCategory(null); }} className="text-gray-400 hover:text-gray-600">
                     <XIcon className="h-3.5 w-3.5" />
                   </button>
@@ -1481,7 +1481,7 @@ function OrderCard({
                   value={addItemSearch}
                   onChange={(e) => setAddItemSearch(e.target.value)}
                   placeholder="Search menu items..."
-                  className="mb-2 w-full rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-emerald-300 focus:ring-1 focus:ring-emerald-200"
+                  className="mb-2 w-full rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-muted px-3 py-1.5 text-sm dark:text-foreground outline-none focus:border-emerald-300 focus:ring-1 focus:ring-emerald-200 dark:focus:ring-emerald-500/30"
                 />
                 {!addItemSearch.trim() && (
                   <div className="mb-2 flex flex-wrap gap-1">
@@ -1493,7 +1493,7 @@ function OrderCard({
                         className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                           addItemCategory === cat.id
                             ? "bg-emerald-600 text-white"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            : "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-accent"
                         }`}
                       >
                         {cat.icon} {cat.name}
@@ -1511,9 +1511,9 @@ function OrderCard({
                         type="button"
                         disabled={addingItem}
                         onClick={() => handleAddItem(item)}
-                        className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-emerald-100 disabled:opacity-50"
+                        className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-emerald-100 dark:hover:bg-emerald-900/50 disabled:opacity-50"
                       >
-                        <span className="text-gray-800">{item.name}</span>
+                        <span className="text-gray-800 dark:text-gray-200">{item.name}</span>
                         <span className="flex-shrink-0 text-xs text-gray-500">₹{(item.price / 100).toFixed(0)}</span>
                       </button>
                     ))
@@ -1535,7 +1535,7 @@ function OrderCard({
                 type="button"
                 onClick={onCancelEdit}
                 disabled={savingEdit}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-200 dark:bg-[#2a2a2a] px-3 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-300 dark:hover:bg-[#333] disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1545,7 +1545,7 @@ function OrderCard({
 
         {/* Special instructions */}
         {order.specialInstructions && (
-          <div className="mb-3 rounded-lg bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+          <div className="mb-3 rounded-lg bg-yellow-50 dark:bg-yellow-950 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-300">
             <span className="mr-1 font-semibold">Note:</span>
             {order.specialInstructions}
           </div>
@@ -1553,8 +1553,8 @@ function OrderCard({
 
         {/* Ready column shows name prominently for callout */}
         {isReadyColumn && (
-          <div className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-center">
-            <span className="text-lg font-bold text-emerald-700">
+          <div className="mb-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 px-3 py-2 text-center">
+            <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
               {order.guestName}
             </span>
           </div>
@@ -1566,14 +1566,14 @@ function OrderCard({
             <button
               type="button"
               onClick={onToggleModHistory}
-              className="flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-800"
+              className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300"
             >
               <HistoryIcon className="h-3.5 w-3.5" />
               {showModHistory ? "Hide" : "Show"} Modification History
               {showModHistory ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />}
             </button>
             {showModHistory && (
-              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/50 p-2">
+              <div className="mt-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50 p-2">
                 {modHistoryLoading ? (
                   <p className="text-xs text-gray-500">Loading...</p>
                 ) : modHistory.length === 0 ? (
@@ -1582,7 +1582,7 @@ function OrderCard({
                   <div className="space-y-1.5">
                     {modHistory.map((mod, idx) => (
                       <div key={idx} className="flex flex-col gap-0.5 border-b border-amber-100 pb-1.5 last:border-0 last:pb-0">
-                        <span className="text-xs text-gray-800">
+                        <span className="text-xs text-gray-800 dark:text-gray-200">
                           {formatModification(mod)}
                         </span>
                         <span className="text-xs text-gray-400">
@@ -1607,7 +1607,7 @@ function OrderCard({
               try { await onPrintTicket(); } catch {} finally { setPrintLoading(false); }
             }}
             disabled={printLoading}
-            className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+            className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-300 dark:border-white/15 px-3 py-2.5 text-xs font-medium text-gray-600 dark:text-gray-400 transition hover:bg-gray-50 dark:hover:bg-muted disabled:opacity-50"
           >
             <PrinterIcon className="h-3.5 w-3.5" />
             {printLoading ? "Printing..." : "Print Ticket"}
@@ -1672,10 +1672,10 @@ function TimeBadge({ minutes }: { minutes: number }) {
 
   const colorClass =
     minutes < 5
-      ? "bg-emerald-100 text-emerald-700"
+      ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400"
       : minutes < 15
-        ? "bg-yellow-100 text-yellow-700"
-        : "bg-red-100 text-red-700";
+        ? "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400"
+        : "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400";
 
   const shouldPulse = minutes >= 5;
 

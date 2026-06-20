@@ -187,7 +187,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
       {showIosModal && (
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/50" onClick={() => setShowIosModal(false)}>
           <div className="flex min-h-full items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-2xl dark:shadow-none" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green/10">

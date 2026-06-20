@@ -148,12 +148,12 @@ export function FoodCart({
         animate={{ opacity: 1 }}
         className="px-4 pb-24"
       >
-        <div className="mx-auto max-w-md rounded-2xl bg-white dark:bg-card p-6 text-center shadow-lg">
+        <div className="mx-auto max-w-md rounded-2xl bg-white dark:bg-card p-6 text-center shadow-lg dark:shadow-none">
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100"
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50"
           >
             <motion.svg
               initial={{ pathLength: 0 }}
@@ -177,13 +177,13 @@ export function FoodCart({
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="mt-6 space-y-3">
             <a
               href={`/food-order/status?order=${orderSuccess.orderNumber}&phone=${guestInfo.phone}`}
-              className="block w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3 text-center font-semibold text-white shadow-lg transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5"
+              className="block w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3 text-center font-semibold text-white shadow-lg dark:shadow-none transition-all duration-200 hover:shadow-xl dark:hover:shadow-none hover:-translate-y-0.5"
             >
               Track your order
             </a>
             <a
               href="/food-order?reorder=1"
-              className="block w-full rounded-xl border border-gray-200 py-3 text-center font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 hover:shadow-sm"
+              className="block w-full rounded-xl border border-gray-200 dark:border-white/10 py-3 text-center font-medium text-gray-700 dark:text-gray-300 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-muted hover:shadow-sm dark:hover:shadow-none"
             >
               Place another order
             </a>
@@ -200,13 +200,13 @@ export function FoodCart({
         animate={{ opacity: 1 }}
         className="px-4 pb-24"
       >
-        <div className="mx-auto max-w-md rounded-2xl bg-white dark:bg-card p-8 text-center shadow-sm">
+        <div className="mx-auto max-w-md rounded-2xl bg-white dark:bg-card p-8 text-center shadow-sm dark:shadow-none">
           <span className="text-4xl">🛒</span>
           <h2 className="mt-3 text-lg font-semibold text-gray-800 dark:text-foreground">Your cart is empty</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-muted-foreground">Browse the menu and add some dishes</p>
           <button
             onClick={onBack}
-            className="mt-5 rounded-xl bg-gray-100 px-6 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
+            className="mt-5 rounded-xl bg-gray-100 dark:bg-muted px-6 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-accent"
           >
             Browse menu
           </button>
@@ -243,7 +243,7 @@ export function FoodCart({
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20, height: 0 }}
-              className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-3 shadow-sm"
+              className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-3 shadow-sm dark:shadow-none"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-gray-800 dark:text-foreground">{item.name}</p>
@@ -253,11 +253,11 @@ export function FoodCart({
                 <p className="mt-0.5 text-xs text-gray-400">{formatPrice(item.price)} each</p>
               </div>
 
-              <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-1.5 py-0.5">
+              <div className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-white/10 px-1.5 py-0.5">
                 <motion.button
                   whileTap={{ scale: 0.85 }}
                   onClick={() => onUpdateQuantity(item.menuItemId, -1)}
-                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100"
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-muted"
                 >
                   −
                 </motion.button>
@@ -265,19 +265,19 @@ export function FoodCart({
                 <motion.button
                   whileTap={{ scale: 0.85 }}
                   onClick={() => onUpdateQuantity(item.menuItemId, 1)}
-                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100"
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-muted"
                 >
                   +
                 </motion.button>
               </div>
 
-              <span className="w-14 text-right text-sm font-semibold text-gray-800">
+              <span className="w-14 text-right text-sm font-semibold text-gray-800 dark:text-gray-200">
                 {formatPrice(item.price * item.quantity)}
               </span>
 
               <button
                 onClick={() => onRemoveItem(item.menuItemId)}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-500"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -289,7 +289,7 @@ export function FoodCart({
       </div>
 
       {/* Totals */}
-      <div className="mt-4 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-4 shadow-sm">
+      <div className="mt-4 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-4 shadow-sm dark:shadow-none">
         <div className="flex justify-between text-sm text-gray-600 dark:text-muted-foreground">
           <span>Subtotal</span>
           <span>{formatPrice(subtotal)}</span>
@@ -307,14 +307,14 @@ export function FoodCart({
       </div>
 
       {/* Checkout Form */}
-      <div className="mt-4 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-4 shadow-sm">
+      <div className="mt-4 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-4 shadow-sm dark:shadow-none">
         {guestInfo.guestType === "hostel" ? (
-          <div className="mb-3 rounded-lg bg-blue-50 p-3">
-            <p className="text-sm font-medium text-blue-800">{guestInfo.name}</p>
+          <div className="mb-3 rounded-lg bg-blue-50 dark:bg-blue-950 p-3">
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">{guestInfo.name}</p>
             {guestInfo.roomInfo && (
-              <p className="text-xs text-blue-600">{guestInfo.roomInfo}</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400">{guestInfo.roomInfo}</p>
             )}
-            <p className="text-xs text-blue-500">Charged to room tab</p>
+            <p className="text-xs text-blue-500 dark:text-blue-400">Charged to room tab</p>
           </div>
         ) : (
           <div className="mb-3">
@@ -348,7 +348,7 @@ export function FoodCart({
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600"
+          className="mt-3 rounded-lg bg-red-50 dark:bg-red-950 px-3 py-2 text-sm text-red-600 dark:text-red-400"
         >
           {error}
         </motion.p>
@@ -357,7 +357,7 @@ export function FoodCart({
       <button
         onClick={handlePlaceOrder}
         disabled={submitting}
-        className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-4 text-base font-bold text-white shadow-lg shadow-blue-200 transition hover:shadow-xl disabled:opacity-50"
+        className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-4 text-base font-bold text-white shadow-lg shadow-blue-200 dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50"
       >
         {submitting ? (
           <span className="flex items-center justify-center gap-2">

@@ -131,7 +131,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
         <p className="mt-1 text-sm text-blue-100">Beach-side dining</p>
       </div>
 
-      <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-6 shadow-xl backdrop-blur-sm">
+      <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-6 shadow-xl dark:shadow-none backdrop-blur-sm">
         <h2 className="mb-1 text-lg font-semibold text-gray-800 dark:text-foreground">Enter your phone number</h2>
         <p className="mb-5 text-sm text-gray-500 dark:text-muted-foreground">We&apos;ll find your booking details</p>
 
@@ -178,7 +178,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
           <button
             type="submit"
             disabled={loading || stripNonDigits(phone).length < 10}
-            className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-200 transition hover:shadow-xl disabled:opacity-50 disabled:shadow-none"
+            className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-200 dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50 disabled:shadow-none"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -202,7 +202,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
               exit={{ opacity: 0, y: -10 }}
               className="mt-5"
             >
-              <p className="mb-3 text-sm font-medium text-gray-600">Multiple bookings found — select yours:</p>
+              <p className="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">Multiple bookings found — select yours:</p>
               <div className="space-y-2">
                 {guests.map((g) => (
                   <button
@@ -210,21 +210,21 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
                     onClick={() => handleSelectGuest(g)}
                     className="flex w-full items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-gray-50 dark:bg-muted px-4 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50 dark:hover:bg-accent"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50 text-sm font-bold text-blue-600">
                       {g.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="min-w-0 flex-1 truncate font-medium text-gray-800">{g.name}</p>
+                        <p className="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-gray-200">{g.name}</p>
                         {g.checkedOut && (
-                          <span className="flex-shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">Checked out</span>
+                          <span className="flex-shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">Checked out</span>
                         )}
                       </div>
                       {g.roomInfo && (
                         <p className="text-xs text-gray-500">{g.roomInfo}</p>
                       )}
                     </div>
-                    <svg className="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-5 w-5 shrink-0 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>

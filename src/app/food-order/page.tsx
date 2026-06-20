@@ -553,15 +553,15 @@ export default function FoodOrderPage() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-[80] max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white dark:bg-card pb-8 shadow-2xl"
+              className="fixed inset-x-0 bottom-0 z-[80] max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white dark:bg-card pb-8 shadow-2xl dark:shadow-none"
             >
-              <div className="sticky top-0 z-10 bg-white dark:bg-card px-5 pb-3 pt-4">
+                <div className="sticky top-0 z-10 bg-white dark:bg-card px-5 pb-3 pt-4 border-b border-transparent dark:border-white/5">
                 <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600" />
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold text-gray-800 dark:text-foreground">My Orders</h2>
                   <button
                     onClick={() => setShowMyOrders(false)}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-muted text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-accent"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -606,11 +606,11 @@ function formatOrderDate(dateStr: string): string {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  placed: "bg-yellow-100 text-yellow-700",
-  preparing: "bg-blue-100 text-blue-700",
-  ready: "bg-green-100 text-green-700",
-  served: "bg-gray-100 text-gray-600",
-  cancelled: "bg-red-100 text-red-600",
+  placed: "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400",
+  preparing: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
+  ready: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
+  served: "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400",
+  cancelled: "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400",
 };
 
 function MyOrdersList({ orders, onReorder }: { orders: PastOrder[]; onReorder: (order: PastOrder) => void }) {
@@ -631,8 +631,8 @@ function MyOrdersList({ orders, onReorder }: { orders: PastOrder[]; onReorder: (
               <div key={order.orderNumber} className="rounded-xl border border-gray-100 dark:border-border bg-gray-50 dark:bg-muted p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-gray-700">#{order.orderNumber}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}>
+                    <span className="font-mono text-sm font-bold text-gray-700 dark:text-gray-300">#{order.orderNumber}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[order.status] || "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400"}`}>
                       {order.status}
                     </span>
                   </div>
@@ -643,19 +643,19 @@ function MyOrdersList({ orders, onReorder }: { orders: PastOrder[]; onReorder: (
 
                 <div className="mt-2 space-y-0.5">
                   {order.items.map((item, idx) => (
-                    <p key={idx} className="text-sm text-gray-600">
+                    <p key={idx} className="text-sm text-gray-600 dark:text-gray-400">
                       {item.quantity}× {item.name}
-                      <span className="ml-1 text-gray-400">₹{Math.round(item.lineTotal / 100)}</span>
+                      <span className="ml-1 text-gray-400 dark:text-gray-500">₹{Math.round(item.lineTotal / 100)}</span>
                     </p>
                   ))}
                 </div>
 
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-800">₹{Math.round(order.total / 100)}</span>
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">₹{Math.round(order.total / 100)}</span>
                   {order.status !== "cancelled" && (
                     <button
                       onClick={() => onReorder(order)}
-                      className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-2.5 text-sm font-medium text-blue-600 transition hover:bg-blue-100"
+                      className="flex items-center gap-1 rounded-lg bg-blue-50 dark:bg-blue-950 px-3 py-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 transition hover:bg-blue-100 dark:hover:bg-blue-900/50"
                     >
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

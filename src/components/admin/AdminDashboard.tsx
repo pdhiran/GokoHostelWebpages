@@ -137,9 +137,9 @@ export function AdminDashboard({
       <p className="mt-1 text-sm text-brand-green-dark/60">{today}</p>
 
       {/* Food Orders quick access */}
-      <button type="button" onClick={() => onNavigate("foodOrders")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-4 shadow-card transition-all hover:shadow-soft">
+      <button type="button" onClick={() => onNavigate("foodOrders")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-4 shadow-card dark:shadow-none transition-all hover:shadow-soft dark:hover:shadow-none">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50"><UtensilsIcon className="h-5 w-5 text-amber-600" /></div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950"><UtensilsIcon className="h-5 w-5 text-amber-600" /></div>
           <div>
             <p className="font-semibold text-brand-green-dark">Food Orders</p>
             <p className="text-xs text-brand-green-dark/50">Manage orders & payments</p>
@@ -195,7 +195,7 @@ export function AdminDashboard({
             <span>Occupancy: {Math.round((stats.occupied / stats.total) * 100)}%</span>
             <span>{stats.occupied} occupied, {stats.available} available, {stats.cleanup} cleanup</span>
           </div>
-          <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-gray-100">
+          <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-[#1c1c1c]">
             {stats.occupied > 0 && <div className="bg-red-400" style={{ width: `${(stats.occupied / stats.total) * 100}%` }} />}
             {stats.cleanup > 0 && <div className="bg-orange-400" style={{ width: `${(stats.cleanup / stats.total) * 100}%` }} />}
             {stats.available > 0 && <div className="bg-green-400" style={{ width: `${(stats.available / stats.total) * 100}%` }} />}
@@ -205,36 +205,36 @@ export function AdminDashboard({
 
       {/* Checkouts due */}
       {todayCheckouts.length > 0 && (
-        <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3 sm:p-4">
+        <div className="mt-4 rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950 p-3 sm:p-4">
           <div className="flex items-center gap-2 px-1">
             <AlertTriangleIcon className="h-5 w-5 text-orange-600" />
-            <span className="font-medium text-orange-800">{todayCheckouts.length} guest{todayCheckouts.length !== 1 ? "s" : ""} due for checkout</span>
+            <span className="font-medium text-orange-800 dark:text-orange-300">{todayCheckouts.length} guest{todayCheckouts.length !== 1 ? "s" : ""} due for checkout</span>
           </div>
           <motion.div className="mt-3 space-y-2.5" variants={staggerContainer} initial="hidden" animate="visible">
             {todayCheckouts.map((co, i) => (
-              <motion.div key={i} variants={staggerItem} className="rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-3 shadow-sm transition-all duration-200 hover:bg-brand-sand/50">
+              <motion.div key={i} variants={staggerItem} className="rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-3 shadow-sm dark:shadow-none transition-all duration-200 hover:bg-brand-sand/50">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold text-brand-green-dark">{co.name}</p>
                     <p className="mt-0.5 text-xs text-brand-green-dark/50">{co.dorm} / {co.bedId}</p>
                   </div>
                   <button type="button" onClick={() => handleCheckoutClick(co)} disabled={busyIdx === co.bedIdx}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50">
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-400 transition-colors hover:bg-red-100 dark:hover:bg-red-900/50 active:bg-red-200 disabled:opacity-50">
                     {busyIdx === co.bedIdx ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <LogOutIcon className="h-3.5 w-3.5" />}
                     Checkout
                   </button>
                 </div>
                 {co.totalOrders > 0 && (
-                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-gray-100 pt-2.5">
+                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-gray-100 dark:border-white/10 pt-2.5">
                     <div className="flex items-center gap-2">
                       {co.pendingTab > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-red-50 dark:bg-red-950 px-2 py-1 text-xs font-semibold text-red-700 dark:text-red-400">
                           <BanknoteIcon className="h-3 w-3" />
                           ₹{(co.pendingTab / 100).toFixed(0)}
                           <span className="font-normal text-red-500">({co.pendingOrders})</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-green-50 dark:bg-green-950 px-2 py-1 text-xs font-semibold text-green-700 dark:text-green-400">
                           <CheckCircleIcon className="h-3 w-3" />
                           All paid
                         </span>
@@ -245,7 +245,7 @@ export function AdminDashboard({
                         href={`/my-bills?phone=${encodeURIComponent(co.contact)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100 active:bg-blue-200"
+                        className="flex items-center gap-1 rounded-md bg-blue-50 dark:bg-blue-950 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/50 active:bg-blue-200"
                       >
                         Bills <ExternalLinkIcon className="h-3 w-3" />
                       </a>
@@ -273,7 +273,7 @@ export function AdminDashboard({
               const isAnyFlagged = isFlagged || hasDobMismatch;
               const checkinId = parseInt(item.row[15]);
               return (
-              <motion.div key={i} variants={staggerItem} className={cn("rounded-xl border bg-white dark:bg-card p-3 shadow-sm transition-all duration-200 hover:bg-brand-sand/50", isAnyFlagged ? "border-orange-300 bg-orange-50/40 dark:bg-orange-500/5" : "border-gray-100 dark:border-border")}>
+              <motion.div key={i} variants={staggerItem} className={cn("rounded-xl border bg-white dark:bg-card p-3 shadow-sm dark:shadow-none transition-all duration-200 hover:bg-brand-sand/50", isAnyFlagged ? "border-orange-300 dark:border-orange-700 bg-orange-50/40 dark:bg-orange-500/5" : "border-gray-100 dark:border-border")}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold text-brand-green-dark">{item.row[3]}</p>
@@ -286,7 +286,7 @@ export function AdminDashboard({
                       </span>
                     ) : (
                       <button type="button" onClick={() => onNavigate("beds", { assignGuestContact: item.row[5] })}
-                        className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 active:bg-blue-200">
+                        className="rounded-lg bg-blue-50 dark:bg-blue-950 px-2.5 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-400 transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/50 active:bg-blue-200">
                         Assign bed
                       </button>
                     )}
@@ -295,34 +295,34 @@ export function AdminDashboard({
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {item.row[14] === "yes" ? (
-                    <span className="rounded-md bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">ID verified</span>
+                    <span className="rounded-md bg-green-50 dark:bg-green-950 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:text-green-400">ID verified</span>
                   ) : item.row[14] === "no" ? (
-                    <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">ID rejected</span>
+                    <span className="rounded-md bg-red-50 dark:bg-red-950 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-400">ID rejected</span>
                   ) : item.row[14] === "spoof_warning" ? (
-                    <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Possibly fake ID</span>
+                    <span className="rounded-md bg-amber-50 dark:bg-amber-950 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">Possibly fake ID</span>
                   ) : !item.row[14] || item.row[14] === "pending" ? (
-                    <span className="rounded-md bg-yellow-50 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-700">ID pending</span>
+                    <span className="rounded-md bg-yellow-50 dark:bg-yellow-950 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-700 dark:text-yellow-400">ID pending</span>
                   ) : null}
                   {isFlagged && (
-                    <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-semibold", isUnderage ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700")}>
+                    <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-semibold", isUnderage ? "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400" : "bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400")}>
                       {isUnderage ? `Underage (${age})` : `Overage (${age})`}
                     </span>
                   )}
                   {hasDobMismatch && (
-                    <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">DOB mismatch</span>
+                    <span className="rounded-md bg-red-50 dark:bg-red-950 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-400">DOB mismatch</span>
                   )}
                   {item.vibeMatched === 1 && (
                     (age !== null && (age < ageRange.min || age > ageRange.max)) ||
                     (item.dob && item.dobFromId && !dobsMatch(item.dob, item.dobFromId))
                   ) && (
-                    <span className="rounded-md bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">Vibe OK</span>
+                    <span className="rounded-md bg-green-50 dark:bg-green-950 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:text-green-400">Vibe OK</span>
                   )}
                   {isAnyFlagged && (
                     <button
                       type="button"
                       onClick={() => handleVibeMatch(checkinId)}
                       disabled={vibeMatchingId === checkinId}
-                      className="ml-auto flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1 text-[11px] font-medium text-green-700 transition-colors hover:bg-green-100 active:bg-green-200 disabled:opacity-50"
+                      className="ml-auto flex items-center gap-1 rounded-lg bg-green-50 dark:bg-green-950 px-2.5 py-1 text-[11px] font-medium text-green-700 dark:text-green-400 transition-colors hover:bg-green-100 dark:hover:bg-green-900/50 active:bg-green-200 disabled:opacity-50"
                     >
                       <CheckCircleIcon className="h-3 w-3" />
                       {vibeMatchingId === checkinId ? "..." : "Vibe OK"}
@@ -338,12 +338,12 @@ export function AdminDashboard({
 
       {/* Quick actions */}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={() => onNavigate("beds")} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 text-left transition-all hover:shadow-soft">
+        <button type="button" onClick={() => onNavigate("beds")} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 text-left transition-all hover:shadow-soft dark:hover:shadow-none">
           <BedDoubleIcon className="h-5 w-5 text-brand-green" />
           <p className="mt-2 font-medium text-brand-green-dark">Assign Beds</p>
           <p className="text-xs text-brand-green-dark/50">Manage dorm assignments</p>
         </button>
-        <button type="button" onClick={() => onNavigate("records")} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 text-left transition-all hover:shadow-soft">
+        <button type="button" onClick={() => onNavigate("records")} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 text-left transition-all hover:shadow-soft dark:hover:shadow-none">
           <UsersIcon className="h-5 w-5 text-brand-green" />
           <p className="mt-2 font-medium text-brand-green-dark">View Records</p>
           <p className="text-xs text-brand-green-dark/50">All check-in entries</p>
@@ -369,7 +369,7 @@ export function AdminDashboard({
       {checkoutModal && (
         <motion.div className="fixed inset-0 z-[60] flex items-center justify-center p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
           <div className="absolute inset-0 bg-black/40" onClick={() => !checkoutBusy && setCheckoutModal(null)} />
-          <motion.div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card shadow-2xl" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card shadow-2xl dark:shadow-none" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
               <div>
                 <h3 className="text-base font-bold text-brand-green-dark">Checkout {checkoutModal.name}</h3>
@@ -381,9 +381,9 @@ export function AdminDashboard({
             </div>
 
             <div className="px-5 py-4">
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center">
-                <p className="text-sm text-red-800">This guest has an unpaid food tab of</p>
-                <p className="mt-1 text-2xl font-bold text-red-700">₹{(checkoutModal.pendingTab / 100).toFixed(0)}</p>
+              <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 p-4 text-center">
+                <p className="text-sm text-red-800 dark:text-red-300">This guest has an unpaid food tab of</p>
+                <p className="mt-1 text-2xl font-bold text-red-700 dark:text-red-400">₹{(checkoutModal.pendingTab / 100).toFixed(0)}</p>
                 <p className="mt-1 text-xs text-red-600">{checkoutModal.pendingOrders} unpaid order{checkoutModal.pendingOrders !== 1 ? "s" : ""}</p>
               </div>
 
@@ -393,7 +393,7 @@ export function AdminDashboard({
                   type="button"
                   onClick={() => handleCheckoutWithPayment("cash")}
                   disabled={checkoutBusy}
-                  className="flex items-center gap-1.5 rounded-lg border border-green-500 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-green-500 dark:border-green-700 bg-green-50 dark:bg-green-950 px-4 py-2.5 text-sm font-medium text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 disabled:opacity-50"
                 >
                   <BanknoteIcon className="h-4 w-4" /> Pay Cash & Checkout
                 </button>
@@ -401,7 +401,7 @@ export function AdminDashboard({
                   type="button"
                   onClick={() => handleCheckoutWithPayment("online")}
                   disabled={checkoutBusy}
-                  className="flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-500 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 px-4 py-2.5 text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50"
                 >
                   <SmartphoneIcon className="h-4 w-4" /> Pay Online & Checkout
                 </button>
@@ -412,7 +412,7 @@ export function AdminDashboard({
                   type="button"
                   onClick={() => doCheckout(checkoutModal.bedIdx)}
                   disabled={checkoutBusy}
-                  className="w-full rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  className="w-full rounded-lg border border-red-200 dark:border-red-800 px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
                 >
                   {checkoutBusy ? "Processing..." : "Checkout without payment"}
                 </button>

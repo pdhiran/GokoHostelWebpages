@@ -305,10 +305,10 @@ export function ServerSync({ password, username, role }: { password: string; use
   return (
     <div className="space-y-8">
       {apiAvailable === false && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950 p-4">
           <div className="flex items-center gap-2">
             <AlertTriangleIcon className="h-4 w-4 text-amber-600" />
-            <p className="text-sm font-medium text-amber-800">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
               Sync API not available — showing mock data. The <code className="rounded bg-amber-100 px-1 text-xs">/api/sync</code> endpoint is not yet deployed.
             </p>
           </div>
@@ -346,7 +346,7 @@ export function ServerSync({ password, username, role }: { password: string; use
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex items-center gap-3 rounded-xl border border-brand-mist bg-white p-4">
+          <div className="flex items-center gap-3 rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
             {status.internetConnected
               ? <WifiIcon className="h-5 w-5 text-emerald-500" />
               : <WifiOffIcon className="h-5 w-5 text-red-500" />}
@@ -357,7 +357,7 @@ export function ServerSync({ password, username, role }: { password: string; use
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-4">
+          <div className="flex items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
             <div className="flex items-center gap-3">
               <ServerIcon className="h-5 w-5 text-brand-green" />
               <div>
@@ -395,24 +395,24 @@ export function ServerSync({ password, username, role }: { password: string; use
         </div>
 
         {!buildsMatch && (
-          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950 p-3">
             <AlertTriangleIcon className="h-4 w-4 text-amber-600" />
-            <p className="text-xs font-medium text-amber-800">
+            <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
               Build mismatch — Cloudflare: <code className="rounded bg-amber-100 px-1">{status.cloudflare.build}</code> vs Pi: <code className="rounded bg-amber-100 px-1">{status.pi.build}</code>
             </p>
           </div>
         )}
 
         {buildsMatch && (
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950 p-3">
             <CheckCircleIcon className="h-4 w-4 text-emerald-600" />
-            <p className="text-xs font-medium text-emerald-800">Builds match: <code className="rounded bg-emerald-100 px-1">{status.cloudflare.build}</code></p>
+            <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300">Builds match: <code className="rounded bg-emerald-100 px-1">{status.cloudflare.build}</code></p>
           </div>
         )}
 
         {/* Pi Deploy & Shutdown Controls */}
         {status.pi.online && (
-          <div className="rounded-xl border border-brand-mist bg-white p-4">
+          <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <DownloadIcon className="h-5 w-5 text-blue-500" />
@@ -432,7 +432,7 @@ export function ServerSync({ password, username, role }: { password: string; use
               </button>
             </div>
             {deployMessage && (
-              <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <div className="mt-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 p-3">
                 <p className="text-xs font-medium text-blue-800">{deployMessage}</p>
               </div>
             )}
@@ -440,7 +440,7 @@ export function ServerSync({ password, username, role }: { password: string; use
         )}
 
         {status.pi.online && (
-          <div className="rounded-xl border border-brand-mist bg-white p-4">
+          <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <PowerIcon className="h-5 w-5 text-red-400" />
@@ -472,7 +472,7 @@ export function ServerSync({ password, username, role }: { password: string; use
                 <button
                   type="button"
                   onClick={() => setConfirmShutdown(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950"
                 >
                   <PowerIcon className="h-3.5 w-3.5" />
                   Shutdown Pi
@@ -480,7 +480,7 @@ export function ServerSync({ password, username, role }: { password: string; use
               )}
             </div>
             {shutdownMessage && (
-              <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-3">
+              <div className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 p-3">
                 <p className="text-xs font-medium text-amber-800">{shutdownMessage}</p>
               </div>
             )}
@@ -488,7 +488,7 @@ export function ServerSync({ password, username, role }: { password: string; use
         )}
 
         {/* Local DNS Failover */}
-        <div className="rounded-xl border border-brand-mist bg-white p-4">
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <ShieldIcon className={cn("h-5 w-5", failoverActive ? "text-amber-500" : failoverEnabled ? "text-emerald-500" : "text-brand-green-dark/30")} />
@@ -505,7 +505,7 @@ export function ServerSync({ password, username, role }: { password: string; use
             </div>
             <div className="flex items-center gap-2">
               {failoverActive && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">ACTIVE</span>
+                <span className="rounded-full bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">ACTIVE</span>
               )}
               <button
                 type="button"
@@ -549,7 +549,7 @@ export function ServerSync({ password, username, role }: { password: string; use
       <section className="space-y-4">
         <h3 className="font-display text-lg font-semibold text-brand-green-dark">Sync Controls</h3>
 
-        <div className="rounded-2xl border border-brand-mist bg-white p-4 shadow-sm sm:p-6">
+        <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 shadow-sm dark:shadow-none sm:p-6">
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -625,21 +625,21 @@ export function ServerSync({ password, username, role }: { password: string; use
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-lg font-semibold text-brand-green-dark">
-            Conflicts {conflicts.length > 0 && <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{conflicts.length} unresolved</span>}
+            Conflicts {conflicts.length > 0 && <span className="ml-2 inline-flex items-center rounded-full bg-red-100 dark:bg-red-900/50 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-400">{conflicts.length} unresolved</span>}
           </h3>
           {conflicts.length > 0 && (
             <div className="flex gap-1.5">
               <button
                 type="button"
                 onClick={() => handleBulkResolve("cloud")}
-                className="rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-medium text-blue-700 hover:bg-blue-100"
+                className="rounded-lg bg-blue-50 dark:bg-blue-950 px-2.5 py-1 text-[10px] font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50"
               >
                 Resolve All: Use Cloud
               </button>
               <button
                 type="button"
                 onClick={() => handleBulkResolve("pi")}
-                className="rounded-lg bg-purple-50 px-2.5 py-1 text-[10px] font-medium text-purple-700 hover:bg-purple-100"
+                className="rounded-lg bg-purple-50 dark:bg-purple-950 px-2.5 py-1 text-[10px] font-medium text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/50"
               >
                 Resolve All: Use Pi
               </button>
@@ -648,7 +648,7 @@ export function ServerSync({ password, username, role }: { password: string; use
         </div>
 
         {conflicts.length === 0 ? (
-          <div className="rounded-2xl border border-brand-mist bg-white p-6 text-center shadow-sm">
+          <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-6 text-center shadow-sm dark:shadow-none">
             <CheckCircleIcon className="mx-auto h-8 w-8 text-emerald-400" />
             <p className="mt-2 text-sm font-medium text-brand-green-dark/60">No conflicts</p>
             <p className="mt-1 text-xs text-brand-green-dark/40">All records are in sync between servers.</p>
@@ -656,7 +656,7 @@ export function ServerSync({ password, username, role }: { password: string; use
         ) : (
           <div className="space-y-3">
             {conflicts.map((conflict, idx) => (
-              <div key={conflict.id} className="rounded-xl border border-brand-mist bg-white p-4 shadow-sm">
+              <div key={conflict.id} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 shadow-sm dark:shadow-none">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-semibold text-brand-green-dark/50">#{idx + 1}</p>
@@ -667,14 +667,14 @@ export function ServerSync({ password, username, role }: { password: string; use
                   </div>
                 </div>
                 <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-                  <div className="rounded-lg bg-blue-50 p-2">
-                    <p className="font-semibold text-blue-700">Cloud</p>
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-950 p-2">
+                    <p className="font-semibold text-blue-700 dark:text-blue-400">Cloud</p>
                     {Object.entries(conflict.cloudValue).map(([key, val]) => (
                       <p key={key} className="text-blue-600">{key}: <span className="font-medium">{val}</span></p>
                     ))}
                   </div>
-                  <div className="rounded-lg bg-purple-50 p-2">
-                    <p className="font-semibold text-purple-700">Pi</p>
+                  <div className="rounded-lg bg-purple-50 dark:bg-purple-950 p-2">
+                    <p className="font-semibold text-purple-700 dark:text-purple-400">Pi</p>
                     {Object.entries(conflict.piValue).map(([key, val]) => (
                       <p key={key} className="text-purple-600">{key}: <span className="font-medium">{val}</span></p>
                     ))}
@@ -684,14 +684,14 @@ export function ServerSync({ password, username, role }: { password: string; use
                   <button
                     type="button"
                     onClick={() => handleResolveConflict(conflict.id, "cloud")}
-                    className="rounded-lg bg-blue-100 px-3 py-1.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-200"
+                    className="rounded-lg bg-blue-100 dark:bg-blue-900/50 px-3 py-1.5 text-[10px] font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800/50"
                   >
                     Use Cloud
                   </button>
                   <button
                     type="button"
                     onClick={() => handleResolveConflict(conflict.id, "pi")}
-                    className="rounded-lg bg-purple-100 px-3 py-1.5 text-[10px] font-semibold text-purple-700 hover:bg-purple-200"
+                    className="rounded-lg bg-purple-100 dark:bg-purple-900/50 px-3 py-1.5 text-[10px] font-semibold text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-800/50"
                   >
                     Use Pi
                   </button>
@@ -706,7 +706,7 @@ export function ServerSync({ password, username, role }: { password: string; use
       <section className="space-y-4">
         <h3 className="font-display text-lg font-semibold text-brand-green-dark">Sync History</h3>
 
-        <div className="rounded-2xl border border-brand-mist bg-white shadow-sm">
+        <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-sm dark:shadow-none">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
@@ -781,7 +781,7 @@ function ServerCard({ label, sublabel, icon, server }: { label: string; sublabel
   const statusLabel = !server.online ? "Offline" : isStale ? "Stale" : "Online";
 
   return (
-    <div className="rounded-xl border border-brand-mist bg-white p-4">
+    <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
       <div className="flex items-center gap-3">
         {icon}
         <div>

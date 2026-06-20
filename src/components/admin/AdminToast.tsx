@@ -96,10 +96,10 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   };
 
   const bgClass = toast.type === "error"
-    ? "bg-red-50 border-red-200"
+    ? "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
     : toast.type === "success"
-      ? "bg-green-50 border-green-200"
-      : "bg-blue-50 border-blue-200";
+      ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+      : "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800";
 
   const iconClass = toast.type === "error"
     ? "text-red-500"
@@ -120,7 +120,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       : InfoIcon;
 
   return (
-    <div className={`pointer-events-auto rounded-xl border p-3 shadow-lg ${bgClass} animate-in slide-in-from-right-5`}>
+    <div className={`pointer-events-auto rounded-xl border p-3 shadow-lg dark:shadow-none ${bgClass} animate-in slide-in-from-right-5`}>
       <div className="flex items-start gap-2.5">
         <Icon className={`h-4.5 w-4.5 mt-0.5 flex-shrink-0 ${iconClass}`} />
         <div className="flex-1 min-w-0">
@@ -129,7 +129,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
             <button
               type="button"
               onClick={handleCopy}
-              className="mt-1.5 flex items-center gap-1.5 rounded-md bg-white/80 px-2 py-1 text-xs font-medium text-gray-600 border border-gray-200 transition hover:bg-white hover:text-gray-900"
+              className="mt-1.5 flex items-center gap-1.5 rounded-md bg-white/80 dark:bg-white/10 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10 transition hover:bg-white dark:hover:bg-white/20 hover:text-gray-900 dark:hover:text-gray-200"
             >
               {copied ? (
                 <>
@@ -148,7 +148,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         <button
           type="button"
           onClick={onDismiss}
-          className="flex-shrink-0 rounded-md p-1 text-gray-400 hover:text-gray-600"
+          className="flex-shrink-0 rounded-md p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
         >
           <XIcon className="h-3.5 w-3.5" />
         </button>

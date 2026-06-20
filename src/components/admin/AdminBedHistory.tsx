@@ -124,7 +124,7 @@ export function AdminBedHistory({ password, username, role }: { password: string
       </div>
 
       {/* Table */}
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+      <div className="mt-6 overflow-x-auto rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none">
         <table className="w-full min-w-[700px] text-left text-sm">
           <thead>
             <tr className="border-b border-brand-mist bg-brand-sand/50">
@@ -147,14 +147,14 @@ export function AdminBedHistory({ password, username, role }: { password: string
                         {ci === 3 ? (
                           <span className={cn(
                             "inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-                            cell === "assign" && "bg-green-100 text-green-700",
-                            cell === "checkout" && "bg-orange-100 text-orange-700",
-                            cell === "extend" && "bg-blue-100 text-blue-700",
-                            cell === "swap" && "bg-purple-100 text-purple-700",
-                            cell === "unassign" && "bg-gray-100 text-gray-700",
-                            cell === "change-out" && "bg-yellow-100 text-yellow-700",
-                            cell === "change-in" && "bg-teal-100 text-teal-700",
-                            cell === "markClean" && "bg-emerald-100 text-emerald-700",
+                            cell === "assign" && "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
+                            cell === "checkout" && "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400",
+                            cell === "extend" && "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
+                            cell === "swap" && "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400",
+                            cell === "unassign" && "bg-gray-100 dark:bg-[#1c1c1c] text-gray-700 dark:text-gray-300",
+                            cell === "change-out" && "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400",
+                            cell === "change-in" && "bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-400",
+                            cell === "markClean" && "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400",
                           )}>
                             {cell}
                           </span>
@@ -170,7 +170,7 @@ export function AdminBedHistory({ password, username, role }: { password: string
                     <td className="whitespace-nowrap px-4 py-3">
                       <button type="button" onClick={() => deleteEntry(origIdx)}
                         disabled={deletingIdx === origIdx}
-                        className="rounded-md p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50">
+                        className="rounded-md p-1.5 text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 disabled:opacity-50">
                         {deletingIdx === origIdx
                           ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-red-300 border-t-red-600" />
                           : <Trash2Icon className="h-4 w-4" />}

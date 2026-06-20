@@ -103,7 +103,7 @@ export function AdminCheckRates({ password, username, role }: { password: string
       </div>
 
       {/* Controls */}
-      <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-sm dark:shadow-none">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <label className="mb-1 block text-xs font-medium text-brand-green-dark/60">City</label>
@@ -164,10 +164,10 @@ export function AdminCheckRates({ password, username, role }: { password: string
       {/* Status */}
       {scrapeData && (
         <div className={cn("rounded-xl p-4 text-sm",
-          scrapeData.status === "pending" && "bg-yellow-50 text-yellow-700",
-          scrapeData.status === "in_progress" && "bg-blue-50 text-blue-700",
-          scrapeData.status === "done" && "bg-green-50 text-green-700",
-          scrapeData.status === "failed" && "bg-red-50 text-red-700",
+          scrapeData.status === "pending" && "bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400",
+          scrapeData.status === "in_progress" && "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400",
+          scrapeData.status === "done" && "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400",
+          scrapeData.status === "failed" && "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400",
         )}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -199,7 +199,7 @@ export function AdminCheckRates({ password, username, role }: { password: string
 
       {/* Results Grid */}
       {scrapeData?.status === "done" && scrapeData.results.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-sm dark:shadow-none">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-brand-mist bg-brand-sand/50">
@@ -216,7 +216,7 @@ export function AdminCheckRates({ password, username, role }: { password: string
                 <tr key={i} className={cn("border-b border-brand-mist/50 last:border-0",
                   r.property.toLowerCase().includes("goko") && "bg-brand-green/[0.04] font-semibold"
                 )}>
-                  <td className="sticky left-0 z-10 bg-white px-4 py-3 text-xs font-medium text-brand-green-dark">
+                  <td className="sticky left-0 z-10 bg-white dark:bg-card px-4 py-3 text-xs font-medium text-brand-green-dark">
                     {r.property}
                     {r.property.toLowerCase().includes("goko") && <span className="ml-1 text-[9px] text-brand-green">(You)</span>}
                   </td>
@@ -243,7 +243,7 @@ export function AdminCheckRates({ password, username, role }: { password: string
 
       {/* Empty state */}
       {(!scrapeData || (scrapeData.status === "done" && scrapeData.results.length === 0)) && !loading && (
-        <div className="rounded-2xl border border-brand-mist bg-white p-12 text-center shadow-sm">
+        <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-12 text-center shadow-sm dark:shadow-none">
           <p className="text-brand-green-dark/50">No rate data yet. Select a city and date range, then click &quot;Scrape Rates&quot; to fetch competitor prices.</p>
         </div>
       )}

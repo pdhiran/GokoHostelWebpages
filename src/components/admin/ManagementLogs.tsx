@@ -89,7 +89,7 @@ export function ManagementLogs({ password, username, role }: { password: string;
 
       {/* Log level config */}
       {role === "admin" && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border border-brand-mist bg-white p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border border-brand-mist bg-white dark:bg-card p-3">
           <span className="text-xs font-medium text-brand-green-dark/60">Logging level:</span>
           <select
             value={configuredLevel}
@@ -154,9 +154,9 @@ function LogEntryCard({ log, levelIcon }: { log: LogEntryData; levelIcon: (level
   return (
     <div className={cn(
       "rounded-xl border p-3 overflow-hidden",
-      log.level === "error" && "border-red-200 bg-red-50/50",
-      log.level === "warn" && "border-yellow-200 bg-yellow-50/50",
-      log.level === "info" && "border-blue-100 bg-blue-50/30",
+      log.level === "error" && "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/50",
+      log.level === "warn" && "border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/50",
+      log.level === "info" && "border-blue-100 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/30",
     )}>
       <div className="flex items-start gap-2">
         {levelIcon(log.level)}

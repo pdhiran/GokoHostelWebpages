@@ -43,7 +43,7 @@ export function AdminExpenditure({
       </div>
 
       {/* Tab buttons */}
-      <div className="mt-4 flex flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5">
+      <div className="mt-4 flex flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white dark:bg-card p-1.5">
         {visibleTabs.map((t) => (
           <button
             key={t.id}

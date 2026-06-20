@@ -10,7 +10,7 @@ export const metadata = buildMetadata({
 
 export default function SelfCheckinPage() {
   return (
-    <section className="min-h-screen bg-gradient-to-b from-brand-sand via-white to-brand-sand/60 py-8 md:py-20">
+    <section className="min-h-screen bg-gradient-to-b from-brand-sand via-white to-brand-sand/60 dark:from-background dark:via-background dark:to-background py-8 md:py-20">
       <Container>
         <div className="mx-auto mb-8 max-w-2xl text-center md:mb-10">
           <h1 className="font-display text-2xl font-bold text-brand-green md:text-display-md">

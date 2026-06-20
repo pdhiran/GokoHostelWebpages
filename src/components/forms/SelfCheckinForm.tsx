@@ -75,7 +75,7 @@ function CountrySelect({
         autoComplete="off"
       />
       {open && (
-        <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-brand-mist bg-white shadow-lift">
+        <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-brand-mist bg-white dark:bg-card shadow-lift dark:shadow-none">
           {filtered.length === 0 ? (
             <li className="px-4 py-3 text-sm text-brand-green-dark/60">
               No country found
@@ -159,7 +159,7 @@ function MultiDocUpload({
           {files.map((doc, i) => (
             <div key={i} className="relative">
               {doc.file.type === "application/pdf" ? (
-                <div className="flex h-24 w-24 flex-col items-center justify-center rounded-xl border border-brand-mist bg-brand-sand/50 shadow-soft">
+                <div className="flex h-24 w-24 flex-col items-center justify-center rounded-xl border border-brand-mist bg-brand-sand/50 shadow-soft dark:shadow-none">
                   <span className="text-2xl">PDF</span>
                   <span className="mt-1 max-w-[5rem] truncate text-[9px] text-brand-green-dark/60">{doc.file.name}</span>
                 </div>
@@ -167,13 +167,13 @@ function MultiDocUpload({
                 <img
                   src={doc.preview}
                   alt={`Document ${i + 1}`}
-                  className="h-24 w-24 rounded-xl border border-brand-mist object-cover shadow-soft"
+                  className="h-24 w-24 rounded-xl border border-brand-mist object-cover shadow-soft dark:shadow-none"
                 />
               )}
               <button
                 type="button"
                 onClick={() => onRemove(i)}
-                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-md"
+                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-md dark:shadow-none"
               >
                 <XIcon className="h-3 w-3" />
               </button>
@@ -696,7 +696,7 @@ export function SelfCheckinForm() {
 
   if (step === "phone" && !success && !submitting) {
     return (
-      <div className="mx-auto max-w-lg rounded-3xl border border-brand-mist bg-white p-6 shadow-card md:p-10">
+      <div className="mx-auto max-w-lg rounded-3xl border border-brand-mist bg-white dark:bg-card p-6 shadow-card dark:shadow-none md:p-10">
         <h2 className="font-display text-2xl font-bold text-brand-green md:text-3xl">
           Guest Self Check-in
         </h2>
@@ -754,7 +754,7 @@ export function SelfCheckinForm() {
 
   if (success) {
     return (
-      <div className="mx-auto max-w-lg rounded-3xl border border-brand-mist bg-white p-6 shadow-card md:p-10">
+      <div className="mx-auto max-w-lg rounded-3xl border border-brand-mist bg-white dark:bg-card p-6 shadow-card dark:shadow-none md:p-10">
         <div className="text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-green/10">
             <CheckCircle2Icon className="h-8 w-8 text-brand-green" />
@@ -777,7 +777,7 @@ export function SelfCheckinForm() {
             <div className="flex gap-2"><span>🚶</span><p><strong>Parking & Access:</strong> Hostel is 300m from parking via a scenic trail. Backpacks recommended.</p></div>
             <div className="flex gap-2"><span>🚫</span><p><strong>Strictly No:</strong> Hard liquor, drugs, outside food & drinks.</p></div>
           </div>
-          <div className="mt-4 flex gap-4 rounded-xl bg-white p-3 text-sm">
+          <div className="mt-4 flex gap-4 rounded-xl bg-white dark:bg-card p-3 text-sm">
             <div><strong className="text-brand-green">Check-in:</strong> <span className="text-brand-green-dark/70">12:00 Noon</span></div>
             <div><strong className="text-brand-green">Check-out:</strong> <span className="text-brand-green-dark/70">10:00 AM</span></div>
           </div>
@@ -808,7 +808,7 @@ export function SelfCheckinForm() {
 
   if (submitting) {
     return (
-      <div className="mx-auto max-w-2xl rounded-3xl border border-brand-mist bg-white p-12 text-center shadow-card md:p-16">
+      <div className="mx-auto max-w-2xl rounded-3xl border border-brand-mist bg-white dark:bg-card p-12 text-center shadow-card dark:shadow-none md:p-16">
         <div className="mx-auto flex h-20 w-20 items-center justify-center">
           <div className="h-16 w-16 animate-spin rounded-full border-4 border-brand-green/20 border-t-brand-green" />
         </div>
@@ -830,7 +830,7 @@ export function SelfCheckinForm() {
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="mx-auto max-w-2xl rounded-3xl border border-brand-mist bg-white p-6 shadow-card md:p-10"
+      className="mx-auto max-w-2xl rounded-3xl border border-brand-mist bg-white dark:bg-card p-6 shadow-card dark:shadow-none md:p-10"
     >
       <h2 className="font-display text-2xl font-bold text-brand-green md:text-3xl">
         Guest Self Check-in
@@ -1137,11 +1137,11 @@ export function SelfCheckinForm() {
                     key={i}
                     src={thumb}
                     alt={`Previous ID ${i + 1}`}
-                    className="h-24 w-24 rounded-xl border border-brand-mist object-cover shadow-soft"
+                    className="h-24 w-24 rounded-xl border border-brand-mist object-cover shadow-soft dark:shadow-none"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 ) : (
-                  <div key={i} className="flex h-24 w-24 items-center justify-center rounded-xl border border-brand-mist bg-brand-sand/50 shadow-soft">
+                  <div key={i} className="flex h-24 w-24 items-center justify-center rounded-xl border border-brand-mist bg-brand-sand/50 shadow-soft dark:shadow-none">
                     <span className="text-[10px] text-brand-green-dark/60">ID on file</span>
                   </div>
                 );
@@ -1180,11 +1180,11 @@ export function SelfCheckinForm() {
                     key={i}
                     src={thumb}
                     alt={`Previous Visa ${i + 1}`}
-                    className="h-24 w-24 rounded-xl border border-brand-mist object-cover shadow-soft"
+                    className="h-24 w-24 rounded-xl border border-brand-mist object-cover shadow-soft dark:shadow-none"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 ) : (
-                  <div key={i} className="flex h-24 w-24 items-center justify-center rounded-xl border border-brand-mist bg-brand-sand/50 shadow-soft">
+                  <div key={i} className="flex h-24 w-24 items-center justify-center rounded-xl border border-brand-mist bg-brand-sand/50 shadow-soft dark:shadow-none">
                     <span className="text-[10px] text-brand-green-dark/60">Visa on file</span>
                   </div>
                 );
@@ -1213,8 +1213,8 @@ export function SelfCheckinForm() {
 
         {/* Foreign guest Form C fields */}
         {nationality && nationality !== "India" && (
-          <div className="space-y-5 rounded-2xl border border-blue-100 bg-blue-50/30 p-5">
-            <p className="text-sm font-semibold text-blue-800">Additional details for foreign nationals (required for Form C)</p>
+          <div className="space-y-5 rounded-2xl border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/30 p-5">
+            <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Additional details for foreign nationals (required for Form C)</p>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>

@@ -103,9 +103,9 @@ export function SyncStatusBar({ password, username, role, onNavigateToSync }: { 
     status.pendingChanges > 0 || !status.piOnline ? "yellow" : "green";
 
   const bgClass = {
-    green: "bg-emerald-50 border-emerald-200",
-    yellow: "bg-amber-50 border-amber-200",
-    red: "bg-red-50 border-red-200",
+    green: "bg-emerald-50 dark:bg-emerald-950 border-emerald-200",
+    yellow: "bg-amber-50 dark:bg-amber-950 border-amber-200",
+    red: "bg-red-50 dark:bg-red-950 border-red-200",
   }[severity];
 
   const isPi = status.runtime === "pi";
@@ -121,7 +121,7 @@ export function SyncStatusBar({ password, username, role, onNavigateToSync }: { 
     >
       {isPi ? (
         <>
-          <span className="flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 font-semibold text-purple-700">
+          <span className="flex items-center gap-1 rounded-full bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 font-semibold text-purple-700 dark:text-purple-400">
             <CpuIcon className="h-3 w-3" /> Pi Mode
           </span>
           <span className="hidden items-center gap-1 sm:flex">
@@ -146,7 +146,7 @@ export function SyncStatusBar({ password, username, role, onNavigateToSync }: { 
         </>
       ) : (
         <>
-          <span className="flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">
+          <span className="flex items-center gap-1 rounded-full bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 font-semibold text-blue-700 dark:text-blue-400">
             <CloudIcon className="h-3 w-3" /> Cloud
           </span>
           <span className="hidden items-center gap-1 sm:flex">

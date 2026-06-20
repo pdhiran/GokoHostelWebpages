@@ -217,7 +217,7 @@ export function AccountSettings({ password, username, role }: { password: string
   return (
     <div className="space-y-6">
       {/* Section Tabs */}
-      <div className="flex flex-wrap gap-1 rounded-lg border border-brand-mist bg-white p-1">
+      <div className="flex flex-wrap gap-1 rounded-lg border border-brand-mist bg-white dark:bg-card p-1">
         {([
           { id: "accounts" as SettingsSection, label: "Accounts", icon: <BanknoteIcon className="h-3.5 w-3.5" /> },
           { id: "employees" as SettingsSection, label: "Employees", icon: <UsersIcon className="h-3.5 w-3.5" /> },
@@ -259,7 +259,7 @@ export function AccountSettings({ password, username, role }: { password: string
 
       {/* Form */}
       {showForm && (
-        <div ref={formRef} className="rounded-xl border border-brand-mist bg-white p-4 sm:p-5 space-y-4">
+        <div ref={formRef} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-5 space-y-4">
           <h4 className="text-sm font-semibold text-brand-green-dark">{editing ? "Edit" : "Add"} {section.slice(0, -1)}</h4>
 
           {section === "accounts" && (
@@ -371,7 +371,7 @@ export function AccountSettings({ password, username, role }: { password: string
       {/* Items List */}
       <div className="space-y-2">
         {section === "accounts" && accounts.map((a) => (
-          <div key={a.id} data-item-id={a.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div key={a.id} data-item-id={a.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
             <div>
               <p className="text-sm font-medium text-brand-green-dark">
                 {a.name} {a.nickname && <span className="text-brand-green-dark/50">({a.nickname})</span>}
@@ -384,13 +384,13 @@ export function AccountSettings({ password, username, role }: { password: string
             </div>
             <div className="flex gap-1">
               <button type="button" onClick={() => startEdit(a)} className="rounded-md p-1.5 text-brand-green-dark/40 hover:bg-brand-sand hover:text-brand-green"><PencilIcon className="h-3.5 w-3.5" /></button>
-              <button type="button" onClick={() => deleteItem(a.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => deleteItem(a.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         ))}
 
         {section === "vendors" && vendors.map((v) => (
-          <div key={v.id} data-item-id={v.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div key={v.id} data-item-id={v.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
             <div>
               <p className="text-sm font-medium text-brand-green-dark">{v.name}</p>
               <p className="text-[10px] text-brand-green-dark/50">
@@ -399,13 +399,13 @@ export function AccountSettings({ password, username, role }: { password: string
             </div>
             <div className="flex gap-1">
               <button type="button" onClick={() => startEdit(v)} className="rounded-md p-1.5 text-brand-green-dark/40 hover:bg-brand-sand hover:text-brand-green"><PencilIcon className="h-3.5 w-3.5" /></button>
-              <button type="button" onClick={() => deleteItem(v.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => deleteItem(v.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         ))}
 
         {section === "employees" && employees.map((e) => (
-          <div key={e.id} data-item-id={e.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+          <div key={e.id} data-item-id={e.id} className="flex items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
             <div>
               <p className="text-sm font-medium text-brand-green-dark">{e.name}</p>
               <p className="text-[10px] text-brand-green-dark/50">
@@ -413,11 +413,11 @@ export function AccountSettings({ password, username, role }: { password: string
               </p>
             </div>
             <div className="flex gap-1">
-              <button type="button" onClick={() => startPaySalary(e)} className="rounded-md px-2 py-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Pay Salary">
+              <button type="button" onClick={() => startPaySalary(e)} className="rounded-md px-2 py-1 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 hover:bg-emerald-100 dark:hover:bg-emerald-900/50" title="Pay Salary">
                 <IndianRupeeIcon className="inline h-3 w-3" /> Pay
               </button>
               <button type="button" onClick={() => startEdit(e)} className="rounded-md p-1.5 text-brand-green-dark/40 hover:bg-brand-sand hover:text-brand-green"><PencilIcon className="h-3.5 w-3.5" /></button>
-              <button type="button" onClick={() => deleteItem(e.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => deleteItem(e.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         ))}
@@ -431,7 +431,7 @@ export function AccountSettings({ password, username, role }: { password: string
       {/* Salary/Bonus/Advance/Loan Payment Modal */}
       {payingEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl sm:p-6">
+          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-xl dark:shadow-none sm:p-6">
             <h4 className="font-display text-base font-bold text-brand-green-dark">Pay Employee</h4>
             <p className="mt-1 text-xs text-brand-green-dark/60">
               {payingEmployee.name} · {payingEmployee.role || "Staff"}

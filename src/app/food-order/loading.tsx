@@ -9,12 +9,12 @@ export default function FoodOrderLoading() {
           <div className="h-4 w-24 animate-pulse rounded bg-white/15" />
         </div>
         {/* Card skeleton */}
-        <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-6 shadow-xl backdrop-blur-sm">
+        <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-6 shadow-xl dark:shadow-none backdrop-blur-sm">
           <div className="space-y-4">
-            <div className="h-5 w-48 animate-pulse rounded bg-gray-200" />
-            <div className="h-4 w-36 animate-pulse rounded bg-gray-100" />
-            <div className="h-12 w-full animate-pulse rounded-xl bg-gray-100" />
-            <div className="h-12 w-full animate-pulse rounded-xl bg-blue-100" />
+            <div className="h-5 w-48 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+            <div className="h-4 w-36 animate-pulse rounded bg-gray-100 dark:bg-white/5" />
+            <div className="h-12 w-full animate-pulse rounded-xl bg-gray-100 dark:bg-white/5" />
+            <div className="h-12 w-full animate-pulse rounded-xl bg-blue-100 dark:bg-blue-900/30" />
           </div>
         </div>
       </div>

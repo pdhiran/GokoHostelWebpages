@@ -194,7 +194,7 @@ function AdminPageInner() {
           initial="hidden"
           animate="visible"
           variants={fadeInScale}
-          className="mx-4 w-full max-w-sm rounded-3xl border border-brand-mist bg-white dark:bg-card p-6 shadow-card sm:mx-auto sm:p-8"
+          className="mx-4 w-full max-w-sm rounded-3xl border border-brand-mist bg-white dark:bg-card p-6 shadow-card dark:shadow-none sm:mx-auto sm:p-8"
         >
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green/[0.07]">
             <LockIcon className="h-6 w-6 text-brand-green" />
@@ -217,7 +217,7 @@ function AdminPageInner() {
                 <button
                   type="button"
                   onClick={() => setSelectedRole("admin")}
-                  className="w-full rounded-xl border-2 border-brand-green bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:bg-brand-green/[0.04] hover:shadow-soft hover:-translate-y-0.5"
+                  className="w-full rounded-xl border-2 border-brand-green bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:bg-brand-green/[0.04] hover:shadow-soft dark:hover:shadow-none hover:-translate-y-0.5"
                 >
                   <span className="font-display text-base font-bold text-brand-green">Admin Access</span>
                   <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-muted-foreground">Full access: view, add, modify, and delete entries</p>
@@ -225,7 +225,7 @@ function AdminPageInner() {
                 <button
                   type="button"
                   onClick={() => setSelectedRole("manager")}
-                  className="w-full rounded-xl border-2 border-brand-mist bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:border-brand-green/30 hover:shadow-soft hover:-translate-y-0.5"
+                  className="w-full rounded-xl border-2 border-brand-mist bg-white dark:bg-card px-4 py-4 text-left transition-all duration-200 hover:border-brand-green/30 hover:shadow-soft dark:hover:shadow-none hover:-translate-y-0.5"
                 >
                   <span className="font-display text-base font-bold text-brand-green-dark">Staff Access</span>
                   <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-muted-foreground">View records and add new entries</p>
@@ -489,7 +489,7 @@ function AdminPageInner() {
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="pointer-events-auto w-full max-w-sm rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-xl sm:p-6"
+                className="pointer-events-auto w-full max-w-sm rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-xl dark:shadow-none sm:p-6"
               >
                 <div className="flex items-center justify-between">
                   <h3 className="font-display text-lg font-bold text-brand-green-dark">Change Password</h3>

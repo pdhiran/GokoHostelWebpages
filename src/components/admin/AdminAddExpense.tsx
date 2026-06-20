@@ -180,7 +180,7 @@ export function AdminAddExpense({
 
   return (
     <div>
-      <form onSubmit={handleSubmit} className="rounded-2xl border border-brand-mist bg-white p-4 shadow-card sm:p-5">
+      <form onSubmit={handleSubmit} className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 shadow-card dark:shadow-none sm:p-5">
         <h3 className="font-display text-lg font-bold text-brand-green-dark">Add Expense</h3>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {/* Amount */}
@@ -352,7 +352,7 @@ export function AdminAddExpense({
         ) : recentExpenses.length === 0 ? (
           <p className="mt-4 text-center text-sm text-brand-green-dark/50">No submissions in the last 7 days</p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none">
             <table className="w-full min-w-[600px] text-left text-sm">
               <thead>
                 <tr className="border-b border-brand-mist bg-brand-sand/50">

@@ -114,9 +114,9 @@ export function AdminFoodBill({
       ) : (
         <>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+            <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 dark:bg-green-950">
                   <ShoppingCartIcon className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
@@ -129,9 +129,9 @@ export function AdminFoodBill({
                 </div>
               </div>
             </div>
-            <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+            <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950">
                   <BanknoteIcon className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
@@ -144,9 +144,9 @@ export function AdminFoodBill({
                 </div>
               </div>
             </div>
-            <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+            <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-950">
                   <SmartphoneIcon className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
@@ -159,9 +159,9 @@ export function AdminFoodBill({
                 </div>
               </div>
             </div>
-            <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+            <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 dark:bg-orange-950">
                   <AlertTriangleIcon className="h-5 w-5 text-orange-600" />
                 </div>
                 <div>
@@ -175,9 +175,9 @@ export function AdminFoodBill({
               </div>
             </div>
             {summary.totalDiscount > 0 && (
-              <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+              <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 dark:bg-green-950">
                     <TagIcon className="h-5 w-5 text-green-600" />
                   </div>
                   <div>
@@ -198,7 +198,7 @@ export function AdminFoodBill({
               <h4 className="mt-8 font-display text-base font-bold text-brand-green-dark">
                 Guest-wise Breakdown
               </h4>
-              <div className="mt-3 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+              <div className="mt-3 overflow-x-auto rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none">
                 <table className="w-full min-w-[900px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-brand-mist bg-brand-sand/50">

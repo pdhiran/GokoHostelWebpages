@@ -171,8 +171,8 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
 
       {/* Kitchen Busy Mode - prominent toggle */}
       <div className={cn(
-        "mt-6 rounded-2xl border p-5 shadow-card transition-colors",
-        isBusy ? "border-red-300 bg-red-50" : "border-brand-mist bg-white"
+        "mt-6 rounded-2xl border p-5 shadow-card dark:shadow-none transition-colors",
+        isBusy ? "border-red-300 bg-red-50 dark:bg-red-950" : "border-brand-mist bg-white dark:bg-card"
       )}>
         <div className="flex items-center justify-between">
           <div>
@@ -189,7 +189,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             disabled={saving}
             className={cn(
               "relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-              isBusy ? "bg-red-500" : "bg-gray-200"
+              isBusy ? "bg-red-500" : "bg-gray-200 dark:bg-[#2a2a2a]"
             )}
           >
             <span className={cn(
@@ -201,7 +201,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
       </div>
 
       {/* Customer WhatsApp Toggle */}
-      <div className="mt-4 rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+      <div className="mt-4 rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-display text-base font-bold text-brand-green-dark">Customer WhatsApp Order</h3>
@@ -231,7 +231,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             disabled={saving}
             className={cn(
               "relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-              settings.food_customer_whatsapp === "true" ? "bg-green-500" : "bg-gray-200"
+              settings.food_customer_whatsapp === "true" ? "bg-green-500" : "bg-gray-200 dark:bg-[#2a2a2a]"
             )}
           >
             <span className={cn(
@@ -243,7 +243,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
       </div>
 
       {/* Show Out of Stock Items Toggle */}
-      <div className="mt-4 rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+      <div className="mt-4 rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-display text-base font-bold text-brand-green-dark">Show Out of Stock Items</h3>
@@ -273,7 +273,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             disabled={saving}
             className={cn(
               "relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-              settings.food_show_out_of_stock === "true" ? "bg-green-500" : "bg-gray-200"
+              settings.food_show_out_of_stock === "true" ? "bg-green-500" : "bg-gray-200 dark:bg-[#2a2a2a]"
             )}
           >
             <span className={cn(
@@ -285,7 +285,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
       </div>
 
       {/* Settings Form */}
-      <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+      <div className="mt-6 rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-base font-bold text-brand-green-dark">Settings</h3>
           <div className="flex items-center gap-2">
@@ -378,7 +378,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
                         slots.splice(idx, 1);
                         updateField("food_kitchen_hours", slotsToString(slots));
                       }}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-400 transition hover:bg-red-50 hover:text-red-600"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-400 transition hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600"
                     >
                       <XIcon className="h-4 w-4" />
                     </button>
@@ -593,7 +593,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
         </div>
 
         {dirty && (
-          <div className="mt-5 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <div className="mt-5 flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
             <span className="font-medium">Unsaved changes</span> — click Save All to apply.
           </div>
         )}

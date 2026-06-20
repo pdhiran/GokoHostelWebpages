@@ -155,7 +155,7 @@ export function AdminBillRecords({
                 "rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
                 month === currentMonth
                   ? "bg-brand-green text-white"
-                  : "bg-white text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
+                  : "bg-white dark:bg-card text-brand-green-dark/70 hover:bg-brand-green/[0.06]"
               )}
             >
               {month}
@@ -183,7 +183,7 @@ export function AdminBillRecords({
         <p className="sm:ml-auto text-sm text-brand-green-dark/70">
           {filteredExpenses.length}{filteredExpenses.length !== expenses.length ? ` of ${expenses.length}` : ""} records
         </p>
-        <div className="flex rounded-lg border border-brand-mist bg-white p-0.5">
+        <div className="flex rounded-lg border border-brand-mist bg-white dark:bg-card p-0.5">
           <button type="button" onClick={() => setViewMode("card")} className={cn("rounded-md p-1.5 transition-colors", viewMode === "card" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Card view">
             <LayoutListIcon className="h-3.5 w-3.5" />
           </button>
@@ -202,7 +202,7 @@ export function AdminBillRecords({
             filteredExpenses.map((exp: any, i: number) => {
               const isExpanded = expandedCard === i;
               return (
-                <div key={exp.id || i} className="rounded-xl border border-brand-mist bg-white shadow-sm">
+                <div key={exp.id || i} className="rounded-xl border border-brand-mist bg-white dark:bg-card shadow-sm dark:shadow-none">
                   <button
                     type="button"
                     onClick={() => setExpandedCard(isExpanded ? null : i)}
@@ -255,7 +255,7 @@ export function AdminBillRecords({
                             </button>
                           )}
                           {hasPermission(role, permissions, "canDeleteExpense") && (
-                            <button type="button" onClick={() => deleteExpense(exp.id, exp.billImageLink)} className="flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100">
+                            <button type="button" onClick={() => deleteExpense(exp.id, exp.billImageLink)} className="flex items-center gap-1 rounded-lg bg-red-50 dark:bg-red-950 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50">
                               <Trash2Icon className="h-3 w-3" /> Delete
                             </button>
                           )}
@@ -277,7 +277,7 @@ export function AdminBillRecords({
       )}
 
       {/* Table View */}
-      {viewMode === "table" && <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+      {viewMode === "table" && <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none">
         <table className="w-full min-w-[800px] text-left text-sm">
           <thead>
             <tr className="border-b border-brand-mist bg-brand-sand/50">
@@ -346,7 +346,7 @@ export function AdminBillRecords({
                           <button
                             type="button"
                             onClick={() => deleteExpense(exp.id, exp.billImageLink)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
                           >
                             <Trash2Icon className="h-4 w-4" />
                           </button>
@@ -376,7 +376,7 @@ export function AdminBillRecords({
 
       {editModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setEditModal(null)}>
-          <div className="w-full max-w-md rounded-2xl border border-brand-mist bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-2xl border border-brand-mist bg-white dark:bg-card p-6 shadow-xl dark:shadow-none" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">Edit Expense</h3>
               <button type="button" onClick={() => setEditModal(null)} className="rounded-md p-1 text-brand-green-dark/40 hover:text-brand-green-dark">

@@ -400,7 +400,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
       <p className="mt-1 text-sm text-brand-green-dark/60">Manage food categories and menu items.</p>
 
       {/* ---- CATEGORIES SECTION ---- */}
-      <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+      <div className="mt-6 rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-base font-bold text-brand-green-dark">Categories</h3>
           <Button type="button" variant="cta" size="sm" onClick={openAddCategory} disabled={saving}>
@@ -464,7 +464,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                   "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border px-4 py-3 transition-colors",
                   selectedCategoryId === cat.id
                     ? "border-brand-green/30 bg-brand-green/5"
-                    : "border-brand-mist bg-white hover:bg-brand-sand/30",
+                    : "border-brand-mist bg-white dark:bg-card hover:bg-brand-sand/30",
                   !cat.isActive && "opacity-60"
                 )}
               >
@@ -489,7 +489,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                 <div className="flex items-center gap-1.5">
                   <span className={cn(
                     "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                    cat.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                    cat.isActive ? "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400" : "bg-gray-100 dark:bg-[#1c1c1c] text-gray-500 dark:text-gray-400"
                   )}>
                     {cat.isActive ? "Active" : "Inactive"}
                   </span>
@@ -499,7 +499,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                   <button type="button" onClick={() => openEditCategory(cat)} className="rounded p-1 text-brand-green-dark/40 hover:bg-brand-sand/50 hover:text-brand-green-dark" title="Edit">
                     <PencilIcon className="h-3.5 w-3.5" />
                   </button>
-                  <button type="button" onClick={() => deleteCategory(cat.id, cat.name)} className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600" title="Delete">
+                  <button type="button" onClick={() => deleteCategory(cat.id, cat.name)} className="rounded p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600" title="Delete">
                     <Trash2Icon className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -510,7 +510,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
       </div>
 
       {/* ---- ITEMS SECTION ---- */}
-      <div className="mt-6 rounded-2xl border border-brand-mist bg-white p-5 shadow-card">
+      <div className="mt-6 rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-card dark:shadow-none">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h3 className="font-display text-base font-bold text-brand-green-dark">Menu Items</h3>
@@ -519,7 +519,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                 <select
                   value={selectedCategoryId ?? ""}
                   onChange={(e) => setSelectedCategoryId(e.target.value ? parseInt(e.target.value) : null)}
-                  className="rounded-lg border border-brand-mist bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-brand-green-dark appearance-none"
+                  className="rounded-lg border border-brand-mist bg-white dark:bg-card py-1.5 pl-3 pr-8 text-xs font-medium text-brand-green-dark appearance-none"
                 >
                   <option value="">All categories</option>
                   {categories.map((c) => (
@@ -544,7 +544,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
             <Button type="button" variant="cta" size="sm" onClick={openAddItem} disabled={saving || categories.length === 0}>
               <PlusIcon className="mr-1 h-4 w-4" /> Add Item
             </Button>
-            <div className="flex rounded-lg border border-brand-mist bg-white p-0.5">
+            <div className="flex rounded-lg border border-brand-mist bg-white dark:bg-card p-0.5">
               <button type="button" onClick={() => setItemViewMode("card")} className={cn("rounded-md p-1.5 transition-colors", itemViewMode === "card" ? "bg-brand-green text-white" : "text-brand-green-dark/50 hover:bg-brand-sand")} title="Card view">
                 <LayoutListIcon className="h-3.5 w-3.5" />
               </button>
@@ -671,12 +671,12 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                   {itemForm.customTags.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {itemForm.customTags.map((tag) => (
-                        <span key={tag} className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                        <span key={tag} className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-[#1c1c1c] px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300">
                           {tag}
                           <button
                             type="button"
                             onClick={() => setItemForm({ ...itemForm, customTags: itemForm.customTags.filter((t) => t !== tag) })}
-                            className="ml-0.5 text-gray-400 hover:text-red-500"
+                            className="ml-0.5 text-gray-400 dark:text-gray-500 hover:text-red-500"
                           >
                             <XIcon className="h-3 w-3" />
                           </button>
@@ -744,7 +744,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                   const isZeroStock = item.trackInventory && item.stockQuantity === 0;
                   const isExpanded = expandedItemCard === item.id;
                   return (
-                    <div key={item.id} data-item-id={item.id} className={cn("rounded-xl border border-brand-mist bg-white shadow-sm", !item.isAvailable && "opacity-60")}>
+                    <div key={item.id} data-item-id={item.id} className={cn("rounded-xl border border-brand-mist bg-white dark:bg-card shadow-sm dark:shadow-none", !item.isAvailable && "opacity-60")}>
                       <button
                         type="button"
                         onClick={() => setExpandedItemCard(isExpanded ? null : item.id)}
@@ -756,16 +756,16 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                             <span className="rounded-full bg-brand-green/10 px-2 py-0.5 text-xs font-bold text-brand-green-dark">₹{pricePaiseToDisplay(item.price)}</span>
                             <span className={cn(
                               "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
-                              item.isAvailable ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                              item.isAvailable ? "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400" : "bg-gray-100 dark:bg-[#1c1c1c] text-gray-500 dark:text-gray-400"
                             )}>
                               {item.isAvailable ? "Available" : "Unavailable"}
                             </span>
                             {!!item.trackInventory && (
                               <span className={cn(
                                 "rounded-full px-1.5 py-0.5 text-[9px] font-bold",
-                                isZeroStock ? "bg-red-100 text-red-700" :
-                                isLowStock ? "bg-orange-100 text-orange-700" :
-                                "bg-green-100 text-green-700"
+                                isZeroStock ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400" :
+                                isLowStock ? "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400" :
+                                "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400"
                               )}>
                                 {item.stockQuantity} in stock
                               </span>
@@ -793,16 +793,16 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                             <div className="mt-2 flex flex-wrap gap-1">
                               {tags.map((tag) => {
                                 const lc = tag.toLowerCase();
-                                let classes = "bg-gray-100 text-gray-600";
-                                if (lc === "veg") classes = "bg-green-100 text-green-700";
-                                else if (lc === "non-veg") classes = "bg-red-100 text-red-700";
-                                else if (lc === "spicy") classes = "bg-amber-100 text-amber-700";
-                                else if (lc === "seafood") classes = "bg-blue-100 text-blue-700";
-                                else if (lc === "chicken") classes = "bg-orange-100 text-orange-700";
-                                else if (lc === "mutton") classes = "bg-red-100 text-red-800";
-                                else if (lc === "egg") classes = "bg-yellow-100 text-yellow-700";
-                                else if (lc === "chef-special") classes = "bg-purple-100 text-purple-700";
-                                else if (lc === "goko-special") classes = "bg-indigo-100 text-indigo-700";
+                                let classes = "bg-gray-100 dark:bg-[#1c1c1c] text-gray-600 dark:text-gray-400";
+                                if (lc === "veg") classes = "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400";
+                                else if (lc === "non-veg") classes = "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400";
+                                else if (lc === "spicy") classes = "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400";
+                                else if (lc === "seafood") classes = "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400";
+                                else if (lc === "chicken") classes = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400";
+                                else if (lc === "mutton") classes = "bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300";
+                                else if (lc === "egg") classes = "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400";
+                                else if (lc === "chef-special") classes = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400";
+                                else if (lc === "goko-special") classes = "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400";
                                 const display = lc.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
                                 return (
                                   <span key={tag} className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${classes}`}>
@@ -818,15 +818,15 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                               addStockItemId === item.id ? (
                                 <div className="flex items-center gap-1">
                                   <Input type="number" min="1" value={addStockQty} onChange={(e) => setAddStockQty(e.target.value)} className="h-7 w-16 text-xs" placeholder="Qty" autoFocus />
-                                  <button type="button" onClick={() => handleAddStock(item.id)} className="rounded p-1 text-green-600 hover:bg-green-50" title="Confirm" disabled={saving}>
+                                  <button type="button" onClick={() => handleAddStock(item.id)} className="rounded p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-950" title="Confirm" disabled={saving}>
                                     <CheckIcon className="h-3.5 w-3.5" />
                                   </button>
-                                  <button type="button" onClick={() => { setAddStockItemId(null); setAddStockQty(""); }} className="rounded p-1 text-gray-400 hover:bg-gray-50" title="Cancel">
+                                  <button type="button" onClick={() => { setAddStockItemId(null); setAddStockQty(""); }} className="rounded p-1 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5" title="Cancel">
                                     <XIcon className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
                               ) : (
-                                <button type="button" onClick={() => { setAddStockItemId(item.id); setAddStockQty(""); }} className="flex items-center gap-1 rounded-lg bg-green-50 px-2 py-1 text-[10px] font-medium text-green-700 hover:bg-green-100">
+                                <button type="button" onClick={() => { setAddStockItemId(item.id); setAddStockQty(""); }} className="flex items-center gap-1 rounded-lg bg-green-50 dark:bg-green-950 px-2 py-1 text-[10px] font-medium text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50">
                                   <PackagePlusIcon className="h-3 w-3" /> Add Stock
                                 </button>
                               )
@@ -838,7 +838,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                             <button type="button" onClick={() => openEditItem(item)} className="flex items-center gap-1 rounded-lg bg-brand-sand px-2 py-1 text-[10px] font-medium text-brand-green-dark/70 hover:bg-brand-green/10">
                               <PencilIcon className="h-3 w-3" /> Edit
                             </button>
-                            <button type="button" onClick={() => deleteItem(item.id, item.name)} className="flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100">
+                            <button type="button" onClick={() => deleteItem(item.id, item.name)} className="flex items-center gap-1 rounded-lg bg-red-50 dark:bg-red-950 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50">
                               <Trash2Icon className="h-3 w-3" /> Delete
                             </button>
                           </div>
@@ -852,7 +852,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
 
             {/* Table View */}
             {itemViewMode === "table" && (
-              <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-card">
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none">
                 <table className="w-full min-w-[800px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-brand-mist bg-brand-sand/50">
@@ -877,9 +877,9 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                               {item.trackInventory ? (
                                 <span className={cn(
                                   "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
-                                  isZeroStock ? "bg-red-100 text-red-700" :
-                                  isLowStock ? "bg-orange-100 text-orange-700" :
-                                  "bg-green-100 text-green-700"
+                                  isZeroStock ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400" :
+                                  isLowStock ? "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400" :
+                                  "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400"
                                 )}>
                                   {item.stockQuantity} in stock
                                 </span>
@@ -896,16 +896,16 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                             <div className="flex flex-wrap gap-1">
                               {tags.map((tag) => {
                                 const lc = tag.toLowerCase();
-                                let classes = "bg-gray-100 text-gray-600";
-                                if (lc === "veg") classes = "bg-green-100 text-green-700";
-                                else if (lc === "non-veg") classes = "bg-red-100 text-red-700";
-                                else if (lc === "spicy") classes = "bg-amber-100 text-amber-700";
-                                else if (lc === "seafood") classes = "bg-blue-100 text-blue-700";
-                                else if (lc === "chicken") classes = "bg-orange-100 text-orange-700";
-                                else if (lc === "mutton") classes = "bg-red-100 text-red-800";
-                                else if (lc === "egg") classes = "bg-yellow-100 text-yellow-700";
-                                else if (lc === "chef-special") classes = "bg-purple-100 text-purple-700";
-                                else if (lc === "goko-special") classes = "bg-indigo-100 text-indigo-700";
+                                let classes = "bg-gray-100 dark:bg-[#1c1c1c] text-gray-600 dark:text-gray-400";
+                                if (lc === "veg") classes = "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400";
+                                else if (lc === "non-veg") classes = "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400";
+                                else if (lc === "spicy") classes = "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400";
+                                else if (lc === "seafood") classes = "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400";
+                                else if (lc === "chicken") classes = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400";
+                                else if (lc === "mutton") classes = "bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300";
+                                else if (lc === "egg") classes = "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400";
+                                else if (lc === "chef-special") classes = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400";
+                                else if (lc === "goko-special") classes = "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400";
                                 const display = lc.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
                                 return (
                                   <span key={tag} className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${classes}`}>
@@ -918,7 +918,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                           <td className="px-3 py-3">
                             <span className={cn(
                               "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                              item.isAvailable ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                              item.isAvailable ? "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400" : "bg-gray-100 dark:bg-[#1c1c1c] text-gray-500 dark:text-gray-400"
                             )}>
                               {item.isAvailable ? "Available" : "Unavailable"}
                             </span>
@@ -929,15 +929,15 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                                 addStockItemId === item.id ? (
                                   <div className="flex items-center gap-1">
                                     <Input type="number" min="1" value={addStockQty} onChange={(e) => setAddStockQty(e.target.value)} className="h-7 w-16 text-xs" placeholder="Qty" autoFocus />
-                                    <button type="button" onClick={() => handleAddStock(item.id)} className="rounded p-1 text-green-600 hover:bg-green-50" title="Confirm" disabled={saving}>
+                                    <button type="button" onClick={() => handleAddStock(item.id)} className="rounded p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-950" title="Confirm" disabled={saving}>
                                       <CheckIcon className="h-3.5 w-3.5" />
                                     </button>
-                                    <button type="button" onClick={() => { setAddStockItemId(null); setAddStockQty(""); }} className="rounded p-1 text-gray-400 hover:bg-gray-50" title="Cancel">
+                                    <button type="button" onClick={() => { setAddStockItemId(null); setAddStockQty(""); }} className="rounded p-1 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5" title="Cancel">
                                       <XIcon className="h-3.5 w-3.5" />
                                     </button>
                                   </div>
                                 ) : (
-                                  <button type="button" onClick={() => { setAddStockItemId(item.id); setAddStockQty(""); }} className="rounded p-1 text-brand-green-dark/40 hover:bg-green-50 hover:text-green-600" title="Add Stock">
+                                  <button type="button" onClick={() => { setAddStockItemId(item.id); setAddStockQty(""); }} className="rounded p-1 text-brand-green-dark/40 hover:bg-green-50 dark:hover:bg-green-950 hover:text-green-600" title="Add Stock">
                                     <PackagePlusIcon className="h-3.5 w-3.5" />
                                   </button>
                                 )
@@ -948,7 +948,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                               <button type="button" onClick={() => openEditItem(item)} className="rounded p-1 text-brand-green-dark/40 hover:bg-brand-sand/50 hover:text-brand-green-dark" title="Edit">
                                 <PencilIcon className="h-3.5 w-3.5" />
                               </button>
-                              <button type="button" onClick={() => deleteItem(item.id, item.name)} className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600" title="Delete">
+                              <button type="button" onClick={() => deleteItem(item.id, item.name)} className="rounded p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600" title="Delete">
                                 <Trash2Icon className="h-3.5 w-3.5" />
                               </button>
                             </div>

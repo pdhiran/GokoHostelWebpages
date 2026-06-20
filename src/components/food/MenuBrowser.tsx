@@ -151,7 +151,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
               whileTap={{ scale: 0.96 }}
               whileHover={{ scale: 1.03, y: -2 }}
               onClick={() => setSelectedCategory(cat.id)}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 dark:border-border bg-white dark:bg-card p-5 shadow-sm transition-shadow hover:border-blue-200 hover:shadow-lg"
+              className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 dark:border-border bg-white dark:bg-card p-5 shadow-sm dark:shadow-none transition-shadow hover:border-blue-200 hover:shadow-lg dark:hover:shadow-none"
             >
               <span className="text-3xl">{cat.icon}</span>
               <span className="text-sm font-semibold text-gray-800 dark:text-foreground">{cat.name}</span>
@@ -209,7 +209,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search dishes…"
-          className="w-full rounded-xl border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-4 py-2.5 pr-9 text-sm dark:text-foreground outline-none transition-all duration-200 focus:border-blue-300 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30 focus:shadow-sm"
+          className="w-full rounded-xl border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-4 py-2.5 pr-9 text-sm dark:text-foreground outline-none transition-all duration-200 focus:border-blue-300 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30 focus:shadow-sm dark:focus:shadow-none"
         />
         <AnimatePresence>
           {searchQuery && (
@@ -233,8 +233,8 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
           onClick={() => setDietFilter("all")}
           className={`rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 ${
             dietFilter === "all"
-              ? "bg-gray-800 text-white shadow-sm"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              ? "bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 shadow-sm dark:shadow-none"
+              : "bg-gray-100 dark:bg-[#1c1c1c] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#2a2a2a]"
           }`}
         >
           All
@@ -244,8 +244,8 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
           onClick={() => setDietFilter("veg")}
           className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 ${
             dietFilter === "veg"
-              ? "bg-green-600 text-white shadow-sm"
-              : "bg-gray-100 text-gray-600 hover:bg-green-50"
+              ? "bg-green-600 text-white shadow-sm dark:shadow-none"
+              : "bg-gray-100 dark:bg-[#1c1c1c] text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-950"
           }`}
         >
           <span className="h-2 w-2 rounded-full bg-green-500" />
@@ -256,8 +256,8 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
           onClick={() => setDietFilter("nonveg")}
           className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 ${
             dietFilter === "nonveg"
-              ? "bg-red-600 text-white shadow-sm"
-              : "bg-gray-100 text-gray-600 hover:bg-red-50"
+              ? "bg-red-600 text-white shadow-sm dark:shadow-none"
+              : "bg-gray-100 dark:bg-[#1c1c1c] text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-950"
           }`}
         >
           <span className="h-2 w-2 rounded-full bg-red-500" />
@@ -274,7 +274,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
               className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition ${
                 curatedFilter === "chef-special"
                   ? "bg-purple-600 text-white"
-                  : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+                  : "bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/50"
               }`}
             >
               👨‍🍳 Chef Special
@@ -286,7 +286,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
               className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition ${
                 curatedFilter === "goko-special"
                   ? "bg-indigo-600 text-white"
-                  : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                  : "bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
               }`}
             >
               ⭐ Goko Special
@@ -321,14 +321,14 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   whileTap={isUnavailable ? undefined : { scale: 0.98 }}
-                  className={`flex gap-3 rounded-2xl border bg-white dark:bg-card p-3 shadow-sm transition-all duration-200 ${
+                  className={`flex gap-3 rounded-2xl border bg-white dark:bg-card p-3 shadow-sm dark:shadow-none transition-all duration-200 ${
                     isUnavailable
                       ? "border-gray-100 dark:border-border opacity-50"
-                      : "border-gray-100 dark:border-border hover:border-blue-200 hover:shadow-lg"
+                      : "border-gray-100 dark:border-border hover:border-blue-200 hover:shadow-lg dark:hover:shadow-none"
                   }`}
                 >
                   {/* Image */}
-                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100 dark:bg-[#1c1c1c]">
                     {item.imageUrl ? (
                       <img
                         src={`/images/food/${item.imageUrl}`}
@@ -370,16 +370,16 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                         <div className="mt-1 flex flex-wrap gap-1">
                           {tags.map((tag) => {
                             const lc = tag.toLowerCase();
-                            let classes = "bg-gray-100 text-gray-600";
-                            if (lc === "veg") classes = "bg-green-50 text-green-700";
-                            else if (lc === "non-veg" || lc === "nonveg") classes = "bg-red-50 text-red-700";
-                            else if (lc === "spicy") classes = "bg-amber-50 text-amber-700";
-                            else if (lc === "seafood") classes = "bg-blue-50 text-blue-700";
-                            else if (lc === "chicken") classes = "bg-orange-50 text-orange-700";
-                            else if (lc === "mutton") classes = "bg-red-50 text-red-800";
-                            else if (lc === "egg") classes = "bg-yellow-50 text-yellow-700";
-                            else if (lc === "chef-special") classes = "bg-purple-50 text-purple-700";
-                            else if (lc === "goko-special") classes = "bg-indigo-50 text-indigo-700";
+                            let classes = "bg-gray-100 dark:bg-[#1c1c1c] text-gray-600 dark:text-gray-400";
+                            if (lc === "veg") classes = "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400";
+                            else if (lc === "non-veg" || lc === "nonveg") classes = "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400";
+                            else if (lc === "spicy") classes = "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400";
+                            else if (lc === "seafood") classes = "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400";
+                            else if (lc === "chicken") classes = "bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400";
+                            else if (lc === "mutton") classes = "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-300";
+                            else if (lc === "egg") classes = "bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400";
+                            else if (lc === "chef-special") classes = "bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-400";
+                            else if (lc === "goko-special") classes = "bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400";
                             const display = lc.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
                             return (
                               <span
@@ -404,7 +404,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                           )}
                         </span>
                         {showLowStock && (
-                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">
+                          <span className="rounded-full bg-orange-100 dark:bg-orange-900/50 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:text-orange-400">
                             {item.stockQuantity} left
                           </span>
                         )}
@@ -421,7 +421,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                               exit={{ scale: 0.9, opacity: 0 }}
                               whileTap={{ scale: 0.92 }}
                               onClick={() => handleAdd(item)}
-                              className="rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition-shadow hover:shadow-md"
+                              className="rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm dark:shadow-none transition-shadow hover:shadow-md dark:hover:shadow-none"
                             >
                               Add
                             </motion.button>
@@ -430,7 +430,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                               key="stepper"
                               initial={{ scale: 0.9, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
-                              className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-1.5 py-0.5"
+                              className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 px-1.5 py-0.5"
                             >
                               <motion.button
                                 whileTap={{ scale: 0.85 }}

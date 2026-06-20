@@ -147,7 +147,7 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
   return (
     <div className="space-y-6">
       {/* Date Navigator */}
-      <div className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3">
+      <div className="flex items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-3">
         <button type="button" onClick={() => shiftDate(-1)} className="rounded-lg p-2 hover:bg-brand-sand">
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
@@ -172,7 +172,7 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
       </div>
 
       {reconciled && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950 px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <LockIcon className="h-4 w-4 text-emerald-600" />
@@ -190,7 +190,7 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
                 type="button"
                 onClick={undoReconciliation}
                 disabled={undoing}
-                className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 px-2.5 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 disabled:opacity-50"
               >
                 {undoing ? <Loader2Icon className="h-3 w-3 animate-spin" /> : <Undo2Icon className="h-3 w-3" />}
                 Undo
@@ -212,7 +212,7 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
               const mismatch = actual != null && Math.abs(actual - b.expectedClosing) > 50;
 
               return (
-                <div key={key} className="rounded-xl border border-brand-mist bg-white p-4 sm:p-5">
+                <div key={key} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-5">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-brand-green-dark">{b.accountName}</h4>
                     {b.isReconciled ? (
@@ -286,7 +286,7 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
 
           {/* Notes & Save */}
           {balances.length > 0 && !reconciled && (
-            <div className="rounded-xl border border-brand-mist bg-white p-4 space-y-3">
+            <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4 space-y-3">
               <div>
                 <Label className="text-xs">Notes (optional)</Label>
                 <Input

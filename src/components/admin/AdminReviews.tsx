@@ -28,7 +28,7 @@ export function AdminReviews({ password, username, role, permissions }: Props) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-brand-mist bg-white p-1">
+      <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-brand-mist bg-white dark:bg-card p-1">
         {TABS.map((t) => (
           <button
             key={t.id}

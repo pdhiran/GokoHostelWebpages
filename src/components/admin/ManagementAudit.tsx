@@ -42,7 +42,7 @@ export function ManagementAudit({ password, username, role }: { password: string
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white p-1">
+      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white dark:bg-card p-1">
         {AUDIT_TABS.map((t) => (
           <button
             key={t.id}
@@ -134,7 +134,7 @@ function RoomAuditTrail({ password, username, role }: { password: string; userna
         <span className="ml-auto self-center text-xs text-brand-green-dark/50">{filtered.length} entries</span>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-brand-mist bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-sm dark:shadow-none">
         <table className="w-full min-w-[700px] text-left text-sm">
           <thead>
             <tr className="border-b border-brand-mist bg-brand-sand/50">
@@ -155,11 +155,11 @@ function RoomAuditTrail({ password, username, role }: { password: string; userna
                   <td className="px-4 py-3 text-xs font-medium text-brand-green-dark">{e.username}</td>
                   <td className="px-4 py-3">
                     <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-                      e.action.includes("delete") && "bg-red-100 text-red-700",
-                      e.action.includes("assign") && "bg-green-100 text-green-700",
-                      e.action.includes("checkout") && "bg-orange-100 text-orange-700",
-                      e.action.includes("checkin") && "bg-blue-100 text-blue-700",
-                      !e.action.includes("delete") && !e.action.includes("assign") && !e.action.includes("checkout") && !e.action.includes("checkin") && "bg-gray-100 text-gray-700",
+                      e.action.includes("delete") && "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400",
+                      e.action.includes("assign") && "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
+                      e.action.includes("checkout") && "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400",
+                      e.action.includes("checkin") && "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
+                      !e.action.includes("delete") && !e.action.includes("assign") && !e.action.includes("checkout") && !e.action.includes("checkin") && "bg-gray-100 dark:bg-[#1c1c1c] text-gray-700 dark:text-gray-300",
                     )}>
                       {e.action}
                     </span>

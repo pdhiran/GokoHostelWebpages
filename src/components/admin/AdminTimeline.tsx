@@ -96,7 +96,7 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
         <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-5 rounded-sm bg-orange-400/40" /> Cleanup</span>
       </div>
 
-      <div className="mt-3 overflow-x-auto rounded-xl border border-brand-mist bg-white shadow-card" onClick={() => setPopup(null)}>
+      <div className="mt-3 overflow-x-auto rounded-xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none" onClick={() => setPopup(null)}>
         <div style={{ minWidth: `${140 + numDays * (numDays <= 5 ? 100 : numDays <= 7 ? 120 : 100)}px` }}>
         {/* Header */}
         <div className="flex border-b border-brand-mist bg-brand-sand/40">
@@ -117,12 +117,12 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
           const occToday = dormBeds.filter(({ bed }) => cellFor(bed, today, today).status === "occupied").length;
 
           const dormColors = [
-            { border: "border-l-blue-400", bg: "bg-blue-50/30", header: "bg-blue-50/50", badge: "bg-blue-100 text-blue-700" },
-            { border: "border-l-purple-400", bg: "bg-purple-50/30", header: "bg-purple-50/50", badge: "bg-purple-100 text-purple-700" },
-            { border: "border-l-teal-400", bg: "bg-teal-50/30", header: "bg-teal-50/50", badge: "bg-teal-100 text-teal-700" },
-            { border: "border-l-amber-400", bg: "bg-amber-50/30", header: "bg-amber-50/50", badge: "bg-amber-100 text-amber-700" },
-            { border: "border-l-rose-400", bg: "bg-rose-50/30", header: "bg-rose-50/50", badge: "bg-rose-100 text-rose-700" },
-            { border: "border-l-emerald-400", bg: "bg-emerald-50/30", header: "bg-emerald-50/50", badge: "bg-emerald-100 text-emerald-700" },
+            { border: "border-l-blue-400", bg: "bg-blue-50/30 dark:bg-blue-950/30", header: "bg-blue-50/50 dark:bg-blue-950/50", badge: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400" },
+            { border: "border-l-purple-400", bg: "bg-purple-50/30 dark:bg-purple-950/30", header: "bg-purple-50/50 dark:bg-purple-950/50", badge: "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400" },
+            { border: "border-l-teal-400", bg: "bg-teal-50/30 dark:bg-teal-950/30", header: "bg-teal-50/50 dark:bg-teal-950/50", badge: "bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-400" },
+            { border: "border-l-amber-400", bg: "bg-amber-50/30 dark:bg-amber-950/30", header: "bg-amber-50/50 dark:bg-amber-950/50", badge: "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400" },
+            { border: "border-l-rose-400", bg: "bg-rose-50/30 dark:bg-rose-950/30", header: "bg-rose-50/50 dark:bg-rose-950/50", badge: "bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400" },
+            { border: "border-l-emerald-400", bg: "bg-emerald-50/30 dark:bg-emerald-950/30", header: "bg-emerald-50/50 dark:bg-emerald-950/50", badge: "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400" },
           ];
           const dc = dormColors[dormIdx % dormColors.length];
 
@@ -176,9 +176,9 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                             className={cn(
                               "block h-full w-full rounded-md py-1.5 text-[10px] font-medium transition-all",
                               c.info.status === "free" && "bg-green-200/30 hover:bg-green-300/40",
-                              c.info.status === "occupied" && "bg-red-400/25 text-red-900 hover:bg-red-400/35",
-                              c.info.status === "checkout" && "bg-yellow-400/30 text-yellow-900 hover:bg-yellow-400/40",
-                              c.info.status === "cleanup" && "bg-orange-400/25 text-orange-800 hover:bg-orange-400/35",
+                              c.info.status === "occupied" && "bg-red-400/25 text-red-900 dark:text-red-200 hover:bg-red-400/35",
+                              c.info.status === "checkout" && "bg-yellow-400/30 text-yellow-900 dark:text-yellow-200 hover:bg-yellow-400/40",
+                              c.info.status === "cleanup" && "bg-orange-400/25 text-orange-800 dark:text-orange-200 hover:bg-orange-400/35",
                             )}>
                             {c.info.status === "occupied" && <span className="block truncate px-1 font-semibold">{c.info.guest}</span>}
                             {c.info.status === "checkout" && <span className="block text-[9px]">checkout</span>}
@@ -186,7 +186,7 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                           </button>
 
                           {isActive && (
-                            <div className="absolute left-0 top-full z-30 mt-1 min-w-[150px] rounded-xl border border-brand-mist bg-white p-2.5 shadow-lift"
+                            <div className="absolute left-0 top-full z-30 mt-1 min-w-[150px] rounded-xl border border-brand-mist bg-white dark:bg-card p-2.5 shadow-lift dark:shadow-none"
                               onClick={(e) => e.stopPropagation()}>
                               {c.info.status === "free" && bed.status === "available" && unassigned.length > 0 && (
                                 <div>
@@ -208,18 +208,18 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
                                 <div>
                                   <p className="mb-1 text-[11px] font-semibold">{bed.guestName}</p>
                                   <button type="button" onClick={() => act("checkoutBed", idx)}
-                                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-red-600 transition-colors hover:bg-red-50">
+                                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950">
                                     <LogOutIcon className="h-3 w-3" /> Checkout
                                   </button>
                                   <button type="button" onClick={() => { if (confirm("Unassign this bed? (No cleanup needed)")) act("unassignBed", idx); }}
-                                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-gray-600 transition-colors hover:bg-gray-50">
+                                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-gray-600 dark:text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-white/5">
                                     <XCircleIcon className="h-3 w-3" /> Unassign
                                   </button>
                                 </div>
                               )}
                               {c.info.status === "cleanup" && (
                                 <button type="button" onClick={() => act("markClean", idx)}
-                                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-orange-600 transition-colors hover:bg-orange-50">
+                                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-orange-600 transition-colors hover:bg-orange-50 dark:hover:bg-orange-950">
                                   <SparklesIcon className="h-3 w-3" /> Mark clean
                                 </button>
                               )}

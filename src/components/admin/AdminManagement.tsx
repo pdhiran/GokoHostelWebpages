@@ -64,7 +64,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
       </div>
 
       {/* Desktop tabs */}
-      <div className="mt-4 hidden flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5 lg:flex">
+      <div className="mt-4 hidden flex-wrap gap-1.5 rounded-xl border border-brand-mist bg-white dark:bg-card p-1.5 lg:flex">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
@@ -97,7 +97,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         <button
           type="button"
           onClick={() => setSubMenuOpen(!subMenuOpen)}
-          className="flex w-full items-center justify-between rounded-xl border border-brand-mist bg-white px-4 py-3"
+          className="flex w-full items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card px-4 py-3"
         >
           <span className="flex items-center gap-2 text-sm font-medium text-brand-green">
             {activeTab?.icon}
@@ -108,7 +108,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         {subMenuOpen && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setSubMenuOpen(false)} />
-            <div className="absolute left-0 right-0 top-full z-40 mt-1 rounded-xl border border-brand-mist bg-white p-2 shadow-lg">
+            <div className="absolute left-0 right-0 top-full z-40 mt-1 rounded-xl border border-brand-mist bg-white dark:bg-card p-2 shadow-lg dark:shadow-none">
               <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
                 {visibleTabs.map((t) => (
                   <button

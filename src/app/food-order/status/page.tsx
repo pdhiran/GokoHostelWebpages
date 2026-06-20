@@ -108,7 +108,7 @@ function OrderStatusContent() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
@@ -120,15 +120,15 @@ function OrderStatusContent() {
 
   if (error || !order) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-6">
-        <div className="max-w-sm rounded-2xl bg-white/95 p-8 text-center shadow-xl">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900 p-6">
+        <div className="max-w-sm rounded-2xl bg-white/95 dark:bg-card/95 p-8 text-center shadow-xl dark:shadow-none">
           <span className="text-4xl">😕</span>
-          <h1 className="mt-4 text-xl font-bold text-gray-800">
+          <h1 className="mt-4 text-xl font-bold text-gray-800 dark:text-gray-200">
             {error || "Order not found"}
           </h1>
           <a
             href="/food-order"
-            className="mt-6 inline-block rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-3 font-semibold text-white shadow-lg"
+            className="mt-6 inline-block rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-3 font-semibold text-white shadow-lg dark:shadow-none"
           >
             Place an order
           </a>
@@ -140,7 +140,7 @@ function OrderStatusContent() {
   const currentStepIndex = STATUS_STEPS.indexOf(order.status as (typeof STATUS_STEPS)[number]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 pt-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900 p-4 pt-8">
       <div className="mx-auto max-w-lg">
         {/* Header */}
         <div className="mb-6 text-center">
@@ -149,10 +149,10 @@ function OrderStatusContent() {
         </div>
 
         {/* Progress stepper */}
-        <div className="mb-6 rounded-2xl bg-white/95 p-5 shadow-xl backdrop-blur-sm">
+        <div className="mb-6 rounded-2xl bg-white/95 dark:bg-card/95 p-5 shadow-xl dark:shadow-none backdrop-blur-sm">
           <div className="relative flex justify-between">
             {/* Connecting line */}
-            <div className="absolute left-0 right-0 top-5 h-0.5 bg-gray-200" />
+            <div className="absolute left-0 right-0 top-5 h-0.5 bg-gray-200 dark:bg-white/10" />
             <div
               className="absolute left-0 top-5 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
               style={{
@@ -170,15 +170,15 @@ function OrderStatusContent() {
                     transition={isCurrent ? { repeat: Infinity, duration: 2 } : {}}
                     className={`flex h-10 w-10 items-center justify-center rounded-full text-lg ${
                       isActive
-                        ? "bg-gradient-to-br from-blue-500 to-cyan-500 shadow-md"
-                        : "bg-gray-100"
+                        ? "bg-gradient-to-br from-blue-500 to-cyan-500 shadow-md dark:shadow-none"
+                        : "bg-gray-100 dark:bg-muted"
                     }`}
                   >
                     {STATUS_ICONS[step]}
                   </motion.div>
                   <span
                     className={`mt-2 text-[11px] font-medium sm:text-xs ${
-                      isActive ? "text-blue-600" : "text-gray-400"
+                      isActive ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"
                     }`}
                   >
                     {STATUS_LABELS[step]}
@@ -188,8 +188,8 @@ function OrderStatusContent() {
             })}
           </div>
 
-          <div className="mt-5 rounded-xl bg-blue-50 p-3 text-center">
-            <p className="text-sm font-medium text-blue-800">
+          <div className="mt-5 rounded-xl bg-blue-50 dark:bg-blue-950 p-3 text-center">
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
               {order.status === "pending_approval" && "Waiting for staff to confirm your order"}
               {order.status === "placed" && "Your order has been received"}
               {order.status === "preparing" && "The kitchen is preparing your food"}
@@ -201,23 +201,23 @@ function OrderStatusContent() {
         </div>
 
         {/* Order details */}
-        <div className="rounded-2xl bg-white/95 p-5 shadow-xl backdrop-blur-sm">
-          <h3 className="mb-3 text-sm font-semibold text-gray-800">Order Details</h3>
+        <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-5 shadow-xl dark:shadow-none backdrop-blur-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-200">Order Details</h3>
           <div className="space-y-2">
             {order.items.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between gap-2 text-sm">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 truncate text-gray-600">
+                  <span className="min-w-0 truncate text-gray-600 dark:text-gray-400">
                     {item.name} × {item.quantity}
                   </span>
                 </div>
-                <span className="font-medium text-gray-800">{formatPrice(item.lineTotal)}</span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">{formatPrice(item.lineTotal)}</span>
               </div>
             ))}
           </div>
 
-          <div className="mt-3 border-t border-gray-100 pt-3">
-            <div className="flex justify-between text-sm text-gray-600">
+          <div className="mt-3 border-t border-gray-100 dark:border-white/10 pt-3">
+            <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
               <span>Subtotal</span>
               <span>{formatPrice(order.subtotal + (order.discount || 0))}</span>
             </div>
@@ -227,20 +227,20 @@ function OrderStatusContent() {
                 <span>-{formatPrice(order.discount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm text-gray-600">
+            <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
               <span>Tax</span>
               <span>{formatPrice(order.tax)}</span>
             </div>
-            <div className="mt-1 flex justify-between font-bold text-gray-800">
+            <div className="mt-1 flex justify-between font-bold text-gray-800 dark:text-gray-200">
               <span>Total</span>
               <span>{formatPrice(order.total)}</span>
             </div>
           </div>
 
           {order.specialInstructions && (
-            <div className="mt-3 rounded-lg bg-gray-50 p-2.5">
-              <p className="text-xs text-gray-500">Special instructions</p>
-              <p className="text-sm text-gray-700">{order.specialInstructions}</p>
+            <div className="mt-3 rounded-lg bg-gray-50 dark:bg-muted p-2.5">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Special instructions</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">{order.specialInstructions}</p>
             </div>
           )}
         </div>
@@ -263,7 +263,7 @@ export default function OrderStatusPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-500 to-cyan-500">
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-500 to-cyan-500 dark:from-blue-900 dark:to-cyan-900">
           <div className="text-white text-lg">Loading order status...</div>
         </div>
       }

@@ -193,7 +193,7 @@ export function ReviewAskTab({ password, username }: Props) {
 
   const getButtonStyle = (guest: GuestRow) => {
     const rr = guest.reviewRequest;
-    if (rr?.rating) return { className: "bg-gray-200 text-gray-500 cursor-not-allowed", label: `Rated ${rr.rating}★`, disabled: true };
+    if (rr?.rating) return { className: "bg-gray-200 dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400 cursor-not-allowed", label: `Rated ${rr.rating}★`, disabled: true };
     if (!rr || rr.whatsappSentCount === 0) return { className: "bg-emerald-600 hover:bg-emerald-700 text-white", label: "Send WhatsApp", disabled: false };
     if (rr.whatsappSentCount === 1) return { className: "bg-orange-500 hover:bg-orange-600 text-white", label: `Sent (${rr.whatsappSentCount})`, disabled: false };
     return { className: "bg-red-500 hover:bg-red-600 text-white", label: `Sent (${rr.whatsappSentCount})`, disabled: false };
@@ -202,7 +202,7 @@ export function ReviewAskTab({ password, username }: Props) {
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+      <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex rounded-lg border border-brand-mist overflow-hidden">
             <button
@@ -284,7 +284,7 @@ export function ReviewAskTab({ password, username }: Props) {
           <Loader2Icon className="h-5 w-5 animate-spin text-brand-green" />
         </div>
       ) : guests.length === 0 ? (
-        <div className="rounded-xl border border-brand-mist bg-white p-8 text-center">
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-8 text-center">
           <p className="text-sm text-brand-green-dark/50">No checked-out guests found for this period.</p>
         </div>
       ) : (
@@ -292,7 +292,7 @@ export function ReviewAskTab({ password, username }: Props) {
           <p className="text-xs text-brand-green-dark/50">{guests.length} guest{guests.length !== 1 ? "s" : ""} found</p>
 
           {/* Desktop table */}
-          <div className="hidden overflow-hidden rounded-xl border border-brand-mist bg-white sm:block">
+          <div className="hidden overflow-hidden rounded-xl border border-brand-mist bg-white dark:bg-card sm:block">
             <table className="w-full text-sm">
               <thead className="border-b border-brand-mist bg-brand-sand/50">
                 <tr>
@@ -351,7 +351,7 @@ export function ReviewAskTab({ password, username }: Props) {
             {guests.map((g) => {
               const btn = getButtonStyle(g);
               return (
-                <div key={g.checkinId} className="rounded-xl border border-brand-mist bg-white p-3">
+                <div key={g.checkinId} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3">
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-brand-green-dark truncate">{g.guestName}</p>
@@ -396,7 +396,7 @@ export function ReviewAskTab({ password, username }: Props) {
       {/* Edit Modal */}
       {editGuest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white p-5 shadow-xl">
+          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-xl dark:shadow-none">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-base font-bold text-brand-green-dark">Edit Review Status</h3>
               <button type="button" onClick={() => setEditGuest(null)} className="rounded-md p-1 text-brand-green-dark/40 hover:text-brand-green-dark">
@@ -448,7 +448,7 @@ export function ReviewAskTab({ password, username }: Props) {
                   type="button"
                   onClick={handleReset}
                   disabled={resetting}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border-2 border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border-2 border-red-200 dark:border-red-800 px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
                 >
                   <RotateCcwIcon className="h-3.5 w-3.5" />
                   {resetting ? "Resetting..." : "Reset (Start Fresh)"}
@@ -463,7 +463,7 @@ export function ReviewAskTab({ password, username }: Props) {
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-md rounded-2xl border border-brand-mist bg-white p-5 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-xl dark:shadow-none">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green-dark">Review Settings</h3>
               <button type="button" onClick={() => setShowSettings(false)} className="rounded-md p-1 text-brand-green-dark/40 hover:text-brand-green-dark">

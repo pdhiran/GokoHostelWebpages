@@ -150,7 +150,7 @@ function MyBillsContent() {
   const totalSpent = unpaidTotal + paidTotal;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900">
       <div className="mx-auto max-w-lg px-4 pb-10 pt-8">
         {/* Header */}
         <div className="mb-6 text-center">
@@ -166,10 +166,10 @@ function MyBillsContent() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl bg-white/95 p-6 shadow-xl backdrop-blur-sm"
+            className="rounded-2xl bg-white/95 dark:bg-card/95 p-6 shadow-xl dark:shadow-none backdrop-blur-sm"
           >
-            <h2 className="mb-1 text-lg font-semibold text-gray-800">Enter your phone number</h2>
-            <p className="mb-5 text-sm text-gray-500">We&apos;ll look up your bills</p>
+            <h2 className="mb-1 text-lg font-semibold text-gray-800 dark:text-foreground">Enter your phone number</h2>
+            <p className="mb-5 text-sm text-gray-500 dark:text-muted-foreground">We&apos;ll look up your bills</p>
 
             <form onSubmit={handleSubmit}>
               <div className="relative">
@@ -182,7 +182,7 @@ function MyBillsContent() {
                   value={formatPhone(phone)}
                   onChange={handlePhoneChange}
                   placeholder="98765 43210"
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3.5 pl-12 pr-4 text-lg font-medium tracking-wide text-gray-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-muted py-3.5 pl-12 pr-4 text-lg font-medium tracking-wide text-gray-800 dark:text-foreground outline-none transition focus:border-blue-400 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30"
                   autoFocus
                   disabled={loading}
                 />
@@ -195,7 +195,7 @@ function MyBillsContent() {
               <button
                 type="submit"
                 disabled={loading || stripNonDigits(phone).length < 10}
-                className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-200 transition hover:shadow-xl disabled:opacity-50 disabled:shadow-none"
+                className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-200 dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50 disabled:shadow-none"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -240,16 +240,16 @@ function MyBillsContent() {
 
             {/* Total Summary */}
             {(unpaidOrders.length > 0 || paidOrders.length > 0) && (
-              <div className="mb-4 rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur-sm">
+              <div className="mb-4 rounded-xl bg-white/95 dark:bg-card/95 p-4 shadow-lg dark:shadow-none backdrop-blur-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-600">Total Spent</span>
-                  <span className="text-xl font-bold text-gray-800">₹{Math.round(totalSpent / 100)}</span>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Spent</span>
+                  <span className="text-xl font-bold text-gray-800 dark:text-foreground">₹{Math.round(totalSpent / 100)}</span>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-4 border-t border-gray-100 pt-2">
+                <div className="mt-2 flex flex-wrap items-center gap-4 border-t border-gray-100 dark:border-white/10 pt-2">
                   {totalDiscount > 0 && (
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-purple-500" />
-                      <span className="text-sm text-purple-700">
+                      <span className="text-sm text-purple-700 dark:text-purple-400">
                         {Math.round((totalDiscount / (totalSpent + totalDiscount)) * 100)}% off (₹{Math.round(totalDiscount / 100)})
                       </span>
                     </div>
@@ -257,13 +257,13 @@ function MyBillsContent() {
                   {paidTotal > 0 && (
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-green-500" />
-                      <span className="text-sm text-green-700">₹{Math.round(paidTotal / 100)} paid</span>
+                      <span className="text-sm text-green-700 dark:text-green-400">₹{Math.round(paidTotal / 100)} paid</span>
                     </div>
                   )}
                   {unpaidTotal > 0 && (
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-amber-500" />
-                      <span className="text-sm font-semibold text-amber-700">₹{Math.round(totalSpent / 100) - Math.round(paidTotal / 100)} unpaid</span>
+                      <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">₹{Math.round(totalSpent / 100) - Math.round(paidTotal / 100)} unpaid</span>
                     </div>
                   )}
                   {unpaidTotal === 0 && paidTotal > 0 && !totalDiscount && (
@@ -321,9 +321,9 @@ function MyBillsContent() {
 
             {/* No orders */}
             {unpaidOrders.length === 0 && paidOrders.length === 0 && (
-              <div className="rounded-2xl bg-white/95 p-8 text-center shadow-xl backdrop-blur-sm">
+              <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-8 text-center shadow-xl dark:shadow-none backdrop-blur-sm">
                 <span className="text-4xl">📭</span>
-                <p className="mt-3 text-gray-600">No bills found for this number</p>
+                <p className="mt-3 text-gray-600 dark:text-gray-400">No bills found for this number</p>
               </div>
             )}
 
@@ -357,8 +357,8 @@ function OrderCard({
   const accentBorder = variant === "unpaid" ? "border-l-amber-400" : "border-l-green-400";
   const badgeStyle =
     variant === "unpaid"
-      ? "bg-amber-100 text-amber-700"
-      : "bg-green-100 text-green-700";
+      ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400"
+      : "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400";
   const badgeLabel =
     variant === "paid"
       ? "Paid"
@@ -369,7 +369,7 @@ function OrderCard({
   return (
     <motion.div
       layout
-      className={`overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ${accentBorder} ${variant === "paid" ? "opacity-80" : ""}`}
+      className={`overflow-hidden rounded-xl border-l-4 bg-white dark:bg-card shadow-sm dark:shadow-none ${accentBorder} ${variant === "paid" ? "opacity-80" : ""}`}
     >
       <button
         onClick={onToggle}
@@ -377,18 +377,18 @@ function OrderCard({
       >
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-sm font-bold text-gray-700">
+            <span className="font-mono text-sm font-bold text-gray-700 dark:text-gray-300">
               #{order.orderNumber}
             </span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle}`}>
               {badgeLabel}
             </span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              order.status === "served" ? "bg-green-50 text-green-600" :
-              order.status === "ready" ? "bg-emerald-50 text-emerald-600" :
-              order.status === "preparing" ? "bg-blue-50 text-blue-600" :
-              order.status === "cancelled" ? "bg-red-50 text-red-600" :
-              "bg-amber-50 text-amber-600"
+              order.status === "served" ? "bg-green-50 dark:bg-green-950 text-green-600 dark:text-green-400" :
+              order.status === "ready" ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400" :
+              order.status === "preparing" ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400" :
+              order.status === "cancelled" ? "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400" :
+              "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400"
             }`}>
               {STATUS_LABELS[order.status] || order.status}
             </span>
@@ -404,7 +404,7 @@ function OrderCard({
                 ₹{Math.round((order.total + order.discount) / 100)}
               </span>
             )}
-            <span className="text-sm font-semibold text-gray-800">
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
               ₹{Math.round(order.total / 100)}
             </span>
             {order.discount > 0 && (
@@ -433,18 +433,18 @@ function OrderCard({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+            <div className="border-t border-gray-100 dark:border-white/10 px-4 pb-4 pt-3">
               <div className="space-y-1.5">
                 {order.items.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="min-w-0 flex-1 truncate text-gray-600">
+                    <span className="min-w-0 flex-1 truncate text-gray-600 dark:text-gray-400">
                       {item.quantity}× {item.name}
                     </span>
-                    <span className="flex-shrink-0 text-gray-500">₹{Math.round(item.lineTotal / 100)}</span>
+                    <span className="flex-shrink-0 text-gray-500 dark:text-gray-400">₹{Math.round(item.lineTotal / 100)}</span>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 border-t border-dashed border-gray-200 pt-2">
+              <div className="mt-3 border-t border-dashed border-gray-200 dark:border-white/10 pt-2">
                 <div className="flex justify-between text-xs text-gray-400">
                   <span>Subtotal</span>
                   <span>₹{Math.round((order.subtotal + (order.discount || 0)) / 100)}</span>
@@ -461,7 +461,7 @@ function OrderCard({
                     <span>₹{Math.round(order.tax / 100)}</span>
                   </div>
                 )}
-                <div className="mt-1 flex justify-between text-sm font-semibold text-gray-800">
+                <div className="mt-1 flex justify-between text-sm font-semibold text-gray-800 dark:text-gray-200">
                   <span>Total</span>
                   <span>₹{Math.round(order.total / 100)}</span>
                 </div>
@@ -481,7 +481,7 @@ function OrderCard({
 
 export default function MyBillsPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 to-blue-400"><p className="text-white">Loading...</p></div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 to-blue-400 dark:from-blue-900 dark:to-blue-800"><p className="text-white">Loading...</p></div>}>
       <MyBillsContent />
     </Suspense>
   );

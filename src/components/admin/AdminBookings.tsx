@@ -32,11 +32,11 @@ type Booking = {
 };
 
 const PLATFORM_COLORS: Record<string, string> = {
-  makemytrip: "bg-blue-100 text-blue-700",
-  booking_com: "bg-indigo-100 text-indigo-700",
-  hostelworld: "bg-orange-100 text-orange-700",
-  direct: "bg-green-100 text-green-700",
-  manual: "bg-gray-100 text-gray-700",
+  makemytrip: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
+  booking_com: "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400",
+  hostelworld: "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400",
+  direct: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
+  manual: "bg-gray-100 dark:bg-muted text-gray-700 dark:text-gray-300",
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -190,7 +190,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
         </div>
       </div>
       {syncResult && (
-        <div className={`rounded-xl p-3 text-sm ${syncResult.includes("failed") || syncResult.includes("error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+        <div className={`rounded-xl p-3 text-sm ${syncResult.includes("failed") || syncResult.includes("error") ? "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400" : "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400"}`}>
           {syncResult}
         </div>
       )}
@@ -201,9 +201,9 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
           <h3 className="mb-3 font-semibold text-brand-green">Today&apos;s Arrivals ({todayArrivals.length})</h3>
           <motion.div className="space-y-2" variants={staggerContainer} initial="hidden" animate="visible">
             {todayArrivals.map((b) => (
-              <motion.div key={b.id} variants={staggerItem} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-soft hover:-translate-y-0.5">
+              <motion.div key={b.id} variants={staggerItem} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white dark:bg-card p-3 shadow-sm dark:shadow-none transition-all duration-200 hover:shadow-soft dark:hover:shadow-none hover:-translate-y-0.5">
                 <div className="flex items-center gap-3">
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
+                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors", PLATFORM_COLORS[b.platform] || "bg-gray-100 dark:bg-muted text-gray-700 dark:text-gray-300")}>
                     {PLATFORM_LABELS[b.platform] || b.platform}
                   </span>
                   <div>
@@ -225,11 +225,11 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
 
       {/* Upcoming */}
       {upcoming.length > 0 && (
-        <div className="rounded-2xl border border-brand-mist bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-sm dark:shadow-none">
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">Upcoming ({upcoming.length})</h3>
           <motion.div className="space-y-2" variants={staggerContainer} initial="hidden" animate="visible">
             {upcoming.slice(0, 10).map((b) => (
-              <motion.div key={b.id} variants={staggerItem} className="flex items-center justify-between rounded-lg border border-brand-mist p-3 transition-all duration-200 hover:shadow-soft hover:-translate-y-0.5">
+              <motion.div key={b.id} variants={staggerItem} className="flex items-center justify-between rounded-lg border border-brand-mist p-3 transition-all duration-200 hover:shadow-soft dark:hover:shadow-none hover:-translate-y-0.5">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-brand-sand">
                     <span className="text-[10px] font-bold text-brand-green-dark/60">{new Date(b.checkinDate).toLocaleDateString("en", { day: "numeric" })}</span>
@@ -238,7 +238,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                   <div>
                     <p className="text-sm font-medium text-brand-green-dark">{b.guestName}</p>
                     <p className="text-xs text-brand-green-dark/50">
-                      <span className={cn("mr-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide transition-colors", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
+                      <span className={cn("mr-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide transition-colors", PLATFORM_COLORS[b.platform] || "bg-gray-100 dark:bg-muted text-gray-700 dark:text-gray-300")}>
                         {PLATFORM_LABELS[b.platform] || b.platform}
                       </span>
                       {b.roomType || "Any"} · {b.persons}p
@@ -253,7 +253,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
       )}
 
       {/* All Bookings Table */}
-      <div className="rounded-2xl border border-brand-mist bg-white shadow-sm">
+      <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-sm dark:shadow-none">
         <div className="flex flex-wrap items-center gap-3 border-b border-brand-mist p-4">
           <h3 className="text-sm font-semibold text-brand-green-dark/70">All Bookings</h3>
           <select value={filterPlatform} onChange={(e) => setFilterPlatform(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs transition-all duration-200">
@@ -290,7 +290,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                       {b.contact && <p className="text-[10px] text-brand-green-dark/50">{b.contact}</p>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 text-gray-700")}>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase", PLATFORM_COLORS[b.platform] || "bg-gray-100 dark:bg-muted text-gray-700 dark:text-gray-300")}>
                         {PLATFORM_LABELS[b.platform] || b.platform}
                       </span>
                     </td>
@@ -299,22 +299,22 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
                     <td className="px-4 py-3 text-xs text-brand-green-dark/70">{b.roomType || "Any"}</td>
                     <td className="px-4 py-3">
                       <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase",
-                        b.status === "confirmed" && "bg-green-100 text-green-700",
-                        b.status === "checked_in" && "bg-blue-100 text-blue-700",
-                        b.status === "cancelled" && "bg-red-100 text-red-700",
-                        b.status === "no_show" && "bg-yellow-100 text-yellow-700",
+                        b.status === "confirmed" && "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
+                        b.status === "checked_in" && "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
+                        b.status === "cancelled" && "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400",
+                        b.status === "no_show" && "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400",
                       )}>{b.status}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         {b.status === "confirmed" && hasPermission(role, permissions, "canAddBooking") && (
                           <>
-                            <button type="button" onClick={() => markStatus(b.id, "cancelled")} className="rounded px-1.5 py-0.5 text-[9px] text-red-500 transition-colors hover:bg-red-50">Cancel</button>
-                            <button type="button" onClick={() => markStatus(b.id, "no_show")} className="rounded px-1.5 py-0.5 text-[9px] text-yellow-600 transition-colors hover:bg-yellow-50">No-show</button>
+                            <button type="button" onClick={() => markStatus(b.id, "cancelled")} className="rounded px-1.5 py-0.5 text-[9px] text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950">Cancel</button>
+                            <button type="button" onClick={() => markStatus(b.id, "no_show")} className="rounded px-1.5 py-0.5 text-[9px] text-yellow-600 transition-colors hover:bg-yellow-50 dark:hover:bg-yellow-950">No-show</button>
                           </>
                         )}
                         {hasPermission(role, permissions, "canDeleteBooking") && (
-                          <button type="button" onClick={() => deleteBookingEntry(b.id)} className="rounded p-1 text-red-400 transition-colors hover:bg-red-50"><Trash2Icon className="h-3.5 w-3.5" /></button>
+                          <button type="button" onClick={() => deleteBookingEntry(b.id)} className="rounded p-1 text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-950"><Trash2Icon className="h-3.5 w-3.5" /></button>
                         )}
                       </div>
                     </td>
@@ -330,7 +330,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
       <AnimatePresence>
       {showForm && (
         <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
-          <motion.div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div className="w-full max-w-lg rounded-2xl bg-white dark:bg-card p-6 shadow-xl dark:shadow-none" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green">Add Booking</h3>
               <button type="button" onClick={() => setShowForm(false)}><XIcon className="h-5 w-5 text-brand-green-dark/40" /></button>

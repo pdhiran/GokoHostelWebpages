@@ -169,7 +169,7 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
   return (
     <div className="space-y-6">
       {/* Date Navigator */}
-      <div className="flex items-center justify-between rounded-xl border border-brand-mist bg-white p-3">
+      <div className="flex items-center justify-between rounded-xl border border-brand-mist bg-white dark:bg-card p-3">
         <button type="button" onClick={() => shiftDate(-1)} className="rounded-lg p-2 hover:bg-brand-sand">
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
@@ -199,23 +199,23 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
         <>
           {/* Day Summary Cards */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+            <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
               <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Total Revenue</p>
               <p className="mt-1 text-lg font-bold text-brand-green-dark sm:text-xl">₹{(totalRevenue / 100).toFixed(0)}</p>
             </div>
-            <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+            <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
               <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Stay Revenue</p>
               <p className="mt-1 text-lg font-bold text-emerald-700 sm:text-xl">₹{(stayRevenue / 100).toFixed(0)}</p>
             </div>
-            <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+            <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
               <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Food Revenue</p>
               <p className="mt-1 text-lg font-bold text-blue-700 sm:text-xl">₹{(foodRevenue / 100).toFixed(0)}</p>
             </div>
-            <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+            <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
               <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Total Expense</p>
               <p className="mt-1 text-lg font-bold text-red-600 sm:text-xl">₹{(totalExpense / 100).toFixed(0)}</p>
             </div>
-            <div className="rounded-xl border border-brand-mist bg-white p-3 sm:p-4">
+            <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 sm:p-4">
               <p className="text-[10px] font-medium uppercase text-brand-green-dark/50">Net (Income - Expense)</p>
               <p className={`mt-1 text-lg font-bold sm:text-xl ${(totalRevenue - totalExpense) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
                 ₹{((totalRevenue - totalExpense) / 100).toFixed(0)}
@@ -225,7 +225,7 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
 
           {/* Account-wise Summary */}
           {data?.accountSummaries && data.accountSummaries.length > 0 && (
-            <div className="rounded-xl border border-brand-mist bg-white p-4">
+            <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
               <h4 className="text-sm font-semibold text-brand-green-dark mb-3">Account-wise Summary</h4>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {data.accountSummaries.map((a) => (
@@ -243,7 +243,7 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
           )}
 
           {/* Income Entries */}
-          <div className="rounded-xl border border-brand-mist bg-white p-4">
+          <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold text-brand-green-dark">Income Entries</h4>
               <Button type="button" onClick={() => setShowAddIncome(!showAddIncome)} className="h-7 gap-1 text-xs">
@@ -259,7 +259,7 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
                     <select
                       value={incAccountId}
                       onChange={(e) => setIncAccountId(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-brand-mist bg-white px-2 py-1.5 text-xs"
+                      className="mt-1 w-full rounded-md border border-brand-mist bg-white dark:bg-card px-2 py-1.5 text-xs"
                     >
                       <option value="">Cash</option>
                       {data?.accounts?.map((a) => (
@@ -272,7 +272,7 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
                     <select
                       value={incType}
                       onChange={(e) => setIncType(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-brand-mist bg-white px-2 py-1.5 text-xs"
+                      className="mt-1 w-full rounded-md border border-brand-mist bg-white dark:bg-card px-2 py-1.5 text-xs"
                     >
                       <option value="cash">Cash</option>
                       <option value="online">Online</option>
@@ -283,7 +283,7 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
                     <select
                       value={incSource}
                       onChange={(e) => setIncSource(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-brand-mist bg-white px-2 py-1.5 text-xs"
+                      className="mt-1 w-full rounded-md border border-brand-mist bg-white dark:bg-card px-2 py-1.5 text-xs"
                     >
                       {INCOME_SOURCES.map((s) => (
                         <option key={s.id} value={s.id}>{s.label}</option>
@@ -351,7 +351,7 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
           </div>
 
           {/* Expense Entries for the day */}
-          <div className="rounded-xl border border-brand-mist bg-white p-4">
+          <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
             <h4 className="text-sm font-semibold text-brand-green-dark mb-3">Expenses for {formatDate(date)}</h4>
             {data?.expenseEntries.length === 0 ? (
               <p className="py-4 text-center text-xs text-brand-green-dark/40">No expenses recorded for this day.</p>

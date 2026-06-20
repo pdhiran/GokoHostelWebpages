@@ -159,7 +159,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
 
         <div className="grid gap-3 sm:grid-cols-2">
           {services.map((service) => (
-            <div key={service.name} className="flex items-start gap-3 rounded-xl border border-brand-mist bg-white p-4">
+            <div key={service.name} className="flex items-start gap-3 rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
               <div className="mt-0.5">
                 {service.status === "checking" && <Loader2Icon className="h-5 w-5 animate-spin text-brand-green/50" />}
                 {service.status === "ok" && <CheckCircle2Icon className="h-5 w-5 text-emerald-500" />}
@@ -186,30 +186,30 @@ export function ManagementHealth({ password, role }: { password: string; role: R
         </div>
 
         {successMsg && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-sm font-medium text-emerald-800">{successMsg}</p>
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 p-4">
+            <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">{successMsg}</p>
           </div>
         )}
 
         {errorMsg && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-            <p className="text-sm font-medium text-red-800">{errorMsg}</p>
+          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 p-4">
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">{errorMsg}</p>
           </div>
         )}
 
         {hasOAuthError && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-4">
             <div className="flex items-start gap-3">
               <LinkIcon className="mt-0.5 h-5 w-5 text-amber-600" />
               <div>
-                <p className="text-sm font-medium text-amber-800">Google OAuth token expired or missing</p>
-                <p className="mt-1 text-xs text-amber-700">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Google OAuth token expired or missing</p>
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                   Click below to reconnect your Google account. This will fix both Drive and Gmail.
                 </p>
                 <button
                   type="button"
                   onClick={handleReconnect}
-                  className="mt-3 rounded-lg bg-brand-green px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-green-dark"
+                  className="mt-3 rounded-lg bg-brand-green px-4 py-2 text-xs font-semibold text-white shadow-sm dark:shadow-none transition-colors hover:bg-brand-green-dark"
                 >
                   Reconnect Google
                 </button>
@@ -237,7 +237,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
         </div>
 
         {currentMonth && (
-          <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
+          <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-sm dark:shadow-none">
             <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">
               Current Month — {currentMonth.month}
             </h4>
@@ -250,10 +250,10 @@ export function ManagementHealth({ password, role }: { password: string; role: R
 
             <div className="mt-5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-purple-700">Vision AI Free Tier Usage</span>
-                <span className="font-bold text-purple-900">{currentMonth.vision} / {VISION_FREE_TIER}</span>
+                <span className="font-medium text-purple-700 dark:text-purple-400">Vision AI Free Tier Usage</span>
+                <span className="font-bold text-purple-900 dark:text-purple-300">{currentMonth.vision} / {VISION_FREE_TIER}</span>
               </div>
-              <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-purple-100">
+              <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-purple-100 dark:bg-purple-900/50">
                 <div
                   className={cn("h-full rounded-full transition-all duration-500",
                     visionUsedPct > 80 ? "bg-red-500" : visionUsedPct > 50 ? "bg-yellow-500" : "bg-purple-500"
@@ -271,7 +271,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
           </div>
         )}
 
-        <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
+        <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-sm dark:shadow-none">
           <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">
             Lifetime Totals
           </h4>
@@ -284,7 +284,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
         </div>
 
         {stats.length > 0 && (
-          <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
+          <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-sm dark:shadow-none">
             <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-brand-green-dark/50">
               Monthly Breakdown
             </h4>
@@ -305,7 +305,7 @@ export function ManagementHealth({ password, role }: { password: string; role: R
                       <td className="py-2.5 pr-4 font-medium text-brand-green-dark">{row.month}</td>
                       <td className="py-2.5 pr-4 text-right">
                         <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
-                          row.vision > 800 ? "bg-red-100 text-red-700" : row.vision > 500 ? "bg-yellow-100 text-yellow-700" : "bg-purple-100 text-purple-700"
+                          row.vision > 800 ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400" : row.vision > 500 ? "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400" : "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"
                         )}>
                           {row.vision}
                         </span>

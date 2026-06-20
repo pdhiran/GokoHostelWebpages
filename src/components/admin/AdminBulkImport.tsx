@@ -181,7 +181,7 @@ export function AdminBulkImport({
       </h3>
 
       {/* Step 1: Download Template */}
-      <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-sm dark:shadow-none">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green/10">
             <DownloadIcon className="h-6 w-6 text-brand-green" aria-hidden="true" />
@@ -220,7 +220,7 @@ export function AdminBulkImport({
       </div>
 
       {/* Step 2: Upload filled Excel */}
-      <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-sm dark:shadow-none">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green/10">
             <UploadIcon className="h-6 w-6 text-brand-green" aria-hidden="true" />
@@ -274,7 +274,7 @@ export function AdminBulkImport({
                 type="button"
                 onClick={clearFile}
                 aria-label="Remove selected file"
-                className="ml-2 rounded-lg p-1 text-brand-green-dark/40 hover:bg-red-50 hover:text-red-500"
+                className="ml-2 rounded-lg p-1 text-brand-green-dark/40 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-500"
               >
                 <XIcon className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -331,7 +331,7 @@ export function AdminBulkImport({
 
       {/* Error display */}
       {error && (
-        <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
+        <div role="alert" className="rounded-xl bg-red-50 dark:bg-red-950 p-4 text-sm text-red-700 dark:text-red-400">
           <AlertCircleIcon className="mr-1 inline h-4 w-4" aria-hidden="true" />
           {error}
         </div>
@@ -339,24 +339,24 @@ export function AdminBulkImport({
 
       {/* Results display */}
       {results && (
-        <div className="rounded-2xl border border-brand-mist bg-white p-4 sm:p-6 shadow-sm">
+        <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 sm:p-6 shadow-sm dark:shadow-none">
           <h4 className="font-medium text-brand-green-dark">Import Results</h4>
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-            <div className="rounded-xl bg-green-50 p-4 text-center">
-              <p className="text-xl sm:text-2xl font-bold text-green-700">
+            <div className="rounded-xl bg-green-50 dark:bg-green-950 p-4 text-center">
+              <p className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-400">
                 {results.inserted}
               </p>
               <p className="text-xs text-green-600">Inserted</p>
             </div>
-            <div className="rounded-xl bg-amber-50 p-4 text-center">
-              <p className="text-xl sm:text-2xl font-bold text-amber-700">
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-950 p-4 text-center">
+              <p className="text-xl sm:text-2xl font-bold text-amber-700 dark:text-amber-400">
                 {results.skipped}
               </p>
               <p className="text-xs text-amber-600">Skipped (duplicates)</p>
             </div>
-            <div className="rounded-xl bg-red-50 p-4 text-center">
-              <p className="text-xl sm:text-2xl font-bold text-red-700">
+            <div className="rounded-xl bg-red-50 dark:bg-red-950 p-4 text-center">
+              <p className="text-xl sm:text-2xl font-bold text-red-700 dark:text-red-400">
                 {results.failed.length}
               </p>
               <p className="text-xs text-red-600">Failed</p>
@@ -364,7 +364,7 @@ export function AdminBulkImport({
           </div>
 
           {results.inserted > 0 && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-50 p-3 text-sm text-green-700">
+            <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-50 dark:bg-green-950 p-3 text-sm text-green-700 dark:text-green-400">
               <CheckCircleIcon className="h-4 w-4" aria-hidden="true" />
               Successfully imported {results.inserted} of {results.total}{" "}
               records.
@@ -373,12 +373,12 @@ export function AdminBulkImport({
 
           {results.failed.length > 0 && (
             <div className="mt-4">
-              <p className="text-sm font-medium text-red-700">
+              <p className="text-sm font-medium text-red-700 dark:text-red-400">
                 Failed rows ({results.failed.length}):
               </p>
-              <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-red-200">
+              <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-red-200 dark:border-red-800">
                 <table className="w-full text-xs">
-                  <thead className="bg-red-50">
+                  <thead className="bg-red-50 dark:bg-red-950">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium text-red-700">
                         Row
@@ -390,7 +390,7 @@ export function AdminBulkImport({
                   </thead>
                   <tbody>
                     {results.failed.map((f, idx) => (
-                      <tr key={idx} className="border-t border-red-100">
+                      <tr key={idx} className="border-t border-red-100 dark:border-red-900">
                         <td className="px-3 py-2 text-red-600">{f.row}</td>
                         <td className="px-3 py-2 text-red-600">{f.reason}</td>
                       </tr>

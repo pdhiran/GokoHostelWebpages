@@ -156,7 +156,7 @@ export function AdminFoodOrders({ password, username, role, permissions = {} }: 
   return (
     <div>
       {/* Tab buttons */}
-      <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-brand-mist bg-white p-1">
+      <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-brand-mist bg-white dark:bg-card p-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -419,7 +419,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
       </div>
 
       {/* Guest Selection */}
-      <div className="rounded-xl border border-brand-mist bg-white p-4">
+      <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
         {guestType === "table" ? (
           <div>
             <p className="mb-2 text-xs font-medium text-brand-green-dark/70">Select table:</p>
@@ -435,9 +435,9 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
                     "flex flex-col items-center justify-center rounded-lg text-sm font-bold transition-colors",
                     occupant ? "h-14 w-14" : "h-12 w-12",
                     selectedTable === num
-                      ? "bg-brand-green text-white shadow-md"
+                      ? "bg-brand-green text-white shadow-md dark:shadow-none"
                       : occupant
-                        ? "border-2 border-amber-400 bg-amber-50 text-amber-700"
+                        ? "border-2 border-amber-400 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
                         : "border border-brand-mist text-brand-green-dark hover:bg-brand-green/[0.06]"
                   )}
                   title={occupant ? `Occupied: ${occupant}` : `Table ${num}`}
@@ -452,7 +452,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
             </div>
             {occupiedTables.size > 0 && (
               <p className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-600">
-                <span className="inline-block h-2.5 w-2.5 rounded border-2 border-amber-400 bg-amber-50" />
+                <span className="inline-block h-2.5 w-2.5 rounded border-2 border-amber-400 bg-amber-50 dark:bg-amber-950" />
                 Occupied (unpaid order)
               </p>
             )}
@@ -483,7 +483,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
               <div className="mt-2 flex items-center justify-between rounded-lg bg-brand-green/[0.05] px-3 py-2">
                 <div>
                   <span className="text-sm font-medium text-brand-green-dark">{selectedGuest.name}</span>
-                  {selectedGuest.checkedOut && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Checked out</span>}
+                  {selectedGuest.checkedOut && <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">Checked out</span>}
                   {selectedGuest.bedInfo && <span className="ml-2 text-xs text-brand-green-dark/60">{selectedGuest.bedInfo}</span>}
                 </div>
                 <button type="button" onClick={() => setSelectedGuest(null)} className="text-xs text-red-500">Change</button>
@@ -500,7 +500,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
                     className="w-full px-3 py-2 text-left text-sm hover:bg-brand-green/[0.04] border-b border-brand-mist last:border-0"
                   >
                     <span className="font-medium">{g.name}</span>
-                    {g.checkedOut && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Checked out</span>}
+                    {g.checkedOut && <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">Checked out</span>}
                     {g.bedInfo && <span className="ml-2 text-xs text-brand-green-dark/50">{g.bedInfo}</span>}
                   </button>
                 ))}
@@ -530,7 +530,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
       </div>
 
       {/* Menu Browser */}
-      <div className="rounded-xl border border-brand-mist bg-white p-4">
+      <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
         <div className="relative mb-3">
           <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-brand-green-dark/40" />
           <input
@@ -577,13 +577,13 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
                 )}
               </div>
               {item.isAvailable === 0 ? (
-                <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600">Unavailable</span>
+                <span className="ml-2 rounded-full bg-red-100 dark:bg-red-900/50 px-2 py-0.5 text-xs text-red-600 dark:text-red-400">Unavailable</span>
               ) : qty > 0 ? (
                 <div className="ml-2 flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => updateCartQty(item.id, -1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-md border border-brand-mist text-brand-green-dark hover:bg-gray-100"
+                    className="flex h-8 w-8 items-center justify-center rounded-md border border-brand-mist text-brand-green-dark hover:bg-gray-100 dark:hover:bg-[#1c1c1c]"
                   >−</button>
                   <span className="w-7 text-center text-sm font-semibold text-brand-green-dark">{qty}</span>
                   <button
@@ -612,7 +612,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
 
       {/* Cart */}
       {cart.length > 0 && (
-        <div ref={cartRef} className="rounded-xl border border-brand-mist bg-white p-4">
+        <div ref={cartRef} className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
           <h4 className="mb-2 text-sm font-bold text-brand-green-dark">Cart ({cart.length} items)</h4>
           <div className="space-y-2">
             {cart.map((c) => (
@@ -661,7 +661,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         <button
           type="button"
           onClick={() => cartRef.current?.scrollIntoView({ behavior: "smooth" })}
-          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg hover:bg-brand-green/90"
+          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg dark:shadow-none hover:bg-brand-green/90"
           title="Go to cart"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -672,7 +672,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
       {showConfirmDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowConfirmDialog(false)} />
-          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card p-6 shadow-2xl dark:shadow-none">
             <h3 className="text-base font-bold text-brand-green-dark">Confirmed with guest?</h3>
             <p className="mt-2 text-sm text-brand-green-dark/70">
               Please confirm the order items with the guest before placing.
@@ -1126,7 +1126,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       </div>
 
       {/* Filter Toggle */}
-      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white p-1">
+      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white dark:bg-card p-1">
         {([
           { id: "all" as SummaryFilter, label: "All" },
           { id: "hostel" as SummaryFilter, label: "Goko Guest" },
@@ -1148,16 +1148,16 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
 
       {/* Pending Approval */}
       {pendingApprovalOrders.length > 0 && (
-        <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Pending Approval ({pendingApprovalOrders.length})</p>
+        <div className="rounded-xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950 p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">Pending Approval ({pendingApprovalOrders.length})</p>
           <div className="space-y-2">
             {pendingApprovalOrders.map((order) => (
-              <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
+              <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-card px-3 py-2">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-amber-700">{order.orderNumber}</span>
+                    <span className="font-mono text-xs font-bold text-amber-700 dark:text-amber-400">{order.orderNumber}</span>
                     <span className="text-sm font-medium text-brand-green-dark">{order.guestName}</span>
-                    {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>}
+                    {order.guestType === "hostel" && <span className="rounded-full bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">Goko</span>}
                   </div>
                   <p className="text-xs text-brand-green-dark/50">
                     {order.items.filter(i => i.status !== "voided").map(i => `${i.quantity}× ${i.itemName}`).join(", ")}
@@ -1170,7 +1170,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                     {approvingId === order.id ? "..." : "Approve"}
                   </button>
                   <button type="button" onClick={() => handleRejectOrder(order.id)} disabled={approvingId === order.id}
-                    className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">
+                    className="rounded-md border border-red-300 dark:border-red-800 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50">
                     Reject
                   </button>
                 </div>
@@ -1181,7 +1181,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       )}
 
       {filteredGroups.length === 0 && pendingApprovalOrders.length === 0 && (
-        <div className="rounded-xl border border-brand-mist bg-white p-8 text-center text-sm text-brand-green-dark/50">
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-8 text-center text-sm text-brand-green-dark/50">
           No unpaid orders
         </div>
       )}
@@ -1196,16 +1196,16 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
               type="button"
               onClick={() => selectGroup(group)}
               className={cn(
-                "rounded-xl border border-brand-mist bg-white p-3 text-left transition-shadow hover:shadow-md",
+                "rounded-xl border border-brand-mist bg-white dark:bg-card p-3 text-left transition-shadow hover:shadow-md dark:hover:shadow-none",
                 group.guestType === "hostel" ? "border-l-[3px] border-l-green-400" : "border-l-[3px] border-l-gray-300"
               )}
             >
               <div className="flex items-start justify-between gap-1">
                 <span className="min-w-0 truncate text-sm font-bold text-brand-green-dark">{group.guestName}</span>
                 {group.guestType === "hostel" ? (
-                  <span className="flex-shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>
+                  <span className="flex-shrink-0 rounded-full bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">Goko</span>
                 ) : (
-                  <span className="flex-shrink-0 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Walk-in</span>
+                  <span className="flex-shrink-0 rounded-full bg-gray-200 dark:bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:text-gray-400">Walk-in</span>
                 )}
               </div>
               {(group.roomInfo || group.contactInfo) && (
@@ -1218,7 +1218,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                 <span>
                   {group.orderCount} order{group.orderCount !== 1 ? "s" : ""}
                   {group.hasModifications && (
-                    <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                    <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400">Modified</span>
                   )}
                 </span>
                 {timeSince && <span className="text-brand-green-dark/40">{timeSince}</span>}
@@ -1232,16 +1232,16 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       {selectedGroup && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedGroupKey(null)} />
-          <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+          <div className="relative flex h-full w-full max-w-md flex-col bg-white dark:bg-card shadow-xl dark:shadow-none animate-in slide-in-from-right duration-200">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-brand-mist px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="min-w-0 truncate text-base font-bold text-brand-green-dark">{selectedGroup.guestName}</h3>
                   {selectedGroup.guestType === "hostel" ? (
-                    <span className="flex-shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
+                    <span className="flex-shrink-0 rounded-full bg-green-100 dark:bg-green-900/50 px-2 py-0.5 text-xs text-green-700 dark:text-green-400">Goko Guest</span>
                   ) : (
-                    <span className="flex-shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>
+                    <span className="flex-shrink-0 rounded-full bg-gray-200 dark:bg-[#2a2a2a] px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">Walk-in</span>
                   )}
                 </div>
                 {(selectedGroup.roomInfo || selectedGroup.contactInfo) && (
@@ -1274,7 +1274,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                           <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                           <StatusBadge status={order.status} />
                           {order.hasModifications && (
-                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                            <span className="rounded-full bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400">Modified</span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -1292,7 +1292,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                                   await printOrderTicket({ orderNumber: order.orderNumber, guestName: selectedGroup.guestName, guestType: selectedGroup.guestType === "hostel" ? "hostel" : "walkin", roomInfo: selectedGroup.roomInfo || undefined, items, specialInstructions: order.specialInstructions || undefined, createdAt: order.createdAt });
                                 } catch (err: any) { showError("Print failed", err.message || "Unknown error"); }
                               }}
-                              className="rounded p-1 text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                              className="rounded p-1 text-orange-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 transition-colors"
                               title="Print kitchen ticket"
                             >
                               <PrinterIcon className="h-3.5 w-3.5" />
@@ -1325,7 +1325,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                                   <span className="line-through text-brand-green-dark/40">
                                     {item.quantity}× {item.itemName}
                                   </span>
-                                  <span className="ml-1.5 inline-block rounded bg-red-100 px-1 py-0.5 text-[10px] font-bold text-red-600">CANCELLED</span>
+                                  <span className="ml-1.5 inline-block rounded bg-red-100 dark:bg-red-900/50 px-1 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">CANCELLED</span>
                                   {voidedItemReasons[item.id] && (
                                     <span className="ml-1 text-[10px] italic text-red-400">{voidedItemReasons[item.id]}</span>
                                   )}
@@ -1339,14 +1339,14 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                                     type="button"
                                     onClick={() => handleQuantityChange(order.id, item.id, item.quantity - 1, order.status)}
                                     disabled={actionBusy === `qty_${item.id}`}
-                                    className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 disabled:opacity-50"
+                                    className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 dark:hover:bg-[#1c1c1c] disabled:opacity-50"
                                   >−</button>
                                   <span className="w-5 text-center font-medium text-brand-green-dark">{item.quantity}</span>
                                   <button
                                     type="button"
                                     onClick={() => handleQuantityChange(order.id, item.id, item.quantity + 1, order.status)}
                                     disabled={actionBusy === `qty_${item.id}`}
-                                    className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 disabled:opacity-50"
+                                    className="flex h-5 w-5 items-center justify-center rounded border border-brand-mist text-brand-green-dark/60 hover:bg-gray-100 dark:hover:bg-[#1c1c1c] disabled:opacity-50"
                                   >+</button>
                                   <span className="min-w-0 truncate text-brand-green-dark/60">{item.itemName}</span>
                                 </div>
@@ -1355,7 +1355,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                                   <button
                                     type="button"
                                     onClick={() => setVoidingItemId(voidingItemId === item.id ? null : item.id)}
-                                    className="flex h-5 w-5 items-center justify-center rounded bg-red-50 text-red-500 hover:bg-red-100"
+                                    className="flex h-5 w-5 items-center justify-center rounded bg-red-50 dark:bg-red-950 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50"
                                     title="Cancel item"
                                   >
                                     <XIcon className="h-3 w-3" />
@@ -1398,7 +1398,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                       )}
                       {order.hasModifications && (
                         <div className="mt-1.5 border-t border-brand-mist pt-1.5">
-                          <button type="button" onClick={() => toggleModHistory(order.id)} className="text-[10px] font-medium text-amber-600 hover:text-amber-700">
+                          <button type="button" onClick={() => toggleModHistory(order.id)} className="text-[10px] font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300">
                             {modHistoryOrderId === order.id ? "Hide history" : "View modifications"}
                           </button>
                           {modHistoryOrderId === order.id && (
@@ -1409,8 +1409,8 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                                 <p className="text-[10px] text-brand-green-dark/40">No modifications</p>
                               ) : (
                                 modHistoryData.map((mod, mi) => (
-                                  <div key={mi} className="rounded bg-amber-50 px-2 py-1 text-[10px]">
-                                    <div className="font-medium text-amber-700">{formatAdminModification(mod)}</div>
+                                  <div key={mi} className="rounded bg-amber-50 dark:bg-amber-950 px-2 py-1 text-[10px]">
+                                    <div className="font-medium text-amber-700 dark:text-amber-400">{formatAdminModification(mod)}</div>
                                     <div className="text-amber-400">
                                       {new Date(mod.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
                                       {" · "}{mod.modifiedBy}
@@ -1442,7 +1442,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                       type="button"
                       onClick={() => setDiscountModalGroup(selectedGroup)}
                       disabled={busy === selectedGroup.key}
-                      className="flex items-center gap-1.5 rounded-lg border border-purple-500 bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                      className="flex items-center gap-1.5 rounded-lg border border-purple-500 bg-purple-50 dark:bg-purple-950 px-3 py-2 text-sm font-medium text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/50 disabled:opacity-50"
                     >
                       <TagIcon className="h-3.5 w-3.5" />
                       {totalGroupDiscount > 0 ? `Discount · -₹${(totalGroupDiscount / 100).toFixed(0)}` : "Discount"}
@@ -1453,7 +1453,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                   type="button"
                   onClick={() => { setPaymentModalMethod("cash"); setPaymentModalGroup(selectedGroup); }}
                   disabled={busy === selectedGroup.key}
-                  className="flex items-center gap-1.5 rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-green-500 bg-green-50 dark:bg-green-950 px-3 py-2 text-sm font-medium text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 disabled:opacity-50"
                 >
                   <BanknoteIcon className="h-3.5 w-3.5" /> Cash · ₹{(actualGroupTotal / 100).toFixed(0)}
                 </button>
@@ -1461,7 +1461,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                   type="button"
                   onClick={() => { setPaymentModalMethod("online"); setPaymentModalGroup(selectedGroup); }}
                   disabled={busy === selectedGroup.key}
-                  className="flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-50 dark:bg-blue-950 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50"
                 >
                   <SmartphoneIcon className="h-3.5 w-3.5" /> Online
                 </button>
@@ -1470,7 +1470,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                     type="button"
                     onClick={() => handlePrintGroup(selectedGroup)}
                     disabled={printingGroup === selectedGroup.key}
-                    className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/10 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#0f0f0f] disabled:opacity-50"
                   >
                     <PrinterIcon className="h-3.5 w-3.5" />
                     {printingGroup === selectedGroup.key ? "Printing..." : "Print"}
@@ -1481,7 +1481,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                     type="button"
                     onClick={() => handleKitchenPrint(selectedGroup)}
                     disabled={printingGroup === selectedGroup.key}
-                    className="flex items-center gap-1.5 rounded-lg border border-orange-200 px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg border border-orange-200 dark:border-orange-800 px-3 py-2 text-sm font-medium text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 disabled:opacity-50"
                   >
                     <PrinterIcon className="h-3.5 w-3.5" />
                     Kitchen
@@ -1490,7 +1490,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                 <button
                   type="button"
                   onClick={() => handlePdfGroup(selectedGroup)}
-                  className="flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
                 >
                   <DownloadIcon className="h-3.5 w-3.5" /> PDF
                 </button>
@@ -1510,7 +1510,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
                       roomInfo: selectedGroup.roomInfo || undefined,
                     });
                   }}
-                  className="flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
                 >
                   <PlusIcon className="h-3.5 w-3.5" /> Order More
                 </button>
@@ -1570,7 +1570,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
         <button
           type="button"
           onClick={onAddNewOrder}
-          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2 rounded-2xl bg-brand-green px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-brand-green/90"
+          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2 rounded-2xl bg-brand-green px-5 py-3 text-sm font-semibold text-white shadow-lg dark:shadow-none hover:bg-brand-green/90"
         >
           <PlusIcon className="h-5 w-5" /> Add New Order
         </button>
@@ -1597,8 +1597,8 @@ function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
     : selectedReason + (customNotes.trim() ? ` — ${customNotes.trim()}` : "");
 
   return (
-    <div className="mt-1.5 rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-2">
-      <p className="text-xs font-medium text-red-700">Cancel &quot;{itemName}&quot;?</p>
+    <div className="mt-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 p-2.5 space-y-2">
+      <p className="text-xs font-medium text-red-700 dark:text-red-400">Cancel &quot;{itemName}&quot;?</p>
       <div className="flex flex-wrap gap-1">
         {VOID_REASONS.map((r) => (
           <button
@@ -1609,7 +1609,7 @@ function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
               "rounded-full px-2 py-0.5 text-xs transition-colors",
               selectedReason === r
                 ? "bg-red-500 text-white"
-                : "bg-white border border-red-200 text-red-600 hover:bg-red-100"
+                : "bg-white dark:bg-card border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50"
             )}
           >
             {r}
@@ -1617,7 +1617,7 @@ function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
         ))}
       </div>
       <input
-        className="w-full rounded border border-red-200 bg-white px-2 py-1 text-xs"
+        className="w-full rounded border border-red-200 dark:border-red-800 bg-white dark:bg-card px-2 py-1 text-xs"
         placeholder="Additional notes (optional)"
         value={customNotes}
         onChange={(e) => setCustomNotes(e.target.value)}
@@ -1634,7 +1634,7 @@ function VoidReasonPopup({ itemName, onVoid, onCancel, busy }: {
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-100"
+          className="rounded-md border border-red-200 dark:border-red-800 px-3 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50"
         >
           Cancel
         </button>
@@ -1719,9 +1719,9 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
       <h3 className="font-display text-lg font-bold text-brand-green-dark">Combined Bill</h3>
 
       {guests.length === 0 ? (
-        <div className="rounded-xl border border-brand-mist bg-white p-8 text-center text-sm text-brand-green-dark/50">No guests with unpaid tabs</div>
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-8 text-center text-sm text-brand-green-dark/50">No guests with unpaid tabs</div>
       ) : (
-        <div className="rounded-xl border border-brand-mist bg-white p-4">
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
           <p className="mb-2 text-sm text-brand-green-dark/70">Select guests to combine:</p>
           <div className="space-y-1.5">
             {guests.map((g) => (
@@ -1734,7 +1734,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 />
                 <div className="flex-1">
                   <span className="text-sm font-medium text-brand-green-dark">{g.name}</span>
-                  <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
+                  <span className="ml-2 rounded-full bg-green-100 dark:bg-green-900/50 px-2 py-0.5 text-xs text-green-700 dark:text-green-400">Goko Guest</span>
                   {g.bedInfo && <span className="ml-2 text-xs text-brand-green-dark/50">{g.bedInfo}</span>}
                 </div>
                 <span className="text-sm font-medium text-brand-green">₹{(g.tabTotal / 100).toFixed(0)}</span>
@@ -1756,14 +1756,14 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
       )}
 
       {preview && (
-        <div className="rounded-xl border border-brand-mist bg-white p-4">
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
           <h4 className="mb-3 text-sm font-bold text-brand-green-dark">Bill Preview</h4>
           {preview.guests.map((g: any) => (
             <div key={g.checkinId} className="mb-3 border-b border-brand-mist pb-3 last:mb-0 last:border-0 last:pb-0">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-brand-green-dark">
                   {g.guestName}
-                  <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
+                  <span className="ml-2 rounded-full bg-green-100 dark:bg-green-900/50 px-2 py-0.5 text-xs text-green-700 dark:text-green-400">Goko Guest</span>
                 </span>
                 <span className="text-sm font-bold">₹{(g.subtotal / 100).toFixed(0)}</span>
               </div>
@@ -1771,7 +1771,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
               <p className="text-xs text-brand-green-dark/40">
                 {g.orders.length} order(s)
                 {g.orders.some((o: any) => o.hasModifications) && (
-                  <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                  <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400">Modified</span>
                 )}
               </p>
             </div>
@@ -1786,7 +1786,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 type="button"
                 onClick={handlePrintCombined}
                 disabled={printingCombined}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#0f0f0f] disabled:opacity-50"
               >
                 <PrinterIcon className="h-4 w-4" />
                 {printingCombined ? "Printing..." : "Print Combined"}
@@ -1828,7 +1828,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                 };
                 await generateCombinedBill(combinedData);
               }}
-              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-blue-200 dark:border-blue-800 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
             >
               <DownloadIcon className="h-4 w-4" />
               Download PDF
@@ -2126,7 +2126,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
         </div>
       </div>
 
-      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white p-1">
+      <div className="flex gap-1 rounded-lg border border-brand-mist bg-white dark:bg-card p-1">
         {([
           { id: "all" as PaymentFilter, label: "All" },
           { id: "hostel" as PaymentFilter, label: "Goko Guest" },
@@ -2147,7 +2147,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       </div>
 
       {filteredGroups.length === 0 && (
-        <div className="rounded-xl border border-brand-mist bg-white p-8 text-center text-sm text-brand-green-dark/50">
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-8 text-center text-sm text-brand-green-dark/50">
           No orders found
         </div>
       )}
@@ -2167,7 +2167,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
               type="button"
               onClick={() => selectGroup(group)}
               className={cn(
-                "rounded-xl border bg-white p-3 text-left transition-shadow hover:shadow-md",
+                "rounded-xl border bg-white dark:bg-card p-3 text-left transition-shadow hover:shadow-md dark:hover:shadow-none",
                 allPaid
                   ? "border-brand-mist border-l-[3px] border-l-green-400"
                   : group.pendingAmount > 0
@@ -2178,9 +2178,9 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
               <div className="flex items-start justify-between gap-1">
                 <span className="min-w-0 truncate text-sm font-bold text-brand-green-dark">{group.guestName}</span>
                 {group.guestType === "hostel" ? (
-                  <span className="flex-shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>
+                  <span className="flex-shrink-0 rounded-full bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">Goko</span>
                 ) : (
-                  <span className="flex-shrink-0 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Walk-in</span>
+                  <span className="flex-shrink-0 rounded-full bg-gray-200 dark:bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:text-gray-400">Walk-in</span>
                 )}
               </div>
               {(group.roomInfo || group.contactInfo) && (
@@ -2203,7 +2203,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
               <div className="mt-1 text-xs text-brand-green-dark/40">
                 {group.orderCount} order{group.orderCount !== 1 ? "s" : ""}
                 {group.orders.some((o) => o.hasModifications) && (
-                  <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                  <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400">Modified</span>
                 )}
               </div>
             </button>
@@ -2236,15 +2236,15 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       {selectedGroup && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => { setSelectedGroupKey(null); setPaymentEditOrder(null); setRevertConfirmOrder(null); }} />
-          <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+          <div className="relative flex h-full w-full max-w-md flex-col bg-white dark:bg-card shadow-xl dark:shadow-none animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between border-b border-brand-mist px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="min-w-0 truncate text-base font-bold text-brand-green-dark">{selectedGroup.guestName}</h3>
                   {selectedGroup.guestType === "hostel" ? (
-                    <span className="flex-shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>
+                    <span className="flex-shrink-0 rounded-full bg-green-100 dark:bg-green-900/50 px-2 py-0.5 text-xs text-green-700 dark:text-green-400">Goko Guest</span>
                   ) : (
-                    <span className="flex-shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>
+                    <span className="flex-shrink-0 rounded-full bg-gray-200 dark:bg-[#2a2a2a] px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">Walk-in</span>
                   )}
                 </div>
                 {(selectedGroup.roomInfo || selectedGroup.contactInfo) && (
@@ -2280,14 +2280,14 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
               ) : (
                 <>
                   {selectedOrders.map((order) => (
-                    <div key={order.id} className={cn("rounded-lg border p-3", order.paymentStatus === "paid" ? "border-green-200 bg-green-50/30" : "border-brand-mist")}>
+                    <div key={order.id} className={cn("rounded-lg border p-3", order.paymentStatus === "paid" ? "border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-950/30" : "border-brand-mist")}>
                       <div className="flex flex-wrap items-center justify-between gap-1">
                         <div className="flex flex-wrap items-center gap-1">
                           <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                           <StatusBadge status={order.status} />
                           <PaymentBadge status={order.paymentStatus} />
                           {order.hasModifications && (
-                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Modified</span>
+                            <span className="rounded-full bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400">Modified</span>
                           )}
                         </div>
                         <span className="text-sm font-semibold text-brand-green-dark">{fmt(order.total)}</span>
@@ -2325,7 +2325,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
                               type="button"
                               onClick={() => setPaymentEditOrder(order)}
                               disabled={busy}
-                              className="flex items-center gap-1 rounded-md bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-200 disabled:opacity-50"
+                              className="flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/50 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800 disabled:opacity-50"
                             >
                               <BanknoteIcon className="h-3 w-3" /> Mark Paid
                             </button>
@@ -2343,7 +2343,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
                                 type="button"
                                 onClick={() => setRevertConfirmOrder(order)}
                                 disabled={busy}
-                                className="flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                className="flex items-center gap-1 rounded-md border border-red-200 dark:border-red-800 px-2.5 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
                               >
                                 Revert to Pending
                               </button>
@@ -2353,7 +2353,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
                       )}
                       {order.hasModifications && (
                         <div className="mt-1.5 border-t border-brand-mist pt-1.5">
-                          <button type="button" onClick={() => toggleModHistory(order.id)} className="text-[10px] font-medium text-amber-600 hover:text-amber-700">
+                          <button type="button" onClick={() => toggleModHistory(order.id)} className="text-[10px] font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300">
                             {modHistoryOrderId === order.id ? "Hide history" : "View modifications"}
                           </button>
                           {modHistoryOrderId === order.id && (
@@ -2364,8 +2364,8 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
                                 <p className="text-[10px] text-brand-green-dark/40">No modifications</p>
                               ) : (
                                 modHistoryData.map((mod, mi) => (
-                                  <div key={mi} className="rounded bg-amber-50 px-2 py-1 text-[10px]">
-                                    <div className="font-medium text-amber-700">{formatAdminModification(mod)}</div>
+                                  <div key={mi} className="rounded bg-amber-50 dark:bg-amber-950 px-2 py-1 text-[10px]">
+                                    <div className="font-medium text-amber-700 dark:text-amber-400">{formatAdminModification(mod)}</div>
                                     <div className="text-amber-400">
                                       {new Date(mod.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
                                       {" · "}{mod.modifiedBy}
@@ -2417,7 +2417,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       {revertConfirmOrder && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setRevertConfirmOrder(null)} />
-          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card p-6 shadow-2xl dark:shadow-none">
             <h3 className="text-base font-bold text-brand-green-dark">Revert to Pending?</h3>
             <p className="mt-2 text-sm text-brand-green-dark/70">
               This will mark order <span className="font-mono font-bold">{revertConfirmOrder.orderNumber}</span> ({fmt(revertConfirmOrder.total)}) as unpaid. This action will be logged.
@@ -2511,7 +2511,7 @@ function PaymentHistoryPanel({ apiCall, onClose }: { apiCall: (body: any) => Pro
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative flex h-full w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+      <div className="relative flex h-full w-full max-w-lg flex-col bg-white dark:bg-card shadow-xl dark:shadow-none animate-in slide-in-from-right duration-200">
         <div className="flex items-center justify-between border-b border-brand-mist px-4 py-3">
           <h3 className="text-base font-bold text-brand-green-dark">Payment History</h3>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-brand-sand">
@@ -2577,9 +2577,9 @@ function PaymentHistoryPanel({ apiCall, onClose }: { apiCall: (body: any) => Pro
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-brand-green-dark">{g.guestName}</span>
                     {g.guestType === "hostel" ? (
-                      <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Goko</span>
+                      <span className="rounded-full bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">Goko</span>
                     ) : (
-                      <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Walk-in</span>
+                      <span className="rounded-full bg-gray-200 dark:bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:text-gray-400">Walk-in</span>
                     )}
                   </div>
                   <span className="text-sm font-bold text-brand-green">{fmt(g.total)}</span>
@@ -2705,7 +2705,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
         <button
           type="button"
           onClick={() => setShowCleanupConfirm(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+          className="flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
         >
           <XIcon className="h-3.5 w-3.5" />
           Cleanup Old Orders
@@ -2713,8 +2713,8 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
       </div>
 
       {showCleanupConfirm && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">
+        <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 p-4">
+          <p className="text-sm text-red-800 dark:text-red-300">
             This will delete item details for orders older than 1 week (checked-out hostel guests and completed walk-in orders). Order summaries will be kept. Continue?
           </p>
           <div className="mt-3 flex gap-2">
@@ -2738,13 +2738,13 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
       )}
 
       {cleanupResult && (
-        <div className="rounded-xl border border-brand-mist bg-white p-3 text-sm text-brand-green-dark">
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-3 text-sm text-brand-green-dark">
           {cleanupResult}
         </div>
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 rounded-xl border border-brand-mist bg-white p-3">
+      <div className="flex flex-wrap gap-3 rounded-xl border border-brand-mist bg-white dark:bg-card p-3">
         <div>
           <label className="mb-0.5 block text-xs text-brand-green-dark/60">From</label>
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="rounded border border-brand-mist px-2 py-1 text-sm" />
@@ -2781,12 +2781,12 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
       {loading ? <LoadingState /> : (
         <div className="space-y-2">
           {orders.length === 0 && (
-            <div className="rounded-xl border border-brand-mist bg-white p-8 text-center text-sm text-brand-green-dark/50">
+            <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-8 text-center text-sm text-brand-green-dark/50">
               No orders found
             </div>
           )}
           {orders.map((order) => (
-            <div key={order.id} className="rounded-xl border border-brand-mist bg-white overflow-hidden">
+            <div key={order.id} className="rounded-xl border border-brand-mist bg-white dark:bg-card overflow-hidden">
               <button
                 type="button"
                 onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
@@ -2796,11 +2796,11 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                   <span className="font-mono text-xs font-bold text-brand-green">{order.orderNumber}</span>
                   <StatusBadge status={order.status} />
                   {order.hasModifications && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Modified</span>
+                    <span className="rounded-full bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">Modified</span>
                   )}
                   <span className="min-w-0 truncate text-sm text-brand-green-dark">{order.guestName}</span>
-                  {order.guestType === "walkin" && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Walk-in</span>}
-                  {order.guestType === "hostel" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Goko Guest</span>}
+                  {order.guestType === "walkin" && <span className="rounded-full bg-gray-200 dark:bg-[#2a2a2a] px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">Walk-in</span>}
+                  {order.guestType === "hostel" && <span className="rounded-full bg-green-100 dark:bg-green-900/50 px-2 py-0.5 text-xs text-green-700 dark:text-green-400">Goko Guest</span>}
                   <PaymentBadge status={order.paymentStatus} />
                   {order.paymentStatus === "paid" && order.paymentMethod && (
                     <span className="text-xs text-brand-green-dark/40">({order.paymentMethod === "cash" ? "Cash" : order.paymentMethod === "online" ? "Online" : order.paymentMethod === "split" ? "Split" : order.paymentMethod})</span>
@@ -2847,25 +2847,25 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                       <button
                         type="button"
                         onClick={() => fetchModHistory(order.id)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-800"
+                        className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300"
                       >
                         <HistoryIcon className="h-3.5 w-3.5" />
                         {modHistoryOrder === order.id ? "Hide" : "Show"} Modification History
                       </button>
                       {modHistoryOrder === order.id && (
-                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/50 p-2.5">
+                        <div className="mt-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50 p-2.5">
                           {modHistoryLoading ? (
-                            <p className="text-xs text-gray-500">Loading...</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Loading...</p>
                           ) : modHistory.length === 0 ? (
-                            <p className="text-xs text-gray-500">No modifications found</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">No modifications found</p>
                           ) : (
                             <div className="space-y-1.5">
                               {modHistory.map((mod, idx) => (
-                                <div key={idx} className="flex flex-col gap-0.5 border-b border-amber-100 pb-1.5 last:border-0 last:pb-0">
-                                  <span className="text-xs text-gray-800">
+                                <div key={idx} className="flex flex-col gap-0.5 border-b border-amber-100 dark:border-amber-800 pb-1.5 last:border-0 last:pb-0">
+                                  <span className="text-xs text-gray-800 dark:text-gray-200">
                                     {formatAdminModification(mod)}
                                   </span>
-                                  <span className="text-xs text-gray-400">
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">
                                     {new Date(mod.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
                                     {" · "}{mod.modifiedBy}
                                   </span>
@@ -2911,7 +2911,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                           }
                         }}
                         disabled={printing === order.id}
-                        className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        className="flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#0f0f0f] disabled:opacity-50"
                       >
                         <PrinterIcon className="h-3.5 w-3.5" />
                         {printing === order.id ? "Printing..." : "Print"}
@@ -2947,7 +2947,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                           billDate: new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
                         });
                       }}
-                      className="flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                      className="flex items-center gap-1 rounded-lg border border-blue-200 dark:border-blue-800 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
                     >
                       <DownloadIcon className="h-3.5 w-3.5" />
                       PDF
@@ -3060,7 +3060,7 @@ function PaymentModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card shadow-2xl dark:shadow-none animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
           <div>
@@ -3113,17 +3113,17 @@ function PaymentModal({
                 />
               </div>
               {cashValue > 0 && changeDue > 0 && (
-                <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2">
-                  <p className="text-sm font-semibold text-green-700">Change Due: ₹{changeDue.toFixed(0)}</p>
+                <div className="rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 px-3 py-2">
+                  <p className="text-sm font-semibold text-green-700 dark:text-green-400">Change Due: ₹{changeDue.toFixed(0)}</p>
                 </div>
               )}
               {cashValue > 0 && changeDue < 0 && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 space-y-1">
-                  <p className="text-sm font-semibold text-red-600">Remaining: ₹{Math.abs(changeDue).toFixed(0)}</p>
+                <div className="rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 px-3 py-2 space-y-1">
+                  <p className="text-sm font-semibold text-red-600 dark:text-red-400">Remaining: ₹{Math.abs(changeDue).toFixed(0)}</p>
                   <button
                     type="button"
                     onClick={() => { setActiveTab("split"); setSplitCash(cashInput); }}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"
+                    className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
                   >
                     Record remaining as Online
                   </button>
@@ -3133,9 +3133,9 @@ function PaymentModal({
           )}
 
           {activeTab === "online" && (
-            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-4 text-center">
+            <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-4 text-center">
               <SmartphoneIcon className="mx-auto mb-2 h-8 w-8 text-blue-500" />
-              <p className="text-sm text-blue-800">
+              <p className="text-sm text-blue-800 dark:text-blue-300">
                 Mark <span className="font-bold">₹{totalRupees.toFixed(0)}</span> as paid online?
               </p>
             </div>
@@ -3168,7 +3168,7 @@ function PaymentModal({
               </div>
               <div className={cn(
                 "rounded-lg px-3 py-2 text-sm font-medium",
-                splitTotal >= totalRupees ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-600"
+                splitTotal >= totalRupees ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
               )}>
                 Total: ₹{splitTotal.toFixed(0)} / ₹{totalRupees.toFixed(0)}
                 {splitTotal < totalRupees && <span className="ml-1 text-xs">(₹{(totalRupees - splitTotal).toFixed(0)} short)</span>}
@@ -3250,7 +3250,7 @@ function DiscountModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+      <div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card shadow-2xl dark:shadow-none animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
           <div>
@@ -3279,7 +3279,7 @@ function DiscountModal({
                 className={cn(
                   "flex items-center gap-1.5 rounded-t-lg px-4 py-2 text-sm font-medium transition-colors",
                   mode === t.id
-                    ? "border-b-2 border-purple-600 bg-purple-50 text-purple-700"
+                    ? "border-b-2 border-purple-600 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-400"
                     : "text-brand-green-dark/50 hover:text-brand-green-dark/70"
                 )}
               >
@@ -3315,7 +3315,7 @@ function DiscountModal({
                       className={cn(
                         "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
                         Number(percentInput) === p
-                          ? "border-purple-500 bg-purple-100 text-purple-700"
+                          ? "border-purple-500 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"
                           : "border-brand-mist text-brand-green-dark/60 hover:bg-brand-sand"
                       )}
                     >
@@ -3368,16 +3368,16 @@ function DiscountModal({
 
             {/* Preview */}
             {discountPaise > 0 && (
-              <div className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 space-y-1">
+              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950 px-4 py-3 space-y-1">
                 <div className="flex justify-between text-sm text-brand-green-dark/70">
                   <span>Original Total</span>
                   <span>₹{totalRupees.toFixed(0)}</span>
                 </div>
-                <div className="flex justify-between text-sm font-semibold text-purple-700">
+                <div className="flex justify-between text-sm font-semibold text-purple-700 dark:text-purple-400">
                   <span>Discount</span>
                   <span>-₹{(discountPaise / 100).toFixed(0)}</span>
                 </div>
-                <div className="border-t border-purple-200 pt-1 flex justify-between text-base font-bold text-brand-green-dark">
+                <div className="border-t border-purple-200 dark:border-purple-800 pt-1 flex justify-between text-base font-bold text-brand-green-dark">
                   <span>New Total</span>
                   <span>₹{(newTotal / 100).toFixed(0)}</span>
                 </div>
@@ -3393,7 +3393,7 @@ function DiscountModal({
               type="button"
               onClick={() => { setSaving(true); onRemove(); }}
               disabled={saving}
-              className="rounded-lg border border-red-300 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+              className="rounded-lg border border-red-300 dark:border-red-800 px-3 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-40"
             >
               Remove
             </button>
@@ -3438,20 +3438,20 @@ export function PaymentDetailLabel({ method, total, cashReceived, changeGiven }:
   const fmt = (paise: number) => `₹${(paise / 100).toFixed(0)}`;
   if (method === "cash") {
     if (cashReceived > 0) {
-      return <span className="text-green-700">Cash — Received {fmt(cashReceived)}{changeGiven > 0 ? `, Change ${fmt(changeGiven)}` : ""}</span>;
+      return <span className="text-green-700 dark:text-green-400">Cash — Received {fmt(cashReceived)}{changeGiven > 0 ? `, Change ${fmt(changeGiven)}` : ""}</span>;
     }
-    return <span className="text-green-700">Cash — {fmt(total)}</span>;
+    return <span className="text-green-700 dark:text-green-400">Cash — {fmt(total)}</span>;
   }
   if (method === "online") {
-    return <span className="text-blue-700">Online — {fmt(total)}</span>;
+    return <span className="text-blue-700 dark:text-blue-400">Online — {fmt(total)}</span>;
   }
   if (method === "split") {
     const cashAfterChange = cashReceived - (changeGiven || 0);
     const onlinePart = total - cashAfterChange;
     if (onlinePart <= 0) {
-      return <span className="text-green-700">Cash — Received {fmt(cashReceived)}{changeGiven > 0 ? `, Change ${fmt(changeGiven)}` : ""}</span>;
+      return <span className="text-green-700 dark:text-green-400">Cash — Received {fmt(cashReceived)}{changeGiven > 0 ? `, Change ${fmt(changeGiven)}` : ""}</span>;
     }
-    return <span className="text-purple-700">Split — Cash {fmt(cashAfterChange)} + Online {fmt(onlinePart)}</span>;
+    return <span className="text-purple-700 dark:text-purple-400">Split — Cash {fmt(cashAfterChange)} + Online {fmt(onlinePart)}</span>;
   }
   return <span>{method}</span>;
 }
@@ -3466,16 +3466,16 @@ export function LoadingState() {
 
 export function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    pending_approval: "bg-amber-100 text-amber-700",
-    placed: "bg-yellow-100 text-yellow-700",
-    preparing: "bg-blue-100 text-blue-700",
-    ready: "bg-green-100 text-green-700",
-    served: "bg-gray-100 text-gray-600",
-    cancelled: "bg-red-100 text-red-600",
+    pending_approval: "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400",
+    placed: "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400",
+    preparing: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
+    ready: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
+    served: "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400",
+    cancelled: "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400",
   };
   const labels: Record<string, string> = { pending_approval: "awaiting approval" };
   return (
-    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", colors[status] || "bg-gray-100 text-gray-600")}>
+    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", colors[status] || "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400")}>
       {labels[status] || status}
     </span>
   );
@@ -3487,6 +3487,6 @@ export function PaymentBadge({ status }: { status: string }) {
     on_tab: "text-blue-600",
     paid: "text-green-600",
   };
-  return <span className={cn("font-medium", colors[status] || "text-gray-600")}>{status.replace("_", " ")}</span>;
+  return <span className={cn("font-medium", colors[status] || "text-gray-600 dark:text-gray-400")}>{status.replace("_", " ")}</span>;
 }
 
