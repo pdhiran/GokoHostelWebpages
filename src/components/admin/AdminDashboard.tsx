@@ -134,55 +134,55 @@ export function AdminDashboard({
   return (
     <div>
       <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Dashboard</h2>
-      <p className="mt-1 text-sm text-brand-green-dark/60 dark:text-muted-foreground">{today}</p>
+      <p className="mt-1 text-sm text-brand-green-dark/60 dark:text-zinc-500">{today}</p>
 
       {/* Food Orders quick access */}
-      <button type="button" onClick={() => onNavigate("foodOrders")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card p-4 shadow-card dark:shadow-none transition-all hover:shadow-soft dark:hover:bg-accent">
+      <button type="button" onClick={() => onNavigate("foodOrders")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-card dark:shadow-none transition-all hover:shadow-soft dark:hover:bg-zinc-800/70">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10"><UtensilsIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" /></div>
           <div>
-            <p className="font-semibold text-brand-green-dark dark:text-foreground">Food Orders</p>
-            <p className="text-xs text-brand-green-dark/50 dark:text-muted-foreground">Manage orders & payments</p>
+            <p className="font-semibold text-brand-green-dark dark:text-zinc-100">Food Orders</p>
+            <p className="text-xs text-brand-green-dark/50 dark:text-zinc-500">Manage orders & payments</p>
           </div>
         </div>
-        <span className="text-brand-green-dark/30 dark:text-muted-foreground/50">→</span>
+        <span className="text-brand-green-dark/30 dark:text-zinc-600">→</span>
       </button>
 
       {/* Stats cards — compact 2x2 grid on mobile */}
       <motion.div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4" variants={staggerContainer} initial="hidden" animate="visible">
-        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10"><UsersIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" /></div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-brand-green-dark dark:text-foreground leading-tight">{todayCheckins.length}</p>
-              <p className="text-[10px] text-brand-green-dark/60 dark:text-muted-foreground leading-tight">Check-ins today</p>
+              <p className="text-lg font-bold text-brand-green-dark dark:text-zinc-100 leading-tight">{todayCheckins.length}</p>
+              <p className="text-[10px] text-brand-green-dark/60 dark:text-zinc-500 leading-tight">Check-ins today</p>
             </div>
           </div>
         </motion.div>
-        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-500/10"><CalendarCheckIcon className="h-4 w-4 text-orange-600 dark:text-orange-400" /></div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-brand-green-dark dark:text-foreground leading-tight">{todayCheckouts.length}</p>
-              <p className="text-[10px] text-brand-green-dark/60 dark:text-muted-foreground leading-tight">Checkouts due</p>
+              <p className="text-lg font-bold text-brand-green-dark dark:text-zinc-100 leading-tight">{todayCheckouts.length}</p>
+              <p className="text-[10px] text-brand-green-dark/60 dark:text-zinc-500 leading-tight">Checkouts due</p>
             </div>
           </div>
         </motion.div>
-        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-50 dark:bg-green-500/10"><BedDoubleIcon className="h-4 w-4 text-green-600 dark:text-green-400" /></div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-brand-green-dark dark:text-foreground leading-tight">{stats.available}</p>
-              <p className="text-[10px] text-brand-green-dark/60 dark:text-muted-foreground leading-tight">Beds available</p>
+              <p className="text-lg font-bold text-brand-green-dark dark:text-zinc-100 leading-tight">{stats.available}</p>
+              <p className="text-[10px] text-brand-green-dark/60 dark:text-zinc-500 leading-tight">Beds available</p>
             </div>
           </div>
         </motion.div>
-        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 dark:bg-red-500/10"><BedDoubleIcon className="h-4 w-4 text-red-600 dark:text-red-400" /></div>
             <div className="min-w-0">
-              <p className="text-lg font-bold text-brand-green-dark dark:text-foreground leading-tight">{stats.occupied}/{stats.total}</p>
-              <p className="text-[10px] text-brand-green-dark/60 dark:text-muted-foreground leading-tight">Beds occupied</p>
+              <p className="text-lg font-bold text-brand-green-dark dark:text-zinc-100 leading-tight">{stats.occupied}/{stats.total}</p>
+              <p className="text-[10px] text-brand-green-dark/60 dark:text-zinc-500 leading-tight">Beds occupied</p>
             </div>
           </div>
         </motion.div>
@@ -190,12 +190,12 @@ export function AdminDashboard({
 
       {/* Occupancy bar */}
       {stats.total > 0 && (
-        <div className="mt-4 rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card p-4">
-          <div className="flex items-center justify-between text-xs text-brand-green-dark/70 dark:text-muted-foreground">
+        <div className="mt-4 rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+          <div className="flex items-center justify-between text-xs text-brand-green-dark/70 dark:text-zinc-400">
             <span>Occupancy: {Math.round((stats.occupied / stats.total) * 100)}%</span>
             <span>{stats.occupied} occupied, {stats.available} available, {stats.cleanup} cleanup</span>
           </div>
-          <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-muted">
+          <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-zinc-800">
             {stats.occupied > 0 && <div className="bg-red-400" style={{ width: `${(stats.occupied / stats.total) * 100}%` }} />}
             {stats.cleanup > 0 && <div className="bg-orange-400" style={{ width: `${(stats.cleanup / stats.total) * 100}%` }} />}
             {stats.available > 0 && <div className="bg-green-400" style={{ width: `${(stats.available / stats.total) * 100}%` }} />}
@@ -212,11 +212,11 @@ export function AdminDashboard({
           </div>
           <motion.div className="mt-3 space-y-2.5" variants={staggerContainer} initial="hidden" animate="visible">
             {todayCheckouts.map((co, i) => (
-              <motion.div key={i} variants={staggerItem} className="rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-3 shadow-sm dark:shadow-none transition-all duration-200 hover:bg-brand-sand/50 dark:hover:bg-accent/50">
+              <motion.div key={i} variants={staggerItem} className="rounded-xl border border-gray-100 dark:border-zinc-700/50 bg-white dark:bg-zinc-900 p-3 shadow-sm dark:shadow-none transition-all duration-200 hover:bg-brand-sand/50 dark:hover:bg-zinc-800/50">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold text-brand-green-dark dark:text-foreground">{co.name}</p>
-                    <p className="mt-0.5 text-xs text-brand-green-dark/50 dark:text-muted-foreground">{co.dorm} / {co.bedId}</p>
+                    <p className="truncate text-[15px] font-semibold text-brand-green-dark dark:text-zinc-100">{co.name}</p>
+                    <p className="mt-0.5 text-xs text-brand-green-dark/50 dark:text-zinc-500">{co.dorm} / {co.bedId}</p>
                   </div>
                   <button type="button" onClick={() => handleCheckoutClick(co)} disabled={busyIdx === co.bedIdx}
                     className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-400 transition-colors hover:bg-red-100 dark:hover:bg-red-900/50 active:bg-red-200 disabled:opacity-50">
@@ -225,7 +225,7 @@ export function AdminDashboard({
                   </button>
                 </div>
                 {co.totalOrders > 0 && (
-                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-gray-100 dark:border-border pt-2.5">
+                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-gray-100 dark:border-zinc-800 pt-2.5">
                     <div className="flex items-center gap-2">
                       {co.pendingTab > 0 ? (
                         <span className="inline-flex items-center gap-1 rounded-md bg-red-50 dark:bg-red-950 px-2 py-1 text-xs font-semibold text-red-700 dark:text-red-400">
@@ -260,9 +260,9 @@ export function AdminDashboard({
 
       {/* Today's check-ins */}
       <div className="mt-6">
-        <h3 className="font-display text-lg font-bold text-brand-green-dark dark:text-foreground">Today&apos;s Check-ins</h3>
+        <h3 className="font-display text-lg font-bold text-brand-green-dark dark:text-zinc-100">Today&apos;s Check-ins</h3>
         {todayCheckins.length === 0 ? (
-          <p className="mt-2 text-sm text-brand-green-dark/50 dark:text-muted-foreground">No check-ins today yet</p>
+          <p className="mt-2 text-sm text-brand-green-dark/50 dark:text-zinc-500">No check-ins today yet</p>
         ) : (
           <motion.div className="mt-3 space-y-2.5" variants={staggerContainer} initial="hidden" animate="visible">
             {todayCheckins.map((item, i) => {
@@ -273,11 +273,11 @@ export function AdminDashboard({
               const isAnyFlagged = isFlagged || hasDobMismatch;
               const checkinId = parseInt(item.row[15]);
               return (
-              <motion.div key={i} variants={staggerItem} className={cn("rounded-xl border bg-white dark:bg-card p-3 shadow-sm dark:shadow-none transition-all duration-200 hover:bg-brand-sand/50 dark:hover:bg-accent/50", isAnyFlagged ? "border-orange-300 dark:border-amber-800/50 bg-orange-50/40 dark:bg-amber-950/20" : "border-gray-100 dark:border-border")}>
+              <motion.div key={i} variants={staggerItem} className={cn("rounded-xl border bg-white dark:bg-zinc-900 p-3 shadow-sm dark:shadow-none transition-all duration-200 hover:bg-brand-sand/50 dark:hover:bg-zinc-800/50", isAnyFlagged ? "border-orange-300 dark:border-amber-800/50 bg-orange-50/40 dark:bg-amber-950/20" : "border-gray-100 dark:border-zinc-800")}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold text-brand-green-dark dark:text-foreground">{item.row[3]}</p>
-                    <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-muted-foreground">{item.row[7]}, {item.row[8]} · {item.row[4]} person{item.row[4] !== "1" ? "s" : ""} · {item.row[6]} days</p>
+                    <p className="truncate text-[15px] font-semibold text-brand-green-dark dark:text-zinc-100">{item.row[3]}</p>
+                    <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-zinc-500">{item.row[7]}, {item.row[8]} · {item.row[4]} person{item.row[4] !== "1" ? "s" : ""} · {item.row[6]} days</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {item.assignedBed ? (
@@ -290,7 +290,7 @@ export function AdminDashboard({
                         Assign bed
                       </button>
                     )}
-                    <span className="text-[11px] text-brand-green-dark/40 dark:text-muted-foreground/60">{item.row[2]}</span>
+                    <span className="text-[11px] text-brand-green-dark/40 dark:text-zinc-600">{item.row[2]}</span>
                   </div>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -338,22 +338,22 @@ export function AdminDashboard({
 
       {/* Quick actions */}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={() => onNavigate("beds")} className="rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card p-4 text-left transition-all hover:shadow-soft dark:hover:shadow-none dark:hover:bg-accent">
+        <button type="button" onClick={() => onNavigate("beds")} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 text-left transition-all hover:shadow-soft dark:hover:shadow-none dark:hover:bg-zinc-800/70">
           <BedDoubleIcon className="h-5 w-5 text-brand-green" />
-          <p className="mt-2 font-medium text-brand-green-dark dark:text-foreground">Assign Beds</p>
-          <p className="text-xs text-brand-green-dark/50 dark:text-muted-foreground">Manage dorm assignments</p>
+          <p className="mt-2 font-medium text-brand-green-dark dark:text-zinc-100">Assign Beds</p>
+          <p className="text-xs text-brand-green-dark/50 dark:text-zinc-500">Manage dorm assignments</p>
         </button>
-        <button type="button" onClick={() => onNavigate("records")} className="rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card p-4 text-left transition-all hover:shadow-soft dark:hover:shadow-none dark:hover:bg-accent">
+        <button type="button" onClick={() => onNavigate("records")} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 text-left transition-all hover:shadow-soft dark:hover:shadow-none dark:hover:bg-zinc-800/70">
           <UsersIcon className="h-5 w-5 text-brand-green" />
-          <p className="mt-2 font-medium text-brand-green-dark dark:text-foreground">View Records</p>
-          <p className="text-xs text-brand-green-dark/50 dark:text-muted-foreground">All check-in entries</p>
+          <p className="mt-2 font-medium text-brand-green-dark dark:text-zinc-100">View Records</p>
+          <p className="text-xs text-brand-green-dark/50 dark:text-zinc-500">All check-in entries</p>
         </button>
       </div>
 
       {/* Validation toggle (admin only) */}
       {role === "admin" && (
-        <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-mist dark:border-border bg-white dark:bg-card px-4 py-3">
-          <span className="text-sm font-medium text-brand-green-dark dark:text-foreground">ID Validation (Vision API)</span>
+        <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
+          <span className="text-sm font-medium text-brand-green-dark dark:text-zinc-200">ID Validation (Vision API)</span>
           <button type="button" onClick={toggleValidation} disabled={togglingValidation}
             className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200", validationOn ? "bg-brand-green" : "bg-brand-green-dark/20")}>
             <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 mt-0.5", validationOn ? "translate-x-5" : "translate-x-0.5")} />
@@ -369,14 +369,14 @@ export function AdminDashboard({
       {checkoutModal && (
         <motion.div className="fixed inset-0 z-[60] flex items-center justify-center p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
           <div className="absolute inset-0 bg-black/40" onClick={() => !checkoutBusy && setCheckoutModal(null)} />
-          <motion.div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card shadow-2xl dark:shadow-none dark:border dark:border-border" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
-            <div className="flex items-center justify-between border-b border-brand-mist dark:border-border px-5 py-4">
+          <motion.div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl dark:shadow-none dark:border dark:border-zinc-800" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
+            <div className="flex items-center justify-between border-b border-brand-mist dark:border-zinc-800 px-5 py-4">
               <div>
-                <h3 className="text-base font-bold text-brand-green-dark dark:text-foreground">Checkout {checkoutModal.name}</h3>
-                <p className="text-xs text-brand-green-dark/50 dark:text-muted-foreground">Unpaid food tab</p>
+                <h3 className="text-base font-bold text-brand-green-dark dark:text-zinc-100">Checkout {checkoutModal.name}</h3>
+                <p className="text-xs text-brand-green-dark/50 dark:text-zinc-500">Unpaid food tab</p>
               </div>
-              <button type="button" onClick={() => !checkoutBusy && setCheckoutModal(null)} className="rounded-lg p-1.5 hover:bg-brand-sand dark:hover:bg-accent">
-                <XIcon className="h-5 w-5 text-brand-green-dark/60 dark:text-muted-foreground" />
+              <button type="button" onClick={() => !checkoutBusy && setCheckoutModal(null)} className="rounded-lg p-1.5 hover:bg-brand-sand dark:hover:bg-zinc-800">
+                <XIcon className="h-5 w-5 text-brand-green-dark/60 dark:text-zinc-400" />
               </button>
             </div>
 
@@ -387,7 +387,7 @@ export function AdminDashboard({
                 <p className="mt-1 text-xs text-red-600">{checkoutModal.pendingOrders} unpaid order{checkoutModal.pendingOrders !== 1 ? "s" : ""}</p>
               </div>
 
-              <p className="mt-4 text-sm font-medium text-brand-green-dark dark:text-foreground">Record payment & checkout:</p>
+              <p className="mt-4 text-sm font-medium text-brand-green-dark dark:text-zinc-200">Record payment & checkout:</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -407,7 +407,7 @@ export function AdminDashboard({
                 </button>
               </div>
 
-              <div className="mt-4 border-t border-brand-mist dark:border-border pt-3">
+              <div className="mt-4 border-t border-brand-mist dark:border-zinc-800 pt-3">
                 <button
                   type="button"
                   onClick={() => doCheckout(checkoutModal.bedIdx)}
