@@ -103,6 +103,7 @@ interface MenuCategory {
   nameKannada: string;
   icon: string;
   displayOrder: number;
+  discountExempt?: number;
 }
 
 interface CartItem {
@@ -741,6 +742,8 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
   const [pendingApprovalOrders, setPendingApprovalOrders] = useState<Order[]>([]);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [filter, setFilter] = useState<SummaryFilter>("all");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   usePanelHistory(selectedGroupKey !== null, () => setSelectedGroupKey(null));
@@ -765,10 +768,11 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [hostelRes, walkinRes, activeRes] = await Promise.all([
+      const [hostelRes, walkinRes, activeRes, menuRes] = await Promise.all([
         apiCall({ action: "getGuestsWithTabs" }),
         apiCall({ action: "getWalkinOrders" }),
         apiCall({ action: "listOrders", status: "active" }),
+        apiCall({ action: "getMenu" }),
       ]);
       if (hostelRes.ok) {
         const data = await hostelRes.json();
@@ -782,6 +786,11 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       if (activeRes.ok) {
         const data = await activeRes.json();
         setPendingApprovalOrders((data.orders || []).filter((o: Order) => o.status === "pending_approval"));
+      }
+      if (menuRes.ok) {
+        const data = await menuRes.json();
+        setCategories(data.categories || []);
+        setMenuItems((data.items || []).map((i: any) => ({ id: i.id, categoryId: i.categoryId, name: i.name, nameKannada: i.nameKannada || "", description: i.description || "", price: i.price, priceText: i.priceText || "", tags: i.tags || "[]", isAvailable: i.isAvailable })));
       }
     } finally {
       setLoading(false);
@@ -1022,6 +1031,8 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
     if (orders.length === 0) return;
     setPrintingGroup(group.key);
     try {
+      const exemptCatIdsPrint = new Set(categories.filter((c) => c.discountExempt).map((c) => c.id));
+      const miCatMapPrint = new Map(menuItems.map((mi) => [mi.id, mi.categoryId]));
       const allItems: BillItem[] = orders.flatMap(o =>
         o.items.filter(i => i.status !== "voided").map(i => ({
           name: i.itemName,
@@ -1035,6 +1046,15 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       const tax = orders.reduce((s, o) => s + o.tax, 0);
       const total = orders.reduce((s, o) => s + o.total, 0);
       const discount = orders.reduce((s, o) => s + (o.discount || 0), 0);
+      let printExempt = 0;
+      for (const o of orders) {
+        for (const item of o.items) {
+          if (item.status === "voided") continue;
+          const catId = miCatMapPrint.get(item.menuItemId);
+          if (catId !== undefined && exemptCatIdsPrint.has(catId)) printExempt += item.lineTotal;
+        }
+      }
+      const printGross = subtotal + discount;
       await printFoodBill({
         guestName: group.guestName,
         guestPhone: group.contactInfo || undefined,
@@ -1046,6 +1066,8 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
         total,
         taxRate: 5,
         discount: discount || undefined,
+        discountableSubtotal: printGross - printExempt,
+        exemptSubtotal: printExempt,
       });
       showSuccess("Bill printed successfully!");
     } catch (err: any) {
@@ -1085,6 +1107,8 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
   const handlePdfGroup = async (group: SummaryGroup) => {
     const orders = getGroupOrders(group);
     if (orders.length === 0) return;
+    const exemptCatIds = new Set(categories.filter((c) => c.discountExempt).map((c) => c.id));
+    const miCatMap = new Map(menuItems.map((mi) => [mi.id, mi.categoryId]));
     const billOrders: BillOrder[] = orders.map(o => ({
       orderNumber: o.orderNumber,
       createdAt: o.createdAt,
@@ -1101,6 +1125,15 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       discount: o.discount || 0,
       specialInstructions: o.specialInstructions || undefined,
     }));
+    let exemptSub = 0;
+    for (const o of orders) {
+      for (const item of o.items) {
+        if (item.status === "voided") continue;
+        const catId = miCatMap.get(item.menuItemId);
+        if (catId !== undefined && exemptCatIds.has(catId)) exemptSub += item.lineTotal;
+      }
+    }
+    const grossSub = orders.reduce((s, o) => s + o.subtotal + (o.discount || 0), 0);
     await generateGuestBill({
       guestName: group.guestName,
       guestPhone: group.contactInfo || "",
@@ -1111,6 +1144,8 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       grandTotal: orders.reduce((s, o) => s + o.total, 0),
       taxRate: 5,
       billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+      discountableSubtotal: grossSub - exemptSub,
+      exemptSubtotal: exemptSub,
     });
   };
 
@@ -1539,9 +1574,24 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
         const discOrders = getGroupOrders(discountModalGroup);
         const totalGroupDiscount = discOrders.reduce((s, o) => s + (o.discount || 0), 0);
         const grossTotal = discOrders.reduce((s, o) => s + (o.discount || 0) + o.subtotal, 0);
+        const exemptCategoryIds = new Set(categories.filter((c) => c.discountExempt).map((c) => c.id));
+        const menuItemCategoryMap = new Map(menuItems.map((mi) => [mi.id, mi.categoryId]));
+        let exemptTotal = 0;
+        for (const o of discOrders) {
+          for (const item of o.items) {
+            if (item.status === "voided") continue;
+            const catId = menuItemCategoryMap.get(item.menuItemId);
+            if (catId !== undefined && exemptCategoryIds.has(catId)) {
+              exemptTotal += item.lineTotal;
+            }
+          }
+        }
+        const discountableTotal = grossTotal - exemptTotal;
         return (
           <DiscountModal
             totalAmount={grossTotal}
+            discountableAmount={discountableTotal}
+            exemptAmount={exemptTotal}
             currentDiscount={totalGroupDiscount}
             guestName={discountModalGroup.guestName}
             onApply={async (data) => {
@@ -1654,15 +1704,25 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [btSupported, setBtSupported] = useState(false);
   const [printingCombined, setPrintingCombined] = useState(false);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
 
   useEffect(() => { setBtSupported(isBluetoothSupported()); }, []);
 
   useEffect(() => {
     (async () => {
-      const res = await apiCall({ action: "getGuestsWithTabs" });
+      const [res, menuRes] = await Promise.all([
+        apiCall({ action: "getGuestsWithTabs" }),
+        apiCall({ action: "getMenu" }),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setGuests(data.guests || []);
+      }
+      if (menuRes.ok) {
+        const data = await menuRes.json();
+        setCategories(data.categories || []);
+        setMenuItems((data.items || []).map((i: any) => ({ id: i.id, categoryId: i.categoryId, name: i.name, nameKannada: i.nameKannada || "", description: i.description || "", price: i.price, priceText: i.priceText || "", tags: i.tags || "[]", isAvailable: i.isAvailable })));
       }
       setLoading(false);
     })();
@@ -1691,6 +1751,20 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
     if (!preview) return;
     setPrintingCombined(true);
     try {
+      const cpExemptCats = new Set(categories.filter((c) => c.discountExempt).map((c) => c.id));
+      const cpMiCatMap = new Map(menuItems.map((mi) => [mi.id, mi.categoryId]));
+      let cpExempt = 0;
+      let cpGross = 0;
+      for (const g of preview.guests as any[]) {
+        for (const o of (g.orders || []) as any[]) {
+          cpGross += ((o.subtotal || 0) + (o.discount || 0));
+          for (const i of (o.items || []) as any[]) {
+            if (i.status === "voided") continue;
+            const catId = cpMiCatMap.get(i.menuItemId);
+            if (catId !== undefined && cpExemptCats.has(catId)) cpExempt += (i.lineTotal || 0);
+          }
+        }
+      }
       const guestData = preview.guests.map((g: any) => ({
         name: g.guestName as string,
         total: (g.subtotal ?? 0) as number,
@@ -1703,7 +1777,7 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
           }))
         ),
       }));
-      await printCombinedBill(guestData, preview.grandTotal, 5);
+      await printCombinedBill(guestData, preview.grandTotal, 5, undefined, cpGross - cpExempt, cpExempt);
       showSuccess("Combined bill printed successfully!");
     } catch (err: any) {
       showError("Print failed", err.message || "Unknown error");
@@ -1796,6 +1870,20 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
               type="button"
               onClick={async () => {
                 if (!preview) return;
+                const exemptCatIds2 = new Set(categories.filter((c) => c.discountExempt).map((c) => c.id));
+                const miCatMap2 = new Map(menuItems.map((mi) => [mi.id, mi.categoryId]));
+                let combExemptSub = 0;
+                let combGrossSub = 0;
+                for (const g of preview.guests as any[]) {
+                  for (const o of (g.orders || []) as any[]) {
+                    combGrossSub += ((o.subtotal || 0) + (o.discount || 0));
+                    for (const i of (o.items || []) as any[]) {
+                      if (i.status === "voided") continue;
+                      const catId = miCatMap2.get(i.menuItemId);
+                      if (catId !== undefined && exemptCatIds2.has(catId)) combExemptSub += (i.lineTotal || 0);
+                    }
+                  }
+                }
                 const combinedData: CombinedBillData = {
                   guests: preview.guests.map((g: any) => ({
                     guestName: g.guestName as string,
@@ -1825,6 +1913,8 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                   grandTotal: preview.grandTotal,
                   taxRate: 5,
                   billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                  discountableSubtotal: combGrossSub - combExemptSub,
+                  exemptSubtotal: combExemptSub,
                 };
                 await generateCombinedBill(combinedData);
               }}
@@ -1875,6 +1965,8 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
   const [paidVisibilityDays, setPaidVisibilityDays] = useState(7);
   const [showHistory, setShowHistory] = useState(false);
   usePanelHistory(showHistory, () => setShowHistory(false));
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [modHistoryOrderId, setModHistoryOrderId] = useState<number | null>(null);
   const [modHistoryData, setModHistoryData] = useState<OrderModification[]>([]);
   const [modHistoryLoading, setModHistoryLoading] = useState(false);
@@ -1912,6 +2004,8 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
       if (menuRes.ok) {
         const data = await menuRes.json();
         setPaidVisibilityDays(parseInt(data.paymentHistoryDays) || 7);
+        setCategories(data.categories || []);
+        setMenuItems((data.items || []).map((i: any) => ({ id: i.id, categoryId: i.categoryId, name: i.name, nameKannada: i.nameKannada || "", description: i.description || "", price: i.price, priceText: i.priceText || "", tags: i.tags || "[]", isAvailable: i.isAvailable })));
       }
     } finally {
       setLoading(false);
@@ -2456,6 +2550,8 @@ function PaymentHistoryPanel({ apiCall, onClose }: { apiCall: (body: any) => Pro
   const [customTo, setCustomTo] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
 
   const getDateRange = useCallback(() => {
     if (range === "custom") return { from: customFrom, to: customTo };
@@ -2479,6 +2575,17 @@ function PaymentHistoryPanel({ apiCall, onClose }: { apiCall: (body: any) => Pro
   }, [apiCall, getDateRange]);
 
   useEffect(() => { if (range !== "custom") loadHistory(); }, [range]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await apiCall({ action: "getMenu" });
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data.categories || []);
+        setMenuItems((data.items || []).map((i: any) => ({ id: i.id, categoryId: i.categoryId, name: i.name, nameKannada: i.nameKannada || "", description: i.description || "", price: i.price, priceText: i.priceText || "", tags: i.tags || "[]", isAvailable: i.isAvailable })));
+      }
+    })();
+  }, [apiCall]);
 
   const fmt = (paise: number) => `₹${Math.round(paise / 100)}`;
 
@@ -2620,6 +2727,8 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
   const [guestTypeFilter, setGuestTypeFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
@@ -2677,6 +2786,17 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
   }, [apiCall, dateFrom, dateTo, statusFilter, guestTypeFilter, phoneFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await apiCall({ action: "getMenu" });
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data.categories || []);
+        setMenuItems((data.items || []).map((i: any) => ({ id: i.id, categoryId: i.categoryId, name: i.name, nameKannada: i.nameKannada || "", description: i.description || "", price: i.price, priceText: i.priceText || "", tags: i.tags || "[]", isAvailable: i.isAvailable })));
+      }
+    })();
+  }, [apiCall]);
 
   const handleCleanup = async () => {
     setCleanupBusy(true);
@@ -2885,6 +3005,15 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                         onClick={async () => {
                           setPrinting(order.id);
                           try {
+                            const spExemptCats = new Set(categories.filter((c) => c.discountExempt).map((c) => c.id));
+                            const spMiCatMap = new Map(menuItems.map((mi) => [mi.id, mi.categoryId]));
+                            let spExempt = 0;
+                            for (const it of order.items) {
+                              if (it.status === "voided") continue;
+                              const cid = spMiCatMap.get(it.menuItemId);
+                              if (cid !== undefined && spExemptCats.has(cid)) spExempt += it.lineTotal;
+                            }
+                            const spGross = order.subtotal + (order.discount || 0);
                             await printFoodBill({
                               billNumber: order.orderNumber,
                               guestName: order.guestName,
@@ -2902,6 +3031,9 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                               tax: order.tax,
                               total: order.total,
                               taxRate: 5,
+                              discount: order.discount || undefined,
+                              discountableSubtotal: spGross - spExempt,
+                              exemptSubtotal: spExempt,
                             });
                             showSuccess("Bill printed successfully!");
                           } catch (err: any) {
@@ -2920,6 +3052,15 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                     <button
                       type="button"
                       onClick={async () => {
+                        const exemptCatIds3 = new Set(categories.filter((c) => c.discountExempt).map((c) => c.id));
+                        const miCatMap3 = new Map(menuItems.map((mi) => [mi.id, mi.categoryId]));
+                        let singleExempt = 0;
+                        for (const it of order.items) {
+                          if (it.status === "voided") continue;
+                          const cid = miCatMap3.get(it.menuItemId);
+                          if (cid !== undefined && exemptCatIds3.has(cid)) singleExempt += it.lineTotal;
+                        }
+                        const singleGross = order.subtotal + (order.discount || 0);
                         const billOrders: BillOrder[] = [{
                           orderNumber: order.orderNumber,
                           createdAt: order.createdAt,
@@ -2945,6 +3086,8 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                           grandTotal: order.total,
                           taxRate: 5,
                           billDate: new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                          discountableSubtotal: singleGross - singleExempt,
+                          exemptSubtotal: singleExempt,
                         });
                       }}
                       className="flex items-center gap-1 rounded-lg border border-blue-200 dark:border-blue-800 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
@@ -3207,6 +3350,8 @@ const QUICK_PERCENTS = [5, 10, 15, 20, 25, 50, 100];
 
 function DiscountModal({
   totalAmount,
+  discountableAmount,
+  exemptAmount,
   currentDiscount,
   guestName,
   onApply,
@@ -3214,6 +3359,8 @@ function DiscountModal({
   onClose,
 }: {
   totalAmount: number;
+  discountableAmount: number;
+  exemptAmount: number;
   currentDiscount: number;
   guestName: string;
   onApply: (data: { discountPercent?: number; discountAmount?: number; reason: string }) => void;
@@ -3228,10 +3375,11 @@ function DiscountModal({
   const [saving, setSaving] = useState(false);
 
   const totalRupees = totalAmount / 100;
+  const hasExemptItems = exemptAmount > 0;
 
   const discountPaise = mode === "percent"
-    ? Math.round(totalAmount * (Math.min(100, Math.max(0, Number(percentInput) || 0)) / 100))
-    : Math.round(Math.min(totalAmount, Math.max(0, (Number(fixedInput) || 0) * 100)));
+    ? Math.round(discountableAmount * (Math.min(100, Math.max(0, Number(percentInput) || 0)) / 100))
+    : Math.round(Math.min(discountableAmount, Math.max(0, (Number(fixedInput) || 0) * 100)));
 
   const newTotal = Math.max(0, totalAmount - discountPaise);
   const finalReason = reason === "Other" ? customReason : reason;
@@ -3267,6 +3415,12 @@ function DiscountModal({
           <div className="bg-brand-sand/40 px-5 py-3 text-center">
             <p className="text-xs text-brand-green-dark/60">Original Total</p>
             <p className="text-2xl font-bold text-brand-green">₹{totalRupees.toFixed(0)}</p>
+            {hasExemptItems && (
+              <div className="mt-1.5 flex justify-center gap-3 text-[11px]">
+                <span className="text-brand-green-dark/60">Discountable: <span className="font-semibold text-brand-green-dark">₹{(discountableAmount / 100).toFixed(0)}</span></span>
+                <span className="text-purple-600 dark:text-purple-400">Non-discountable: <span className="font-semibold">₹{(exemptAmount / 100).toFixed(0)}</span></span>
+              </div>
+            )}
           </div>
 
           {/* Mode Tabs */}
@@ -3369,10 +3523,23 @@ function DiscountModal({
             {/* Preview */}
             {discountPaise > 0 && (
               <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950 px-4 py-3 space-y-1">
-                <div className="flex justify-between text-sm text-brand-green-dark/70">
-                  <span>Original Total</span>
-                  <span>₹{totalRupees.toFixed(0)}</span>
-                </div>
+                {hasExemptItems ? (
+                  <>
+                    <div className="flex justify-between text-sm text-brand-green-dark/70">
+                      <span>Discountable Items</span>
+                      <span>₹{(discountableAmount / 100).toFixed(0)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-brand-green-dark/50">
+                      <span>Non-discountable Items</span>
+                      <span>₹{(exemptAmount / 100).toFixed(0)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between text-sm text-brand-green-dark/70">
+                    <span>Original Total</span>
+                    <span>₹{totalRupees.toFixed(0)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm font-semibold text-purple-700 dark:text-purple-400">
                   <span>Discount</span>
                   <span>-₹{(discountPaise / 100).toFixed(0)}</span>

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "addCategory": {
-        const { name, nameKannada, icon, description, displayOrder } = params;
+        const { name, nameKannada, icon, description, displayOrder, discountExempt } = params;
         if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
         await addMenuCategory({
           name: name.trim(),
@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
           icon: icon || "🍽️",
           description: description || "",
           displayOrder: displayOrder ?? 0,
+          discountExempt: discountExempt ? 1 : 0,
         });
         return NextResponse.json({ ok: true });
       }

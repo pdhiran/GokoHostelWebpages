@@ -34,6 +34,7 @@ import {
   areAllOrderItemsInventory,
   updateFoodOrderItemQuantity,
   deleteFoodOrderItem,
+  getMenuItemCategoryExemptions,
 } from "@/db/queries";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { authenticateUser } from "@/lib/auth";
@@ -350,7 +351,9 @@ export async function POST(req: NextRequest) {
           .where(and(eq(foodOrderItems.orderId, orderId), sql`${foodOrderItems.status} != 'voided'`));
         const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
         const [currentOrder] = await db.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
-        const existingDiscount = Math.min(currentOrder?.discount || 0, grossSubtotal);
+        const exemptions = await getMenuItemCategoryExemptions(activeItems.map((i) => i.menuItemId));
+        const discountableSubtotal = activeItems.filter((i) => !exemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
+        const existingDiscount = Math.min(currentOrder?.discount || 0, discountableSubtotal);
         const newSubtotal = grossSubtotal - existingDiscount;
         const voidTaxRateStr = await getSetting("food_tax_rate");
         const voidTaxRate = Number(voidTaxRateStr) || 5;
@@ -398,7 +401,9 @@ export async function POST(req: NextRequest) {
         const actItems = updItems.filter((i) => i.status !== "voided");
         const grossSub = actItems.reduce((sum, i) => sum + i.lineTotal, 0);
         const [curOrd] = await db.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
-        const disc = Math.min(curOrd?.discount || 0, grossSub);
+        const qtyExemptions = await getMenuItemCategoryExemptions(actItems.map((i) => i.menuItemId));
+        const qtyDiscountable = actItems.filter((i) => !qtyExemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
+        const disc = Math.min(curOrd?.discount || 0, qtyDiscountable);
         const qtyTaxRateStr = await getSetting("food_tax_rate");
         const qtyTaxRate = Number(qtyTaxRateStr) || 5;
         const qtySubtotal = grossSub - disc;
@@ -422,30 +427,34 @@ export async function POST(req: NextRequest) {
         const discTaxRateStr = await getSetting("food_tax_rate");
         const discTaxRate = Number(discTaxRateStr) || 5;
 
-        const orderData: { id: number; grossSubtotal: number }[] = [];
+        const orderData: { id: number; grossSubtotal: number; discountableSubtotal: number }[] = [];
         for (const oid of orderIds) {
           const items = await getFoodOrderItems(oid);
           const activeItems = items.filter((i) => i.status !== "voided");
+          const exemptions = await getMenuItemCategoryExemptions(activeItems.map((i) => i.menuItemId));
           const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
-          orderData.push({ id: oid, grossSubtotal });
+          const discountableSubtotal = activeItems.filter((i) => !exemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
+          orderData.push({ id: oid, grossSubtotal, discountableSubtotal });
         }
 
         const grossTotal = orderData.reduce((sum, o) => sum + o.grossSubtotal, 0);
         if (grossTotal <= 0) return NextResponse.json({ error: "No billable items" }, { status: 400 });
 
+        const discountableTotal = orderData.reduce((sum, o) => sum + o.discountableSubtotal, 0);
+
         let totalDiscount: number;
         if (discountPercent != null) {
           const pct = Math.max(0, Math.min(100, Number(discountPercent)));
-          totalDiscount = Math.round(grossTotal * pct / 100);
+          totalDiscount = Math.round(discountableTotal * pct / 100);
         } else {
-          totalDiscount = Math.max(0, Math.min(grossTotal, Math.abs(Number(discountAmount))));
+          totalDiscount = Math.max(0, Math.min(discountableTotal, Math.abs(Number(discountAmount))));
         }
 
         let discountAssigned = 0;
         for (let oi = 0; oi < orderData.length; oi++) {
           const od = orderData[oi];
           const isLast = oi === orderData.length - 1;
-          const proportion = grossTotal > 0 ? od.grossSubtotal / grossTotal : 0;
+          const proportion = discountableTotal > 0 ? od.discountableSubtotal / discountableTotal : 0;
           const orderDiscount = isLast ? (totalDiscount - discountAssigned) : Math.round(totalDiscount * proportion);
           discountAssigned += orderDiscount;
           const newSubtotal = Math.max(0, od.grossSubtotal - orderDiscount);
@@ -473,7 +482,7 @@ export async function POST(req: NextRequest) {
           username: actorName,
           action: "food_discount",
           target: `orders:${orderIds.join(",")}`,
-          details: `Discount ₹${(totalDiscount / 100).toFixed(0)} on gross ₹${(grossTotal / 100).toFixed(0)}. Reason: ${reason}`,
+          details: `Discount ₹${(totalDiscount / 100).toFixed(0)} on discountable ₹${(discountableTotal / 100).toFixed(0)} of gross ₹${(grossTotal / 100).toFixed(0)}. Reason: ${reason}`,
         });
         return NextResponse.json({ success: true, role });
       }

@@ -35,6 +35,8 @@ export type GuestBillData = {
   taxRate: number;
   paymentMethod?: string;
   billDate: string;
+  discountableSubtotal?: number;
+  exemptSubtotal?: number;
 };
 
 export type CombinedBillData = {
@@ -54,6 +56,8 @@ export type CombinedBillData = {
   equalSplitAmount?: number;
   paymentMethod?: string;
   billDate: string;
+  discountableSubtotal?: number;
+  exemptSubtotal?: number;
 };
 
 
@@ -273,11 +277,27 @@ export async function generateGuestBill(data: GuestBillData): Promise<void> {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text("Subtotal:", labelsX, y, { align: "right" });
-  doc.text(formatPaise(data.grandSubtotal), totalsX, y, { align: "right" });
-  y += 5;
 
   const grandDiscount = data.orders.reduce((sum, o) => sum + (o.discount || 0), 0);
+  const hasExemptSplit = grandDiscount > 0 && data.exemptSubtotal && data.exemptSubtotal > 0;
+
+  if (hasExemptSplit) {
+    doc.text("Discountable Items:", labelsX, y, { align: "right" });
+    doc.text(formatPaise(data.discountableSubtotal ?? 0), totalsX, y, { align: "right" });
+    y += 5;
+    doc.setFontSize(9);
+    doc.setTextColor(120, 120, 120);
+    doc.text("Non-discountable Items:", labelsX, y, { align: "right" });
+    doc.text(formatPaise(data.exemptSubtotal ?? 0), totalsX, y, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    y += 5;
+  } else {
+    doc.text("Subtotal:", labelsX, y, { align: "right" });
+    doc.text(formatPaise(data.grandSubtotal), totalsX, y, { align: "right" });
+    y += 5;
+  }
+
   if (grandDiscount > 0) {
     doc.setTextColor(22, 163, 74);
     doc.text("Discount:", labelsX, y, { align: "right" });
@@ -421,13 +441,29 @@ export async function generateCombinedBill(data: CombinedBillData): Promise<void
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text("Combined Subtotal:", labelsX, y, { align: "right" });
-  doc.text(formatPaise(data.grandSubtotal), totalsX, y, { align: "right" });
-  y += 5;
 
   const combinedDiscount = data.guests.reduce(
     (sum, g) => sum + g.orders.reduce((s, o) => s + (o.discount || 0), 0), 0
   );
+  const hasCombinedExemptSplit = combinedDiscount > 0 && data.exemptSubtotal && data.exemptSubtotal > 0;
+
+  if (hasCombinedExemptSplit) {
+    doc.text("Discountable Items:", labelsX, y, { align: "right" });
+    doc.text(formatPaise(data.discountableSubtotal ?? 0), totalsX, y, { align: "right" });
+    y += 5;
+    doc.setFontSize(9);
+    doc.setTextColor(120, 120, 120);
+    doc.text("Non-discountable Items:", labelsX, y, { align: "right" });
+    doc.text(formatPaise(data.exemptSubtotal ?? 0), totalsX, y, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    y += 5;
+  } else {
+    doc.text("Combined Subtotal:", labelsX, y, { align: "right" });
+    doc.text(formatPaise(data.grandSubtotal), totalsX, y, { align: "right" });
+    y += 5;
+  }
+
   if (combinedDiscount > 0) {
     doc.setTextColor(22, 163, 74);
     doc.text("Discount:", labelsX, y, { align: "right" });

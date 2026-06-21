@@ -20,6 +20,7 @@ import {
   getMenuItemById,
   getFoodOrderById,
   areAllOrderItemsInventory,
+  getMenuItemCategoryExemptions,
 } from "@/db/queries";
 import { getDb } from "@/db";
 import { foodOrderItems, foodOrders, orderModifications } from "@/db/schema";
@@ -146,7 +147,9 @@ export async function POST(req: NextRequest) {
       const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
       const db2 = getDb();
       const [curOrder] = await db2.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
-      const existingDiscount = Math.min(curOrder?.discount || 0, grossSubtotal);
+      const exemptions = await getMenuItemCategoryExemptions(activeItems.map((i) => i.menuItemId));
+      const discountableSubtotal = activeItems.filter((i) => !exemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
+      const existingDiscount = Math.min(curOrder?.discount || 0, discountableSubtotal);
       const subtotal = grossSubtotal - existingDiscount;
       const taxRateStr = await getSetting("food_tax_rate");
       const taxRate = Number(taxRateStr) || 5;
@@ -209,7 +212,9 @@ export async function POST(req: NextRequest) {
       const grossSub = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
       const db3 = getDb();
       const [curOrd] = await db3.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
-      const disc = Math.min(curOrd?.discount || 0, grossSub);
+      const kitchenExemptions = await getMenuItemCategoryExemptions(activeItems.map((i) => i.menuItemId));
+      const kitchenDiscountable = activeItems.filter((i) => !kitchenExemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
+      const disc = Math.min(curOrd?.discount || 0, kitchenDiscountable);
       const subtotal = grossSub - disc;
       const taxRateStr = await getSetting("food_tax_rate");
       const taxRate = Number(taxRateStr) || 5;
@@ -265,7 +270,9 @@ export async function POST(req: NextRequest) {
       const grossSub2 = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
       const db4 = getDb();
       const [curOrd2] = await db4.select({ discount: foodOrders.discount }).from(foodOrders).where(eq(foodOrders.id, orderId)).limit(1);
-      const disc2 = Math.min(curOrd2?.discount || 0, grossSub2);
+      const addExemptions = await getMenuItemCategoryExemptions(activeItems.map((i) => i.menuItemId));
+      const addDiscountable = activeItems.filter((i) => !addExemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
+      const disc2 = Math.min(curOrd2?.discount || 0, addDiscountable);
       const subtotal = grossSub2 - disc2;
       const taxRateStr = await getSetting("food_tax_rate");
       const taxRate = Number(taxRateStr) || 5;

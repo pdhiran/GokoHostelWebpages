@@ -191,6 +191,7 @@ export const menuCategories = sqliteTable("menu_categories", {
   displayOrder: integer("display_order").notNull().default(0),
   isActive: integer("is_active").notNull().default(1),
   trackInventoryDefault: integer("track_inventory_default").notNull().default(0),
+  discountExempt: integer("discount_exempt").notNull().default(0),
   ...syncColumnsWithDelete,
 });
 

@@ -24,6 +24,7 @@ type Category = {
   isActive: number;
   itemCount: number;
   trackInventoryDefault: number;
+  discountExempt: number;
 };
 
 type MenuItem = {
@@ -52,6 +53,7 @@ type CategoryForm = {
   description: string;
   displayOrder: string;
   trackInventoryDefault: boolean;
+  discountExempt: boolean;
 };
 
 type ItemForm = {
@@ -78,7 +80,7 @@ type ItemForm = {
   lowStockThreshold: string;
 };
 
-const emptyCategoryForm: CategoryForm = { name: "", nameKannada: "", icon: "🍽️", description: "", displayOrder: "0", trackInventoryDefault: false };
+const emptyCategoryForm: CategoryForm = { name: "", nameKannada: "", icon: "🍽️", description: "", displayOrder: "0", trackInventoryDefault: false, discountExempt: false };
 const emptyItemForm: ItemForm = {
   categoryId: "", name: "", nameKannada: "", description: "",
   priceDisplay: "", priceText: "", tagVeg: false, tagNonVeg: false, tagSpicy: false,
@@ -182,6 +184,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
       description: cat.description || "",
       displayOrder: String(cat.displayOrder),
       trackInventoryDefault: !!cat.trackInventoryDefault,
+      discountExempt: !!cat.discountExempt,
     });
     setEditingCategoryId(cat.id);
     setShowCategoryForm(true);
@@ -199,6 +202,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         description: categoryForm.description.trim(),
         displayOrder: parseInt(categoryForm.displayOrder) || 0,
         trackInventoryDefault: categoryForm.trackInventoryDefault ? 1 : 0,
+        discountExempt: categoryForm.discountExempt ? 1 : 0,
       };
       const res = editingCategoryId
         ? await apiCall({ action: "updateCategory", id: editingCategoryId, ...payload })
@@ -439,6 +443,10 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                 <input type="checkbox" id="catTrackInv" checked={categoryForm.trackInventoryDefault} onChange={(e) => setCategoryForm({ ...categoryForm, trackInventoryDefault: e.target.checked })} className="rounded" />
                 <Label htmlFor="catTrackInv" className="text-xs cursor-pointer">Default Inventory Tracking — new items auto-enable inventory</Label>
               </div>
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <input type="checkbox" id="catDiscExempt" checked={categoryForm.discountExempt} onChange={(e) => setCategoryForm({ ...categoryForm, discountExempt: e.target.checked })} className="rounded" />
+                <Label htmlFor="catDiscExempt" className="text-xs cursor-pointer">Exempt from Discounts — items in this category won&apos;t be discounted when applying bill discounts</Label>
+              </div>
             </div>
             <div className="mt-4 flex gap-2">
               <Button type="button" variant="cta" size="sm" onClick={saveCategory} disabled={saving}>
@@ -493,6 +501,11 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                   )}>
                     {cat.isActive ? "Active" : "Inactive"}
                   </span>
+                  {!!cat.discountExempt && (
+                    <span className="rounded-full bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 dark:text-purple-400">
+                      No Discount
+                    </span>
+                  )}
                   <button type="button" onClick={() => toggleCategoryActive(cat)} className="rounded p-1 text-brand-green-dark/40 hover:bg-brand-sand/50 hover:text-brand-green-dark" title="Toggle active">
                     {cat.isActive ? <ToggleRightIcon className="h-4 w-4 text-green-600" /> : <ToggleLeftIcon className="h-4 w-4" />}
                   </button>

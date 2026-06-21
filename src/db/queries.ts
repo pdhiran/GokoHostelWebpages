@@ -437,7 +437,7 @@ export async function getAllMenuCategories() {
   return db.select().from(menuCategories).orderBy(menuCategories.displayOrder);
 }
 
-export async function addMenuCategory(data: { name: string; nameKannada?: string; icon?: string; description?: string; displayOrder?: number }) {
+export async function addMenuCategory(data: { name: string; nameKannada?: string; icon?: string; description?: string; displayOrder?: number; discountExempt?: number }) {
   const db = getDb();
   return db.insert(menuCategories).values(syncInsert({
     name: data.name,
@@ -446,6 +446,7 @@ export async function addMenuCategory(data: { name: string; nameKannada?: string
     description: data.description || "",
     displayOrder: data.displayOrder || 0,
     isActive: 1,
+    discountExempt: data.discountExempt ?? 0,
   }));
 }
 
@@ -458,6 +459,24 @@ export async function deleteMenuCategory(id: number) {
   const db = getDb();
   await db.delete(menuItems).where(eq(menuItems.categoryId, id));
   await db.delete(menuCategories).where(eq(menuCategories.id, id));
+}
+
+export async function getMenuItemCategoryExemptions(menuItemIds: number[]): Promise<Map<number, boolean>> {
+  if (menuItemIds.length === 0) return new Map();
+  const db = getDb();
+  const rows = await db
+    .select({
+      menuItemId: menuItems.id,
+      discountExempt: menuCategories.discountExempt,
+    })
+    .from(menuItems)
+    .innerJoin(menuCategories, eq(menuItems.categoryId, menuCategories.id))
+    .where(inArray(menuItems.id, menuItemIds));
+  const result = new Map<number, boolean>();
+  for (const r of rows) {
+    result.set(r.menuItemId, r.discountExempt === 1);
+  }
+  return result;
 }
 
 // --- Menu Items ---

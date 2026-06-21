@@ -172,6 +172,8 @@ export interface BillData {
   taxRate: number;
   paymentMethod?: string;
   date?: string;
+  discountableSubtotal?: number;
+  exemptSubtotal?: number;
 }
 
 export interface OrderTicketData {
@@ -224,7 +226,13 @@ export async function printFoodBill(data: BillData): Promise<void> {
   }
 
   parts.push(line(separator("-")));
-  parts.push(line(twoColumn("Subtotal:", formatPaise(data.subtotal))));
+  const hasExemptSplit = data.discount && data.discount > 0 && data.exemptSubtotal && data.exemptSubtotal > 0;
+  if (hasExemptSplit) {
+    parts.push(line(twoColumn("Discountable:", formatPaise(data.discountableSubtotal ?? 0))));
+    parts.push(line(twoColumn("Non-discount:", formatPaise(data.exemptSubtotal ?? 0))));
+  } else {
+    parts.push(line(twoColumn("Subtotal:", formatPaise(data.subtotal))));
+  }
   if (data.discount && data.discount > 0) {
     parts.push(line(twoColumn("Discount:", `-${formatPaise(data.discount)}`)));
   }
@@ -294,6 +302,8 @@ export async function printCombinedBill(
   grandTotal: number,
   taxRate: number,
   paymentMethod?: string,
+  discountableSubtotal?: number,
+  exemptSubtotal?: number,
 ): Promise<void> {
   await connectPrinter();
 
@@ -329,6 +339,11 @@ export async function printCombinedBill(
 
   parts.push(line(separator("-")));
   const combinedDiscount = guests.reduce((sum, g) => sum + (g.discount || 0), 0);
+  const hasCombExempt = combinedDiscount > 0 && exemptSubtotal && exemptSubtotal > 0;
+  if (hasCombExempt) {
+    parts.push(line(twoColumn("Discountable:", formatPaise(discountableSubtotal ?? 0))));
+    parts.push(line(twoColumn("Non-discount:", formatPaise(exemptSubtotal ?? 0))));
+  }
   if (combinedDiscount > 0) {
     parts.push(line(twoColumn("Discount:", `-${formatPaise(combinedDiscount)}`)));
   }
