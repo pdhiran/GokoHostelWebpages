@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
-import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback } from "./schema";
+import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
 
@@ -1132,4 +1132,235 @@ export async function getReviewAnalytics(filters: { fromDate?: string; toDate?: 
     ratingDistribution: ratingDist,
     improvementAreas: improvementCounts,
   };
+}
+
+// --- Channel Manager ---
+
+export async function getChannelConfig() {
+  const db = getDb();
+  const rows = await db.select().from(channelConfig).limit(1);
+  return rows[0] || null;
+}
+
+export async function upsertChannelConfig(data: {
+  provider?: string; hotelCode: string; pmsId: string; apiBaseUrl: string;
+  apiUsername: string; apiPassword: string; webhookSecret?: string;
+  bookingEngineUrl?: string; isActive?: number;
+}) {
+  const db = getDb();
+  const existing = await getChannelConfig();
+  if (existing) {
+    return db.update(channelConfig).set({
+      ...data,
+      isActive: data.isActive ?? existing.isActive,
+    }).where(eq(channelConfig.id, existing.id));
+  }
+  return db.insert(channelConfig).values({
+    ...data,
+    provider: data.provider || "aiosell",
+    webhookSecret: data.webhookSecret || "",
+    bookingEngineUrl: data.bookingEngineUrl || "",
+    isActive: data.isActive ?? 0,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function updateChannelSyncTime() {
+  const db = getDb();
+  const config = await getChannelConfig();
+  if (config) {
+    await db.update(channelConfig).set({ lastSyncAt: new Date().toISOString() }).where(eq(channelConfig.id, config.id));
+  }
+}
+
+export async function getRoomTypeMappings() {
+  const db = getDb();
+  return db.select().from(roomTypeMapping).orderBy(roomTypeMapping.dormName);
+}
+
+export async function upsertRoomTypeMapping(data: {
+  id?: number; dormId: number; dormName: string; channelRoomCode: string;
+  totalInventory: number; isActive?: number;
+}) {
+  const db = getDb();
+  if (data.id) {
+    return db.update(roomTypeMapping).set({
+      dormId: data.dormId,
+      dormName: data.dormName,
+      channelRoomCode: data.channelRoomCode,
+      totalInventory: data.totalInventory,
+      isActive: data.isActive ?? 1,
+    }).where(eq(roomTypeMapping.id, data.id));
+  }
+  return db.insert(roomTypeMapping).values({
+    dormId: data.dormId,
+    dormName: data.dormName,
+    channelRoomCode: data.channelRoomCode,
+    totalInventory: data.totalInventory,
+    isActive: data.isActive ?? 1,
+  });
+}
+
+export async function deleteRoomTypeMapping(id: number) {
+  const db = getDb();
+  const plans = await db.select().from(ratePlanMapping).where(eq(ratePlanMapping.roomMappingId, id));
+  for (const plan of plans) {
+    await db.delete(dailyRates).where(eq(dailyRates.ratePlanId, plan.id));
+  }
+  await db.delete(ratePlanMapping).where(eq(ratePlanMapping.roomMappingId, id));
+  return db.delete(roomTypeMapping).where(eq(roomTypeMapping.id, id));
+}
+
+export async function getRatePlanMappings(roomMappingId?: number) {
+  const db = getDb();
+  if (roomMappingId) {
+    return db.select().from(ratePlanMapping).where(eq(ratePlanMapping.roomMappingId, roomMappingId));
+  }
+  return db.select().from(ratePlanMapping);
+}
+
+export async function upsertRatePlanMapping(data: {
+  id?: number; roomMappingId: number; ratePlanCode: string;
+  ratePlanName: string; isActive?: number;
+}) {
+  const db = getDb();
+  if (data.id) {
+    return db.update(ratePlanMapping).set({
+      roomMappingId: data.roomMappingId,
+      ratePlanCode: data.ratePlanCode,
+      ratePlanName: data.ratePlanName,
+      isActive: data.isActive ?? 1,
+    }).where(eq(ratePlanMapping.id, data.id));
+  }
+  return db.insert(ratePlanMapping).values({
+    roomMappingId: data.roomMappingId,
+    ratePlanCode: data.ratePlanCode,
+    ratePlanName: data.ratePlanName,
+    isActive: data.isActive ?? 1,
+  });
+}
+
+export async function deleteRatePlanMapping(id: number) {
+  const db = getDb();
+  await db.delete(dailyRates).where(eq(dailyRates.ratePlanId, id));
+  return db.delete(ratePlanMapping).where(eq(ratePlanMapping.id, id));
+}
+
+export async function getDailyRates(ratePlanId: number, startDate: string, endDate: string) {
+  const db = getDb();
+  return db.select().from(dailyRates).where(
+    and(
+      eq(dailyRates.ratePlanId, ratePlanId),
+      gte(dailyRates.date, startDate),
+      lte(dailyRates.date, endDate)
+    )
+  ).orderBy(dailyRates.date);
+}
+
+export async function getAllDailyRates(startDate: string, endDate: string) {
+  const db = getDb();
+  return db.select().from(dailyRates).where(
+    and(gte(dailyRates.date, startDate), lte(dailyRates.date, endDate))
+  ).orderBy(dailyRates.date);
+}
+
+export async function upsertDailyRate(data: {
+  ratePlanId: number; date: string; rate: number;
+  stopSell?: number; minimumStay?: number; maximumStay?: number | null;
+  closeOnArrival?: number; closeOnDeparture?: number;
+  minimumAdvanceReservation?: number | null; maximumAdvanceReservation?: number | null;
+  updatedBy?: string;
+}) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const existing = await db.select().from(dailyRates).where(
+    and(eq(dailyRates.ratePlanId, data.ratePlanId), eq(dailyRates.date, data.date))
+  ).limit(1);
+
+  if (existing.length > 0) {
+    return db.update(dailyRates).set({
+      rate: data.rate,
+      stopSell: data.stopSell ?? 0,
+      minimumStay: data.minimumStay ?? 1,
+      maximumStay: data.maximumStay,
+      closeOnArrival: data.closeOnArrival ?? 0,
+      closeOnDeparture: data.closeOnDeparture ?? 0,
+      minimumAdvanceReservation: data.minimumAdvanceReservation,
+      maximumAdvanceReservation: data.maximumAdvanceReservation,
+      updatedBy: data.updatedBy || "",
+      updatedAt: now,
+    }).where(eq(dailyRates.id, existing[0].id));
+  }
+  return db.insert(dailyRates).values({
+    ratePlanId: data.ratePlanId,
+    date: data.date,
+    rate: data.rate,
+    stopSell: data.stopSell ?? 0,
+    minimumStay: data.minimumStay ?? 1,
+    maximumStay: data.maximumStay ?? null,
+    closeOnArrival: data.closeOnArrival ?? 0,
+    closeOnDeparture: data.closeOnDeparture ?? 0,
+    minimumAdvanceReservation: data.minimumAdvanceReservation ?? null,
+    maximumAdvanceReservation: data.maximumAdvanceReservation ?? null,
+    updatedBy: data.updatedBy || "",
+    updatedAt: now,
+    syncedAt: "",
+  });
+}
+
+export async function bulkUpsertDailyRates(rates: Array<{
+  ratePlanId: number; date: string; rate: number;
+  stopSell?: number; minimumStay?: number; maximumStay?: number | null;
+  closeOnArrival?: number; closeOnDeparture?: number;
+  updatedBy?: string;
+}>) {
+  let count = 0;
+  for (const r of rates) {
+    await upsertDailyRate(r);
+    count++;
+  }
+  return count;
+}
+
+export async function markRatesSynced(ratePlanId: number, startDate: string, endDate: string) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  return db.update(dailyRates).set({ syncedAt: now }).where(
+    and(
+      eq(dailyRates.ratePlanId, ratePlanId),
+      gte(dailyRates.date, startDate),
+      lte(dailyRates.date, endDate)
+    )
+  );
+}
+
+export async function addChannelSyncLog(data: {
+  direction: string; type: string; status: string;
+  requestPayload?: string; responsePayload?: string;
+  errorMessage?: string; recordsAffected?: number;
+}) {
+  const db = getDb();
+  return db.insert(channelSyncLog).values({
+    direction: data.direction,
+    type: data.type,
+    status: data.status,
+    requestPayload: data.requestPayload || "",
+    responsePayload: data.responsePayload || "",
+    errorMessage: data.errorMessage || "",
+    recordsAffected: data.recordsAffected || 0,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function getChannelSyncLogs(limit = 50) {
+  const db = getDb();
+  return db.select().from(channelSyncLog).orderBy(desc(channelSyncLog.id)).limit(limit);
+}
+
+export async function getAvailableBedsForDorm(dormId: number): Promise<number> {
+  const db = getDb();
+  const rows = await db.select().from(beds).where(
+    and(eq(beds.dormId, dormId), eq(beds.status, "available"))
+  );
+  return rows.length;
 }

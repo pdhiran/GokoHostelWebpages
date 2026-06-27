@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon, WifiIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
@@ -18,6 +18,7 @@ import { AdminBulkImport } from "./AdminBulkImport";
 import { QRGenerator } from "./qr-generator";
 import { AccountSettings } from "./AccountSettings";
 import { ServerSync } from "./ServerSync";
+import { ChannelManager } from "./ChannelManager";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role, ManagementTab } from "./types";
 
@@ -36,6 +37,7 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "qrGenerator", label: "QR Codes", icon: <QrCodeIcon className="h-3.5 w-3.5" />, permission: "canUseQRGenerator" },
   { id: "accountSettings", label: "Account Settings", icon: <WalletIcon className="h-3.5 w-3.5" />, permission: "canManageAccounts" },
   { id: "serverSync", label: "Server Sync", icon: <ServerIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "channelManager", label: "Channel Manager", icon: <WifiIcon className="h-3.5 w-3.5" />, adminOnly: true },
 ];
 
 export function AdminManagement({ password, username, role, permissions = {}, initialTab, onTabUsed }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean>; initialTab?: ManagementTab; onTabUsed?: () => void }) {
@@ -148,6 +150,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         {tab === "qrGenerator" && <QRGenerator password={password} username={username} role={role} />}
         {tab === "accountSettings" && <AccountSettings password={password} username={username} role={role} />}
         {tab === "serverSync" && <ServerSync password={password} username={username} role={role} />}
+        {tab === "channelManager" && <ChannelManager password={password} username={username} role={role} />}
       </div>
     </div>
   );

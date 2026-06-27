@@ -48,8 +48,8 @@ export const bookingGateCopy = {
   agreeLabelBefore: "I agree to the ",
   termsInlineLabel: "terms and conditions",
   reserveCta: "Reserve My Spot",
-  redirectNoteLine1: "You will be redirected to our trusted partner",
-  redirectPartner: "StayFlexi",
+  redirectNoteLine1: "You will be redirected to our trusted booking partner to complete your reservation.",
+  redirectPartner: "",
   early: {
     title: "Coming in before check-in time?",
     body:

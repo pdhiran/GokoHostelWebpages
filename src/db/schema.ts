@@ -514,3 +514,71 @@ export const syncIdMap = sqliteTable("sync_id_map", {
   uniqueIndex("idx_sync_id_map_unique").on(table.tableName, table.syncId),
   index("idx_sync_id_map_lookup").on(table.tableName, table.localId),
 ]);
+
+// --- Channel Manager (Aiosell Integration) ---
+
+export const channelConfig = sqliteTable("channel_config", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  provider: text("provider").notNull().default("aiosell"),
+  hotelCode: text("hotel_code").notNull(),
+  pmsId: text("pms_id").notNull(),
+  apiBaseUrl: text("api_base_url").notNull(),
+  apiUsername: text("api_username").notNull(),
+  apiPassword: text("api_password").notNull(),
+  webhookSecret: text("webhook_secret").default(""),
+  bookingEngineUrl: text("booking_engine_url").default(""),
+  isActive: integer("is_active").notNull().default(0),
+  lastSyncAt: text("last_sync_at").default(""),
+  createdAt: text("created_at").notNull(),
+});
+
+export const roomTypeMapping = sqliteTable("room_type_mapping", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  dormId: integer("dorm_id").notNull().references(() => dorms.id),
+  dormName: text("dorm_name").notNull(),
+  channelRoomCode: text("channel_room_code").notNull(),
+  totalInventory: integer("total_inventory").notNull(),
+  isActive: integer("is_active").notNull().default(1),
+});
+
+export const ratePlanMapping = sqliteTable("rate_plan_mapping", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  roomMappingId: integer("room_mapping_id").notNull().references(() => roomTypeMapping.id),
+  ratePlanCode: text("rate_plan_code").notNull(),
+  ratePlanName: text("rate_plan_name").notNull(),
+  isActive: integer("is_active").notNull().default(1),
+});
+
+export const dailyRates = sqliteTable("daily_rates", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ratePlanId: integer("rate_plan_id").notNull().references(() => ratePlanMapping.id),
+  date: text("date").notNull(),
+  rate: integer("rate").notNull(),
+  stopSell: integer("stop_sell").notNull().default(0),
+  minimumStay: integer("minimum_stay").notNull().default(1),
+  maximumStay: integer("maximum_stay"),
+  closeOnArrival: integer("close_on_arrival").notNull().default(0),
+  closeOnDeparture: integer("close_on_departure").notNull().default(0),
+  minimumAdvanceReservation: integer("minimum_advance_reservation"),
+  maximumAdvanceReservation: integer("maximum_advance_reservation"),
+  updatedBy: text("updated_by").default(""),
+  updatedAt: text("updated_at").notNull(),
+  syncedAt: text("synced_at").default(""),
+}, (table) => [
+  uniqueIndex("idx_daily_rates_plan_date").on(table.ratePlanId, table.date),
+]);
+
+export const channelSyncLog = sqliteTable("channel_sync_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  direction: text("direction").notNull(),
+  type: text("type").notNull(),
+  status: text("status").notNull(),
+  requestPayload: text("request_payload").default(""),
+  responsePayload: text("response_payload").default(""),
+  errorMessage: text("error_message").default(""),
+  recordsAffected: integer("records_affected").default(0),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_channel_sync_created").on(table.createdAt),
+  index("idx_channel_sync_type").on(table.type),
+]);
