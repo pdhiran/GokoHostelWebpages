@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PlusIcon, TableIcon, CalendarIcon, AlertCircleIcon, RefreshCwIcon, Loader2Icon } from "lucide-react";
 import { BookingCalendarGrid } from "./BookingCalendarGrid";
-import { BookingMobileDayView } from "./BookingMobileDayView";
 import { BookingTableView } from "./BookingTableView";
 import { BookingSearchBar } from "./BookingSearchBar";
 import { BookingDetailPanel } from "./BookingDetailPanel";
@@ -36,16 +35,6 @@ function useBookingApi(password: string, username?: string) {
   return { apiCall };
 }
 
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-  return isMobile;
-}
 
 export function BookingDashboard({
   password,
@@ -60,7 +49,6 @@ export function BookingDashboard({
 }) {
   const { apiCall } = useBookingApi(password, username);
   const { showError, showSuccess } = useAdminToast();
-  const isMobile = useIsMobile();
 
   const [view, setView] = useState<"calendar" | "table">("calendar");
   const [dateRange, setDateRange] = useState<DateRange>(() => {
@@ -196,34 +184,32 @@ export function BookingDashboard({
               </span>
             </Button>
           )}
-          {!isMobile && (
-            <div className="flex rounded-lg border border-input">
-              <button
-                onClick={() => setView("calendar")}
-                className={cn(
-                  "flex items-center gap-1 rounded-l-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                  view === "calendar"
-                    ? "bg-brand-green text-white"
-                    : "bg-background text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <CalendarIcon className="size-3.5" />
-                Calendar
-              </button>
-              <button
-                onClick={() => setView("table")}
-                className={cn(
-                  "flex items-center gap-1 rounded-r-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                  view === "table"
-                    ? "bg-brand-green text-white"
-                    : "bg-background text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <TableIcon className="size-3.5" />
-                Table
-              </button>
-            </div>
-          )}
+          <div className="flex rounded-lg border border-input">
+            <button
+              onClick={() => setView("calendar")}
+              className={cn(
+                "flex items-center gap-1 rounded-l-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                view === "calendar"
+                  ? "bg-brand-green text-white"
+                  : "bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <CalendarIcon className="size-3.5" />
+              <span className="hidden sm:inline">Calendar</span>
+            </button>
+            <button
+              onClick={() => setView("table")}
+              className={cn(
+                "flex items-center gap-1 rounded-r-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                view === "table"
+                  ? "bg-brand-green text-white"
+                  : "bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <TableIcon className="size-3.5" />
+              <span className="hidden sm:inline">Table</span>
+            </button>
+          </div>
           {hasPermission(role, permissions, "canCreateBooking") && (
             <Button size="sm" onClick={() => setShowCreateModal(true)}>
               <PlusIcon className="size-3.5" />
@@ -249,15 +235,7 @@ export function BookingDashboard({
       )}
 
       {/* Main content */}
-      {isMobile ? (
-        <BookingMobileDayView
-          bookings={bookings}
-          assignments={assignments}
-          dorms={dorms}
-          dateRange={dateRange}
-          onSelectBooking={setSelectedBookingId}
-        />
-      ) : view === "calendar" ? (
+      {view === "calendar" ? (
         <BookingCalendarGrid
           bookings={bookings}
           assignments={assignments}
