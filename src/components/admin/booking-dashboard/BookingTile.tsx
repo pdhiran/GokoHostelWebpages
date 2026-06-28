@@ -10,13 +10,11 @@ export function BookingTile({
   isMultiBed,
   isSelected,
   onClick,
-  isCheckoutDay,
 }: {
   booking: DashboardBooking;
   isMultiBed: boolean;
   isSelected: boolean;
   onClick: () => void;
-  isCheckoutDay?: boolean;
 }) {
   const statusColor = STATUS_COLORS[booking.status] ?? STATUS_COLORS.received;
   const platform = PLATFORM_LOGOS[booking.platform];
@@ -27,14 +25,13 @@ export function BookingTile({
       onClick={onClick}
       title={`${booking.guestName} - ${booking.platform} (${booking.checkinDate} to ${booking.checkoutDate})`}
       className={cn(
-        "group flex h-full w-full items-center gap-1 rounded px-1.5 py-0.5 text-left text-[11px] leading-tight transition-all",
+        "group flex h-full w-full items-center gap-1 overflow-hidden rounded-md px-1.5 text-left text-[11px] leading-tight transition-all",
         statusColor.bg,
         statusColor.text,
         statusColor.border,
         "border",
         isSelected && "ring-2 ring-brand-green ring-offset-1 dark:ring-offset-gray-900",
-        isCheckoutDay && "opacity-60",
-        "hover:brightness-95 dark:hover:brightness-110",
+        "hover:brightness-95 dark:hover:brightness-110 cursor-pointer",
       )}
     >
       {platform && (

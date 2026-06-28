@@ -7,84 +7,50 @@ import { BookingTile } from "./BookingTile";
 import { getDatesArray, formatDateShort, formatDateCompact, isToday } from "./utils";
 import type { DashboardBooking, BedAssignment, CalendarDorm, DateRange } from "./types";
 
-type GridCell = {
-  booking: DashboardBooking | null;
-  isStart: boolean;
-  isEnd: boolean;
-  spanDays: number;
-  isBlocked: boolean;
+type TilePlacement = {
+  booking: DashboardBooking;
+  startCol: number;
+  spanCols: number;
+  isMultiBed: boolean;
 };
 
-function buildGridData(
-  dorms: CalendarDorm[],
-  bookings: DashboardBooking[],
+function computeTilePlacements(
+  bedId: number,
   assignments: BedAssignment[],
+  bookingMap: Map<number, DashboardBooking>,
   dates: string[],
-) {
-  const grid = new Map<string, GridCell>();
-  const bookingMap = new Map<number, DashboardBooking>();
-  bookings.forEach((b) => bookingMap.set(b.id, b));
+  multiBedBookings: Set<number>,
+): TilePlacement[] {
+  const placements: TilePlacement[] = [];
+  const bedAssigns = assignments.filter((a) => a.bedId === bedId && a.status === "assigned");
 
-  const bedAssignmentMap = new Map<number, BedAssignment[]>();
-  assignments
-    .filter((a) => a.status === "assigned")
-    .forEach((a) => {
-      const list = bedAssignmentMap.get(a.bedId) || [];
-      list.push(a);
-      bedAssignmentMap.set(a.bedId, list);
-    });
+  for (const assign of bedAssigns) {
+    const booking = bookingMap.get(assign.bookingId);
+    if (!booking) continue;
 
-  const multiBedBookings = new Set<number>();
-  const bookingBedCount = new Map<number, number>();
-  assignments.filter((a) => a.status === "assigned").forEach((a) => {
-    bookingBedCount.set(a.bookingId, (bookingBedCount.get(a.bookingId) || 0) + 1);
-  });
-  bookingBedCount.forEach((count, bId) => {
-    if (count > 1) multiBedBookings.add(bId);
-  });
-
-  for (const dorm of dorms) {
-    for (const bed of dorm.beds) {
-      const bedAssigns = bedAssignmentMap.get(bed.id) || [];
-      for (let i = 0; i < dates.length; i++) {
-        const date = dates[i];
-        const key = `${bed.id}-${date}`;
-
-        if (bed.isBlocked) {
-          grid.set(key, { booking: null, isStart: false, isEnd: false, spanDays: 1, isBlocked: true });
-          continue;
-        }
-
-        const assignment = bedAssigns.find((a) => {
-          return date >= a.checkinDate && date < a.checkoutDate;
-        });
-
-        if (assignment) {
-          const booking = bookingMap.get(assignment.bookingId) || null;
-          const isStart = date === assignment.checkinDate;
-          const isEnd = i + 1 < dates.length && dates[i + 1] === assignment.checkoutDate;
-
-          let spanDays = 1;
-          if (isStart && booking) {
-            const endIdx = dates.indexOf(assignment.checkoutDate);
-            spanDays = endIdx >= 0 ? endIdx - i : dates.length - i;
-          }
-
-          grid.set(key, { booking, isStart, isEnd, spanDays, isBlocked: false });
-        } else {
-          const checkoutAssign = bedAssigns.find((a) => date === a.checkoutDate);
-          if (checkoutAssign) {
-            const booking = bookingMap.get(checkoutAssign.bookingId) || null;
-            grid.set(key, { booking, isStart: false, isEnd: true, spanDays: 1, isBlocked: false });
-          } else {
-            grid.set(key, { booking: null, isStart: false, isEnd: false, spanDays: 1, isBlocked: false });
-          }
-        }
-      }
+    let startIdx = dates.indexOf(assign.checkinDate);
+    if (startIdx < 0) {
+      if (assign.checkinDate < dates[0]) startIdx = 0;
+      else continue;
     }
+
+    let endIdx = dates.indexOf(assign.checkoutDate);
+    if (endIdx < 0) {
+      if (assign.checkoutDate > dates[dates.length - 1]) endIdx = dates.length;
+      else continue;
+    }
+
+    const spanCols = Math.max(1, endIdx - startIdx);
+
+    placements.push({
+      booking,
+      startCol: startIdx,
+      spanCols,
+      isMultiBed: multiBedBookings.has(booking.id),
+    });
   }
 
-  return { grid, multiBedBookings };
+  return placements;
 }
 
 export function BookingCalendarGrid({
@@ -108,37 +74,49 @@ export function BookingCalendarGrid({
 }) {
   const dates = useMemo(() => getDatesArray(dateRange.startDate, dateRange.endDate), [dateRange]);
   const isCompact = dates.length > 10;
+  const colWidth = isCompact ? 50 : 80;
 
-  const { grid, multiBedBookings } = useMemo(
-    () => buildGridData(dorms, bookings, assignments, dates),
-    [dorms, bookings, assignments, dates],
-  );
+  const bookingMap = useMemo(() => {
+    const m = new Map<number, DashboardBooking>();
+    bookings.forEach((b) => m.set(b.id, b));
+    return m;
+  }, [bookings]);
+
+  const multiBedBookings = useMemo(() => {
+    const counts = new Map<number, number>();
+    assignments.filter((a) => a.status === "assigned").forEach((a) => {
+      counts.set(a.bookingId, (counts.get(a.bookingId) || 0) + 1);
+    });
+    const multi = new Set<number>();
+    counts.forEach((count, bId) => { if (count > 1) multi.add(bId); });
+    return multi;
+  }, [assignments]);
 
   const dormOccupancy = useMemo(() => {
     const occ = new Map<number, { total: number; occupied: number }>();
     for (const dorm of dorms) {
       const total = dorm.beds.filter((b) => !b.isBlocked).length;
-      const occupied = new Set<number>();
+      let occupied = 0;
       for (const bed of dorm.beds) {
         if (bed.isBlocked) continue;
-        const key = `${bed.id}-${today}`;
-        const cell = grid.get(key);
-        if (cell?.booking) occupied.add(bed.id);
+        const hasAssignment = assignments.some(
+          (a) => a.bedId === bed.id && a.status === "assigned" && a.checkinDate <= today && a.checkoutDate > today
+        );
+        if (hasAssignment) occupied++;
       }
-      occ.set(dorm.id, { total, occupied: occupied.size });
+      occ.set(dorm.id, { total, occupied });
     }
     return occ;
-  }, [dorms, grid, today]);
+  }, [dorms, assignments, today]);
 
-  const colWidth = isCompact ? "w-[50px]" : "w-[80px]";
+  const gridWidth = dates.length * colWidth;
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-white dark:bg-card">
       <div className="overflow-x-auto">
         <div className="inline-flex min-w-full">
-          {/* Sticky left column */}
+          {/* Sticky left column: dorm/bed labels */}
           <div className="sticky left-0 z-20 w-[140px] shrink-0 border-r border-border bg-white dark:bg-card">
-            {/* Header cell */}
             <div className="flex h-[52px] items-end border-b border-border px-2 pb-1">
               <span className="text-[10px] font-medium text-muted-foreground">Dorms / Beds</span>
             </div>
@@ -146,17 +124,12 @@ export function BookingCalendarGrid({
               const occ = dormOccupancy.get(dorm.id);
               return (
                 <div key={dorm.id}>
-                  {/* Dorm header */}
                   <button
                     type="button"
                     onClick={() => onToggleDorm(dorm.id)}
                     className="flex h-8 w-full items-center gap-1 border-b border-border bg-muted/50 px-2 text-left text-xs font-semibold text-foreground transition-colors hover:bg-muted"
                   >
-                    {dorm.collapsed ? (
-                      <ChevronRightIcon className="size-3.5 shrink-0" />
-                    ) : (
-                      <ChevronDownIcon className="size-3.5 shrink-0" />
-                    )}
+                    {dorm.collapsed ? <ChevronRightIcon className="size-3.5 shrink-0" /> : <ChevronDownIcon className="size-3.5 shrink-0" />}
                     <span className="min-w-0 flex-1 truncate">{dorm.name}</span>
                     {occ && (
                       <span className="shrink-0 text-[10px] font-normal text-muted-foreground">
@@ -164,104 +137,104 @@ export function BookingCalendarGrid({
                       </span>
                     )}
                   </button>
-                  {/* Bed rows */}
-                  {!dorm.collapsed &&
-                    dorm.beds.map((bed) => (
-                      <div
-                        key={bed.id}
-                        className={cn(
-                          "flex h-8 items-center border-b border-border px-2 text-[11px]",
-                          bed.isBlocked
-                            ? "bg-gray-100 text-gray-400 dark:bg-gray-800/50 dark:text-gray-500"
-                            : "text-foreground",
-                        )}
-                      >
-                        <span className="truncate">{bed.bedId}</span>
-                      </div>
-                    ))}
+                  {!dorm.collapsed && dorm.beds.map((bed) => (
+                    <div
+                      key={bed.id}
+                      className={cn(
+                        "flex h-8 items-center border-b border-border px-2 text-[11px]",
+                        bed.isBlocked ? "bg-gray-100 text-gray-400 dark:bg-gray-800/50" : "text-foreground",
+                      )}
+                    >
+                      <span className="truncate">{bed.bedId}</span>
+                    </div>
+                  ))}
                 </div>
               );
             })}
           </div>
 
-          {/* Date columns */}
-          <div className="flex">
-            {dates.map((date) => (
-              <div key={date} className={cn("shrink-0", colWidth)}>
-                {/* Date header */}
+          {/* Right side: date grid with spanning tiles */}
+          <div className="flex-1" style={{ minWidth: gridWidth }}>
+            {/* Date header row */}
+            <div className="flex h-[52px] border-b border-border">
+              {dates.map((date) => (
                 <div
+                  key={date}
                   className={cn(
-                    "flex h-[52px] flex-col items-center justify-end border-b border-r border-border px-0.5 pb-1",
+                    "flex shrink-0 flex-col items-center justify-end pb-1",
                     isToday(date) && "bg-brand-green/5 dark:bg-brand-green/10",
                   )}
+                  style={{ width: colWidth }}
                 >
                   <span className="text-[10px] font-medium text-muted-foreground">
                     {new Date(date + "T12:00:00Z").toLocaleDateString("en", { weekday: "short", timeZone: "UTC" })}
                   </span>
-                  <span
-                    className={cn(
-                      "text-xs font-semibold",
-                      isToday(date) ? "text-brand-green" : "text-foreground",
-                    )}
-                  >
+                  <span className={cn("text-xs font-semibold", isToday(date) ? "text-brand-green" : "text-foreground")}>
                     {isCompact ? formatDateCompact(date) : formatDateShort(date)}
                   </span>
                 </div>
+              ))}
+            </div>
 
-                {/* Cells per dorm/bed */}
-                {dorms.map((dorm) => (
-                  <div key={dorm.id}>
-                    {/* Dorm summary row */}
-                    <div className="h-8 border-b border-r border-border bg-muted/50" />
-                    {/* Bed cells */}
-                    {!dorm.collapsed &&
-                      dorm.beds.map((bed) => {
-                        const key = `${bed.id}-${date}`;
-                        const cell = grid.get(key);
+            {/* Dorm/Bed rows with tiles */}
+            {dorms.map((dorm) => (
+              <div key={dorm.id}>
+                {/* Dorm summary row */}
+                <div className="flex h-8 border-b border-border bg-muted/50">
+                  {dates.map((date) => (
+                    <div key={date} className="shrink-0 border-r border-border" style={{ width: colWidth }} />
+                  ))}
+                </div>
 
-                        return (
+                {/* Bed rows */}
+                {!dorm.collapsed && dorm.beds.map((bed) => {
+                  const placements = computeTilePlacements(bed.id, assignments, bookingMap, dates, multiBedBookings);
+
+                  return (
+                    <div key={bed.id} className="relative h-8 border-b border-border">
+                      {/* Grid lines (background) */}
+                      <div className="absolute inset-0 flex">
+                        {dates.map((date) => (
                           <div
-                            key={bed.id}
+                            key={date}
                             className={cn(
-                              "relative h-8 border-b border-r border-border",
+                              "shrink-0 border-r border-border",
                               isToday(date) && "bg-brand-green/[0.03] dark:bg-brand-green/[0.06]",
-                              cell?.isBlocked && "bg-gray-100 dark:bg-gray-800/50",
+                              bed.isBlocked && "bg-gray-100 dark:bg-gray-800/50",
                             )}
-                          >
-                            {cell?.isBlocked ? (
-                              <div className="flex h-full items-center justify-center">
-                                <BanIcon className="size-3 text-gray-400 dark:text-gray-600" />
-                              </div>
-                            ) : cell?.booking && cell.isStart ? (
-                              <div
-                                className="absolute inset-y-0.5 left-0 z-10"
-                                style={{
-                                  width: `calc(${Math.min(cell.spanDays, dates.length - dates.indexOf(date))} * 100%)`,
-                                }}
-                              >
-                                <BookingTile
-                                  booking={cell.booking}
-                                  isMultiBed={multiBedBookings.has(cell.booking.id)}
-                                  isSelected={selectedBookingId === cell.booking.id}
-                                  onClick={() => onSelectBooking(cell.booking!.id)}
-                                />
-                              </div>
-                            ) : cell?.booking && cell.isEnd ? (
-                              <div className="absolute inset-y-0.5 left-0 z-10 w-[20%]">
-                                <BookingTile
-                                  booking={cell.booking}
-                                  isMultiBed={multiBedBookings.has(cell.booking.id)}
-                                  isSelected={selectedBookingId === cell.booking.id}
-                                  onClick={() => onSelectBooking(cell.booking!.id)}
-                                  isCheckoutDay
-                                />
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                  </div>
-                ))}
+                            style={{ width: colWidth }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Blocked indicator */}
+                      {bed.isBlocked && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <BanIcon className="size-3 text-gray-400" />
+                        </div>
+                      )}
+
+                      {/* Booking tiles (positioned absolutely over the grid) */}
+                      {!bed.isBlocked && placements.map((p) => (
+                        <div
+                          key={`${p.booking.id}-${p.startCol}`}
+                          className="absolute top-0.5 bottom-0.5 z-10"
+                          style={{
+                            left: p.startCol * colWidth + 2,
+                            width: p.spanCols * colWidth - 4,
+                          }}
+                        >
+                          <BookingTile
+                            booking={p.booking}
+                            isMultiBed={p.isMultiBed}
+                            isSelected={selectedBookingId === p.booking.id}
+                            onClick={() => onSelectBooking(p.booking.id)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
