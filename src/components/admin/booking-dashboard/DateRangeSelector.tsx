@@ -1,0 +1,97 @@
+"use client";
+
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { CalendarIcon } from "lucide-react";
+import { getDateRange, getHostelToday } from "./utils";
+import type { DateRange } from "./types";
+
+const MODES = [
+  { value: "week" as const, label: "Week" },
+  { value: "10days" as const, label: "10 Days" },
+  { value: "30days" as const, label: "30 Days" },
+  { value: "custom" as const, label: "Custom" },
+];
+
+export function DateRangeSelector({
+  dateRange,
+  onChange,
+}: {
+  dateRange: DateRange;
+  onChange: (range: DateRange) => void;
+}) {
+  const [customStart, setCustomStart] = useState(dateRange.startDate);
+  const [customEnd, setCustomEnd] = useState(dateRange.endDate);
+
+  const handleModeChange = (mode: DateRange["mode"]) => {
+    if (mode === "custom") {
+      onChange({ startDate: customStart, endDate: customEnd, mode: "custom" });
+    } else {
+      const { start, end } = getDateRange(mode);
+      onChange({ startDate: start, endDate: end, mode });
+    }
+  };
+
+  const handleCustomApply = () => {
+    const start = new Date(customStart + "T12:00:00Z");
+    const end = new Date(customEnd + "T12:00:00Z");
+    const diffDays = Math.round((end.getTime() - start.getTime()) / 86400000);
+    if (diffDays < 1 || diffDays > 30) return;
+    onChange({ startDate: customStart, endDate: customEnd, mode: "custom" });
+  };
+
+  const handleToday = () => {
+    const { start, end } = getDateRange("10days");
+    onChange({ startDate: start, endDate: end, mode: "10days" });
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex rounded-lg border border-input">
+        {MODES.map((m) => (
+          <button
+            key={m.value}
+            type="button"
+            onClick={() => handleModeChange(m.value)}
+            className={cn(
+              "px-2.5 py-1.5 text-xs font-medium transition-colors first:rounded-l-lg last:rounded-r-lg",
+              dateRange.mode === m.value
+                ? "bg-brand-green text-white"
+                : "bg-background text-muted-foreground hover:bg-muted",
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {dateRange.mode === "custom" && (
+        <div className="flex items-center gap-1.5">
+          <Input
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="h-7 w-32 text-xs"
+          />
+          <span className="text-xs text-muted-foreground">to</span>
+          <Input
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="h-7 w-32 text-xs"
+          />
+          <Button variant="outline" size="xs" onClick={handleCustomApply}>
+            Apply
+          </Button>
+        </div>
+      )}
+
+      <Button variant="ghost" size="xs" onClick={handleToday} className="text-xs">
+        <CalendarIcon className="size-3" />
+        Today
+      </Button>
+    </div>
+  );
+}

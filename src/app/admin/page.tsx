@@ -21,7 +21,7 @@ const tabLoader = () => <div className="flex items-center justify-center py-20">
 const AdminDashboard = dynamic(() => import("@/components/admin/AdminDashboard").then((m) => m.AdminDashboard), { loading: tabLoader });
 const AdminRecords = dynamic(() => import("@/components/admin/AdminRecords").then((m) => m.AdminRecords), { loading: tabLoader });
 const AdminBeds = dynamic(() => import("@/components/admin/AdminBeds").then((m) => m.AdminBeds), { loading: tabLoader });
-const AdminBookings = dynamic(() => import("@/components/admin/AdminBookings").then((m) => m.AdminBookings), { loading: tabLoader });
+const BookingDashboard = dynamic(() => import("@/components/admin/booking-dashboard").then((m) => ({ default: m.BookingDashboard })), { loading: tabLoader });
 const AdminManagement = dynamic(() => import("@/components/admin/AdminManagement").then((m) => m.AdminManagement), { loading: tabLoader });
 const AdminTimeline = dynamic(() => import("@/components/admin/AdminTimeline").then((m) => m.AdminTimeline), { loading: tabLoader });
 const AdminFoodOrders = dynamic(() => import("@/components/admin/AdminFoodOrders").then((m) => m.AdminFoodOrders), { loading: tabLoader });
@@ -459,7 +459,7 @@ function AdminPageInner() {
             exit="exit"
           >
             {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); setSection(s); }} permissions={permissions} />}
-            {section === "bookings" && <AdminBookings password={password} username={username} role={role} permissions={permissions} />}
+            {section === "bookings" && <BookingDashboard password={password} username={username} role={role} permissions={permissions} />}
             {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} pendingAssignGuest={pendingAssignGuest} onPendingAssignConsumed={() => setPendingAssignGuest(null)} />}
             {section === "timeline" && <AdminTimeline password={password} username={username} role={role} permissions={permissions} />}
             {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}

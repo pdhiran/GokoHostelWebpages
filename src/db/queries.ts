@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
-import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog } from "./schema";
+import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
 
@@ -349,6 +349,10 @@ export async function addBooking(data: {
   checkinDate: string; checkoutDate?: string; roomType?: string; persons?: number;
   paymentStatus?: string; specialRequests?: string; status?: string; source?: string;
   property?: string; rawData?: string;
+  amountBeforeTax?: number; amountTax?: number; amountTotal?: number;
+  amountPaid?: number; nightlyRate?: number; currency?: string;
+  email?: string; cmBookingId?: string; gokoBookingId?: string;
+  ratePlan?: string;
 }) {
   const db = getDb();
   return db.insert(bookings).values(syncInsert({
@@ -362,12 +366,22 @@ export async function addBooking(data: {
     persons: data.persons || 1,
     paymentStatus: data.paymentStatus || "unknown",
     specialRequests: data.specialRequests || "",
-    status: data.status || "confirmed",
+    status: data.status || "received",
     source: data.source || "manual",
     property: data.property || "goko_hostel",
     rawData: data.rawData || "",
     createdAt: new Date().toISOString(),
     syncedAt: "",
+    amountBeforeTax: data.amountBeforeTax ?? 0,
+    amountTax: data.amountTax ?? 0,
+    amountTotal: data.amountTotal ?? 0,
+    amountPaid: data.amountPaid ?? 0,
+    nightlyRate: data.nightlyRate ?? 0,
+    currency: data.currency || "INR",
+    email: data.email || "",
+    cmBookingId: data.cmBookingId || "",
+    gokoBookingId: data.gokoBookingId || "",
+    ratePlan: data.ratePlan || "",
   }));
 }
 
@@ -384,6 +398,26 @@ export async function deleteBooking(id: number) {
 export async function deleteEmailBookings() {
   const db = getDb();
   return db.delete(bookings).where(eq(bookings.source, "email"));
+}
+
+export async function updateBookingFull(id: number, data: Partial<typeof bookings.$inferInsert>) {
+  const db = getDb();
+  return db.update(bookings).set(syncUpdate(data)).where(eq(bookings.id, id));
+}
+
+export async function getActiveAssignmentCountForDorm(dormId: number, date: string): Promise<number> {
+  const db = getDb();
+  const rows = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(bookingBedAssignments)
+    .where(
+      and(
+        eq(bookingBedAssignments.dormId, dormId),
+        eq(bookingBedAssignments.status, "assigned"),
+        lte(bookingBedAssignments.checkinDate, date),
+        sql`${bookingBedAssignments.checkoutDate} > ${date}`
+      )
+    );
+  return rows[0]?.count ?? 0;
 }
 
 // --- Rate Scrapes ---
@@ -1363,4 +1397,174 @@ export async function getAvailableBedsForDorm(dormId: number): Promise<number> {
     and(eq(beds.dormId, dormId), eq(beds.status, "available"))
   );
   return rows.length;
+}
+
+// --- Booking Dashboard Queries ---
+
+export async function getBookingCalendarData(startDate: string, endDate: string) {
+  const db = getDb();
+  const bookingRows = await db.select().from(bookings).where(
+    and(
+      sql`${bookings.checkinDate} < ${endDate}`,
+      sql`${bookings.checkoutDate} > ${startDate}`,
+      sql`${bookings.status} != 'cancelled'`
+    )
+  );
+
+  const assignments = await db.select().from(bookingBedAssignments).where(
+    and(
+      eq(bookingBedAssignments.status, "assigned"),
+      sql`${bookingBedAssignments.checkinDate} < ${endDate}`,
+      sql`${bookingBedAssignments.checkoutDate} > ${startDate}`
+    )
+  );
+
+  return { bookings: bookingRows, assignments };
+}
+
+export async function getBookingDetail(bookingId: number) {
+  const db = getDb();
+  const bookingRows = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
+  if (bookingRows.length === 0) return null;
+
+  const booking = bookingRows[0];
+  const assignmentRows = await db.select().from(bookingBedAssignments).where(eq(bookingBedAssignments.bookingId, bookingId));
+  const historyRows = await db.select().from(bookingHistory).where(eq(bookingHistory.bookingId, bookingId)).orderBy(desc(bookingHistory.id));
+
+  let linkedBookings: typeof bookingRows = [];
+  if (booking.gokoBookingId) {
+    linkedBookings = await db.select().from(bookings).where(
+      and(eq(bookings.gokoBookingId, booking.gokoBookingId), sql`${bookings.id} != ${bookingId}`)
+    );
+  }
+
+  return { booking, assignments: assignmentRows, history: historyRows, linkedBookings };
+}
+
+export async function searchBookings(query: string) {
+  const db = getDb();
+  const q = `%${query}%`;
+  return db.select().from(bookings).where(
+    sql`(${bookings.guestName} LIKE ${q} OR ${bookings.bookingRef} LIKE ${q} OR ${bookings.contact} LIKE ${q})`
+  ).orderBy(desc(bookings.id)).limit(20);
+}
+
+export async function getUnassignedBookings() {
+  const db = getDb();
+  const allActive = await db.select().from(bookings).where(
+    sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')`
+  ).orderBy(desc(bookings.id));
+
+  const assignedBookingIds = new Set(
+    (await db.select({ bookingId: bookingBedAssignments.bookingId }).from(bookingBedAssignments)
+      .where(eq(bookingBedAssignments.status, "assigned"))
+    ).map(r => r.bookingId)
+  );
+
+  return allActive.filter(b => !assignedBookingIds.has(b.id));
+}
+
+export async function checkBedAvailability(bedId: number, checkinDate: string, checkoutDate: string, excludeBookingId?: number): Promise<boolean> {
+  const db = getDb();
+  let conditions = and(
+    eq(bookingBedAssignments.bedId, bedId),
+    eq(bookingBedAssignments.status, "assigned"),
+    sql`${bookingBedAssignments.checkinDate} < ${checkoutDate}`,
+    sql`${bookingBedAssignments.checkoutDate} > ${checkinDate}`
+  );
+
+  if (excludeBookingId) {
+    conditions = and(conditions, sql`${bookingBedAssignments.bookingId} != ${excludeBookingId}`);
+  }
+
+  const conflicts = await db.select({ count: sql<number>`COUNT(*)` }).from(bookingBedAssignments).where(conditions!);
+  return (conflicts[0]?.count ?? 0) === 0;
+}
+
+export async function getAvailableBedsForRange(checkinDate: string, checkoutDate: string, dormId?: number) {
+  const db = getDb();
+  const allBeds = dormId
+    ? await db.select().from(beds).where(and(eq(beds.dormId, dormId), eq(beds.isBlocked, 0)))
+    : await db.select().from(beds).where(eq(beds.isBlocked, 0));
+
+  const occupiedBedIds = new Set(
+    (await db.select({ bedId: bookingBedAssignments.bedId }).from(bookingBedAssignments).where(
+      and(
+        eq(bookingBedAssignments.status, "assigned"),
+        sql`${bookingBedAssignments.checkinDate} < ${checkoutDate}`,
+        sql`${bookingBedAssignments.checkoutDate} > ${checkinDate}`
+      )
+    )).map(r => r.bedId)
+  );
+
+  return allBeds.filter(b => !occupiedBedIds.has(b.id));
+}
+
+export async function assignBedToBooking(data: {
+  bookingId: number; bedId: number; dormId: number;
+  checkinDate: string; checkoutDate: string; assignedBy: string;
+}): Promise<boolean> {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  const result: any = await db.run(sql`
+    INSERT INTO booking_bed_assignments (booking_id, bed_id, dorm_id, checkin_date, checkout_date, status, assigned_by, assigned_at)
+    SELECT ${data.bookingId}, ${data.bedId}, ${data.dormId}, ${data.checkinDate}, ${data.checkoutDate}, 'assigned', ${data.assignedBy}, ${now}
+    WHERE NOT EXISTS (
+      SELECT 1 FROM booking_bed_assignments
+      WHERE bed_id = ${data.bedId} AND status = 'assigned'
+      AND checkin_date < ${data.checkoutDate} AND checkout_date > ${data.checkinDate}
+    )
+  `);
+
+  return (result.rowsWritten ?? result.changes ?? 0) > 0;
+}
+
+export async function unassignBookingBeds(bookingId: number) {
+  const db = getDb();
+  return db.update(bookingBedAssignments)
+    .set({ status: "unassigned" })
+    .where(and(eq(bookingBedAssignments.bookingId, bookingId), eq(bookingBedAssignments.status, "assigned")));
+}
+
+export async function cancelBedAssignments(assignmentIds: number[]) {
+  const db = getDb();
+  return db.update(bookingBedAssignments)
+    .set({ status: "cancelled" })
+    .where(and(inArray(bookingBedAssignments.id, assignmentIds), eq(bookingBedAssignments.status, "assigned")));
+}
+
+export async function addBookingHistoryEntry(data: {
+  bookingId: number; action: string; details?: string; performedBy: string;
+}) {
+  const db = getDb();
+  return db.insert(bookingHistory).values({
+    bookingId: data.bookingId,
+    action: data.action,
+    details: data.details || "",
+    performedBy: data.performedBy,
+    performedAt: new Date().toISOString(),
+  });
+}
+
+export async function getBookingHistoryEntries(bookingId: number) {
+  const db = getDb();
+  return db.select().from(bookingHistory).where(eq(bookingHistory.bookingId, bookingId)).orderBy(desc(bookingHistory.id));
+}
+
+export async function getLinkedBookings(gokoBookingId: string) {
+  const db = getDb();
+  return db.select().from(bookings).where(eq(bookings.gokoBookingId, gokoBookingId));
+}
+
+export async function getExpiredHoldBookings() {
+  const db = getDb();
+  const now = new Date().toISOString();
+  return db.select().from(bookings).where(
+    and(
+      eq(bookings.status, "hold"),
+      sql`${bookings.holdExpiresAt} != ''`,
+      sql`${bookings.holdExpiresAt} < ${now}`
+    )
+  );
 }

@@ -1,0 +1,810 @@
+import { NextRequest, NextResponse } from "next/server";
+import { authenticateUser, type UserRole } from "@/lib/auth";
+import { triggerInventoryPush } from "@/lib/aiosellSync";
+import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
+import {
+  getBookingCalendarData, getBookingDetail, searchBookings, getUnassignedBookings,
+  checkBedAvailability, getAvailableBedsForRange, assignBedToBooking, unassignBookingBeds,
+  cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
+  addBooking, updateBookingFull, getAllDorms, getAllBeds, getBedById,
+  getChannelConfig,
+} from "@/db/queries";
+import { beds, bookings } from "@/db/schema";
+
+function diffDays(start: string, end: string): number {
+  const s = new Date(start + "T00:00:00");
+  const e = new Date(end + "T00:00:00");
+  return Math.round((e.getTime() - s.getTime()) / 86400000);
+}
+
+const ACTION_PERMISSIONS: Record<string, string | "admin_only"> = {
+  getCalendarData: "canViewBookings",
+  getDetail: "canViewBookings",
+  search: "canViewBookings",
+  getUnassigned: "canViewBookings",
+  checkAvailability: "canViewBookings",
+  getBookingHistory: "canViewBookings",
+  createBooking: "canAddBooking",
+  assignBeds: "canAddBooking",
+  checkIn: "canAddBooking",
+  checkOut: "canAddBooking",
+  modifyCheckin: "canAddBooking",
+  modifyCheckout: "canAddBooking",
+  editReservation: "canAddBooking",
+  moveRoom: "canAddBooking",
+  assignGuest: "canAddBooking",
+  cancelBooking: "canDeleteBooking",
+  markNoShow: "canDeleteBooking",
+  hold: "canDeleteBooking",
+  unassign: "canDeleteBooking",
+  rollbackCheckIn: "admin_only",
+  rollbackCheckOut: "admin_only",
+};
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { password, action, username } = body;
+
+    const authResult = await authenticateUser(password, username);
+    if (!authResult) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { role, permissions } = authResult;
+    const actingUser = username || role;
+
+    const requiredPerm = ACTION_PERMISSIONS[action];
+    if (!requiredPerm) {
+      return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    }
+    if (requiredPerm === "admin_only") {
+      if (role !== "admin") {
+        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      }
+    } else if (role !== "admin" && !permissions[requiredPerm]) {
+      return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
+    }
+
+    // --- View Actions ---
+
+    if (action === "getCalendarData") {
+      const { startDate, endDate } = body;
+      if (!startDate || !endDate) return NextResponse.json({ error: "startDate and endDate required" }, { status: 400 });
+
+      const calendarData = await getBookingCalendarData(startDate, endDate);
+      const allDorms = await getAllDorms();
+      const allBeds = await getAllBeds();
+
+      const dormsWithBeds = allDorms.map((d) => ({
+        id: d.id,
+        name: d.name,
+        beds: allBeds
+          .filter((b) => b.dormId === d.id)
+          .map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId, dormName: b.dormName, isBlocked: false })),
+      }));
+
+      const enrichedBookings = calendarData.bookings.map((b) => {
+        const nights = diffDays(b.checkinDate, b.checkoutDate || b.checkinDate);
+        const balance = (b.amountTotal ?? 0) - (b.amountPaid ?? 0);
+        return { ...b, nights, balance };
+      });
+
+      const enrichedAssignments = calendarData.assignments.map((a) => {
+        const bed = allBeds.find((b) => b.id === a.bedId);
+        return {
+          ...a,
+          dormName: bed?.dormName || "",
+          bedLabel: bed?.bedId || "",
+        };
+      });
+
+      return NextResponse.json({
+        bookings: enrichedBookings,
+        assignments: enrichedAssignments,
+        dorms: dormsWithBeds,
+        role,
+        permissions,
+      });
+    }
+
+    if (action === "getDetail") {
+      const { bookingId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      return NextResponse.json(detail);
+    }
+
+    if (action === "search") {
+      const { query } = body;
+      if (!query || query.length < 4) return NextResponse.json({ error: "Query must be at least 4 characters" }, { status: 400 });
+      const results = await searchBookings(query);
+      return NextResponse.json({ bookings: results });
+    }
+
+    if (action === "getUnassigned") {
+      const results = await getUnassignedBookings();
+      return NextResponse.json({ bookings: results });
+    }
+
+    if (action === "checkAvailability") {
+      const { checkinDate, checkoutDate, dormId } = body;
+      if (!checkinDate || !checkoutDate) return NextResponse.json({ error: "checkinDate and checkoutDate required" }, { status: 400 });
+      const available = await getAvailableBedsForRange(checkinDate, checkoutDate, dormId);
+      const allDorms = await getAllDorms();
+      const result = allDorms.map((d) => ({
+        id: d.id,
+        name: d.name,
+        beds: available.filter((b) => b.dormId === d.id).map((b) => ({
+          id: b.id,
+          bedId: b.bedId,
+          dormId: b.dormId,
+        })),
+      }));
+      return NextResponse.json({ dorms: result });
+    }
+
+    if (action === "getBookingHistory") {
+      const { bookingId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+      const history = await getBookingHistoryEntries(bookingId);
+      return NextResponse.json({ history });
+    }
+
+    // --- Create ---
+
+    if (action === "createBooking") {
+      const { guestName, contact, email, checkinDate, checkoutDate, platform, nightlyRate, specialRequests, bedIds } = body;
+      if (!guestName || !checkinDate || !checkoutDate) {
+        return NextResponse.json({ error: "guestName, checkinDate, checkoutDate required" }, { status: 400 });
+      }
+
+      const nights = diffDays(checkinDate, checkoutDate);
+      const bedsCount = (bedIds as number[])?.length || 1;
+      const totalBeforeTax = (nightlyRate || 0) * nights * bedsCount;
+      const tax = Math.round(totalBeforeTax * 0.12);
+      const total = totalBeforeTax + tax;
+
+      const result = await addBooking({
+        guestName,
+        contact: contact || "",
+        email: email || "",
+        platform: platform || "walkin",
+        checkinDate,
+        checkoutDate,
+        persons: bedsCount,
+        nightlyRate: nightlyRate || 0,
+        amountBeforeTax: totalBeforeTax,
+        amountTax: tax,
+        amountTotal: total,
+        specialRequests: specialRequests || "",
+        source: "manual",
+        status: "received",
+      });
+
+      const newBookingId = (result as any).meta?.last_row_id ?? (result as any).lastInsertRowid;
+
+      if (bedIds && Array.isArray(bedIds) && bedIds.length > 0 && newBookingId) {
+        for (const bedId of bedIds) {
+          const bed = await getBedById(bedId);
+          if (bed) {
+            await assignBedToBooking({
+              bookingId: newBookingId,
+              bedId,
+              dormId: bed.dormId,
+              checkinDate,
+              checkoutDate,
+              assignedBy: actingUser,
+            });
+          }
+        }
+      }
+
+      if (newBookingId) {
+        await addBookingHistoryEntry({
+          bookingId: newBookingId,
+          action: "Created",
+          details: `Manual booking by ${actingUser}. ${bedsCount} bed(s), ${nights} night(s).`,
+          performedBy: actingUser,
+        });
+      }
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true, bookingId: newBookingId });
+    }
+
+    // --- Assign Beds ---
+
+    if (action === "assignBeds") {
+      const { bookingId, bedIds } = body;
+      if (!bookingId || !bedIds || !Array.isArray(bedIds) || bedIds.length === 0) {
+        return NextResponse.json({ error: "bookingId and bedIds[] required" }, { status: 400 });
+      }
+
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+      const checkinDate = detail.booking.checkinDate;
+      const checkoutDate = detail.booking.checkoutDate || checkinDate;
+      const assignedBeds: string[] = [];
+
+      for (const bedId of bedIds) {
+        const bed = await getBedById(bedId);
+        if (!bed) continue;
+        const ok = await assignBedToBooking({
+          bookingId,
+          bedId,
+          dormId: bed.dormId,
+          checkinDate,
+          checkoutDate,
+          assignedBy: actingUser,
+        });
+        if (ok) assignedBeds.push(`${bed.dormName}/${bed.bedId}`);
+      }
+
+      if (assignedBeds.length === 0) {
+        return NextResponse.json({ error: "No beds could be assigned (conflicts exist)" }, { status: 409 });
+      }
+
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Beds Assigned",
+        details: `Assigned: ${assignedBeds.join(", ")}`,
+        performedBy: actingUser,
+      });
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true, assigned: assignedBeds });
+    }
+
+    // --- Check In ---
+
+    if (action === "checkIn") {
+      const { bookingId, collectPayment } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      const now = new Date().toISOString();
+      const updateData: Record<string, any> = {
+        status: "checked_in",
+        checkedInAt: now,
+        checkedInBy: actingUser,
+      };
+
+      if (collectPayment) {
+        const detail = await getBookingDetail(bookingId);
+        if (detail) {
+          updateData.amountPaid = detail.booking.amountTotal ?? 0;
+        }
+      }
+
+      await updateBookingFull(bookingId, updateData);
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Checked In",
+        details: collectPayment ? `Payment collected at check-in by ${actingUser}` : `Checked in by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Check Out ---
+
+    if (action === "checkOut") {
+      const { bookingId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      const now = new Date().toISOString();
+      await updateBookingFull(bookingId, {
+        status: "checked_out",
+        checkedOutAt: now,
+        checkedOutBy: actingUser,
+      });
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Checked Out",
+        details: `Checked out by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Rollback Check In (admin only) ---
+
+    if (action === "rollbackCheckIn") {
+      const { bookingId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      await updateBookingFull(bookingId, {
+        status: "received",
+        checkedInAt: "",
+        checkedInBy: "",
+      });
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Check-in Rolled Back",
+        details: `Rolled back by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Rollback Check Out (admin only) ---
+
+    if (action === "rollbackCheckOut") {
+      const { bookingId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      await updateBookingFull(bookingId, {
+        status: "checked_in",
+        checkedOutAt: "",
+        checkedOutBy: "",
+      });
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Check-out Rolled Back",
+        details: `Rolled back by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Hold ---
+
+    if (action === "hold") {
+      const { bookingId, holdExpiresAt } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      await updateBookingFull(bookingId, {
+        status: "hold",
+        holdExpiresAt: holdExpiresAt || "",
+      });
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Put on Hold",
+        details: holdExpiresAt ? `Hold expires at ${holdExpiresAt}` : "Indefinite hold",
+        performedBy: actingUser,
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Cancel Booking ---
+
+    if (action === "cancelBooking") {
+      const { bookingId, assignmentIds } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      const now = new Date().toISOString();
+
+      if (assignmentIds && Array.isArray(assignmentIds) && assignmentIds.length > 0) {
+        await cancelBedAssignments(assignmentIds);
+        await addBookingHistoryEntry({
+          bookingId,
+          action: "Partial Cancellation",
+          details: `Cancelled ${assignmentIds.length} bed assignment(s) by ${actingUser}`,
+          performedBy: actingUser,
+        });
+      } else {
+        await updateBookingFull(bookingId, {
+          status: "cancelled",
+          cancelledAt: now,
+          cancelledBy: actingUser,
+        });
+        await unassignBookingBeds(bookingId);
+        await addBookingHistoryEntry({
+          bookingId,
+          action: "Cancelled",
+          details: `Full cancellation by ${actingUser}`,
+          performedBy: actingUser,
+        });
+      }
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
+    // --- No Show ---
+
+    if (action === "markNoShow") {
+      const { bookingId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+      await updateBookingFull(bookingId, { status: "no_show" });
+      await unassignBookingBeds(bookingId);
+
+      if (detail.booking.platform === "booking_com" && detail.booking.cmBookingId) {
+        try {
+          const config = await getChannelConfig();
+          if (config && config.isActive) {
+            const aiosellConfig: AiosellConfig = {
+              hotelCode: config.hotelCode,
+              pmsId: config.pmsId,
+              apiBaseUrl: config.apiBaseUrl,
+              apiUsername: config.apiUsername,
+              apiPassword: config.apiPassword,
+            };
+            await pushNoShow(aiosellConfig, detail.booking.cmBookingId, "booking_com");
+          }
+        } catch (e) {
+          console.error("pushNoShow failed:", e);
+        }
+      }
+
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Marked No-Show",
+        details: `Marked as no-show by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Unassign ---
+
+    if (action === "unassign") {
+      const { bookingId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      await unassignBookingBeds(bookingId);
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Beds Unassigned",
+        details: `All beds unassigned by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Modify Check-in Date ---
+
+    if (action === "modifyCheckin") {
+      const { bookingId, newCheckinDate, confirmed, selectedBedIds } = body;
+      if (!bookingId || !newCheckinDate) return NextResponse.json({ error: "bookingId and newCheckinDate required" }, { status: 400 });
+
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+      const oldCheckin = detail.booking.checkinDate;
+      const oldCheckout = detail.booking.checkoutDate || oldCheckin;
+      const currentAssignments = detail.assignments.filter((a) => a.status === "assigned");
+
+      if (newCheckinDate === oldCheckin) return NextResponse.json({ error: "New date same as current" }, { status: 400 });
+
+      const isEarlier = newCheckinDate < oldCheckin;
+      const isLater = newCheckinDate > oldCheckin;
+
+      if (isEarlier) {
+        // CI-1: Early check-in — extend assignments backward
+        if (currentAssignments.length === 0) {
+          // No assignments — just update dates
+          if (!confirmed) {
+            const available = await getAvailableBedsForRange(newCheckinDate, oldCheckout);
+            return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CI-1-no-beds" });
+          }
+          // Confirmed with selected beds
+          if (selectedBedIds && selectedBedIds.length > 0) {
+            for (const bedId of selectedBedIds) {
+              const bed = await getBedById(bedId);
+              if (bed) {
+                await assignBedToBooking({ bookingId, bedId, dormId: bed.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser });
+              }
+            }
+          }
+        } else {
+          // Check if current beds are available for the extended range
+          let allAvailable = true;
+          for (const a of currentAssignments) {
+            const available = await checkBedAvailability(a.bedId, newCheckinDate, a.checkinDate, bookingId);
+            if (!available) { allAvailable = false; break; }
+          }
+
+          if (!allAvailable && !confirmed) {
+            const available = await getAvailableBedsForRange(newCheckinDate, oldCheckout);
+            return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CI-1-conflict" });
+          }
+
+          if (allAvailable) {
+            // Cancel old + re-assign with new dates
+            await unassignBookingBeds(bookingId);
+            for (const a of currentAssignments) {
+              await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: a.checkoutDate, assignedBy: actingUser });
+            }
+          } else if (confirmed && selectedBedIds) {
+            await unassignBookingBeds(bookingId);
+            for (const bedId of selectedBedIds) {
+              const bed = await getBedById(bedId);
+              if (bed) {
+                await assignBedToBooking({ bookingId, bedId, dormId: bed.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser });
+              }
+            }
+          }
+        }
+      } else {
+        // CI-2/3/4: Late check-in — shorten from the start
+        if (newCheckinDate >= oldCheckout) {
+          return NextResponse.json({ error: "New check-in date must be before check-out date" }, { status: 400 });
+        }
+
+        // Simply shorten: cancel old assignments and re-assign with new start date
+        if (currentAssignments.length > 0) {
+          await unassignBookingBeds(bookingId);
+          for (const a of currentAssignments) {
+            await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: a.checkoutDate, assignedBy: actingUser });
+          }
+        }
+      }
+
+      // Update booking dates and recalculate amounts
+      const nights = diffDays(newCheckinDate, oldCheckout);
+      const nightlyRate = detail.booking.nightlyRate ?? 0;
+      const bedsCount = Math.max(1, detail.assignments.filter((a) => a.status === "assigned").length);
+      const totalBeforeTax = nightlyRate * nights * bedsCount;
+      const tax = Math.round(totalBeforeTax * 0.12);
+
+      await updateBookingFull(bookingId, {
+        checkinDate: newCheckinDate,
+        amountBeforeTax: totalBeforeTax,
+        amountTax: tax,
+        amountTotal: totalBeforeTax + tax,
+      });
+
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Check-in Modified",
+        details: `${oldCheckin} → ${newCheckinDate} by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Modify Check-out Date ---
+
+    if (action === "modifyCheckout") {
+      const { bookingId, newCheckoutDate, confirmed, selectedBedIds } = body;
+      if (!bookingId || !newCheckoutDate) return NextResponse.json({ error: "bookingId and newCheckoutDate required" }, { status: 400 });
+
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+      const oldCheckin = detail.booking.checkinDate;
+      const oldCheckout = detail.booking.checkoutDate || oldCheckin;
+      const currentAssignments = detail.assignments.filter((a) => a.status === "assigned");
+
+      if (newCheckoutDate === oldCheckout) return NextResponse.json({ error: "New date same as current" }, { status: 400 });
+      if (newCheckoutDate <= oldCheckin) return NextResponse.json({ error: "Check-out must be after check-in" }, { status: 400 });
+
+      const isExtending = newCheckoutDate > oldCheckout;
+
+      if (isExtending) {
+        // CO-1: Extend stay — check if current beds are available
+        if (currentAssignments.length > 0) {
+          let allAvailable = true;
+          for (const a of currentAssignments) {
+            const available = await checkBedAvailability(a.bedId, oldCheckout, newCheckoutDate, bookingId);
+            if (!available) { allAvailable = false; break; }
+          }
+
+          if (!allAvailable && !confirmed) {
+            const available = await getAvailableBedsForRange(oldCheckin, newCheckoutDate);
+            return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CO-1-conflict" });
+          }
+
+          if (allAvailable) {
+            await unassignBookingBeds(bookingId);
+            for (const a of currentAssignments) {
+              await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: a.checkinDate, checkoutDate: newCheckoutDate, assignedBy: actingUser });
+            }
+          } else if (confirmed && selectedBedIds) {
+            await unassignBookingBeds(bookingId);
+            for (const bedId of selectedBedIds) {
+              const bed = await getBedById(bedId);
+              if (bed) {
+                await assignBedToBooking({ bookingId, bedId, dormId: bed.dormId, checkinDate: oldCheckin, checkoutDate: newCheckoutDate, assignedBy: actingUser });
+              }
+            }
+          }
+        } else if (!confirmed) {
+          const available = await getAvailableBedsForRange(oldCheckin, newCheckoutDate);
+          return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CO-1-no-beds" });
+        } else if (confirmed && selectedBedIds) {
+          for (const bedId of selectedBedIds) {
+            const bed = await getBedById(bedId);
+            if (bed) {
+              await assignBedToBooking({ bookingId, bedId, dormId: bed.dormId, checkinDate: oldCheckin, checkoutDate: newCheckoutDate, assignedBy: actingUser });
+            }
+          }
+        }
+      } else {
+        // CO-2/3: Shorten stay — just shorten assignments
+        if (currentAssignments.length > 0) {
+          await unassignBookingBeds(bookingId);
+          for (const a of currentAssignments) {
+            await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: a.checkinDate, checkoutDate: newCheckoutDate, assignedBy: actingUser });
+          }
+        }
+      }
+
+      // Update booking dates and recalculate
+      const nights = diffDays(oldCheckin, newCheckoutDate);
+      const nightlyRate = detail.booking.nightlyRate ?? 0;
+      const bedsCount = Math.max(1, currentAssignments.length);
+      const totalBeforeTax = nightlyRate * nights * bedsCount;
+      const tax = Math.round(totalBeforeTax * 0.12);
+
+      await updateBookingFull(bookingId, {
+        checkoutDate: newCheckoutDate,
+        amountBeforeTax: totalBeforeTax,
+        amountTax: tax,
+        amountTotal: totalBeforeTax + tax,
+      });
+
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Check-out Modified",
+        details: `${oldCheckout} → ${newCheckoutDate} by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Edit Reservation (prices / add-remove beds) ---
+
+    if (action === "editReservation") {
+      const { bookingId, nightlyRate, amountBeforeTax, amountTax, amountTotal, amountPaid, addBedIds, removeBedIds, taxMode } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+      const updates: Record<string, any> = {};
+      const changes: string[] = [];
+
+      // Price updates
+      if (nightlyRate !== undefined) {
+        updates.nightlyRate = nightlyRate;
+        changes.push(`Nightly rate → ${nightlyRate}`);
+      }
+      if (taxMode === "inclusive" && amountTotal !== undefined) {
+        const total = amountTotal;
+        const beforeTax = Math.round(total / 1.12);
+        const taxAmt = total - beforeTax;
+        updates.amountBeforeTax = beforeTax;
+        updates.amountTax = taxAmt;
+        updates.amountTotal = total;
+        changes.push(`Total (incl. tax) → ${total}`);
+      } else if (taxMode === "exclusive" && amountBeforeTax !== undefined) {
+        const taxAmt = Math.round(amountBeforeTax * 0.12);
+        updates.amountBeforeTax = amountBeforeTax;
+        updates.amountTax = taxAmt;
+        updates.amountTotal = amountBeforeTax + taxAmt;
+        changes.push(`Amount before tax → ${amountBeforeTax}`);
+      } else {
+        if (amountBeforeTax !== undefined) updates.amountBeforeTax = amountBeforeTax;
+        if (amountTax !== undefined) updates.amountTax = amountTax;
+        if (amountTotal !== undefined) updates.amountTotal = amountTotal;
+      }
+      if (amountPaid !== undefined) {
+        updates.amountPaid = amountPaid;
+        changes.push(`Amount paid → ${amountPaid}`);
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await updateBookingFull(bookingId, updates);
+      }
+
+      // Remove beds
+      if (removeBedIds && Array.isArray(removeBedIds) && removeBedIds.length > 0) {
+        await cancelBedAssignments(removeBedIds);
+        changes.push(`Removed ${removeBedIds.length} bed(s)`);
+      }
+
+      // Add beds
+      if (addBedIds && Array.isArray(addBedIds) && addBedIds.length > 0) {
+        const checkinDate = detail.booking.checkinDate;
+        const checkoutDate = detail.booking.checkoutDate || checkinDate;
+        for (const bedId of addBedIds) {
+          const bed = await getBedById(bedId);
+          if (bed) {
+            await assignBedToBooking({ bookingId, bedId, dormId: bed.dormId, checkinDate, checkoutDate, assignedBy: actingUser });
+            changes.push(`Added bed ${bed.dormName}/${bed.bedId}`);
+          }
+        }
+      }
+
+      if (changes.length > 0) {
+        await addBookingHistoryEntry({
+          bookingId,
+          action: "Reservation Edited",
+          details: changes.join("; "),
+          performedBy: actingUser,
+        });
+      }
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Move Room ---
+
+    if (action === "moveRoom") {
+      const { bookingId, oldAssignmentId, newBedId } = body;
+      if (!bookingId || !newBedId) return NextResponse.json({ error: "bookingId and newBedId required" }, { status: 400 });
+
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+      const checkinDate = detail.booking.checkinDate;
+      const checkoutDate = detail.booking.checkoutDate || checkinDate;
+
+      // Cancel old assignment if specified
+      if (oldAssignmentId) {
+        await cancelBedAssignments([oldAssignmentId]);
+      }
+
+      const newBed = await getBedById(newBedId);
+      if (!newBed) return NextResponse.json({ error: "Bed not found" }, { status: 404 });
+
+      const ok = await assignBedToBooking({
+        bookingId,
+        bedId: newBedId,
+        dormId: newBed.dormId,
+        checkinDate,
+        checkoutDate,
+        assignedBy: actingUser,
+      });
+
+      if (!ok) {
+        return NextResponse.json({ error: "Cannot assign bed — conflict exists" }, { status: 409 });
+      }
+
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Room Moved",
+        details: `Moved to ${newBed.dormName}/${newBed.bedId} by ${actingUser}`,
+        performedBy: actingUser,
+      });
+
+      triggerInventoryPush().catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Assign Guest (link checkin record) ---
+
+    if (action === "assignGuest") {
+      const { bookingId, checkinId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      await updateBookingFull(bookingId, { cmBookingId: checkinId ? String(checkinId) : "" });
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Guest Linked",
+        details: checkinId ? `Linked to checkin #${checkinId}` : "Guest link removed",
+        performedBy: actingUser,
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (e: any) {
+    console.error("Booking API error:", e);
+    const msg = e?.message?.includes("D1") ? "Database error. Please try again." : "Internal server error";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

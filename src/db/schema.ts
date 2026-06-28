@@ -66,6 +66,7 @@ export const beds = sqliteTable("beds", {
   checkinDate: text("checkin_date").default(""),
   expectedCheckout: text("expected_checkout").default(""),
   stayingDays: text("staying_days").default(""),
+  isBlocked: integer("is_blocked").notNull().default(0),
   ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_beds_dorm").on(table.dormId),
@@ -167,17 +168,36 @@ export const bookings = sqliteTable("bookings", {
   persons: integer("persons").notNull().default(1),
   paymentStatus: text("payment_status").default("unknown"),
   specialRequests: text("special_requests").default(""),
-  status: text("status").notNull().default("confirmed"),
+  status: text("status").notNull().default("received"),
   source: text("source").default("manual"),
   property: text("property").default("goko_hostel"),
   rawData: text("raw_data").default(""),
   createdAt: text("created_at").notNull(),
   syncedAt: text("synced_at").default(""),
+  amountBeforeTax: integer("amount_before_tax").default(0),
+  amountTax: integer("amount_tax").default(0),
+  amountTotal: integer("amount_total").default(0),
+  amountPaid: integer("amount_paid").default(0),
+  nightlyRate: integer("nightly_rate").default(0),
+  currency: text("currency").default("INR"),
+  email: text("email").default(""),
+  cmBookingId: text("cm_booking_id").default(""),
+  gokoBookingId: text("goko_booking_id").default(""),
+  ratePlan: text("rate_plan").default(""),
+  holdExpiresAt: text("hold_expires_at").default(""),
+  cancelledAt: text("cancelled_at").default(""),
+  cancelledBy: text("cancelled_by").default(""),
+  checkedInAt: text("checked_in_at").default(""),
+  checkedInBy: text("checked_in_by").default(""),
+  checkedOutAt: text("checked_out_at").default(""),
+  checkedOutBy: text("checked_out_by").default(""),
   ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_bookings_checkin").on(table.checkinDate),
   index("idx_bookings_platform").on(table.platform),
   index("idx_bookings_status").on(table.status),
+  index("idx_bookings_ref").on(table.bookingRef),
+  index("idx_bookings_goko_id").on(table.gokoBookingId),
 ]);
 
 // --- Food Ordering ---
@@ -581,4 +601,34 @@ export const channelSyncLog = sqliteTable("channel_sync_log", {
 }, (table) => [
   index("idx_channel_sync_created").on(table.createdAt),
   index("idx_channel_sync_type").on(table.type),
+]);
+
+// --- Booking Calendar Dashboard ---
+
+export const bookingBedAssignments = sqliteTable("booking_bed_assignments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  bookingId: integer("booking_id").notNull().references(() => bookings.id),
+  bedId: integer("bed_id").notNull().references(() => beds.id),
+  dormId: integer("dorm_id").notNull().references(() => dorms.id),
+  checkinDate: text("checkin_date").notNull(),
+  checkoutDate: text("checkout_date").notNull(),
+  status: text("status").notNull().default("assigned"),
+  assignedBy: text("assigned_by").default(""),
+  assignedAt: text("assigned_at").notNull(),
+}, (table) => [
+  index("idx_bba_bed_dates").on(table.bedId, table.checkinDate, table.checkoutDate),
+  index("idx_bba_booking").on(table.bookingId),
+  index("idx_bba_dates").on(table.checkinDate, table.checkoutDate),
+  index("idx_bba_dorm_status_dates").on(table.dormId, table.status, table.checkinDate, table.checkoutDate),
+]);
+
+export const bookingHistory = sqliteTable("booking_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  bookingId: integer("booking_id").notNull().references(() => bookings.id),
+  action: text("action").notNull(),
+  details: text("details").default(""),
+  performedBy: text("performed_by").notNull(),
+  performedAt: text("performed_at").notNull(),
+}, (table) => [
+  index("idx_bh_booking").on(table.bookingId),
 ]);

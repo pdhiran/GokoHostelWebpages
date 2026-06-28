@@ -3,8 +3,23 @@
  * Called fire-and-forget from bed assign/checkout/booking creation flows.
  */
 
-import { getChannelConfig, getRoomTypeMappings, getAvailableBedsForDorm, addChannelSyncLog, updateChannelSyncTime } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, addChannelSyncLog, updateChannelSyncTime, getActiveAssignmentCountForDorm } from "@/db/queries";
+import { getDb } from "@/db";
+import { beds } from "@/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
+
+export async function getDateAwareAvailability(dormId: number, date: string): Promise<number> {
+  const db = getDb();
+  const totalRows = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(beds)
+    .where(and(eq(beds.dormId, dormId), eq(beds.isBlocked, 0)));
+  const totalBeds = totalRows[0]?.count ?? 0;
+
+  const assignedCount = await getActiveAssignmentCountForDorm(dormId, date);
+
+  return Math.max(0, totalBeds - assignedCount);
+}
 
 export async function triggerInventoryPush(): Promise<void> {
   try {
@@ -15,13 +30,14 @@ export async function triggerInventoryPush(): Promise<void> {
     const activeMappings = mappings.filter((m) => m.isActive);
     if (activeMappings.length === 0) return;
 
+    const today = new Date().toISOString().split("T")[0];
+
     const rooms: Array<{ roomCode: string; available: number }> = [];
     for (const mapping of activeMappings) {
-      const available = await getAvailableBedsForDorm(mapping.dormId);
+      const available = await getDateAwareAvailability(mapping.dormId, today);
       rooms.push({ roomCode: mapping.channelRoomCode, available });
     }
 
-    const today = new Date().toISOString().split("T")[0];
     const updates: InventoryUpdate[] = [{ startDate: today, endDate: today, rooms }];
 
     const aiosellConfig: AiosellConfig = {

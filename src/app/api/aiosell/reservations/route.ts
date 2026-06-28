@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChannelConfig, addBooking, updateBookingStatus, getAllBookings, addChannelSyncLog } from "@/db/queries";
+import { getChannelConfig, addBooking, updateBookingStatus, updateBookingFull, getAllBookings, addChannelSyncLog } from "@/db/queries";
 import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
 
@@ -92,20 +92,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function handleNewBooking(payload: ReservationPayload) {
-  const existingBookings = await getAllBookings();
-  const duplicate = existingBookings.find((b) => b.bookingRef === payload.bookingId);
-  if (duplicate) {
-    return respondSuccess("Reservation already exists (duplicate)");
-  }
-
+function extractBookingFields(payload: ReservationPayload) {
   const guest = payload.guest;
   const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : "Unknown Guest";
   const contact = guest?.phone || guest?.email || "";
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || "";
   const persons = payload.rooms?.reduce((sum, r) => sum + r.occupancy.adults + r.occupancy.children, 0) || 1;
+  const ratePlan = payload.rooms?.[0]?.rateplanCode || "";
+  const nightlyRate = payload.rooms?.[0]?.prices?.[0]?.sellRate || 0;
 
-  await addBooking({
+  return {
     guestName,
     contact,
     platform: payload.channel || "aiosell",
@@ -116,10 +112,28 @@ async function handleNewBooking(payload: ReservationPayload) {
     persons,
     paymentStatus: payload.pah ? "pay_at_hotel" : "prepaid",
     specialRequests: payload.specialRequests || "",
-    status: "confirmed",
-    source: "channel_manager",
+    status: "received" as const,
+    source: "channel_manager" as const,
     rawData: JSON.stringify(payload),
-  });
+    amountBeforeTax: payload.amount?.amountBeforeTax || 0,
+    amountTax: payload.amount?.tax || 0,
+    amountTotal: payload.amount?.amountAfterTax || 0,
+    currency: payload.amount?.currency || "INR",
+    email: guest?.email || "",
+    cmBookingId: payload.cmBookingId || "",
+    ratePlan,
+    nightlyRate,
+  };
+}
+
+async function handleNewBooking(payload: ReservationPayload) {
+  const existingBookings = await getAllBookings();
+  const duplicate = existingBookings.find((b) => b.bookingRef === payload.bookingId);
+  if (duplicate) {
+    return respondSuccess("Reservation already exists (duplicate)");
+  }
+
+  await addBooking(extractBookingFields(payload));
 
   return respondSuccess("Reservation Updated Successfully");
 }
@@ -132,29 +146,34 @@ async function handleModifyBooking(payload: ReservationPayload) {
     return await handleNewBooking(payload);
   }
 
-  const { deleteBooking } = await import("@/db/queries");
-  await deleteBooking(existing.id);
-
   const guest = payload.guest;
   const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : existing.guestName;
   const contact = guest?.phone || guest?.email || existing.contact;
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || existing.roomType;
   const persons = payload.rooms?.reduce((sum, r) => sum + r.occupancy.adults + r.occupancy.children, 0) || existing.persons;
+  const ratePlan = payload.rooms?.[0]?.rateplanCode || existing.ratePlan || "";
+  const nightlyRate = payload.rooms?.[0]?.prices?.[0]?.sellRate || existing.nightlyRate || 0;
 
-  await addBooking({
+  await updateBookingFull(existing.id, {
     guestName,
     contact: contact || "",
     platform: payload.channel || existing.platform,
-    bookingRef: payload.bookingId,
     checkinDate: payload.checkin || existing.checkinDate,
     checkoutDate: payload.checkout || existing.checkoutDate || "",
     roomType: roomInfo || "",
     persons,
     paymentStatus: payload.pah !== undefined ? (payload.pah ? "pay_at_hotel" : "prepaid") : (existing.paymentStatus || "unknown"),
     specialRequests: payload.specialRequests || existing.specialRequests || "",
-    status: "confirmed",
-    source: "channel_manager",
+    status: "received",
     rawData: JSON.stringify(payload),
+    amountBeforeTax: payload.amount?.amountBeforeTax ?? existing.amountBeforeTax ?? 0,
+    amountTax: payload.amount?.tax ?? existing.amountTax ?? 0,
+    amountTotal: payload.amount?.amountAfterTax ?? existing.amountTotal ?? 0,
+    currency: payload.amount?.currency || existing.currency || "INR",
+    email: guest?.email || existing.email || "",
+    cmBookingId: payload.cmBookingId || existing.cmBookingId || "",
+    ratePlan,
+    nightlyRate,
   });
 
   return respondSuccess("Reservation Modified Successfully");
