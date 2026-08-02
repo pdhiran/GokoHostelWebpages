@@ -581,6 +581,11 @@ export const dailyRates = sqliteTable("daily_rates", {
   closeOnDeparture: integer("close_on_departure").notNull().default(0),
   minimumAdvanceReservation: integer("minimum_advance_reservation"),
   maximumAdvanceReservation: integer("maximum_advance_reservation"),
+  adult1Rate: integer("adult1_rate"),
+  adult2Rate: integer("adult2_rate"),
+  childRate: integer("child_rate"),
+  infantRate: integer("infant_rate"),
+  extraPersonRate: integer("extra_person_rate"),
   updatedBy: text("updated_by").default(""),
   updatedAt: text("updated_at").notNull(),
   syncedAt: text("synced_at").default(""),
@@ -631,4 +636,71 @@ export const bookingHistory = sqliteTable("booking_history", {
   performedAt: text("performed_at").notNull(),
 }, (table) => [
   index("idx_bh_booking").on(table.bookingId),
+]);
+
+// --- Inventory & Rate Plan Management ---
+
+export const bedTypeConfig = sqliteTable("bed_type_config", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  dormId: integer("dorm_id").notNull().references(() => dorms.id),
+  bedType: text("bed_type").notNull().default("Bunk"),
+  maxOccupancy: integer("max_occupancy").notNull().default(1),
+  extraPersonAllowed: integer("extra_person_allowed").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_bed_type_config_dorm").on(table.dormId),
+]);
+
+export const channels = sqliteTable("channels", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  code: text("code").notNull().unique(),
+  isActive: integer("is_active").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+});
+
+export const channelRates = sqliteTable("channel_rates", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ratePlanId: integer("rate_plan_id").notNull().references(() => ratePlanMapping.id),
+  channelId: integer("channel_id").notNull().references(() => channels.id),
+  date: text("date").notNull(),
+  adult1Rate: integer("adult1_rate"),
+  adult2Rate: integer("adult2_rate"),
+  childRate: integer("child_rate"),
+  infantRate: integer("infant_rate"),
+  extraPersonRate: integer("extra_person_rate"),
+  updatedBy: text("updated_by").default(""),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_channel_rates_plan_channel_date").on(table.ratePlanId, table.channelId, table.date),
+]);
+
+export const bedBlocks = sqliteTable("bed_blocks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  bedId: integer("bed_id").notNull().references(() => beds.id),
+  dormId: integer("dorm_id").notNull().references(() => dorms.id),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  reason: text("reason").default(""),
+  blockedBy: text("blocked_by").default(""),
+  blockedAt: text("blocked_at").notNull(),
+  unblockedBy: text("unblocked_by"),
+  unblockedAt: text("unblocked_at"),
+  isActive: integer("is_active").notNull().default(1),
+}, (table) => [
+  index("idx_bed_blocks_dorm_dates").on(table.dormId, table.startDate, table.endDate, table.isActive),
+  index("idx_bed_blocks_bed").on(table.bedId, table.isActive),
+]);
+
+export const inventoryOverrides = sqliteTable("inventory_overrides", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  dormId: integer("dorm_id").notNull().references(() => dorms.id),
+  channelId: integer("channel_id").references(() => channels.id),
+  date: text("date").notNull(),
+  onlineAvailable: integer("online_available"),
+  offlineAvailable: integer("offline_available"),
+  overriddenBy: text("overridden_by").default(""),
+  overriddenAt: text("overridden_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_inventory_overrides_dorm_channel_date").on(table.dormId, table.channelId, table.date),
 ]);

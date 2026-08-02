@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getChannelConfig, addBooking, updateBookingStatus, updateBookingFull, getAllBookings, addChannelSyncLog } from "@/db/queries";
 import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell";
-import { triggerInventoryPush } from "@/lib/aiosellSync";
 
 function respondSuccess(message: string) {
   return NextResponse.json({ success: true, message });
@@ -47,14 +46,12 @@ export async function POST(req: NextRequest) {
       switch (payload.action) {
         case "book":
           response = await handleNewBooking(payload);
-          triggerInventoryPush().catch(() => {});
           break;
         case "modify":
           response = await handleModifyBooking(payload);
           break;
         case "cancel":
           response = await handleCancelBooking(payload);
-          triggerInventoryPush().catch(() => {});
           break;
         default:
           return respondError(`Unknown action: ${payload.action}`);

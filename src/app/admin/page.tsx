@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon } from "lucide-react";
+import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon, WarehouseIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 // import { DarkModeToggle } from "@/components/DarkModeToggle";
@@ -27,6 +27,7 @@ const AdminTimeline = dynamic(() => import("@/components/admin/AdminTimeline").t
 const AdminFoodOrders = dynamic(() => import("@/components/admin/AdminFoodOrders").then((m) => m.AdminFoodOrders), { loading: tabLoader, ssr: false });
 const AdminExpenditure = dynamic(() => import("@/components/admin/AdminExpenditure").then((m) => m.AdminExpenditure), { loading: tabLoader, ssr: false });
 const AdminReviews = dynamic(() => import("@/components/admin/AdminReviews").then((m) => m.AdminReviews), { loading: tabLoader, ssr: false });
+const InventoryRatePlan = dynamic(() => import("@/components/admin/InventoryRatePlan").then((m) => m.InventoryRatePlan), { loading: tabLoader, ssr: false });
 
 export default function AdminPage() {
   return (
@@ -50,7 +51,7 @@ function AdminPageInner() {
   const [error, setError] = useState("");
   const [section, setSection] = useTabWithHistory<AdminSection>("section", "dashboard", {
     clearParams: ["tab"],
-    validValues: ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "reviews", "management"],
+    validValues: ["dashboard", "bookings", "beds", "timeline", "inventory", "records", "foodOrders", "expenditure", "reviews", "management"],
   });
   const [managementTab, setManagementTab] = useState<ManagementTab | undefined>();
   const [pendingAssignGuest, setPendingAssignGuest] = useState<string | null>(null);
@@ -129,10 +130,10 @@ function AdminPageInner() {
 
   useEffect(() => {
     if (!role || role === "admin") return;
-    const navIds: AdminSection[] = ["dashboard", "bookings", "beds", "timeline", "records", "foodOrders", "expenditure", "reviews", "management"];
+    const navIds: AdminSection[] = ["dashboard", "bookings", "beds", "timeline", "inventory", "records", "foodOrders", "expenditure", "reviews", "management"];
     const permKeys: Record<AdminSection, string> = {
       dashboard: "canViewDashboard", bookings: "canViewBookings", beds: "canViewBeds",
-      timeline: "canViewTimeline", records: "canViewRecords", foodOrders: "canViewFoodOrders",
+      timeline: "canViewTimeline", inventory: "canManageInventory", records: "canViewRecords", foodOrders: "canViewFoodOrders",
       expenditure: "canViewAccounts", reviews: "canViewReviews", management: "canViewManagement",
     };
     const isVisible = (id: AdminSection) => permissions[permKeys[id]] || false;
@@ -307,6 +308,7 @@ function AdminPageInner() {
     { id: "bookings", label: "Bookings", icon: <BookOpenIcon className="h-4 w-4" />, permission: "canViewBookings" },
     { id: "beds", label: "Beds", icon: <BedDoubleIcon className="h-4 w-4" />, permission: "canViewBeds" },
     { id: "timeline", label: "Timeline", icon: <CalendarDaysIcon className="h-4 w-4" />, permission: "canViewTimeline" },
+    { id: "inventory", label: "Inventory", icon: <WarehouseIcon className="h-4 w-4" />, permission: "canManageInventory" },
     { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" />, permission: "canViewRecords" },
     { id: "foodOrders", label: "Food Orders", icon: <span className="text-base leading-none">🍽️</span>, permission: "canViewFoodOrders" },
     { id: "expenditure", label: "Accounts", icon: <WalletIcon className="h-4 w-4" />, permission: "canViewAccounts" },
@@ -462,6 +464,7 @@ function AdminPageInner() {
             {section === "bookings" && <BookingDashboard password={password} username={username} role={role} permissions={permissions} />}
             {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} pendingAssignGuest={pendingAssignGuest} onPendingAssignConsumed={() => setPendingAssignGuest(null)} />}
             {section === "timeline" && <AdminTimeline password={password} username={username} role={role} permissions={permissions} />}
+            {section === "inventory" && <InventoryRatePlan password={password} username={username} role={role} permissions={permissions} />}
             {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}
             {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} permissions={permissions} />}
             {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}

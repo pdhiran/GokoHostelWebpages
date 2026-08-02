@@ -7,7 +7,7 @@ import {
   checkBedAvailability, getAvailableBedsForRange, assignBedToBooking, unassignBookingBeds,
   cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
   addBooking, updateBookingFull, getAllDorms, getAllBeds, getBedById,
-  getChannelConfig,
+  getChannelConfig, getActiveBedBlocks,
 } from "@/db/queries";
 import { beds, bookings } from "@/db/schema";
 
@@ -74,13 +74,15 @@ export async function POST(req: NextRequest) {
       const calendarData = await getBookingCalendarData(startDate, endDate);
       const allDorms = await getAllDorms();
       const allBeds = await getAllBeds();
+      const activeBlocks = await getActiveBedBlocks(undefined, startDate, endDate);
+      const blockedBedIds = new Set(activeBlocks.map((b) => b.bedId));
 
       const dormsWithBeds = allDorms.map((d) => ({
         id: d.id,
         name: d.name,
         beds: allBeds
           .filter((b) => b.dormId === d.id)
-          .map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId, dormName: b.dormName, isBlocked: false })),
+          .map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId, dormName: b.dormName, isBlocked: blockedBedIds.has(b.id) })),
       }));
 
       const enrichedBookings = calendarData.bookings.map((b) => {

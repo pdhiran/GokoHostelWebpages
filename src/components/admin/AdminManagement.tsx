@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon, WifiIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon, WifiIcon, StoreIcon, SlidersHorizontalIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
@@ -19,6 +19,8 @@ import { QRGenerator } from "./qr-generator";
 import { AccountSettings } from "./AccountSettings";
 import { ServerSync } from "./ServerSync";
 import { ChannelManager } from "./ChannelManager";
+import { ManagementSalesChannels } from "./ManagementSalesChannels";
+import { ManagementBedConfig } from "./ManagementBedConfig";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role, ManagementTab } from "./types";
 
@@ -38,6 +40,8 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "accountSettings", label: "Account Settings", icon: <WalletIcon className="h-3.5 w-3.5" />, permission: "canManageAccounts" },
   { id: "serverSync", label: "Server Sync", icon: <ServerIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "channelManager", label: "Channel Manager", icon: <WifiIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "salesChannels", label: "Sales Channels", icon: <StoreIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "bedConfig", label: "Bed Config", icon: <SlidersHorizontalIcon className="h-3.5 w-3.5" />, adminOnly: true },
 ];
 
 export function AdminManagement({ password, username, role, permissions = {}, initialTab, onTabUsed }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean>; initialTab?: ManagementTab; onTabUsed?: () => void }) {
@@ -151,6 +155,8 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         {tab === "accountSettings" && <AccountSettings password={password} username={username} role={role} />}
         {tab === "serverSync" && <ServerSync password={password} username={username} role={role} />}
         {tab === "channelManager" && <ChannelManager password={password} username={username} role={role} />}
+        {tab === "salesChannels" && <ManagementSalesChannels password={password} username={username} />}
+        {tab === "bedConfig" && <ManagementBedConfig password={password} username={username} />}
       </div>
     </div>
   );

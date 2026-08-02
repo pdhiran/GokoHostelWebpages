@@ -1,6 +1,6 @@
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
-import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory } from "./schema";
+import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
 
@@ -1303,6 +1303,8 @@ export async function upsertDailyRate(data: {
   stopSell?: number; minimumStay?: number; maximumStay?: number | null;
   closeOnArrival?: number; closeOnDeparture?: number;
   minimumAdvanceReservation?: number | null; maximumAdvanceReservation?: number | null;
+  adult1Rate?: number | null; adult2Rate?: number | null;
+  childRate?: number | null; infantRate?: number | null; extraPersonRate?: number | null;
   updatedBy?: string;
 }) {
   const db = getDb();
@@ -1311,33 +1313,34 @@ export async function upsertDailyRate(data: {
     and(eq(dailyRates.ratePlanId, data.ratePlanId), eq(dailyRates.date, data.date))
   ).limit(1);
 
+  const setFields: any = {
+    rate: data.rate,
+    stopSell: data.stopSell ?? 0,
+    minimumStay: data.minimumStay ?? 1,
+    maximumStay: data.maximumStay,
+    closeOnArrival: data.closeOnArrival ?? 0,
+    closeOnDeparture: data.closeOnDeparture ?? 0,
+    minimumAdvanceReservation: data.minimumAdvanceReservation,
+    maximumAdvanceReservation: data.maximumAdvanceReservation,
+    updatedBy: data.updatedBy || "",
+    updatedAt: now,
+  };
+  if (data.adult1Rate !== undefined) setFields.adult1Rate = data.adult1Rate;
+  if (data.adult2Rate !== undefined) setFields.adult2Rate = data.adult2Rate;
+  if (data.childRate !== undefined) setFields.childRate = data.childRate;
+  if (data.infantRate !== undefined) setFields.infantRate = data.infantRate;
+  if (data.extraPersonRate !== undefined) setFields.extraPersonRate = data.extraPersonRate;
+
   if (existing.length > 0) {
-    return db.update(dailyRates).set({
-      rate: data.rate,
-      stopSell: data.stopSell ?? 0,
-      minimumStay: data.minimumStay ?? 1,
-      maximumStay: data.maximumStay,
-      closeOnArrival: data.closeOnArrival ?? 0,
-      closeOnDeparture: data.closeOnDeparture ?? 0,
-      minimumAdvanceReservation: data.minimumAdvanceReservation,
-      maximumAdvanceReservation: data.maximumAdvanceReservation,
-      updatedBy: data.updatedBy || "",
-      updatedAt: now,
-    }).where(eq(dailyRates.id, existing[0].id));
+    return db.update(dailyRates).set(setFields).where(eq(dailyRates.id, existing[0].id));
   }
   return db.insert(dailyRates).values({
     ratePlanId: data.ratePlanId,
     date: data.date,
-    rate: data.rate,
-    stopSell: data.stopSell ?? 0,
-    minimumStay: data.minimumStay ?? 1,
+    ...setFields,
     maximumStay: data.maximumStay ?? null,
-    closeOnArrival: data.closeOnArrival ?? 0,
-    closeOnDeparture: data.closeOnDeparture ?? 0,
     minimumAdvanceReservation: data.minimumAdvanceReservation ?? null,
     maximumAdvanceReservation: data.maximumAdvanceReservation ?? null,
-    updatedBy: data.updatedBy || "",
-    updatedAt: now,
     syncedAt: "",
   });
 }
@@ -1484,8 +1487,8 @@ export async function checkBedAvailability(bedId: number, checkinDate: string, c
 export async function getAvailableBedsForRange(checkinDate: string, checkoutDate: string, dormId?: number) {
   const db = getDb();
   const allBeds = dormId
-    ? await db.select().from(beds).where(and(eq(beds.dormId, dormId), eq(beds.isBlocked, 0)))
-    : await db.select().from(beds).where(eq(beds.isBlocked, 0));
+    ? await db.select().from(beds).where(eq(beds.dormId, dormId))
+    : await db.select().from(beds);
 
   const occupiedBedIds = new Set(
     (await db.select({ bedId: bookingBedAssignments.bedId }).from(bookingBedAssignments).where(
@@ -1497,7 +1500,18 @@ export async function getAvailableBedsForRange(checkinDate: string, checkoutDate
     )).map(r => r.bedId)
   );
 
-  return allBeds.filter(b => !occupiedBedIds.has(b.id));
+  const blockedBedIds = new Set(
+    (await db.select({ bedId: bedBlocks.bedId }).from(bedBlocks).where(
+      and(
+        eq(bedBlocks.isActive, 1),
+        sql`${bedBlocks.startDate} < ${checkoutDate}`,
+        sql`${bedBlocks.endDate} > ${checkinDate}`,
+        ...(dormId ? [eq(bedBlocks.dormId, dormId)] : [])
+      )
+    )).map(r => r.bedId)
+  );
+
+  return allBeds.filter(b => !occupiedBedIds.has(b.id) && !blockedBedIds.has(b.id));
 }
 
 export async function assignBedToBooking(data: {
@@ -1567,4 +1581,212 @@ export async function getExpiredHoldBookings() {
       sql`${bookings.holdExpiresAt} < ${now}`
     )
   );
+}
+
+// --- Inventory & Rate Plan Queries ---
+
+export async function getChannels() {
+  const db = getDb();
+  return db.select().from(channels);
+}
+
+export async function upsertChannel(data: { id?: number; name: string; code: string; isActive?: number }) {
+  const db = getDb();
+  if (data.id) {
+    return db.update(channels).set({ name: data.name, code: data.code, isActive: data.isActive ?? 1 }).where(eq(channels.id, data.id));
+  }
+  return db.insert(channels).values({ name: data.name, code: data.code, isActive: data.isActive ?? 1, createdAt: new Date().toISOString() });
+}
+
+export async function deleteChannel(id: number) {
+  const db = getDb();
+  return db.delete(channels).where(eq(channels.id, id));
+}
+
+export async function getBedTypeConfigs(dormId?: number) {
+  const db = getDb();
+  if (dormId) return db.select().from(bedTypeConfig).where(eq(bedTypeConfig.dormId, dormId));
+  return db.select().from(bedTypeConfig);
+}
+
+export async function upsertBedTypeConfig(data: { id?: number; dormId: number; bedType: string; maxOccupancy: number; extraPersonAllowed: number }) {
+  const db = getDb();
+  if (data.id) {
+    return db.update(bedTypeConfig).set({
+      bedType: data.bedType,
+      maxOccupancy: data.maxOccupancy,
+      extraPersonAllowed: data.extraPersonAllowed,
+    }).where(eq(bedTypeConfig.id, data.id));
+  }
+  return db.insert(bedTypeConfig).values({ ...data, createdAt: new Date().toISOString() });
+}
+
+export async function getActiveBedBlocks(dormId?: number, startDate?: string, endDate?: string) {
+  const db = getDb();
+  let conditions = eq(bedBlocks.isActive, 1);
+  if (dormId) conditions = and(conditions, eq(bedBlocks.dormId, dormId))!;
+  if (startDate && endDate) {
+    conditions = and(conditions, sql`${bedBlocks.startDate} < ${endDate}`, sql`${bedBlocks.endDate} > ${startDate}`)!;
+  }
+  return db.select().from(bedBlocks).where(conditions);
+}
+
+export async function getBlockedBedIdsForDate(dormId: number, date: string): Promise<number[]> {
+  const db = getDb();
+  const rows = await db.select({ bedId: bedBlocks.bedId }).from(bedBlocks).where(
+    and(
+      eq(bedBlocks.dormId, dormId),
+      eq(bedBlocks.isActive, 1),
+      sql`${bedBlocks.startDate} <= ${date}`,
+      sql`${bedBlocks.endDate} > ${date}`
+    )
+  );
+  return rows.map(r => r.bedId);
+}
+
+export async function createBedBlock(data: { bedId: number; dormId: number; startDate: string; endDate: string; reason: string; blockedBy: string }) {
+  const db = getDb();
+  return db.insert(bedBlocks).values({
+    bedId: data.bedId,
+    dormId: data.dormId,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    reason: data.reason,
+    blockedBy: data.blockedBy,
+    blockedAt: new Date().toISOString(),
+    isActive: 1,
+  });
+}
+
+export async function deactivateBedBlock(blockId: number, unblockedBy: string) {
+  const db = getDb();
+  return db.update(bedBlocks).set({
+    isActive: 0,
+    unblockedBy,
+    unblockedAt: new Date().toISOString(),
+  }).where(eq(bedBlocks.id, blockId));
+}
+
+export async function deactivateBedBlocksByBedIds(bedIds: number[], startDate: string, endDate: string, unblockedBy: string) {
+  const db = getDb();
+  return db.update(bedBlocks).set({
+    isActive: 0,
+    unblockedBy,
+    unblockedAt: new Date().toISOString(),
+  }).where(
+    and(
+      inArray(bedBlocks.bedId, bedIds),
+      eq(bedBlocks.isActive, 1),
+      sql`${bedBlocks.startDate} < ${endDate}`,
+      sql`${bedBlocks.endDate} > ${startDate}`
+    )
+  );
+}
+
+export async function getInventoryOverrides(dormId: number, startDate: string, endDate: string) {
+  const db = getDb();
+  return db.select().from(inventoryOverrides).where(
+    and(
+      eq(inventoryOverrides.dormId, dormId),
+      gte(inventoryOverrides.date, startDate),
+      lte(inventoryOverrides.date, endDate)
+    )
+  );
+}
+
+export async function upsertInventoryOverride(data: { dormId: number; channelId: number | null; date: string; onlineAvailable?: number | null; offlineAvailable?: number | null; overriddenBy: string }) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const existing = await db.select().from(inventoryOverrides).where(
+    and(
+      eq(inventoryOverrides.dormId, data.dormId),
+      data.channelId ? eq(inventoryOverrides.channelId, data.channelId) : sql`${inventoryOverrides.channelId} IS NULL`,
+      eq(inventoryOverrides.date, data.date)
+    )
+  ).limit(1);
+
+  if (existing.length > 0) {
+    return db.update(inventoryOverrides).set({
+      onlineAvailable: data.onlineAvailable ?? null,
+      offlineAvailable: data.offlineAvailable ?? null,
+      overriddenBy: data.overriddenBy,
+      overriddenAt: now,
+    }).where(eq(inventoryOverrides.id, existing[0].id));
+  }
+  return db.insert(inventoryOverrides).values({
+    dormId: data.dormId,
+    channelId: data.channelId,
+    date: data.date,
+    onlineAvailable: data.onlineAvailable ?? null,
+    offlineAvailable: data.offlineAvailable ?? null,
+    overriddenBy: data.overriddenBy,
+    overriddenAt: now,
+  });
+}
+
+export async function getChannelRatesForRange(ratePlanId: number, channelId: number, startDate: string, endDate: string) {
+  const db = getDb();
+  return db.select().from(channelRates).where(
+    and(
+      eq(channelRates.ratePlanId, ratePlanId),
+      eq(channelRates.channelId, channelId),
+      gte(channelRates.date, startDate),
+      lte(channelRates.date, endDate)
+    )
+  ).orderBy(channelRates.date);
+}
+
+export async function upsertChannelRate(data: {
+  ratePlanId: number; channelId: number; date: string;
+  adult1Rate?: number | null; adult2Rate?: number | null; childRate?: number | null;
+  infantRate?: number | null; extraPersonRate?: number | null; updatedBy: string;
+}) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const existing = await db.select().from(channelRates).where(
+    and(eq(channelRates.ratePlanId, data.ratePlanId), eq(channelRates.channelId, data.channelId), eq(channelRates.date, data.date))
+  ).limit(1);
+
+  const values = {
+    adult1Rate: data.adult1Rate ?? null,
+    adult2Rate: data.adult2Rate ?? null,
+    childRate: data.childRate ?? null,
+    infantRate: data.infantRate ?? null,
+    extraPersonRate: data.extraPersonRate ?? null,
+    updatedBy: data.updatedBy,
+    updatedAt: now,
+  };
+
+  if (existing.length > 0) {
+    return db.update(channelRates).set(values).where(eq(channelRates.id, existing[0].id));
+  }
+  return db.insert(channelRates).values({
+    ratePlanId: data.ratePlanId,
+    channelId: data.channelId,
+    date: data.date,
+    ...values,
+  });
+}
+
+export async function getInventoryGridData(startDate: string, endDate: string) {
+  const db = getDb();
+  const allDorms = await db.select().from(dorms);
+  const allBeds = await db.select().from(beds);
+  const blocks = await db.select().from(bedBlocks).where(
+    and(eq(bedBlocks.isActive, 1), sql`${bedBlocks.startDate} < ${endDate}`, sql`${bedBlocks.endDate} > ${startDate}`)
+  );
+  const assignments = await db.select().from(bookingBedAssignments).where(
+    and(
+      eq(bookingBedAssignments.status, "assigned"),
+      sql`${bookingBedAssignments.checkinDate} < ${endDate}`,
+      sql`${bookingBedAssignments.checkoutDate} > ${startDate}`
+    )
+  );
+  const roomMappings = await db.select().from(roomTypeMapping).where(eq(roomTypeMapping.isActive, 1));
+  const ratePlans = await db.select().from(ratePlanMapping).where(eq(ratePlanMapping.isActive, 1));
+  const rates = await db.select().from(dailyRates).where(
+    and(gte(dailyRates.date, startDate), lte(dailyRates.date, endDate))
+  );
+
+  return { dorms: allDorms, beds: allBeds, blocks, assignments, roomMappings, ratePlans, rates };
 }
