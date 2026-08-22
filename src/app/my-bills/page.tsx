@@ -150,15 +150,15 @@ function MyBillsContent() {
   const totalSpent = unpaidTotal + paidTotal;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900">
+    <div className="min-h-screen goko-mesh goko-noise bg-brand-sand dark:bg-background">
       <div className="mx-auto max-w-lg px-4 pb-10 pt-8">
         {/* Header */}
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green/10">
             <span className="text-2xl">🧾</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">My Bills</h1>
-          <p className="mt-1 text-sm text-blue-100">View your food orders & bills</p>
+          <h1 className="text-2xl font-bold text-brand-green">My Bills</h1>
+          <p className="mt-1 text-sm text-brand-green-dark/70">View your food orders & bills</p>
         </div>
 
         {/* Phone entry */}
@@ -182,7 +182,7 @@ function MyBillsContent() {
                   value={formatPhone(phone)}
                   onChange={handlePhoneChange}
                   placeholder="98765 43210"
-                  className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-muted py-3.5 pl-12 pr-4 text-lg font-medium tracking-wide text-gray-800 dark:text-foreground outline-none transition focus:border-blue-400 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30"
+                  className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-muted py-3.5 pl-12 pr-4 text-lg font-medium tracking-wide text-gray-800 dark:text-foreground outline-none transition focus:border-brand-green focus:bg-white dark:focus:bg-accent focus-visible:goko-focus"
                   autoFocus
                   disabled={loading}
                 />
@@ -195,7 +195,7 @@ function MyBillsContent() {
               <button
                 type="submit"
                 disabled={loading || stripNonDigits(phone).length < 10}
-                className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-200 dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50 disabled:shadow-none"
+                className="goko-gradient-cta mt-5 w-full rounded-xl py-3.5 text-base font-semibold text-white shadow-lg dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50 disabled:shadow-none"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -214,7 +214,7 @@ function MyBillsContent() {
             <div className="mt-4 text-center">
               <Link
                 href="/food-order"
-                className="text-sm text-blue-500 hover:text-blue-700"
+                className="text-sm text-brand-green hover:text-brand-green-dark"
               >
                 ← Back to menu
               </Link>
@@ -226,13 +226,13 @@ function MyBillsContent() {
             animate={{ opacity: 1 }}
           >
             {/* Phone bar + change */}
-            <div className="mb-4 flex items-center justify-between rounded-xl bg-white/15 px-4 py-2.5 backdrop-blur-sm">
-              <span className="text-sm font-medium text-white">
+            <div className="mb-4 flex items-center justify-between rounded-xl bg-brand-green/10 px-4 py-2.5">
+              <span className="text-sm font-medium text-brand-green">
                 +91 {formatPhone(phone)}
               </span>
               <button
                 onClick={handleChangeNumber}
-                className="text-sm font-medium text-blue-100 hover:text-white"
+                className="text-sm font-medium text-brand-green-dark/70 hover:text-brand-green"
               >
                 Change
               </button>
@@ -331,7 +331,7 @@ function MyBillsContent() {
             <div className="mt-6 text-center">
               <Link
                 href="/food-order"
-                className="text-sm font-medium text-blue-100 hover:text-white"
+                className="text-sm font-medium text-brand-green-dark/70 hover:text-brand-green"
               >
                 ← Back to menu
               </Link>
@@ -385,8 +385,8 @@ function OrderCard({
             </span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
               order.status === "served" ? "bg-green-50 dark:bg-green-950 text-green-600 dark:text-green-400" :
-              order.status === "ready" ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400" :
-              order.status === "preparing" ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400" :
+              order.status === "ready" ? "bg-brand-green/10 dark:bg-brand-green/20 text-brand-green dark:text-brand-green-dark" :
+              order.status === "preparing" ? "bg-brand-green/10 dark:bg-brand-green/20 text-brand-green dark:text-brand-green-dark" :
               order.status === "cancelled" ? "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400" :
               "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400"
             }`}>
@@ -481,7 +481,7 @@ function OrderCard({
 
 export default function MyBillsPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 to-blue-400 dark:from-blue-900 dark:to-blue-800"><p className="text-white">Loading...</p></div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center goko-mesh goko-noise bg-brand-sand dark:bg-background"><p className="text-brand-green">Loading...</p></div>}>
       <MyBillsContent />
     </Suspense>
   );

@@ -151,7 +151,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
               whileTap={{ scale: 0.96 }}
               whileHover={{ scale: 1.03, y: -2 }}
               onClick={() => setSelectedCategory(cat.id)}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 dark:border-border bg-white dark:bg-card p-5 shadow-sm dark:shadow-none transition-shadow hover:border-blue-200 hover:shadow-lg dark:hover:shadow-none"
+              className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 dark:border-border bg-white dark:bg-card p-5 shadow-sm dark:shadow-none transition-shadow hover:border-brand-green/30 hover:shadow-lg dark:hover:shadow-none"
             >
               <span className="text-3xl">{cat.icon}</span>
               <span className="text-sm font-semibold text-gray-800 dark:text-foreground">{cat.name}</span>
@@ -209,7 +209,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search dishes…"
-          className="w-full rounded-xl border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-4 py-2.5 pr-9 text-sm dark:text-foreground outline-none transition-all duration-200 focus:border-blue-300 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30 focus:shadow-sm dark:focus:shadow-none"
+          className="w-full rounded-xl border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-4 py-2.5 pr-9 text-sm dark:text-foreground outline-none transition-all duration-200 focus:border-brand-green focus:bg-white dark:focus:bg-accent focus-visible:goko-focus focus:shadow-sm dark:focus:shadow-none"
         />
         <AnimatePresence>
           {searchQuery && (
@@ -324,7 +324,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                   className={`flex gap-3 rounded-2xl border bg-white dark:bg-card p-3 shadow-sm dark:shadow-none transition-all duration-200 ${
                     isUnavailable
                       ? "border-gray-100 dark:border-border opacity-50"
-                      : "border-gray-100 dark:border-border hover:border-blue-200 hover:shadow-lg dark:hover:shadow-none"
+                      : "border-gray-100 dark:border-border hover:border-brand-green/30 hover:shadow-lg dark:hover:shadow-none"
                   }`}
                 >
                   {/* Image */}
@@ -374,7 +374,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                             if (lc === "veg") classes = "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400";
                             else if (lc === "non-veg" || lc === "nonveg") classes = "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400";
                             else if (lc === "spicy") classes = "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400";
-                            else if (lc === "seafood") classes = "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400";
+                            else if (lc === "seafood") classes = "bg-brand-green/10 dark:bg-brand-green/20 text-brand-green dark:text-brand-green-dark";
                             else if (lc === "chicken") classes = "bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400";
                             else if (lc === "mutton") classes = "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-300";
                             else if (lc === "egg") classes = "bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400";
@@ -421,7 +421,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                               exit={{ scale: 0.9, opacity: 0 }}
                               whileTap={{ scale: 0.92 }}
                               onClick={() => handleAdd(item)}
-                              className="rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm dark:shadow-none transition-shadow hover:shadow-md dark:hover:shadow-none"
+                              className="goko-gradient-cta rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm dark:shadow-none transition-shadow hover:shadow-md dark:hover:shadow-none"
                             >
                               Add
                             </motion.button>
@@ -430,12 +430,12 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                               key="stepper"
                               initial={{ scale: 0.9, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
-                              className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 px-1.5 py-0.5"
+                              className="flex items-center gap-2 rounded-lg border border-brand-green/25 dark:border-brand-green/40 bg-brand-green/10 dark:bg-brand-green/20 px-1.5 py-0.5"
                             >
                               <motion.button
                                 whileTap={{ scale: 0.85 }}
                                 onClick={() => onRemoveFromCart(item.id)}
-                                className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition-colors hover:bg-blue-100"
+                                className="flex h-10 w-10 items-center justify-center rounded-md text-brand-green transition-colors hover:bg-brand-green/10"
                               >
                                 −
                               </motion.button>
@@ -443,14 +443,14 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                                 key={qty}
                                 initial={{ scale: 1.3 }}
                                 animate={{ scale: 1 }}
-                                className="min-w-[16px] text-center text-sm font-semibold text-blue-700"
+                                className="min-w-[16px] text-center text-sm font-semibold text-brand-green"
                               >
                                 {qty}
                               </motion.span>
                               <motion.button
                                 whileTap={{ scale: 0.85 }}
                                 onClick={() => handleAdd(item)}
-                                className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition-colors hover:bg-blue-100"
+                                className="flex h-10 w-10 items-center justify-center rounded-md text-brand-green transition-colors hover:bg-brand-green/10"
                               >
                                 +
                               </motion.button>

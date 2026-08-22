@@ -44,6 +44,7 @@ function PhotoCarousel({ photos, alt }: { photos: string[]; alt: string }) {
                 width={1200}
                 height={800}
                 className="h-[200px] w-full object-cover sm:h-[280px] md:h-[360px]"
+                sizes="(max-width:768px) 100vw, 50vw"
               />
             </div>
           ))}
@@ -309,6 +310,7 @@ export function StayRoomCard({
                 width={1200}
                 height={800}
                 className="h-[220px] w-full object-cover transition-transform duration-500 group-hover/room:scale-105 sm:h-[280px] md:h-[380px]"
+                sizes="(max-width:1024px) 100vw, 50vw"
               />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/room:opacity-100" />

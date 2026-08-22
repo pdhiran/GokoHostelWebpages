@@ -1,6 +1,7 @@
 import { PageRibbon } from "@/components/layout/PageRibbon";
 import { Reveal } from "@/components/motion/Reveal";
 import { Container } from "@/components/ui/Container";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   beaches,
   beachesIntro,
@@ -32,9 +33,7 @@ export default function ThingsToDoPage() {
 
       <section className="py-16 md:py-24">
         <Container>
-          <h2 className="font-display text-display-md font-bold text-brand-green">
-            Beaches
-          </h2>
+          <SectionHeader title="Beaches" />
           <p className="mx-auto mt-4 max-w-3xl text-center text-base leading-relaxed text-brand-green-dark/90 md:text-lg">
             {beachesIntro}
           </p>
@@ -71,9 +70,7 @@ export default function ThingsToDoPage() {
       <section className="relative py-16 md:py-24">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <h2 className="font-display text-display-md font-bold text-brand-green">
-            Temples & culture
-          </h2>
+          <SectionHeader title="Temples & culture" />
           <p className="mx-auto mt-4 max-w-3xl text-center text-base leading-relaxed text-brand-green-dark/90 md:text-lg">
             {templesIntro}
           </p>
@@ -99,9 +96,7 @@ export default function ThingsToDoPage() {
 
       <section className="py-16 md:py-24">
         <Container>
-          <h2 className="font-display text-display-md font-bold text-brand-green">
-            Day trips
-          </h2>
+          <SectionHeader title="Day trips" />
           <p className="mx-auto mt-4 max-w-3xl text-center text-base leading-relaxed text-brand-green-dark/90 md:text-lg">
             {dayTripsIntro}
           </p>

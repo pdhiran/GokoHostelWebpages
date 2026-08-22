@@ -160,8 +160,8 @@ export default function ReviewPage() {
 
   if (view === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-emerald-50 to-white">
-        <Loader2Icon className="h-6 w-6 animate-spin text-emerald-600" />
+      <div className="flex min-h-screen items-center justify-center bg-brand-sand">
+        <Loader2Icon className="h-6 w-6 animate-spin text-brand-green" />
       </div>
     );
   }
@@ -188,10 +188,10 @@ export default function ReviewPage() {
 
   if (view === "rating") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-50 to-white p-6">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-brand-sand p-6">
         <div className="w-full max-w-sm text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-            <HeartIcon className="h-8 w-8 text-emerald-600" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-green/10">
+            <HeartIcon className="h-8 w-8 text-brand-green" />
           </div>
           <h1 className="mt-5 text-xl font-bold text-gray-900">
             Thank you for staying with us!
@@ -210,7 +210,7 @@ export default function ReviewPage() {
                 onMouseEnter={() => setHoverRating(star)}
                 onMouseLeave={() => setHoverRating(0)}
                 onClick={() => setSelectedRating(star)}
-                className="rounded-lg p-1 transition-transform hover:scale-110 active:scale-95"
+                className="rounded-lg p-1 transition-transform hover:scale-110 active:scale-95 focus-visible:goko-focus"
               >
                 <StarIcon
                   className={cn(
@@ -238,7 +238,7 @@ export default function ReviewPage() {
             type="button"
             onClick={handleRatingSubmit}
             disabled={selectedRating === 0 || submitting}
-            className="mt-8 w-full rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-200 transition-all hover:bg-emerald-700 disabled:opacity-40 disabled:shadow-none"
+            className="goko-gradient-cta mt-8 w-full rounded-xl px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition-all disabled:opacity-40 disabled:shadow-none"
           >
             {submitting ? "Submitting..." : "Submit Rating"}
           </button>
@@ -249,10 +249,10 @@ export default function ReviewPage() {
 
   if (view === "thankyou") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-50 to-white p-6">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-brand-sand p-6">
         <div className="w-full max-w-sm text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-            <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-green/10">
+            <CheckCircleIcon className="h-8 w-8 text-brand-green" />
           </div>
           <h1 className="mt-5 text-xl font-bold text-gray-900">
             Thank you for your feedback!
@@ -296,7 +296,7 @@ export default function ReviewPage() {
 
   if (view === "feedback") {
     return (
-      <div className="flex min-h-screen flex-col bg-gradient-to-b from-orange-50 to-white p-6">
+      <div className="flex min-h-screen flex-col bg-brand-sand p-6">
         <div className="mx-auto w-full max-w-sm">
           <h1 className="text-lg font-bold text-gray-900">
             We&apos;re sorry your experience wasn&apos;t perfect.
@@ -317,7 +317,7 @@ export default function ReviewPage() {
                   className={cn(
                     "flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 text-left text-sm font-medium transition-all",
                     selectedAreas.includes(opt.id)
-                      ? "border-orange-500 bg-orange-50 text-orange-700"
+                      ? "border-brand-red bg-brand-sand text-brand-red"
                       : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                   )}
                 >
@@ -336,19 +336,19 @@ export default function ReviewPage() {
               onChange={(e) => setComments(e.target.value.slice(0, 1000))}
               placeholder="Please tell us more about your experience..."
               rows={4}
-              className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-orange-400 focus:outline-none"
+              className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-brand-green focus-visible:goko-focus"
             />
             <p className="mt-1 text-right text-xs text-gray-400">{comments.length}/1000</p>
           </div>
 
           {selectedAreas.length === 0 && (
-            <p className="mt-4 text-xs text-orange-600">Please select at least one area to continue.</p>
+            <p className="mt-4 text-xs text-brand-red">Please select at least one area to continue.</p>
           )}
           <button
             type="button"
             onClick={handleFeedbackSubmit}
             disabled={submitting || selectedAreas.length === 0}
-            className="mt-4 w-full rounded-xl bg-orange-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-orange-200 transition-all hover:bg-orange-700 disabled:opacity-40 disabled:shadow-none"
+            className="goko-gradient-cta mt-4 w-full rounded-xl px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition-all disabled:opacity-40 disabled:shadow-none"
           >
             {submitting ? "Sending..." : "Send Feedback"}
           </button>
@@ -359,10 +359,10 @@ export default function ReviewPage() {
 
   if (view === "submitted") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-50 to-white p-6">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-brand-sand p-6">
         <div className="w-full max-w-sm text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-            <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-green/10">
+            <CheckCircleIcon className="h-8 w-8 text-brand-green" />
           </div>
           <h1 className="mt-5 text-xl font-bold text-gray-900">
             Thank you for helping us improve!

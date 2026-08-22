@@ -124,11 +124,11 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
       className="mx-auto w-full max-w-md px-4"
     >
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-green/10">
           <span className="text-3xl">🏖️</span>
         </div>
-        <h1 className="text-2xl font-bold text-white">Goko Hostel</h1>
-        <p className="mt-1 text-sm text-blue-100">Beach-side dining</p>
+        <h1 className="text-2xl font-bold text-brand-green">Goko Hostel</h1>
+        <p className="mt-1 text-sm text-brand-green-dark/70">Beach-side dining</p>
       </div>
 
       <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-6 shadow-xl dark:shadow-none backdrop-blur-sm">
@@ -146,7 +146,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
               value={formatPhone(phone)}
               onChange={handlePhoneChange}
               placeholder="98765 43210"
-              className="w-full rounded-xl border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted py-3.5 pl-12 pr-4 text-lg font-medium tracking-wide text-gray-800 dark:text-foreground outline-none transition focus:border-blue-400 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30"
+              className="w-full rounded-xl border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted py-3.5 pl-12 pr-4 text-lg font-medium tracking-wide text-gray-800 dark:text-foreground outline-none transition focus:border-brand-green focus:bg-white dark:focus:bg-accent focus-visible:goko-focus"
               autoFocus
               disabled={loading}
             />
@@ -156,7 +156,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
             <button
               type="button"
               onClick={handleChangeNumber}
-              className="mt-2 text-sm text-blue-500 hover:text-blue-700"
+              className="mt-2 text-sm text-brand-green hover:text-brand-green-dark"
             >
               Not you? Change number
             </button>
@@ -178,7 +178,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
           <button
             type="submit"
             disabled={loading || stripNonDigits(phone).length < 10}
-            className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-200 dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50 disabled:shadow-none"
+            className="goko-gradient-cta mt-5 w-full rounded-xl py-3.5 text-base font-semibold text-white shadow-lg dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50 disabled:shadow-none"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -208,9 +208,9 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
                   <button
                     key={g.checkinId}
                     onClick={() => handleSelectGuest(g)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-gray-50 dark:bg-muted px-4 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50 dark:hover:bg-accent"
+                    className="flex w-full items-center gap-3 rounded-xl border border-gray-100 dark:border-border bg-gray-50 dark:bg-muted px-4 py-3 text-left transition hover:border-brand-green/30 hover:bg-brand-sand dark:hover:bg-accent"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50 text-sm font-bold text-blue-600">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-green/10 dark:bg-brand-green/20 text-sm font-bold text-brand-green">
                       {g.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">

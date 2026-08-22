@@ -71,7 +71,7 @@ function CountrySelect({
           setSearch("");
         }}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
-        className={cn(error && "border-red-400 ring-red-100")}
+        className={cn(error && "border-brand-red ring-brand-red/20")}
         autoComplete="off"
       />
       {open && (
@@ -173,7 +173,7 @@ function MultiDocUpload({
               <button
                 type="button"
                 onClick={() => onRemove(i)}
-                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-md dark:shadow-none"
+                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand-red text-white shadow-md dark:shadow-none"
               >
                 <XIcon className="h-3 w-3" />
               </button>
@@ -220,7 +220,7 @@ function MultiDocUpload({
       )}
 
       {validationMsg && !validating && (
-        <p className={cn("mt-2 text-sm font-medium", validationMsg.valid ? "text-brand-green" : "text-red-500")}>
+        <p className={cn("mt-2 text-sm font-medium", validationMsg.valid ? "text-brand-green" : "text-brand-red")}>
           {validationMsg.valid ? "✓ " : "✗ "}{validationMsg.message}
         </p>
       )}
@@ -241,7 +241,7 @@ function MultiDocUpload({
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
-      {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
+      {error && <p className="mt-1.5 text-xs text-brand-red">{error}</p>}
       <p className="mt-1.5 text-xs text-brand-green-dark/50">
         {helpText || "Accepted: JPEG, PNG, WebP, PDF. Max 10 MB per file."}
       </p>
@@ -715,11 +715,11 @@ export function SelfCheckinForm() {
               value={phoneInput}
               onChange={(e) => { setPhoneInput(e.target.value); setLookupError(""); }}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handlePhoneLookup(); } }}
-              className={cn(lookupError && "border-red-400")}
+              className={cn(lookupError && "border-brand-red")}
               autoFocus
             />
             {lookupError && (
-              <p className="mt-1 text-xs text-red-500">{lookupError}</p>
+              <p className="mt-1 text-xs text-brand-red">{lookupError}</p>
             )}
           </div>
 
@@ -856,10 +856,10 @@ export function SelfCheckinForm() {
               id="arrivalDate"
               type="date"
               {...register("arrivalDate")}
-              className={cn(errors.arrivalDate && "border-red-400")}
+              className={cn(errors.arrivalDate && "border-brand-red")}
             />
             {errors.arrivalDate && (
-              <p className="mt-1 text-xs text-red-500">{errors.arrivalDate.message}</p>
+              <p className="mt-1 text-xs text-brand-red">{errors.arrivalDate.message}</p>
             )}
           </div>
           <div>
@@ -868,10 +868,10 @@ export function SelfCheckinForm() {
               id="arrivalTime"
               type="time"
               {...register("arrivalTime")}
-              className={cn(errors.arrivalTime && "border-red-400")}
+              className={cn(errors.arrivalTime && "border-brand-red")}
             />
             {errors.arrivalTime && (
-              <p className="mt-1 text-xs text-red-500">{errors.arrivalTime.message}</p>
+              <p className="mt-1 text-xs text-brand-red">{errors.arrivalTime.message}</p>
             )}
           </div>
         </div>
@@ -885,7 +885,7 @@ export function SelfCheckinForm() {
               {...register("bookingPlatform")}
               className={cn(
                 "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring",
-                errors.bookingPlatform && "border-red-400",
+                errors.bookingPlatform && "border-brand-red",
                 returnGuest && !bookingPlatform && "border-amber-400 ring-2 ring-amber-100"
               )}
             >
@@ -898,7 +898,7 @@ export function SelfCheckinForm() {
               <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
             )}
             {errors.bookingPlatform && (
-              <p className="mt-1 text-xs text-red-500">{errors.bookingPlatform.message}</p>
+              <p className="mt-1 text-xs text-brand-red">{errors.bookingPlatform.message}</p>
             )}
           </div>
           {needsBookingId && (
@@ -909,7 +909,7 @@ export function SelfCheckinForm() {
                 placeholder="e.g. 4829173650"
                 {...register("bookingId")}
                 className={cn(
-                  errors.bookingId && "border-red-400",
+                  errors.bookingId && "border-brand-red",
                   returnGuest && !bookingId && "border-amber-400 ring-2 ring-amber-100"
                 )}
               />
@@ -917,7 +917,7 @@ export function SelfCheckinForm() {
                 <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
               )}
               {errors.bookingId && (
-                <p className="mt-1 text-xs text-red-500">{errors.bookingId.message}</p>
+                <p className="mt-1 text-xs text-brand-red">{errors.bookingId.message}</p>
               )}
             </div>
           )}
@@ -931,11 +931,11 @@ export function SelfCheckinForm() {
               id="firstName"
               placeholder="First name"
               {...register("firstName")}
-              className={cn(errors.firstName && "border-red-400")}
+              className={cn(errors.firstName && "border-brand-red")}
               autoComplete="given-name"
             />
             {errors.firstName && (
-              <p className="mt-1 text-xs text-red-500">{errors.firstName.message}</p>
+              <p className="mt-1 text-xs text-brand-red">{errors.firstName.message}</p>
             )}
           </div>
           <div>
@@ -944,11 +944,11 @@ export function SelfCheckinForm() {
               id="lastName"
               placeholder="Last name"
               {...register("lastName")}
-              className={cn(errors.lastName && "border-red-400")}
+              className={cn(errors.lastName && "border-brand-red")}
               autoComplete="family-name"
             />
             {errors.lastName && (
-              <p className="mt-1 text-xs text-red-500">{errors.lastName.message}</p>
+              <p className="mt-1 text-xs text-brand-red">{errors.lastName.message}</p>
             )}
           </div>
         </div>
@@ -975,7 +975,7 @@ export function SelfCheckinForm() {
               placeholder="e.g. 2"
               {...register("numberOfPersons")}
               className={cn(
-                errors.numberOfPersons && "border-red-400",
+                errors.numberOfPersons && "border-brand-red",
                 returnGuest && !numberOfPersons && "border-amber-400 ring-2 ring-amber-100"
               )}
             />
@@ -983,7 +983,7 @@ export function SelfCheckinForm() {
               <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
             )}
             {errors.numberOfPersons && (
-              <p className="mt-1 text-xs text-red-500">
+              <p className="mt-1 text-xs text-brand-red">
                 {errors.numberOfPersons.message}
               </p>
             )}
@@ -997,7 +997,7 @@ export function SelfCheckinForm() {
               placeholder="e.g. 3"
               {...register("stayingDays")}
               className={cn(
-                errors.stayingDays && "border-red-400",
+                errors.stayingDays && "border-brand-red",
                 returnGuest && !stayingDays && "border-amber-400 ring-2 ring-amber-100"
               )}
             />
@@ -1005,7 +1005,7 @@ export function SelfCheckinForm() {
               <p className="mt-1 text-xs font-medium text-amber-600">Please fill in for this visit</p>
             )}
             {errors.stayingDays && (
-              <p className="mt-1 text-xs text-red-500">{errors.stayingDays.message}</p>
+              <p className="mt-1 text-xs text-brand-red">{errors.stayingDays.message}</p>
             )}
           </div>
         </div>
@@ -1019,7 +1019,7 @@ export function SelfCheckinForm() {
             error={errors.nationality?.message}
           />
           {errors.nationality && (
-            <p className="mt-1 text-xs text-red-500">{errors.nationality.message}</p>
+            <p className="mt-1 text-xs text-brand-red">{errors.nationality.message}</p>
           )}
         </div>
 
@@ -1030,10 +1030,10 @@ export function SelfCheckinForm() {
             id="comingFrom"
             placeholder="e.g. Mumbai"
             {...register("comingFrom")}
-            className={cn(errors.comingFrom && "border-red-400")}
+            className={cn(errors.comingFrom && "border-brand-red")}
           />
           {errors.comingFrom && (
-            <p className="mt-1 text-xs text-red-500">{errors.comingFrom.message}</p>
+            <p className="mt-1 text-xs text-brand-red">{errors.comingFrom.message}</p>
           )}
         </div>
 
@@ -1050,12 +1050,12 @@ export function SelfCheckinForm() {
               inputMode="tel"
               placeholder="98765 43210"
               {...register("contactNumber")}
-              className={cn("flex-1", errors.contactNumber && "border-red-400")}
+              className={cn("flex-1", errors.contactNumber && "border-brand-red")}
               autoComplete="tel"
             />
           </div>
           {errors.contactNumber && (
-            <p className="mt-1 text-xs text-red-500">{errors.contactNumber.message}</p>
+            <p className="mt-1 text-xs text-brand-red">{errors.contactNumber.message}</p>
           )}
         </div>
 
@@ -1067,10 +1067,10 @@ export function SelfCheckinForm() {
               id="emergencyName"
               placeholder="e.g. Parent or friend"
               {...register("emergencyName")}
-              className={cn(errors.emergencyName && "border-red-400")}
+              className={cn(errors.emergencyName && "border-brand-red")}
             />
             {errors.emergencyName && (
-              <p className="mt-1 text-xs text-red-500">{errors.emergencyName.message}</p>
+              <p className="mt-1 text-xs text-brand-red">{errors.emergencyName.message}</p>
             )}
           </div>
           <div>
@@ -1085,11 +1085,11 @@ export function SelfCheckinForm() {
                 inputMode="tel"
                 placeholder="98765 43210"
                 {...register("emergencyPhone")}
-                className={cn("flex-1", errors.emergencyPhone && "border-red-400")}
+                className={cn("flex-1", errors.emergencyPhone && "border-brand-red")}
               />
             </div>
             {errors.emergencyPhone && (
-              <p className="mt-1 text-xs text-red-500">{errors.emergencyPhone.message}</p>
+              <p className="mt-1 text-xs text-brand-red">{errors.emergencyPhone.message}</p>
             )}
           </div>
         </div>
@@ -1110,7 +1110,7 @@ export function SelfCheckinForm() {
             }}
             className={cn(
               "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring",
-              errors.idType && "border-red-400"
+              errors.idType && "border-brand-red"
             )}
           >
             <option value="">Select ID type...</option>
@@ -1119,7 +1119,7 @@ export function SelfCheckinForm() {
             <option value="passport">Passport</option>
           </select>
           {errors.idType && (
-            <p className="mt-1 text-xs text-red-500">{errors.idType.message}</p>
+            <p className="mt-1 text-xs text-brand-red">{errors.idType.message}</p>
           )}
         </div>
 
@@ -1213,8 +1213,8 @@ export function SelfCheckinForm() {
 
         {/* Foreign guest Form C fields */}
         {nationality && nationality !== "India" && (
-          <div className="space-y-5 rounded-2xl border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/30 p-5">
-            <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Additional details for foreign nationals (required for Form C)</p>
+          <div className="space-y-5 rounded-2xl border border-brand-green/20 dark:border-brand-green/30 bg-brand-green/[0.06] dark:bg-brand-green/10 p-5">
+            <p className="text-sm font-semibold text-brand-green-dark dark:text-brand-green">Additional details for foreign nationals (required for Form C)</p>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon, WarehouseIcon } from "lucide-react";
+import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon, WarehouseIcon, UtensilsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 // import { DarkModeToggle } from "@/components/DarkModeToggle";
@@ -310,7 +310,7 @@ function AdminPageInner() {
     { id: "timeline", label: "Timeline", icon: <CalendarDaysIcon className="h-4 w-4" />, permission: "canViewTimeline" },
     { id: "inventory", label: "Inventory", icon: <WarehouseIcon className="h-4 w-4" />, permission: "canManageInventory" },
     { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" />, permission: "canViewRecords" },
-    { id: "foodOrders", label: "Food Orders", icon: <span className="text-base leading-none">🍽️</span>, permission: "canViewFoodOrders" },
+    { id: "foodOrders", label: "Food Orders", icon: <UtensilsIcon className="h-4 w-4" />, permission: "canViewFoodOrders" },
     { id: "expenditure", label: "Accounts", icon: <WalletIcon className="h-4 w-4" />, permission: "canViewAccounts" },
     { id: "reviews", label: "Reviews", icon: <StarIcon className="h-4 w-4" />, permission: "canViewReviews" },
     { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" />, permission: "canViewManagement" },

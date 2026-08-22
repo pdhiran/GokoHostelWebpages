@@ -3,6 +3,7 @@ import { PageRibbon } from "@/components/layout/PageRibbon";
 import { Reveal } from "@/components/motion/Reveal";
 import { Container } from "@/components/ui/Container";
 import { Icon } from "@/components/ui/Icon";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   founders,
   storyBegin,
@@ -32,9 +33,7 @@ export default function StoryPage() {
 
       <section className="py-16 md:py-24">
         <Container>
-          <h2 className="font-display text-display-md font-bold text-brand-green">
-            {storyBegin.title}
-          </h2>
+          <SectionHeader title={storyBegin.title} align="left" />
           <div className="mt-8 max-w-3xl space-y-5 text-base leading-relaxed text-brand-green-dark/90 md:text-lg">
             {storyBegin.paragraphs.map((p, i) => (
               <p key={i}>{p}</p>
@@ -46,9 +45,7 @@ export default function StoryPage() {
       <section className="relative py-16 md:py-24">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <h2 className="text-center font-display text-display-md font-bold text-brand-green">
-            Meet the founders
-          </h2>
+          <SectionHeader title="Meet the founders" />
           <div className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
             {founders.map((f, i) => (
               <Reveal key={f.name} delay={i * 0.05}>
@@ -99,9 +96,7 @@ export default function StoryPage() {
 
       <section className="py-16 md:py-20">
         <Container>
-          <h2 className="text-center font-display text-display-md font-bold text-brand-green">
-            Team & operations
-          </h2>
+          <SectionHeader title="Team & operations" />
           <p className="mx-auto mt-4 max-w-2xl text-center text-base text-brand-green-dark/85">
             The people who keep Goko running day to day — say hi when you see us by the mural.
           </p>
@@ -144,9 +139,7 @@ export default function StoryPage() {
       <section className="relative py-16 md:py-24">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <h2 className="text-center font-display text-display-md font-bold text-brand-green">
-            What we believe
-          </h2>
+          <SectionHeader title="What we believe" />
           <div className="mt-12 grid gap-8 md:grid-cols-2">
             {storyValues.map((v, i) => (
               <Reveal key={v.title} delay={i * 0.05} className="h-full">

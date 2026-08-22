@@ -339,18 +339,18 @@ export default function FoodOrderPage() {
   // Loading state
   if (view === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900">
+      <div className="flex min-h-screen items-center justify-center goko-mesh goko-noise bg-brand-sand dark:bg-background">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-          className="h-10 w-10 rounded-full border-4 border-white/30 border-t-white"
+          className="h-10 w-10 rounded-full border-4 border-brand-green/20 border-t-brand-green"
         />
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900">
+    <div className="relative min-h-screen goko-mesh goko-noise bg-brand-sand dark:bg-background">
       {/* Kitchen closed banner */}
       {kitchenClosed && settings && (
         <motion.div
@@ -402,7 +402,7 @@ export default function FoodOrderPage() {
               <div className="mt-4 text-center">
                 <Link
                   href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
-                  className="text-sm font-medium text-blue-100 transition hover:text-white"
+                  className="text-sm font-medium text-brand-green-dark/70 transition hover:text-brand-green"
                 >
                   View my bills →
                 </Link>
@@ -421,20 +421,20 @@ export default function FoodOrderPage() {
               <div className="mb-4 px-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <h1 className="text-lg font-bold text-white">
+                    <h1 className="text-lg font-bold text-brand-green">
                       {guestInfo?.guestType === "hostel"
                         ? `Hi, ${guestInfo.name?.split(" ")[0]}! 👋`
                         : "Welcome! 👋"}
                     </h1>
                     {guestInfo?.roomInfo && (
-                      <p className="text-sm text-blue-100">{guestInfo.roomInfo}</p>
+                      <p className="text-sm text-brand-green-dark/70">{guestInfo.roomInfo}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* <DarkModeToggle className="text-white/80 hover:bg-white/20" /> */}
                     <Link
                       href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
-                      className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
+                      className="flex items-center gap-1.5 rounded-xl bg-brand-green/10 px-3 py-2 text-sm font-medium text-brand-green transition hover:bg-brand-green/15"
                     >
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -444,7 +444,7 @@ export default function FoodOrderPage() {
                     {guestInfo?.guestType === "hostel" && pastOrders.length > 0 && (
                       <button
                         onClick={() => setShowMyOrders(true)}
-                        className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
+                        className="flex items-center gap-1.5 rounded-xl bg-brand-green/10 px-3 py-2 text-sm font-medium text-brand-green transition hover:bg-brand-green/15"
                       >
                         My Orders
                       </button>
@@ -500,7 +500,7 @@ export default function FoodOrderPage() {
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setView("cart")}
-          className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-4 shadow-2xl shadow-blue-500/30"
+          className="goko-gradient-cta fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-6 py-4 shadow-2xl"
         >
           <div className="relative">
             <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -510,13 +510,13 @@ export default function FoodOrderPage() {
               key={cartCount}
               initial={{ scale: 1.5 }}
               animate={{ scale: 1 }}
-              className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-600"
+              className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-brand-green"
             >
               {cartCount}
             </motion.span>
           </div>
           <span className="text-sm font-bold text-white">View Cart</span>
-          <span className="text-sm font-medium text-blue-100">
+          <span className="text-sm font-medium text-white/80">
             ₹{Math.round(cart.reduce((s, c) => s + c.price * c.quantity, 0) / 100)}
           </span>
         </motion.button>
@@ -576,7 +576,7 @@ export default function FoodOrderPage() {
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                      className="h-8 w-8 rounded-full border-3 border-gray-200 border-t-blue-500"
+                      className="h-8 w-8 rounded-full border-3 border-gray-200 border-t-brand-green"
                     />
                   </div>
                 ) : pastOrders.length === 0 ? (
@@ -607,7 +607,7 @@ function formatOrderDate(dateStr: string): string {
 
 const STATUS_COLORS: Record<string, string> = {
   placed: "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400",
-  preparing: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400",
+  preparing: "bg-brand-green/10 dark:bg-brand-green/20 text-brand-green dark:text-brand-green-dark",
   ready: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400",
   served: "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400",
   cancelled: "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400",
@@ -655,7 +655,7 @@ function MyOrdersList({ orders, onReorder }: { orders: PastOrder[]; onReorder: (
                   {order.status !== "cancelled" && (
                     <button
                       onClick={() => onReorder(order)}
-                      className="flex items-center gap-1 rounded-lg bg-blue-50 dark:bg-blue-950 px-3 py-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 transition hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                      className="flex items-center gap-1 rounded-lg bg-brand-green/10 dark:bg-brand-green/20 px-3 py-2.5 text-sm font-medium text-brand-green dark:text-brand-green-dark transition hover:bg-brand-green/15 dark:hover:bg-brand-green/30"
                     >
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

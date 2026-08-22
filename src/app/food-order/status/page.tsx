@@ -108,11 +108,11 @@ function OrderStatusContent() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900">
+      <div className="flex min-h-screen items-center justify-center goko-mesh goko-noise bg-brand-sand dark:bg-background">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-          className="h-10 w-10 rounded-full border-4 border-white/30 border-t-white"
+          className="h-10 w-10 rounded-full border-4 border-brand-green/20 border-t-brand-green"
         />
       </div>
     );
@@ -120,7 +120,7 @@ function OrderStatusContent() {
 
   if (error || !order) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900 p-6">
+      <div className="flex min-h-screen flex-col items-center justify-center goko-mesh goko-noise bg-brand-sand dark:bg-background p-6">
         <div className="max-w-sm rounded-2xl bg-white/95 dark:bg-card/95 p-8 text-center shadow-xl dark:shadow-none">
           <span className="text-4xl">😕</span>
           <h1 className="mt-4 text-xl font-bold text-gray-800 dark:text-gray-200">
@@ -128,7 +128,7 @@ function OrderStatusContent() {
           </h1>
           <a
             href="/food-order"
-            className="mt-6 inline-block rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-3 font-semibold text-white shadow-lg dark:shadow-none"
+            className="mt-6 inline-block rounded-xl goko-gradient-cta px-6 py-3 font-semibold text-white shadow-lg dark:shadow-none"
           >
             Place an order
           </a>
@@ -140,12 +140,12 @@ function OrderStatusContent() {
   const currentStepIndex = STATUS_STEPS.indexOf(order.status as (typeof STATUS_STEPS)[number]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-900 dark:via-blue-800 dark:to-cyan-900 p-4 pt-8">
+    <div className="min-h-screen goko-mesh goko-noise bg-brand-sand dark:bg-background p-4 pt-8">
       <div className="mx-auto max-w-lg">
         {/* Header */}
         <div className="mb-6 text-center">
-          <h1 className="text-xl font-bold text-white">Order #{order.orderNumber}</h1>
-          <p className="mt-1 text-sm text-blue-100">{elapsed}</p>
+          <h1 className="text-xl font-bold text-brand-green">Order #{order.orderNumber}</h1>
+          <p className="mt-1 text-sm text-brand-green-dark/70">{elapsed}</p>
         </div>
 
         {/* Progress stepper */}
@@ -154,7 +154,7 @@ function OrderStatusContent() {
             {/* Connecting line */}
             <div className="absolute left-0 right-0 top-5 h-0.5 bg-gray-200 dark:bg-white/10" />
             <div
-              className="absolute left-0 top-5 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
+              className="absolute left-0 top-5 h-0.5 bg-brand-green transition-all duration-500"
               style={{
                 width: `${Math.max(0, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
               }}
@@ -170,7 +170,7 @@ function OrderStatusContent() {
                     transition={isCurrent ? { repeat: Infinity, duration: 2 } : {}}
                     className={`flex h-10 w-10 items-center justify-center rounded-full text-lg ${
                       isActive
-                        ? "bg-gradient-to-br from-blue-500 to-cyan-500 shadow-md dark:shadow-none"
+                        ? "goko-gradient-cta shadow-md dark:shadow-none"
                         : "bg-gray-100 dark:bg-muted"
                     }`}
                   >
@@ -178,7 +178,7 @@ function OrderStatusContent() {
                   </motion.div>
                   <span
                     className={`mt-2 text-[11px] font-medium sm:text-xs ${
-                      isActive ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"
+                      isActive ? "text-brand-green dark:text-brand-green-dark" : "text-gray-400 dark:text-gray-500"
                     }`}
                   >
                     {STATUS_LABELS[step]}
@@ -188,8 +188,8 @@ function OrderStatusContent() {
             })}
           </div>
 
-          <div className="mt-5 rounded-xl bg-blue-50 dark:bg-blue-950 p-3 text-center">
-            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+          <div className="mt-5 rounded-xl bg-brand-green/10 dark:bg-brand-green/20 p-3 text-center">
+            <p className="text-sm font-medium text-brand-green-dark dark:text-brand-green">
               {order.status === "pending_approval" && "Waiting for staff to confirm your order"}
               {order.status === "placed" && "Your order has been received"}
               {order.status === "preparing" && "The kitchen is preparing your food"}
@@ -249,7 +249,7 @@ function OrderStatusContent() {
         <div className="mt-6 text-center">
           <a
             href="/food-order?reorder=1"
-            className="inline-block rounded-xl bg-white/20 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/30"
+            className="inline-block rounded-xl bg-brand-green/10 px-6 py-3 text-sm font-semibold text-brand-green transition hover:bg-brand-green/15"
           >
             Place another order
           </a>
@@ -263,8 +263,8 @@ export default function OrderStatusPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-500 to-cyan-500 dark:from-blue-900 dark:to-cyan-900">
-          <div className="text-white text-lg">Loading order status...</div>
+        <div className="flex min-h-screen items-center justify-center goko-mesh goko-noise bg-brand-sand dark:bg-background">
+          <div className="text-brand-green text-lg">Loading order status...</div>
         </div>
       }
     >

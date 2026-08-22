@@ -4,6 +4,7 @@ import { PageRibbon } from "@/components/layout/PageRibbon";
 import { Container } from "@/components/ui/Container";
 import { BookNowButton } from "@/components/booking/BookNowButton";
 import { ButtonLink } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   eventsHero,
   eventsPastCta,
@@ -42,11 +43,9 @@ export default function EventsPage() {
         </Container>
       </section>
 
-      <section className="py-12 md:py-16">
+      <section className="py-16 md:py-24">
         <Container>
-          <h2 className="font-display text-display-md font-bold text-brand-green">
-            Upcoming highlights
-          </h2>
+          <SectionHeader title="Upcoming highlights" align="left" />
           <p className="mt-3 text-base text-brand-green-dark/70">
             Click on any event to see details and promotional images
           </p>
@@ -60,12 +59,10 @@ export default function EventsPage() {
         </Container>
       </section>
 
-      <section className="relative py-12 md:py-20">
+      <section className="relative py-16 md:py-24">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <h2 className="font-display text-display-md font-bold text-brand-green">
-            Memories from past events
-          </h2>
+          <SectionHeader title="Memories from past events" align="left" />
           <div className="mt-10 grid gap-8 md:grid-cols-2">
             {pastEvents.map((ev, i) => (
               <Reveal key={ev.title} delay={i * 0.04}>

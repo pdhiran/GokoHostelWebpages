@@ -5,6 +5,7 @@ import { WalkingRouteGuide } from "@/components/sections/WalkingRouteGuide";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Container } from "@/components/ui/Container";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   howToReachHero,
   localContacts,
@@ -32,12 +33,7 @@ export default function HowToReachPage() {
 
       <section className="goko-mesh goko-noise py-16 md:py-24">
         <Container>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-brand-green/70">
-            Getting here
-          </p>
-          <h2 className="mt-2 font-display text-2xl font-bold text-brand-green md:text-display-md">
-            Choose your mode
-          </h2>
+          <SectionHeader eyebrow="Getting here" title="Choose your mode" align="left" />
           <div className="mt-10 grid gap-6 md:grid-cols-2 lg:gap-8">
             {transportModes.map((m, i) => (
               <Reveal key={m.title} delay={i * 0.04}>
@@ -65,9 +61,7 @@ export default function HowToReachPage() {
       <section className="relative py-16 md:py-24">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <h2 className="font-display text-display-md font-bold text-brand-green">
-            Local transport & rentals
-          </h2>
+          <SectionHeader title="Local transport & rentals" align="left" />
           <p className="mt-3 max-w-3xl text-brand-green-dark/85">
             {localContacts.intro} Phone numbers appeared on the legacy site — confirm before you travel.
           </p>

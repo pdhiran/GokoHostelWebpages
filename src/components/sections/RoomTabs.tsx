@@ -8,9 +8,9 @@ import { cn } from "@/lib/utils";
 import { Reveal } from "@/components/motion/Reveal";
 
 const accentRing: Record<RoomTab["accent"], string> = {
-  blue: "ring-blue-400/40 data-[active=true]:bg-blue-50",
-  green: "ring-emerald-500/40 data-[active=true]:bg-emerald-50",
-  orange: "ring-orange-400/50 data-[active=true]:bg-orange-50/80",
+  blue: "ring-brand-green/25 data-[active=true]:bg-brand-sand",
+  green: "ring-brand-green/40 data-[active=true]:bg-brand-green/[0.07]",
+  orange: "ring-brand-red/30 data-[active=true]:bg-brand-sand",
 };
 
 export function RoomTabs() {

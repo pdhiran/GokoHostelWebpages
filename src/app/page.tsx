@@ -71,6 +71,7 @@ export default function HomePage() {
                     width={1400}
                     height={1050}
                     className="h-auto w-full object-cover transition-transform duration-700 hover:scale-[1.02] motion-reduce:transition-none"
+                    sizes="(max-width:1024px) 100vw, 50vw"
                   />
                 </div>
               </div>
@@ -108,6 +109,7 @@ export default function HomePage() {
                     width={800}
                     height={534}
                     className="h-auto w-full object-cover transition-transform duration-700 hover:scale-[1.02] motion-reduce:transition-none"
+                    sizes="(max-width:1024px) 100vw, 50vw"
                   />
                 </div>
               </div>

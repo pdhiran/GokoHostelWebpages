@@ -1,6 +1,7 @@
 import { BookNowBare } from "@/components/booking/BookNowButton";
 import { BookingEnquiryForm } from "@/components/forms/BookingEnquiryForm";
 import { PageRibbon } from "@/components/layout/PageRibbon";
+import { Reveal } from "@/components/motion/Reveal";
 import { Container } from "@/components/ui/Container";
 import { buildMetadata } from "@/lib/seo";
 
@@ -20,18 +21,20 @@ export default function BookingEnquiryPage() {
         image="/images/IMG_3345.jpg"
         imageAlt="Goko Hostel beds and community space"
       />
-      <section className="py-12 md:py-16">
+      <section className="py-16 md:py-24">
         <Container>
-          <p className="mx-auto max-w-2xl text-center text-brand-green-dark/90">
-            For questions before you book, reach out — we read every message.
-          </p>
-          <p className="mx-auto mt-6 max-w-2xl text-center text-brand-green-dark/90">
-            Prefer instant confirmation? You can still{" "}
-            <BookNowBare className="inline bg-transparent p-0 font-inherit font-semibold text-brand-red underline underline-offset-2 hover:opacity-90">
-              book directly
-            </BookNowBare>{" "}
-            anytime.
-          </p>
+          <Reveal>
+            <p className="mx-auto max-w-2xl text-center text-brand-green-dark/90">
+              For questions before you book, reach out — we read every message.
+            </p>
+            <p className="mx-auto mt-6 max-w-2xl text-center text-brand-green-dark/90">
+              Prefer instant confirmation? You can still{" "}
+              <BookNowBare className="inline bg-transparent p-0 font-inherit font-semibold text-brand-red underline underline-offset-2 hover:opacity-90">
+                book directly
+              </BookNowBare>{" "}
+              anytime.
+            </p>
+          </Reveal>
           <div className="mt-12">
             <BookingEnquiryForm />
           </div>

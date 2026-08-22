@@ -45,6 +45,7 @@ export function ImageCarousel({ images, alt, className }: ImageCarouselProps) {
                 width={1200}
                 height={800}
                 className="h-[220px] w-full object-cover sm:h-[280px] md:h-[380px]"
+                sizes="(max-width:768px) 100vw, 50vw"
               />
             </div>
           ))}

@@ -2,6 +2,7 @@ import { PageRibbon } from "@/components/layout/PageRibbon";
 import { Reveal } from "@/components/motion/Reveal";
 import { CommunitySpaceCard } from "@/components/sections/CardWithModal";
 import { Container } from "@/components/ui/Container";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   communityActivities,
   communityHero,
@@ -29,23 +30,17 @@ export default function CommunityAreaPage() {
 
       <section className="py-16 md:py-24">
         <Container>
-          <div className="mx-auto max-w-3xl text-center">
-            <h2 className="font-display text-display-md font-bold text-brand-green">
-              {communityIntro.title}
-            </h2>
-            <p className="mt-6 text-base leading-relaxed text-brand-green-dark/90 md:text-lg">
-              {communityIntro.paragraph}
-            </p>
-          </div>
+          <SectionHeader title={communityIntro.title} />
+          <p className="mx-auto mt-6 max-w-3xl text-center text-base leading-relaxed text-brand-green-dark/90 md:text-lg">
+            {communityIntro.paragraph}
+          </p>
         </Container>
       </section>
 
       <section className="relative py-16 md:py-24">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <h2 className="text-center font-display text-display-md font-bold text-brand-green">
-            Our common spaces
-          </h2>
+          <SectionHeader title="Our common spaces" />
           <p className="mx-auto mt-3 max-w-2xl text-center text-brand-green-dark/85">
             Designed for connection, comfort, and community. Click any space to explore photos.
           </p>
@@ -62,12 +57,10 @@ export default function CommunityAreaPage() {
       <section className="relative bg-brand-sand/40 py-16 md:py-24">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <div className="mx-auto max-w-3xl text-center">
-            <h2 className="font-display text-display-md font-bold text-brand-green">
-              {communityActivities.title}
-            </h2>
-            <p className="mt-3 text-brand-green-dark/85">{communityActivities.subtitle}</p>
-          </div>
+          <SectionHeader title={communityActivities.title} />
+          <p className="mx-auto mt-3 max-w-3xl text-center text-brand-green-dark/85">
+            {communityActivities.subtitle}
+          </p>
           <div className="mx-auto mt-10 flex max-w-3xl flex-wrap justify-center gap-2">
             {communityActivities.badges.map((b) => (
               <span
@@ -99,12 +92,10 @@ export default function CommunityAreaPage() {
 
       <section className="py-16 md:py-24">
         <Container>
-          <div className="mx-auto max-w-3xl text-center">
-            <h2 className="font-display text-display-md font-bold text-brand-green">
-              {communitySpecialEvents.title}
-            </h2>
-            <p className="mt-3 text-brand-green-dark/85">{communitySpecialEvents.subtitle}</p>
-          </div>
+          <SectionHeader title={communitySpecialEvents.title} />
+          <p className="mx-auto mt-3 max-w-3xl text-center text-brand-green-dark/85">
+            {communitySpecialEvents.subtitle}
+          </p>
           <div className="mt-12 grid gap-6 md:grid-cols-2">
             {communitySpecialEvents.cards.map((c, i) => (
               <Reveal key={c.title} delay={i * 0.05}>

@@ -4,6 +4,7 @@ import { StayRoomCard } from "@/components/sections/CardWithModal";
 import { BookNowButton } from "@/components/booking/BookNowButton";
 import { Container } from "@/components/ui/Container";
 import { Icon } from "@/components/ui/Icon";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   stayAmenities,
   stayHero,
@@ -31,9 +32,7 @@ export default function StayPage() {
 
       <section className="py-16 md:py-24">
         <Container>
-          <h2 className="text-center font-display text-display-md font-bold text-brand-green">
-            Our rooms
-          </h2>
+          <SectionHeader title="Our rooms" />
           <p className="mx-auto mt-3 max-w-2xl text-center text-brand-green-dark/85">
             Swipe through photos — then lock in your bed on our booking partner.
           </p>
@@ -56,9 +55,7 @@ export default function StayPage() {
       <section className="relative py-16 md:py-24">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <h2 className="text-center font-display text-display-md font-bold text-brand-green">
-            Amenities & facilities
-          </h2>
+          <SectionHeader title="Amenities & facilities" />
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {stayAmenities.map((a) => (
               <div key={a.title} className="text-center">
@@ -95,9 +92,7 @@ export default function StayPage() {
       <section className="relative py-16 md:py-20">
         <div className="goko-divider-fade mx-auto mb-12 max-w-4xl" aria-hidden />
         <Container>
-          <h2 className="text-center font-display text-2xl font-bold text-brand-green md:text-display-md">
-            {stayWhy.title}
-          </h2>
+          <SectionHeader title={stayWhy.title} />
           <div className="mx-auto mt-10 max-w-3xl space-y-5 text-center text-base leading-relaxed text-brand-green-dark/90 md:text-lg">
             {stayWhy.paragraphs.map((p, idx) => (
               <p key={idx}>{p}</p>

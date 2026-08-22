@@ -177,7 +177,7 @@ export function FoodCart({
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="mt-6 space-y-3">
             <a
               href={`/food-order/status?order=${orderSuccess.orderNumber}&phone=${guestInfo.phone}`}
-              className="block w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3 text-center font-semibold text-white shadow-lg dark:shadow-none transition-all duration-200 hover:shadow-xl dark:hover:shadow-none hover:-translate-y-0.5"
+              className="block w-full rounded-xl goko-gradient-cta py-3 text-center font-semibold text-white shadow-lg dark:shadow-none transition-all duration-200 hover:shadow-xl dark:hover:shadow-none hover:-translate-y-0.5"
             >
               Track your order
             </a>
@@ -309,12 +309,12 @@ export function FoodCart({
       {/* Checkout Form */}
       <div className="mt-4 rounded-xl border border-gray-100 dark:border-border bg-white dark:bg-card p-4 shadow-sm dark:shadow-none">
         {guestInfo.guestType === "hostel" ? (
-          <div className="mb-3 rounded-lg bg-blue-50 dark:bg-blue-950 p-3">
-            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">{guestInfo.name}</p>
+          <div className="mb-3 rounded-lg bg-brand-green/10 dark:bg-brand-green/20 p-3">
+            <p className="text-sm font-medium text-brand-green-dark dark:text-brand-green">{guestInfo.name}</p>
             {guestInfo.roomInfo && (
-              <p className="text-xs text-blue-600 dark:text-blue-400">{guestInfo.roomInfo}</p>
+              <p className="text-xs text-brand-green dark:text-brand-green-dark">{guestInfo.roomInfo}</p>
             )}
-            <p className="text-xs text-blue-500 dark:text-blue-400">Charged to room tab</p>
+            <p className="text-xs text-brand-green/80 dark:text-brand-green-dark">Charged to room tab</p>
           </div>
         ) : (
           <div className="mb-3">
@@ -327,7 +327,7 @@ export function FoodCart({
                 setError("");
               }}
               placeholder="Enter your name"
-              className="w-full rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-3 py-2.5 text-sm dark:text-foreground outline-none transition focus:border-blue-300 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30"
+              className="w-full rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-3 py-2.5 text-sm dark:text-foreground outline-none transition focus:border-brand-green focus:bg-white dark:focus:bg-accent focus-visible:goko-focus"
             />
           </div>
         )}
@@ -339,7 +339,7 @@ export function FoodCart({
             onChange={(e) => setSpecialInstructions(e.target.value)}
             placeholder="Any dietary needs or requests…"
             rows={2}
-            className="w-full resize-none rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-3 py-2.5 text-sm dark:text-foreground outline-none transition focus:border-blue-300 focus:bg-white dark:focus:bg-accent focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/30"
+            className="w-full resize-none rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted px-3 py-2.5 text-sm dark:text-foreground outline-none transition focus:border-brand-green focus:bg-white dark:focus:bg-accent focus-visible:goko-focus"
           />
         </div>
       </div>
@@ -357,7 +357,7 @@ export function FoodCart({
       <button
         onClick={handlePlaceOrder}
         disabled={submitting}
-        className="mt-5 w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 py-4 text-base font-bold text-white shadow-lg shadow-blue-200 dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50"
+        className="goko-gradient-cta mt-5 w-full rounded-xl py-4 text-base font-bold text-white shadow-lg dark:shadow-none transition hover:shadow-xl dark:hover:shadow-none disabled:opacity-50"
       >
         {submitting ? (
           <span className="flex items-center justify-center gap-2">

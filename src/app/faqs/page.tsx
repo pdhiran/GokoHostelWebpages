@@ -1,5 +1,6 @@
 import { FaqAccordion } from "@/components/faq/FaqAccordion";
 import { PageRibbon } from "@/components/layout/PageRibbon";
+import { Reveal } from "@/components/motion/Reveal";
 import { Container } from "@/components/ui/Container";
 import { ButtonLink } from "@/components/ui/button";
 import { faqCategories, faqHero, faqStillHaveQuestions } from "@/content/faqs";
@@ -47,9 +48,11 @@ export default function FaqsPage() {
       />
       <section className="py-16 md:py-24">
         <Container>
-          <FaqAccordion categories={faqCategories} />
+          <Reveal>
+            <FaqAccordion categories={faqCategories} />
+          </Reveal>
 
-          <div className="mx-auto mt-16 max-w-xl rounded-3xl border border-brand-mist bg-brand-sand/50 p-8 text-center shadow-soft md:p-10">
+          <div className="goko-border-gradient mx-auto mt-16 max-w-xl rounded-3xl bg-brand-sand/60 p-8 text-center shadow-soft md:p-10">
             <h2 className="font-display text-xl font-bold text-brand-green-dark md:text-2xl">
               {faqStillHaveQuestions.title}
             </h2>
