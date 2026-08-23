@@ -24,7 +24,7 @@ export function PageRibbon({
   return (
     <section
       className={cn(
-        "relative flex min-h-[42vh] items-center justify-center overflow-hidden md:min-h-[48vh]",
+        "relative flex min-h-[88vh] items-center justify-center overflow-hidden md:min-h-[92vh]",
         className
       )}
     >
