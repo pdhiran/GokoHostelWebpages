@@ -603,7 +603,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button type="button" variant="cta" onClick={addEntry} disabled={loading}>{loading ? "Saving..." : "Save"}</Button>
+            <Button type="button" onClick={addEntry} disabled={loading}>{loading ? "Saving..." : "Save"}</Button>
             <Button type="button" variant="ghost" onClick={() => setShowAddForm(false)}>Cancel</Button>
           </div>
         </div>
@@ -736,7 +736,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button type="button" variant="cta" onClick={addPastEntry} disabled={loading}>{loading ? "Saving..." : "Save Past Record"}</Button>
+            <Button type="button" onClick={addPastEntry} disabled={loading}>{loading ? "Saving..." : "Save Past Record"}</Button>
             <Button type="button" variant="ghost" onClick={() => setShowPastForm(false)}>Cancel</Button>
           </div>
         </div>
@@ -781,7 +781,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
             ))}
           </div>
           <div className="mt-4 flex gap-2">
-            <Button type="button" variant="cta" onClick={updateRow} disabled={loading}>{loading ? "Saving..." : "Save"}</Button>
+            <Button type="button" onClick={updateRow} disabled={loading}>{loading ? "Saving..." : "Save"}</Button>
             <Button type="button" variant="ghost" onClick={() => setEditIndex(null)}>Cancel</Button>
           </div>
         </div>
@@ -1338,7 +1338,7 @@ export function AdminRecords({ password, username, role, permissions = {} }: { p
                   { key: "homeCountryPhone", label: "Phone (Home Country)" },
                 ]} data={formCEditData} onChange={setFormCEditData} />
                 <div className="flex gap-2">
-                  <Button type="button" variant="cta" disabled={formCSaving} onClick={async () => {
+                  <Button type="button" disabled={formCSaving} onClick={async () => {
                     setFormCSaving(true);
                     try {
                       const updatedData = {

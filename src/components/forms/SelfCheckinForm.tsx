@@ -1041,7 +1041,7 @@ export function SelfCheckinForm() {
         <div>
           <Label htmlFor="contactNumber">Contact number <span className="text-brand-red">*</span></Label>
           <div className="flex gap-2">
-            <div className="flex h-9 w-[5rem] shrink-0 items-center justify-center rounded-md border border-input bg-brand-sand/50 px-2 text-sm font-medium text-brand-green-dark">
+            <div className="flex h-8 w-[5rem] shrink-0 items-center justify-center rounded-lg border border-input bg-brand-sand/50 px-2 text-sm font-medium text-brand-green-dark">
               {countryDialCodes[nationality] || "+91"}
             </div>
             <Input
@@ -1076,7 +1076,7 @@ export function SelfCheckinForm() {
           <div>
             <Label htmlFor="emergencyPhone">Emergency contact phone <span className="text-brand-red">*</span></Label>
             <div className="flex gap-2">
-              <div className="flex h-9 w-[5rem] shrink-0 items-center justify-center rounded-md border border-input bg-brand-sand/50 px-2 text-sm font-medium text-brand-green-dark">
+              <div className="flex h-8 w-[5rem] shrink-0 items-center justify-center rounded-lg border border-input bg-brand-sand/50 px-2 text-sm font-medium text-brand-green-dark">
                 {countryDialCodes[nationality] || "+91"}
               </div>
               <Input

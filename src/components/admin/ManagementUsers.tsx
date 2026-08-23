@@ -283,7 +283,7 @@ export function ManagementUsers({ password, username, role }: { password: string
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button type="button" variant="cta" onClick={saveUser} disabled={saving}>{saving ? "Saving..." : editingUser ? "Update" : "Create"}</Button>
+            <Button type="button" onClick={saveUser} disabled={saving}>{saving ? "Saving..." : editingUser ? "Update" : "Create"}</Button>
             <Button type="button" variant="ghost" onClick={() => { setShowForm(false); setEditingUser(null); }}>Cancel</Button>
           </div>
         </div>

@@ -84,8 +84,8 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
             <option value="10">10 days</option>
             <option value="14">14 days</option>
           </select>
-          <Button type="button" variant="ctaOutline" onClick={() => setStartDate(fmtDate(new Date()))}>Today</Button>
-          <Button type="button" variant="ctaOutline" onClick={load}>Refresh</Button>
+          <Button type="button" variant="outline" onClick={() => setStartDate(fmtDate(new Date()))}>Today</Button>
+          <Button type="button" variant="outline" onClick={load}>Refresh</Button>
         </div>
       </div>
 

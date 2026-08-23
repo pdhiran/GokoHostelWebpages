@@ -398,7 +398,7 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
         </div>
         <div className="mt-4 flex gap-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button variant="cta" size="sm" className="flex-1" onClick={handleSave} disabled={saving}>
+          <Button size="sm" className="flex-1" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save Override"}
           </Button>
         </div>
@@ -490,7 +490,7 @@ function RateEditModal({ ratePlanId, date, data, password, username, onClose, on
         </div>
         <div className="mt-4 flex gap-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button variant="cta" size="sm" className="flex-1" onClick={handleSave} disabled={saving}>
+          <Button size="sm" className="flex-1" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save Rate"}
           </Button>
         </div>

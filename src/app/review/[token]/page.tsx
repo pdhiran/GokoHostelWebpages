@@ -285,7 +285,7 @@ export default function ReviewPage() {
           <button
             type="button"
             onClick={() => window.close()}
-            className="mt-4 w-full rounded-xl border-2 border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            className="mt-4 w-full rounded-xl border-2 border-gray-200 px-6 py-3.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
           >
             Close
           </button>
@@ -373,7 +373,7 @@ export default function ReviewPage() {
           <button
             type="button"
             onClick={() => window.close()}
-            className="mt-8 w-full rounded-xl border-2 border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            className="mt-8 w-full rounded-xl border-2 border-gray-200 px-6 py-3.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
           >
             Close
           </button>

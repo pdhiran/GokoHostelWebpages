@@ -422,7 +422,7 @@ export function AdminBillRecords({
               </div>
             </div>
             <div className="mt-4 flex gap-2">
-              <Button type="button" variant="cta" onClick={saveEdit} disabled={editSaving}>
+              <Button type="button" onClick={saveEdit} disabled={editSaving}>
                 {editSaving ? <><Loader2Icon className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save Changes"}
               </Button>
               <Button type="button" variant="ghost" onClick={() => setEditModal(null)}>Cancel</Button>

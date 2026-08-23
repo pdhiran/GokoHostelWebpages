@@ -292,7 +292,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
             <Button type="button" variant="outline" size="sm" onClick={loadSettings} disabled={loading}>
               <RefreshCwIcon className="mr-1 h-3.5 w-3.5" /> Reload
             </Button>
-            <Button type="button" variant="cta" size="sm" onClick={saveAll} disabled={saving || !dirty}>
+            <Button type="button" size="sm" onClick={saveAll} disabled={saving || !dirty}>
               <SaveIcon className="mr-1 h-3.5 w-3.5" /> Save All
             </Button>
           </div>

@@ -189,7 +189,7 @@ function MyBillsContent() {
               </div>
 
               {error && (
-                <p className="mt-3 text-sm text-red-500">{error}</p>
+                <p className="mt-3 text-sm text-brand-red">{error}</p>
               )}
 
               <button
@@ -280,7 +280,7 @@ function MyBillsContent() {
             {unpaidOrders.length > 0 && (
               <div className="mb-6">
                 <div className="mb-3 flex items-center justify-between px-1">
-                  <h2 className="text-lg font-bold text-white">Unpaid Bills</h2>
+                  <h2 className="text-lg font-bold text-brand-green">Unpaid Bills</h2>
                   <span className="rounded-full bg-amber-400/90 px-3 py-1 text-sm font-bold text-amber-900">
                     ₹{Math.round(totalSpent / 100) - Math.round(paidTotal / 100)}
                   </span>
@@ -303,7 +303,7 @@ function MyBillsContent() {
             {paidOrders.length > 0 && (
               <div className="mb-6">
                 <div className="mb-3 px-1">
-                  <h2 className="text-lg font-bold text-white/80">Paid Bills</h2>
+                  <h2 className="text-lg font-bold text-brand-green-dark/70">Paid Bills</h2>
                 </div>
                 <div className="space-y-3">
                   {paidOrders.map((order) => (

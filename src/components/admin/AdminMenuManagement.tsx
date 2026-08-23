@@ -449,7 +449,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
               </div>
             </div>
             <div className="mt-4 flex gap-2">
-              <Button type="button" variant="cta" size="sm" onClick={saveCategory} disabled={saving}>
+              <Button type="button" size="sm" onClick={saveCategory} disabled={saving}>
                 <CheckIcon className="mr-1 h-3.5 w-3.5" /> {editingCategoryId ? "Update" : "Add"}
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => setShowCategoryForm(false)}>
@@ -554,7 +554,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                 </Button>
               </>
             )}
-            <Button type="button" variant="cta" size="sm" onClick={openAddItem} disabled={saving || categories.length === 0}>
+            <Button type="button" size="sm" onClick={openAddItem} disabled={saving || categories.length === 0}>
               <PlusIcon className="mr-1 h-4 w-4" /> Add Item
             </Button>
             <div className="flex rounded-lg border border-brand-mist bg-white dark:bg-card p-0.5">
@@ -729,7 +729,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
               </div>
             </div>
             <div className="mt-4 flex gap-2">
-              <Button type="button" variant="cta" size="sm" onClick={saveItem} disabled={saving}>
+              <Button type="button" size="sm" onClick={saveItem} disabled={saving}>
                 <CheckIcon className="mr-1 h-3.5 w-3.5" /> {editingItemId ? "Update" : "Add"}
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => setShowItemForm(false)}>

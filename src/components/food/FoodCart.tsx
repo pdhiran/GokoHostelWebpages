@@ -277,7 +277,7 @@ export function FoodCart({
 
               <button
                 onClick={() => onRemoveItem(item.menuItemId)}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-500"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-500"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

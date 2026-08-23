@@ -168,7 +168,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-3 text-sm text-red-500"
+                className="mt-3 text-sm text-brand-red"
               >
                 {error}
               </motion.p>

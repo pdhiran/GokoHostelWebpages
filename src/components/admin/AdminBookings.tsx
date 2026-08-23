@@ -170,21 +170,21 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
         </div>
         <div className="flex flex-wrap gap-2">
           {hasPermission(role, permissions, "canAddBooking") && (
-            <Button type="button" variant="cta" onClick={() => setShowForm(true)}>
+            <Button type="button" onClick={() => setShowForm(true)}>
               <PlusIcon className="mr-1 h-4 w-4" /> Add Booking
             </Button>
           )}
           {hasPermission(role, permissions, "canSyncBookings") && (
             <>
-              <Button type="button" variant="ctaOutline" onClick={() => syncEmails(false)} disabled={syncing}>
+              <Button type="button" variant="outline" onClick={() => syncEmails(false)} disabled={syncing}>
                 {syncing ? "Syncing..." : "Sync Emails"}
               </Button>
-              <Button type="button" variant="ctaOutline" onClick={() => syncEmails(true)} disabled={syncing}>
+              <Button type="button" variant="outline" onClick={() => syncEmails(true)} disabled={syncing}>
                 Re-sync All
               </Button>
             </>
           )}
-          <Button type="button" variant="ctaOutline" onClick={loadBookings}>
+          <Button type="button" variant="outline" onClick={loadBookings}>
             <RefreshCwIcon className="mr-1 h-4 w-4" /> Refresh
           </Button>
         </div>
@@ -402,7 +402,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
               </div>
             </div>
             <div className="mt-5 flex gap-2">
-              <Button type="button" variant="cta" onClick={addBooking} disabled={saving}>{saving ? "Saving..." : "Add Booking"}</Button>
+              <Button type="button" onClick={addBooking} disabled={saving}>{saving ? "Saving..." : "Add Booking"}</Button>
               <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
             </div>
           </motion.div>
