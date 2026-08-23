@@ -135,6 +135,13 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
     return data.ratePlans.filter((rp) => rp.roomMappingId === roomMapping.id);
   }, [data]);
 
+  const getRatePlanLabel = useCallback((rp: RatePlanData): string => {
+    if (!data) return rp.ratePlanName || rp.ratePlanCode;
+    const rm = data.roomMappings.find((m) => m.id === rp.roomMappingId);
+    const dormName = rm?.dormName ?? "Unknown";
+    return `${dormName} — ${rp.ratePlanName || rp.ratePlanCode}`;
+  }, [data]);
+
   const shiftRange = (days: number) => {
     const d = new Date(rangeStart + "T00:00:00");
     d.setDate(d.getDate() + days);
@@ -517,6 +524,11 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<string>("");
 
+  const getRatePlanLabel = (rp: RatePlanData): string => {
+    const rm = data?.roomMappings.find((m) => m.id === rp.roomMappingId);
+    return `${rm?.dormName ?? "Unknown"} — ${rp.ratePlanName || rp.ratePlanCode}`;
+  };
+
   // Block beds state
   const [blockBedIds, setBlockBedIds] = useState<number[]>([]);
   const [blockDormId, setBlockDormId] = useState<number>(0);
@@ -717,7 +729,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
                 <label className="text-xs font-medium">Rate Plan</label>
                 <select className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateRpId} onChange={(e) => setRateRpId(Number(e.target.value))}>
                   <option value={0}>Select rate plan</option>
-                  {data?.ratePlans.map((rp) => <option key={rp.id} value={rp.id}>{rp.ratePlanName || rp.ratePlanCode}</option>)}
+                  {data?.ratePlans.map((rp) => <option key={rp.id} value={rp.id}>{getRatePlanLabel(rp)}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -740,7 +752,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
                   {data?.ratePlans.map((rp) => (
                     <button key={rp.id} type="button" onClick={() => setAdjustRpIds(adjustRpIds.includes(rp.id) ? adjustRpIds.filter((x) => x !== rp.id) : [...adjustRpIds, rp.id])}
                       className={cn("px-2 py-1 rounded text-[10px] font-medium border", adjustRpIds.includes(rp.id) ? "bg-brand-green text-white border-brand-green" : "border-input")}>
-                      {rp.ratePlanName || rp.ratePlanCode}
+                      {getRatePlanLabel(rp)}
                     </button>
                   ))}
                 </div>
