@@ -13,6 +13,7 @@ import {
 } from "@/content/stay";
 import { stayGalleryById } from "@/lib/stayGallery";
 import { buildMetadata } from "@/lib/seo";
+import { heroVideoB } from "@/lib/site";
 
 export const metadata = buildMetadata({
   title: "Stay",
@@ -28,6 +29,7 @@ export default function StayPage() {
         subtitle={stayHero.subtitle}
         image={stayHero.image}
         imageAlt="Goko Hostel stay"
+        heroVideo={heroVideoB}
       />
 
       <section className="py-16 md:py-24">

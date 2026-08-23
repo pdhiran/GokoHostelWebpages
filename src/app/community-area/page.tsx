@@ -11,6 +11,7 @@ import {
   communitySpecialEvents,
 } from "@/content/community";
 import { buildMetadata } from "@/lib/seo";
+import { heroVideoB } from "@/lib/site";
 
 export const metadata = buildMetadata({
   title: "Community Area",
@@ -26,6 +27,7 @@ export default function CommunityAreaPage() {
         subtitle={communityHero.subtitle}
         image="/legacy-images/62f5bf7bfc22850018b36726-63021b52b4a9f5776b671ae4_home_video-thumbnail_2.webp"
         imageAlt="Goko community space"
+        heroVideo={heroVideoB}
       />
 
       <section className="py-16 md:py-24">

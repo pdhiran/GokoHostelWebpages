@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useReducedMotion } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { HeroLoopVideo } from "@/lib/site";
 
 type HeroBackdropProps = {
@@ -21,6 +21,17 @@ export function HeroBackdrop({
 }: HeroBackdropProps) {
   const reduceMotion = useReducedMotion();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(
+      "(max-width: 768px) and (orientation: portrait)",
+    );
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const showVideo = Boolean(video) && !reduceMotion;
 
@@ -34,7 +45,7 @@ export function HeroBackdrop({
     if (v.readyState >= 2) play();
     else v.addEventListener("canplay", play, { once: true });
     return () => v.removeEventListener("canplay", play);
-  }, [showVideo, video]);
+  }, [showVideo, video, isMobile]);
 
   return (
     <div className="relative h-full min-h-full w-full">
@@ -54,6 +65,7 @@ export function HeroBackdrop({
         />
       ) : (
         <video
+          key={isMobile ? "mobile" : "desktop"}
           ref={videoRef}
           className="absolute inset-0 z-0 h-full w-full object-cover"
           poster={video!.poster}
@@ -64,8 +76,14 @@ export function HeroBackdrop({
           preload="metadata"
           aria-hidden
         >
-          <source src={video!.webm} type="video/webm" />
-          <source src={video!.mp4} type="video/mp4" />
+          <source
+            src={isMobile ? video!.mobileWebm : video!.webm}
+            type="video/webm"
+          />
+          <source
+            src={isMobile ? video!.mobileMp4 : video!.mp4}
+            type="video/mp4"
+          />
         </video>
       )}
     </div>

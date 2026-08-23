@@ -1,16 +1,29 @@
-/** Looping hero video (same asset family as legacy Webflow export: stay / community / home). */
+/** Looping hero video with responsive mobile sources. */
 export type HeroLoopVideo = {
   poster: string;
   mp4: string;
   webm: string;
+  mobileMp4: string;
+  mobileWebm: string;
 };
 
-export const heroLoopVideo: HeroLoopVideo = {
-  poster:
-    "https://cdn.prod.website-files.com/62f5bf7bfc22850018b36726/62fa10b918d02f40db7c33d3_yard3-2-poster-00001.jpg",
-  mp4: "https://cdn.prod.website-files.com/62f5bf7bfc22850018b36726/62fa10b918d02f40db7c33d3_yard3-2-transcode.mp4",
-  webm: "https://cdn.prod.website-files.com/62f5bf7bfc22850018b36726/62fa10b918d02f40db7c33d3_yard3-2-transcode.webm",
+export const heroVideoA: HeroLoopVideo = {
+  poster: "/videos/hero/poster-a.jpg",
+  mp4: "/videos/hero/hero-a.mp4",
+  webm: "/videos/hero/hero-a.webm",
+  mobileMp4: "/videos/hero/hero-a-mobile.mp4",
+  mobileWebm: "/videos/hero/hero-a-mobile.webm",
 };
+
+export const heroVideoB: HeroLoopVideo = {
+  poster: "/videos/hero/poster-b.jpg",
+  mp4: "/videos/hero/hero-b.mp4",
+  webm: "/videos/hero/hero-b.webm",
+  mobileMp4: "/videos/hero/hero-b-mobile.mp4",
+  mobileWebm: "/videos/hero/hero-b-mobile.webm",
+};
+
+export const heroLoopVideo = heroVideoA;
 
 export const site = {
   name: "Goko Hostel & Community Space",
