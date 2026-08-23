@@ -2,6 +2,27 @@
   "plugins": {
     "cloudflare": {
       "enabled": true
+    },
+    "shadcn": {
+      "enabled": true
+    },
+    "modern-web-guidance": {
+      "enabled": true
+    },
+    "figma": {
+      "enabled": true
+    },
+    "mobbin": {
+      "enabled": true
+    },
+    "magicpath": {
+      "enabled": true
+    },
+    "magic-patterns": {
+      "enabled": true
+    },
+    "browser-use": {
+      "enabled": true
     }
   }
 }

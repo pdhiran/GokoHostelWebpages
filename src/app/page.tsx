@@ -104,10 +104,10 @@ export default function HomePage() {
                 />
                 <div className="relative overflow-hidden rounded-3xl shadow-lift ring-1 ring-brand-green/10">
                   <Image
-                    src="/images/goko-gokarna-sign.png"
+                    src="/images/goko-gokarna-sign.jpg"
                     alt="Railway sign showing Goko = Gokarna in English, Hindi, and Kannada"
-                    width={800}
-                    height={534}
+                    width={1024}
+                    height={711}
                     className="h-auto w-full object-cover transition-transform duration-700 hover:scale-[1.02] motion-reduce:transition-none"
                     sizes="(max-width:1024px) 100vw, 50vw"
                   />

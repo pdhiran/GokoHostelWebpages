@@ -103,7 +103,7 @@ export type ReservationPayload = {
 };
 
 const SANDBOX_CONFIG: AiosellConfig = {
-  hotelCode: "SANDBOX-PMS",
+  hotelCode: "sandbox-pms",
   pmsId: "sample-pms",
   apiBaseUrl: "https://live.aiosell.com",
   apiUsername: "aiosell",
