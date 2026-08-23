@@ -268,10 +268,11 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                 </div>
 
                 {/* Rate plan rows */}
-                {ratePlans.map((rp) => (
+                {ratePlans.length > 0 ? ratePlans.map((rp) => (
                   <div key={rp.id} className="flex border-b border-brand-mist/30">
-                    <div className="w-[160px] shrink-0 border-r border-brand-mist px-3 py-1.5 pl-6">
-                      <span className="text-[10px] text-brand-green-dark/50 dark:text-zinc-500 truncate block">{rp.ratePlanName || rp.ratePlanCode}</span>
+                    <div className="w-[160px] shrink-0 border-r border-brand-mist px-3 py-1.5 pl-5 flex items-center gap-1.5">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-green/60 shrink-0" />
+                      <span className="text-[11px] font-medium text-brand-green-dark/70 dark:text-zinc-400 truncate">{rp.ratePlanName || rp.ratePlanCode}</span>
                     </div>
                     {dates.map((date) => {
                       const rateVal = getRateForCell(rp.id, date);
@@ -294,7 +295,16 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                       );
                     })}
                   </div>
-                ))}
+                )) : (
+                  <div className="flex border-b border-brand-mist/30">
+                    <div className="w-[160px] shrink-0 border-r border-brand-mist px-3 py-1.5 pl-5">
+                      <span className="text-[10px] italic text-brand-green-dark/40 dark:text-zinc-600">No rate plans</span>
+                    </div>
+                    {dates.map((date) => (
+                      <div key={date} className="shrink-0 border-r border-brand-mist/30 px-1 py-1.5 text-center text-[10px] text-brand-green-dark/30" style={{ width: colWidth }}>—</div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
