@@ -106,8 +106,16 @@ export async function POST(req: NextRequest) {
 
     if (result.success) await updateChannelSyncTime();
 
+    if (!result.success) {
+      return NextResponse.json({
+        success: false,
+        message: result.message,
+        warnings: result.warnings,
+      }, { status: 502 });
+    }
+
     return NextResponse.json({
-      success: result.success,
+      success: true,
       message: result.message,
       warnings: result.warnings,
       restrictionsPushed: totalRestrictions,

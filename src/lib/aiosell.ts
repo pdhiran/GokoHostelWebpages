@@ -109,7 +109,7 @@ function buildAuthHeader(config: AiosellConfig): string {
   return `Basic ${encoded}`;
 }
 
-type AiosellCallType = "inventory" | "rate" | "restriction" | "noshow";
+type AiosellCallType = "inventory" | "rate" | "restriction" | "noshow" | "reservation";
 
 async function aiosellFetch(
   url: string,
@@ -258,7 +258,7 @@ export async function fetchFromAiosell(
   endDate: string
 ): Promise<AiosellResponse & { data?: unknown }> {
   const url = `${config.apiBaseUrl}/api/v2/cm/data/${config.pmsId}`;
-  const callType: AiosellCallType = type === "rates" ? "rate" : "inventory";
+  const callType: AiosellCallType = type === "rates" ? "rate" : type === "reservation" ? "reservation" : "inventory";
   const result = await aiosellFetch(url, config, {
     type,
     hotelCode: config.hotelCode,

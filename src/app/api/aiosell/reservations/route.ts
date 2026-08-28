@@ -150,7 +150,7 @@ async function handleNewBooking(payload: ReservationPayload) {
   }
 
   const result = await addBooking(extractBookingFields(payload));
-  const bookingId = (result as any).meta?.last_row_id || (result as any).lastInsertRowid;
+  const bookingId = (result as any)?.meta?.last_row_id || (result as any)?.lastInsertRowid;
 
   if (bookingId) {
     await addBookingHistoryEntry({

@@ -11,9 +11,10 @@ const { captured, queryMocks } = vi.hoisted(() => {
       }),
       getChannelConfig: vi.fn(),
       addBooking: vi.fn(),
-      updateBookingStatus: vi.fn(),
       updateBookingFull: vi.fn(),
-      getAllBookings: vi.fn(),
+      getBookingByRef: vi.fn(),
+      unassignBookingBeds: vi.fn(),
+      addBookingHistoryEntry: vi.fn(),
       getChannelSyncLogs: vi.fn(),
       upsertChannelConfig: vi.fn(),
       getRoomTypeMappings: vi.fn(),
@@ -36,12 +37,17 @@ vi.mock("@/lib/auth", () => ({
   authenticateUser: vi.fn(),
 }));
 
+vi.mock("@/lib/aiosellSync", () => ({
+  triggerInventoryPush: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   getChannelConfig,
   addBooking,
-  updateBookingStatus,
   updateBookingFull,
-  getAllBookings,
+  getBookingByRef,
+  unassignBookingBeds,
+  addBookingHistoryEntry,
   getChannelSyncLogs,
 } from "@/db/queries";
 import { authenticateUser } from "@/lib/auth";
@@ -133,7 +139,7 @@ describe("PMS outbound workflows (mocked Aiosell HTTP)", () => {
     expect(log.url).toBe("https://live.aiosell.com/api/v2/cm/noshow");
     expect(log.recordsAffected).toBe(1);
     const req = JSON.parse(log.requestPayload as string);
-    expect(req).toEqual({ hotelId: "GOKO-001", bookingId: "CM-789", partner: "booking_com" });
+    expect(req).toEqual({ hotelCode: "GOKO-001", bookingId: "CM-789", partner: "booking_com" });
   });
 
   it("HTTP 502 logs failed with status and response snippet", async () => {
@@ -228,14 +234,16 @@ describe("PMS inbound webhook workflows", () => {
     captured.length = 0;
     vi.mocked(getChannelConfig).mockReset();
     vi.mocked(addBooking).mockReset();
-    vi.mocked(updateBookingStatus).mockReset();
     vi.mocked(updateBookingFull).mockReset();
-    vi.mocked(getAllBookings).mockReset();
+    vi.mocked(getBookingByRef).mockReset();
+    vi.mocked(unassignBookingBeds).mockReset();
+    vi.mocked(addBookingHistoryEntry).mockReset();
     vi.mocked(getChannelConfig).mockResolvedValue(activeConfig as never);
-    vi.mocked(getAllBookings).mockResolvedValue([]);
+    vi.mocked(getBookingByRef).mockResolvedValue(null as never);
     vi.mocked(addBooking).mockResolvedValue(undefined as never);
     vi.mocked(updateBookingFull).mockResolvedValue(undefined as never);
-    vi.mocked(updateBookingStatus).mockResolvedValue(undefined as never);
+    vi.mocked(unassignBookingBeds).mockResolvedValue(undefined as never);
+    vi.mocked(addBookingHistoryEntry).mockResolvedValue(undefined as never);
   });
 
   it("logs 401 without storing the presented secret", async () => {
@@ -299,11 +307,11 @@ describe("PMS inbound webhook workflows", () => {
     expect(reqBody.guest.firstName).toBe("[redacted]");
     expect(JSON.stringify(reqBody)).not.toContain("ada@example.com");
     const respBody = JSON.parse(log.responsePayload as string);
-    expect(respBody.message).toMatch(/Updated Successfully/i);
+    expect(respBody.message).toMatch(/Created Successfully/i);
   });
 
   it("duplicate book is still a single success log (idempotent)", async () => {
-    vi.mocked(getAllBookings).mockResolvedValue([{ bookingRef: "BK-100" }] as never);
+    vi.mocked(getBookingByRef).mockResolvedValue({ bookingRef: "BK-100" } as never);
     const res = await reservationsPOST(req(bookPayload, { authorization: "whsec-test" }));
     expect(res.status).toBe(200);
     expect(addBooking).not.toHaveBeenCalled();
@@ -312,12 +320,13 @@ describe("PMS inbound webhook workflows", () => {
   });
 
   it("modify updates an existing booking and logs once", async () => {
-    vi.mocked(getAllBookings).mockResolvedValue([{
+    vi.mocked(getBookingByRef).mockResolvedValue({
       id: 9,
       bookingRef: "BK-100",
       guestName: "Old",
       contact: "",
       platform: "booking.com",
+      status: "received",
       checkinDate: "2026-09-01",
       checkoutDate: "2026-09-03",
       roomType: "DORM-6",
@@ -332,7 +341,7 @@ describe("PMS inbound webhook workflows", () => {
       cmBookingId: "",
       ratePlan: "",
       nightlyRate: 0,
-    }] as never);
+    } as never);
     const res = await reservationsPOST(req({ ...bookPayload, action: "modify" }, { authorization: "whsec-test" }));
     expect(res.status).toBe(200);
     expect(updateBookingFull).toHaveBeenCalledOnce();
@@ -340,8 +349,8 @@ describe("PMS inbound webhook workflows", () => {
     expect(JSON.parse(lastLog().responsePayload as string).message).toMatch(/Modified/i);
   });
 
-  it("cancel marks cancelled and logs once", async () => {
-    vi.mocked(getAllBookings).mockResolvedValue([{ id: 9, bookingRef: "BK-100" }] as never);
+  it("cancel marks cancelled, releases beds, and logs once", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({ id: 9, bookingRef: "BK-100", status: "confirmed" } as never);
     const res = await reservationsPOST(req({
       action: "cancel",
       hotelCode: "GOKO-001",
@@ -349,7 +358,15 @@ describe("PMS inbound webhook workflows", () => {
       bookingId: "BK-100",
     }, { authorization: "whsec-test" }));
     expect(res.status).toBe(200);
-    expect(updateBookingStatus).toHaveBeenCalledWith(9, "cancelled");
+    expect(updateBookingFull).toHaveBeenCalledWith(9, expect.objectContaining({
+      status: "cancelled",
+      cancelledBy: "channel_manager",
+    }));
+    expect(unassignBookingBeds).toHaveBeenCalledWith(9);
+    expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 9,
+      action: "Cancelled from Channel",
+    }));
     expect(captured).toHaveLength(1);
     expect(lastLog().status).toBe("success");
   });
