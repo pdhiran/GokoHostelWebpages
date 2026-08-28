@@ -1,7 +1,7 @@
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
 import { todayIST } from "@/lib/utils";
-import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides } from "./schema";
+import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides, inventoryDirty } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
 
@@ -1872,4 +1872,30 @@ export async function getInventoryGridData(startDate: string, endDate: string) {
   );
 
   return { dorms: allDorms, beds: allBeds, blocks, assignments, roomMappings, ratePlans, rates, overrides };
+}
+
+// --- Inventory Dirty Tracking ---
+
+export async function markInventoryDirty(dormId: number, dates: string[]) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  for (const date of dates) {
+    await db.run(sql`INSERT OR IGNORE INTO inventory_dirty (dorm_id, date, created_at) VALUES (${dormId}, ${date}, ${now})`);
+  }
+}
+
+export async function getDirtyInventory() {
+  const db = getDb();
+  return db.select().from(inventoryDirty).orderBy(inventoryDirty.date);
+}
+
+export async function clearDirtyInventory(ids: number[]) {
+  if (ids.length === 0) return;
+  const db = getDb();
+  return db.delete(inventoryDirty).where(inArray(inventoryDirty.id, ids));
+}
+
+export async function clearAllDirtyInventory() {
+  const db = getDb();
+  return db.delete(inventoryDirty);
 }

@@ -305,7 +305,7 @@ export async function applyPullRecords(
 
         // No conflict — apply if remote is newer
         if (record.syncUpdatedAt > (local.syncUpdatedAt || "")) {
-          const { id: _id, ...updateData } = record.data;
+          const updateData = await prepareRecordForWrite(db, payload.table, record.data);
           await db.update(table).set({
             ...updateData,
             syncUpdatedAt: record.syncUpdatedAt,
@@ -316,8 +316,7 @@ export async function applyPullRecords(
         }
       } else {
         // New record — insert with FK remapping
-        const insertData = await remapForeignKeys(db, payload.table, record.data);
-        const { id: _id, ...dataWithoutId } = insertData;
+        const dataWithoutId = await prepareRecordForWrite(db, payload.table, record.data);
 
         const result = await db.insert(table).values({
           ...dataWithoutId,
@@ -507,7 +506,7 @@ async function applyBundleRecords(
       }
 
       if (record.syncUpdatedAt > (local.syncUpdatedAt || "")) {
-        const { id: _id, ...updateData } = record.data;
+        const updateData = await prepareRecordForWrite(db, tableName, record.data);
         await db.update(table).set({
           ...updateData,
           syncUpdatedAt: record.syncUpdatedAt,
@@ -517,8 +516,7 @@ async function applyBundleRecords(
         applied++;
       }
     } else {
-      const insertData = await remapForeignKeys(db, tableName, record.data);
-      const { id: _id, ...dataWithoutId } = insertData;
+      const dataWithoutId = await prepareRecordForWrite(db, tableName, record.data);
 
       try {
         const result = await db.insert(table).values({
@@ -816,6 +814,17 @@ function rowToSyncRecord(row: any): SyncRecord {
   };
 }
 
+/** Strip local autoincrement id and remap FK integers to this DB's ids. */
+async function prepareRecordForWrite(
+  db: Database,
+  tableName: string,
+  data: Record<string, any>,
+): Promise<Record<string, any>> {
+  const remapped = await remapForeignKeys(db, tableName, data);
+  const { id: _id, ...rest } = remapped;
+  return rest;
+}
+
 async function remapForeignKeys(
   db: Database,
   tableName: string,
@@ -827,8 +836,8 @@ async function remapForeignKeys(
   const remapped = { ...data };
 
   for (const [column, parentTable] of Object.entries(fkConfig)) {
-    const remoteId = remapped[column];
-    if (remoteId == null) continue;
+    const remoteId = Number(remapped[column]);
+    if (!Number.isFinite(remoteId)) continue;
 
     // Look up local ID via sync_id_map
     const mapping = await db

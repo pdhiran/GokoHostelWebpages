@@ -713,6 +713,13 @@ export const inventoryOverrides = sqliteTable("inventory_overrides", {
   uniqueIndex("idx_inventory_overrides_dorm_channel_date").on(table.dormId, table.channelId, table.date),
 ]);
 
+export const inventoryDirty = sqliteTable("inventory_dirty", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  dormId: integer("dorm_id").notNull(),
+  date: text("date").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
 // Customer-facing website CMS (Cloudflare-only; not synced to Pi)
 export const siteEvents = sqliteTable("site_events", {
   id: integer("id").primaryKey({ autoIncrement: true }),

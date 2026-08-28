@@ -6,7 +6,7 @@
  * Aiosell-originated events (OTA/Website bookings via webhook) must NOT push back.
  */
 
-import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty } from "@/db/queries";
 import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
@@ -36,6 +36,14 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
 
 export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<void> {
   try {
+    const dates = affectedDates && affectedDates.length > 0
+      ? [...new Set(affectedDates)]
+      : [todayIST()];
+
+    if (affectedDormId) {
+      await markInventoryDirty(affectedDormId, dates).catch(() => {});
+    }
+
     const config = await getChannelConfig();
     if (!config || !config.isActive) return;
     if (!config.autoPushInventory) return;
@@ -48,10 +56,6 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       activeMappings = activeMappings.filter((m) => m.dormId === affectedDormId);
       if (activeMappings.length === 0) return;
     }
-
-    const dates = affectedDates && affectedDates.length > 0
-      ? [...new Set(affectedDates)]
-      : [todayIST()];
 
     const updates: InventoryUpdate[] = [];
     for (const date of dates) {

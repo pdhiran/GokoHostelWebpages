@@ -575,7 +575,8 @@ function SyncTab({ password, username }: { password: string; username?: string }
     try {
       const res = await apiCall(url, extra || {});
       if (res.success || res.pushed) {
-        showSuccess(`${type} push completed`);
+        const detail = res.mode === "incremental" ? ` (${res.inventoryPushed || 0} changed)` : res.inventoryPushed ? ` (${res.inventoryPushed} records)` : "";
+        showSuccess(`${type} push completed${detail}`);
         if (res.warnings?.length) setPushResult({ type, warnings: res.warnings });
       } else {
         showError(res.error || res.message || "Push failed");
@@ -618,6 +619,10 @@ function SyncTab({ password, username }: { password: string; username?: string }
         <Button size="sm" onClick={() => pushAction("Inventory", "/api/aiosell/push-inventory", { startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
           {pushing === "Inventory" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
           Push Inventory
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => pushAction("Full Sync", "/api/aiosell/push-inventory", { fullSync: true })} disabled={!!pushing}>
+          {pushing === "Full Sync" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
+          Full Sync
         </Button>
         <Button size="sm" onClick={() => pushAction("Rates", "/api/aiosell/push-rates", { startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
           {pushing === "Rates" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
