@@ -586,11 +586,15 @@ function SyncTab({ password, username }: { password: string; username?: string }
           {pushing === "Inventory" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
           Push Inventory
         </Button>
-        <Button size="sm" onClick={() => pushAction("Rates", "/api/aiosell/push-rates", { includeRestrictions: true, startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
+        <Button size="sm" onClick={() => pushAction("Rates", "/api/aiosell/push-rates", { startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
           {pushing === "Rates" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
-          Push Rates + Restrictions
+          Push Rates
         </Button>
-        <Button size="sm" onClick={() => pushAction("Inv Restrictions", "/api/aiosell/push-inventory-restrictions", { startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
+        <Button size="sm" variant="outline" onClick={() => pushAction("Rate Restrictions", "/api/aiosell/push-rates", { includeRestrictions: true, startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
+          {pushing === "Rate Restrictions" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
+          Push Rate Restrictions
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => pushAction("Inv Restrictions", "/api/aiosell/push-inventory-restrictions", { startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
           {pushing === "Inv Restrictions" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
           Push Inv Restrictions
         </Button>
