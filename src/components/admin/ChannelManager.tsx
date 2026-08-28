@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   RefreshCwIcon, SaveIcon, PlusIcon, Trash2Icon, PencilIcon,
   CheckCircleIcon, XCircleIcon, Loader2Icon, WifiIcon, SendIcon,
+  EyeIcon, EyeOffIcon,
 } from "lucide-react";
 import { suggestAiosellRoomCode } from "@/lib/channelMapping";
 import type { Role } from "./types";
@@ -126,6 +127,8 @@ function ConfigTab({ password, username }: { password: string; username?: string
   const [config, setConfig] = useState<ChannelConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
 
   useEffect(() => { loadConfig(); }, []);
 
@@ -178,11 +181,21 @@ function ConfigTab({ password, username }: { password: string; username?: string
         </div>
         <div>
           <label className="text-xs text-muted-foreground">API Password</label>
-          <Input type="password" value={config.apiPassword} onChange={(e) => setConfig({ ...config, apiPassword: e.target.value })} />
+          <div className="relative">
+            <Input type={showPassword ? "text" : "password"} value={config.apiPassword} onChange={(e) => setConfig({ ...config, apiPassword: e.target.value })} className="pr-9" />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
         <div>
           <label className="text-xs text-muted-foreground">Webhook Secret (required to enable)</label>
-          <Input value={config.webhookSecret} onChange={(e) => setConfig({ ...config, webhookSecret: e.target.value })} placeholder="Shared secret for inbound auth" />
+          <div className="relative">
+            <Input type={showSecret ? "text" : "password"} value={config.webhookSecret} onChange={(e) => setConfig({ ...config, webhookSecret: e.target.value })} placeholder="Shared secret for inbound auth" className="pr-9" />
+            <button type="button" onClick={() => setShowSecret(!showSecret)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              {showSecret ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
         <div className="sm:col-span-2">
           <label className="text-xs text-muted-foreground">Booking Engine URL (for direct guests)</label>
