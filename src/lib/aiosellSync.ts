@@ -6,7 +6,7 @@
  * Aiosell-originated events (OTA/Website bookings via webhook) must NOT push back.
  */
 
-import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty, getDirtyInventory, clearDirtyInventory } from "@/db/queries";
 import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
@@ -40,18 +40,22 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       ? [...new Set(affectedDates)]
       : [todayIST()];
 
+    const config = await getChannelConfig();
+    const mappings = config ? (await getRoomTypeMappings()).filter((m) => m.isActive) : [];
+
     if (affectedDormId) {
       await markInventoryDirty(affectedDormId, dates).catch(() => {});
+    } else if (mappings.length > 0) {
+      for (const m of mappings) {
+        await markInventoryDirty(m.dormId, dates).catch(() => {});
+      }
     }
 
-    const config = await getChannelConfig();
     if (!config || !config.isActive) return;
     if (!config.autoPushInventory) return;
+    if (mappings.length === 0) return;
 
-    const mappings = await getRoomTypeMappings();
-    let activeMappings = mappings.filter((m) => m.isActive);
-    if (activeMappings.length === 0) return;
-
+    let activeMappings = mappings;
     if (affectedDormId) {
       activeMappings = activeMappings.filter((m) => m.dormId === affectedDormId);
       if (activeMappings.length === 0) return;
@@ -77,7 +81,14 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
 
     const result = await pushInventory(aiosellConfig, updates, undefined, "auto");
 
-    if (result.success) await updateChannelSyncTime();
+    if (result.success) {
+      await updateChannelSyncTime();
+      const dirty = await getDirtyInventory();
+      const pushedDormIds = new Set(activeMappings.map((m) => m.dormId));
+      const pushedDates = new Set(dates);
+      const toClear = dirty.filter((d) => pushedDormIds.has(d.dormId) && pushedDates.has(d.date)).map((d) => d.id);
+      if (toClear.length > 0) await clearDirtyInventory(toClear);
+    }
   } catch (error: any) {
     console.error("Auto inventory push failed:", error?.message);
     await logPmsCall({
