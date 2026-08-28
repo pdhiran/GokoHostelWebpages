@@ -5,6 +5,7 @@ import {
   getRoomTypeMappings, upsertRoomTypeMapping, deleteRoomTypeMapping,
   getRatePlanMappings, upsertRatePlanMapping, deleteRatePlanMapping,
   getDailyRates, bulkUpsertDailyRates, getChannelSyncLogs,
+  getAllDorms, getAllBeds,
 } from "@/db/queries";
 
 export async function POST(req: NextRequest) {
@@ -39,29 +40,83 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
-      case "getRoomMappings":
-        return NextResponse.json({ mappings: await getRoomTypeMappings() });
+      case "getRoomMappings": {
+        const mappings = await getRoomTypeMappings();
+        const allDorms = await getAllDorms();
+        const allBeds = await getAllBeds();
+        const nameById = new Map(allDorms.map((d) => [d.id, d.name]));
+        const dormsWithCounts = [...allDorms]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((d) => ({
+            id: d.id,
+            name: d.name,
+            bedCount: allBeds.filter((b) => b.dormId === d.id).length,
+          }));
+        return NextResponse.json({
+          mappings: mappings.map((m) => ({ ...m, dormName: nameById.get(m.dormId) ?? m.dormName })),
+          dorms: dormsWithCounts,
+        });
+      }
 
-      case "saveRoomMapping":
-        await upsertRoomTypeMapping(body.mapping);
+      case "saveRoomMapping": {
+        const mapping = body.mapping;
+        const code = String(mapping?.channelRoomCode || "").trim();
+        const dormId = Number(mapping?.dormId);
+        if (!Number.isInteger(dormId) || dormId < 1 || !code) {
+          return NextResponse.json({ error: "Dorm and Aiosell room code are required" }, { status: 400 });
+        }
+        const mappingId = Number(mapping?.id);
+        await upsertRoomTypeMapping({
+          id: Number.isInteger(mappingId) && mappingId > 0 ? mappingId : undefined,
+          dormId,
+          channelRoomCode: code,
+          totalInventory: mapping?.totalInventory,
+          isActive: mapping?.isActive,
+        });
         return NextResponse.json({ success: true });
+      }
 
-      case "deleteRoomMapping":
-        await deleteRoomTypeMapping(body.id);
+      case "deleteRoomMapping": {
+        const id = Number(body.id);
+        if (!Number.isInteger(id) || id < 1) {
+          return NextResponse.json({ error: "Mapping id is required" }, { status: 400 });
+        }
+        await deleteRoomTypeMapping(id);
         return NextResponse.json({ success: true });
+      }
 
       case "getRatePlans": {
         const plans = await getRatePlanMappings(body.roomMappingId);
         return NextResponse.json({ plans });
       }
 
-      case "saveRatePlan":
-        await upsertRatePlanMapping(body.plan);
+      case "saveRatePlan": {
+        const plan = body.plan;
+        const ratePlanCode = String(plan?.ratePlanCode || "").trim();
+        const ratePlanName = String(plan?.ratePlanName || "").trim();
+        const roomMappingId = Number(plan?.roomMappingId);
+        if (!Number.isInteger(roomMappingId) || roomMappingId < 1 || !ratePlanCode || !ratePlanName) {
+          return NextResponse.json({ error: "Room, rate plan code, and name are required" }, { status: 400 });
+        }
+        const planId = Number(plan?.id);
+        await upsertRatePlanMapping({
+          id: Number.isInteger(planId) && planId > 0 ? planId : undefined,
+          roomMappingId,
+          ratePlanCode,
+          ratePlanName,
+          isActive: plan?.isActive,
+        });
         return NextResponse.json({ success: true });
+      }
 
-      case "deleteRatePlan":
-        await deleteRatePlanMapping(body.id);
+      case "deleteRatePlan": {
+        const id = Number(body.id);
+        if (!Number.isInteger(id) || id < 1) {
+          return NextResponse.json({ error: "Rate plan id is required" }, { status: 400 });
+        }
+        await deleteRatePlanMapping(id);
         return NextResponse.json({ success: true });
+      }
 
       case "getDailyRates": {
         const rates = await getDailyRates(body.ratePlanId, body.startDate, body.endDate);

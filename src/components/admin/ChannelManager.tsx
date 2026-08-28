@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
-  RefreshCwIcon, SaveIcon, PlusIcon, Trash2Icon,
+  RefreshCwIcon, SaveIcon, PlusIcon, Trash2Icon, PencilIcon,
   CheckCircleIcon, XCircleIcon, Loader2Icon, WifiIcon, SendIcon,
 } from "lucide-react";
+import { suggestAiosellRoomCode } from "@/lib/channelMapping";
 import type { Role } from "./types";
 
 function useChannelApi(password: string, username?: string) {
@@ -121,7 +122,7 @@ export function ChannelManager({ password, username, role }: { password: string;
 
 function ConfigTab({ password, username }: { password: string; username?: string }) {
   const { call: apiCall } = useChannelApi(password, username);
-  const { showError } = useAdminToast();
+  const { showError, showSuccess } = useAdminToast();
   const [config, setConfig] = useState<ChannelConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -141,7 +142,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
     setSaving(true);
     try {
       await apiCall("/api/admin/channel-manager", { action: "saveConfig", config });
-      showError("Configuration saved");
+      showSuccess("Configuration saved");
     } catch (e: any) { showError(e.message); }
     setSaving(false);
   };
@@ -180,7 +181,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
           <Input type="password" value={config.apiPassword} onChange={(e) => setConfig({ ...config, apiPassword: e.target.value })} />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground">Webhook Secret (optional)</label>
+          <label className="text-xs text-muted-foreground">Webhook Secret (required to enable)</label>
           <Input value={config.webhookSecret} onChange={(e) => setConfig({ ...config, webhookSecret: e.target.value })} placeholder="Shared secret for inbound auth" />
         </div>
         <div className="sm:col-span-2">
@@ -217,68 +218,194 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
   const { call: apiCall } = useChannelApi(password, username);
   const { showError } = useAdminToast();
   const [mappings, setMappings] = useState<RoomMapping[]>([]);
+  const [dorms, setDorms] = useState<Array<{ id: number; name: string; bedCount: number }>>([]);
   const [loading, setLoading] = useState(true);
-  const [newMapping, setNewMapping] = useState<Partial<RoomMapping>>({ dormId: 0, dormName: "", channelRoomCode: "", totalInventory: 0, isActive: 1 });
+  const [savingDormId, setSavingDormId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [drafts, setDrafts] = useState<Record<number, { code: string; beds: number }>>({});
 
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await apiCall("/api/admin/channel-manager", { action: "getRoomMappings" });
       setMappings(res.mappings || []);
+      setDorms(res.dorms || []);
     } catch (e: any) { showError(e.message); }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
-  const save = async (mapping: Partial<RoomMapping>) => {
+  useEffect(() => { load(); }, []);
+
+  const draftFor = (dormId: number, fallbackCode: string, fallbackBeds: number) =>
+    drafts[dormId] ?? { code: fallbackCode, beds: fallbackBeds };
+
+  const setDraft = (dormId: number, patch: Partial<{ code: string; beds: number }>, fallbackCode: string, fallbackBeds: number) => {
+    setDrafts((prev) => {
+      const cur = prev[dormId] ?? { code: fallbackCode, beds: fallbackBeds };
+      return { ...prev, [dormId]: { ...cur, ...patch } };
+    });
+  };
+
+  const saveDorm = async (dormId: number, mappingId: number | undefined, fallbackCode: string, fallbackBeds: number) => {
+    const d = draftFor(dormId, fallbackCode, fallbackBeds);
+    const code = d.code.trim();
+    if (!code) { showError("Aiosell room code is required"); return; }
+    setSavingDormId(dormId);
     try {
-      await apiCall("/api/admin/channel-manager", { action: "saveRoomMapping", mapping });
-      await load();
+      await apiCall("/api/admin/channel-manager", {
+        action: "saveRoomMapping",
+        mapping: {
+          id: mappingId,
+          dormId,
+          channelRoomCode: code,
+          totalInventory: d.beds,
+          isActive: 1,
+        },
+      });
+      setEditingId(null);
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[dormId];
+        return next;
+      });
+      await load(true);
     } catch (e: any) { showError(e.message); }
+    setSavingDormId(null);
   };
 
   const remove = async (id: number) => {
     if (!confirm("Delete this room mapping and all associated rate plans?")) return;
     try {
       await apiCall("/api/admin/channel-manager", { action: "deleteRoomMapping", id });
-      await load();
+      if (editingId === id) setEditingId(null);
+      await load(true);
     } catch (e: any) { showError(e.message); }
   };
 
   if (loading) return <AdminLoading />;
 
+  const mappedByDorm = new Map(mappings.map((m) => [m.dormId, m]));
+  const knownDormIds = new Set(dorms.map((d) => d.id));
+  const orphans = mappings.filter((m) => !knownDormIds.has(m.dormId));
+
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold">Dorm → Aiosell Room Code Mapping</h3>
-      <p className="text-xs text-muted-foreground">Map each dorm to its Aiosell room code. Total inventory = number of beds in that dorm.</p>
-
-      {mappings.length > 0 && (
-        <div className="space-y-2">
-          {mappings.map((m) => (
-            <div key={m.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 text-sm">
-              <span className="font-medium flex-1">{m.dormName}</span>
-              <code className="text-xs bg-background px-2 py-0.5 rounded">{m.channelRoomCode}</code>
-              <span className="text-xs text-muted-foreground">{m.totalInventory} beds</span>
-              <Button variant="ghost" size="sm" onClick={() => remove(m.id!)} className="h-7 w-7 p-0 text-red-500">
-                <Trash2Icon className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Room mapping</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Every Goko dorm (Management → Dorms) is listed here. New dorms show up on their own as unmapped. Aiosell only understands the room code you set — inventory and rates are pushed with that code, not the dorm name.
+          </p>
         </div>
-      )}
-
-      <div className="border rounded-lg p-3 space-y-2">
-        <p className="text-xs font-medium">Add Room Mapping</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Input placeholder="Dorm ID" type="number" value={newMapping.dormId || ""} onChange={(e) => setNewMapping({ ...newMapping, dormId: parseInt(e.target.value) || 0 })} />
-          <Input placeholder="Dorm Name" value={newMapping.dormName || ""} onChange={(e) => setNewMapping({ ...newMapping, dormName: e.target.value })} />
-          <Input placeholder="Room Code" value={newMapping.channelRoomCode || ""} onChange={(e) => setNewMapping({ ...newMapping, channelRoomCode: e.target.value })} />
-          <Input placeholder="Total Beds" type="number" value={newMapping.totalInventory || ""} onChange={(e) => setNewMapping({ ...newMapping, totalInventory: parseInt(e.target.value) || 0 })} />
-        </div>
-        <Button size="sm" onClick={() => { save(newMapping); setNewMapping({ dormId: 0, dormName: "", channelRoomCode: "", totalInventory: 0, isActive: 1 }); }} disabled={!newMapping.dormName || !newMapping.channelRoomCode}>
-          <PlusIcon className="h-3.5 w-3.5 mr-1" /> Add
+        <Button variant="ghost" size="sm" onClick={() => load(true)} title="Refresh dorms">
+          <RefreshCwIcon className="h-3.5 w-3.5" />
         </Button>
+      </div>
+
+      <dl className="grid gap-2 rounded-lg border border-brand-mist bg-muted/30 p-3 text-[11px] text-muted-foreground sm:grid-cols-3">
+        <div>
+          <dt className="font-medium text-foreground">Dorm</dt>
+          <dd>From Management → Dorms. New dorms appear here automatically; they are not pushed to Aiosell until you save a room code.</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-foreground">Aiosell room code</dt>
+          <dd>Exact room-type code in Aiosell (e.g. <code className="text-[10px]">dorm-1</code>, <code className="text-[10px]">shiva-dorm</code>, <code className="text-[10px]">executive</code>). Must match their setup.</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-foreground">Total beds</dt>
+          <dd>Sellable inventory for that room type. Defaults to the dorm’s current bed count.</dd>
+        </div>
+      </dl>
+
+      <div className="space-y-2">
+        {dorms.length === 0 && (
+          <p className="text-xs text-muted-foreground">No dorms yet. Add one under Management → Dorms.</p>
+        )}
+        {dorms.map((d) => {
+          const mapping = mappedByDorm.get(d.id);
+          const suggested = suggestAiosellRoomCode(d.name, d.id);
+          if (!mapping) {
+            const draft = draftFor(d.id, suggested, d.bedCount);
+            return (
+              <div key={d.id} className="flex flex-col gap-2 rounded-lg border border-dashed border-brand-mist p-2 sm:flex-row sm:items-center">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{d.name}</p>
+                  <p className="text-[10px] text-amber-700 dark:text-amber-400">Not mapped — not sent to Aiosell yet</p>
+                </div>
+                <Input
+                  className="sm:w-40"
+                  placeholder="Aiosell room code"
+                  value={draft.code}
+                  onChange={(e) => setDraft(d.id, { code: e.target.value }, suggested, d.bedCount)}
+                />
+                <Input
+                  className="sm:w-20"
+                  type="number"
+                  min={0}
+                  value={draft.beds}
+                  onChange={(e) => setDraft(d.id, { beds: parseInt(e.target.value) || 0 }, suggested, d.bedCount)}
+                />
+                <Button
+                  size="sm"
+                  disabled={savingDormId === d.id || !draft.code.trim()}
+                  onClick={() => saveDorm(d.id, undefined, suggested, d.bedCount)}
+                >
+                  {savingDormId === d.id ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <PlusIcon className="h-3.5 w-3.5 mr-1" />}
+                  Map
+                </Button>
+              </div>
+            );
+          }
+
+          const editing = editingId === mapping.id;
+          const draft = draftFor(d.id, mapping.channelRoomCode, mapping.totalInventory);
+          return (
+            <div key={d.id} className="flex flex-col gap-2 rounded-lg bg-muted/50 p-2 sm:flex-row sm:items-center">
+              <span className="flex-1 text-sm font-medium">{d.name}</span>
+              {editing ? (
+                <>
+                  <Input
+                    className="sm:w-40"
+                    value={draft.code}
+                    onChange={(e) => setDraft(d.id, { code: e.target.value }, mapping.channelRoomCode, mapping.totalInventory)}
+                  />
+                  <Input
+                    className="sm:w-20"
+                    type="number"
+                    min={0}
+                    value={draft.beds}
+                    onChange={(e) => setDraft(d.id, { beds: parseInt(e.target.value) || 0 }, mapping.channelRoomCode, mapping.totalInventory)}
+                  />
+                  <Button size="sm" disabled={savingDormId === d.id} onClick={() => saveDorm(d.id, mapping.id, mapping.channelRoomCode, mapping.totalInventory)}>
+                    {savingDormId === d.id ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <SaveIcon className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setDrafts((p) => { const n = { ...p }; delete n[d.id]; return n; }); }}>Cancel</Button>
+                </>
+              ) : (
+                <>
+                  <code className="text-xs bg-background px-2 py-0.5 rounded">{mapping.channelRoomCode}</code>
+                  <span className="text-xs text-muted-foreground">{mapping.totalInventory} beds</span>
+                  <Button variant="ghost" size="sm" onClick={() => setEditingId(mapping.id!)} className="h-7 w-7 p-0" title="Edit">
+                    <PencilIcon className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => remove(mapping.id!)} className="h-7 w-7 p-0 text-red-500" title="Delete">
+                    <Trash2Icon className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {orphans.map((m) => (
+          <div key={`orphan-${m.id}`} className="flex items-center gap-2 rounded-lg border border-red-200 p-2 text-sm">
+            <span className="flex-1 font-medium">{m.dormName}</span>
+            <span className="text-[10px] text-red-600">Dorm deleted</span>
+            <code className="text-xs bg-background px-2 py-0.5 rounded">{m.channelRoomCode}</code>
+            <Button variant="ghost" size="sm" onClick={() => remove(m.id!)} className="h-7 w-7 p-0 text-red-500" title="Delete">
+              <Trash2Icon className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -310,6 +437,7 @@ function RatePlansTab({ password, username }: { password: string; username?: str
   const save = async (plan: Partial<RatePlan>) => {
     try {
       await apiCall("/api/admin/channel-manager", { action: "saveRatePlan", plan });
+      setNewPlan({ roomMappingId: 0, ratePlanCode: "", ratePlanName: "", isActive: 1 });
       await load();
     } catch (e: any) { showError(e.message); }
   };
@@ -327,7 +455,10 @@ function RatePlansTab({ password, username }: { password: string; username?: str
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold">Rate Plans</h3>
-      <p className="text-xs text-muted-foreground">Each room type can have multiple rate plans (e.g., EP = room only, CP = with breakfast).</p>
+      <p className="text-xs text-muted-foreground">Each mapped room type can have multiple rate plans (e.g., EP = room only, CP = with breakfast).</p>
+      {mappings.length === 0 && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">Map a dorm under Room Mapping first — unmapped dorms cannot have rate plans.</p>
+      )}
 
       {plans.length > 0 && (
         <div className="space-y-2">
@@ -361,7 +492,7 @@ function RatePlansTab({ password, username }: { password: string; username?: str
           <Input placeholder="Rate Plan Code" value={newPlan.ratePlanCode || ""} onChange={(e) => setNewPlan({ ...newPlan, ratePlanCode: e.target.value })} />
           <Input placeholder="Rate Plan Name" value={newPlan.ratePlanName || ""} onChange={(e) => setNewPlan({ ...newPlan, ratePlanName: e.target.value })} />
         </div>
-        <Button size="sm" onClick={() => { save(newPlan); setNewPlan({ roomMappingId: 0, ratePlanCode: "", ratePlanName: "", isActive: 1 }); }} disabled={!newPlan.roomMappingId || !newPlan.ratePlanCode || !newPlan.ratePlanName}>
+        <Button size="sm" onClick={() => save(newPlan)} disabled={!newPlan.roomMappingId || !newPlan.ratePlanCode || !newPlan.ratePlanName}>
           <PlusIcon className="h-3.5 w-3.5 mr-1" /> Add
         </Button>
       </div>
@@ -371,7 +502,7 @@ function RatePlansTab({ password, username }: { password: string; username?: str
 
 function SyncTab({ password, username }: { password: string; username?: string }) {
   const { call: apiCall } = useChannelApi(password, username);
-  const { showError } = useAdminToast();
+  const { showError, showSuccess } = useAdminToast();
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [pushing, setPushing] = useState<string | null>(null);
@@ -392,7 +523,7 @@ function SyncTab({ password, username }: { password: string; username?: string }
     try {
       const res = await apiCall(url, extra || {});
       if (res.success || res.pushed) {
-        showError(`${type} push completed`);
+        showSuccess(`${type} push completed`);
       } else {
         showError(res.error || res.message || "Push failed");
       }

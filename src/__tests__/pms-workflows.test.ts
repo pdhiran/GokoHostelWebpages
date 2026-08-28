@@ -24,6 +24,8 @@ const { captured, queryMocks } = vi.hoisted(() => {
       deleteRatePlanMapping: vi.fn(),
       getDailyRates: vi.fn(),
       bulkUpsertDailyRates: vi.fn(),
+      getAllDorms: vi.fn(),
+      getAllBeds: vi.fn(),
     },
   };
 });
@@ -402,5 +404,62 @@ describe("PMS log list API", () => {
     }));
     expect(res.status).toBe(401);
     expect(getChannelSyncLogs).not.toHaveBeenCalled();
+  });
+});
+
+describe("room mapping API", () => {
+  beforeEach(() => {
+    vi.mocked(authenticateUser).mockReset();
+    vi.mocked(authenticateUser).mockResolvedValue({ role: "admin", displayName: "Admin", permissions: {} } as never);
+    queryMocks.getRoomTypeMappings.mockReset();
+    queryMocks.getAllDorms.mockReset();
+    queryMocks.getAllBeds.mockReset();
+    queryMocks.upsertRoomTypeMapping.mockReset();
+    queryMocks.deleteRoomTypeMapping.mockReset();
+  });
+
+  function post(body: unknown) {
+    return channelManagerPOST(new NextRequest("http://localhost/api/admin/channel-manager", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }));
+  }
+
+  it("lists every dorm and overlays live names onto mappings", async () => {
+    queryMocks.getRoomTypeMappings.mockResolvedValue([
+      { id: 1, dormId: 5, dormName: "stale", channelRoomCode: "dorm-1", totalInventory: 12 },
+    ]);
+    queryMocks.getAllDorms.mockResolvedValue([
+      { id: 8, name: "Shiva dorm" },
+      { id: 5, name: "Dorm 1" },
+    ]);
+    queryMocks.getAllBeds.mockResolvedValue([
+      { dormId: 5 }, { dormId: 5 }, { dormId: 8 },
+    ]);
+    const res = await post({ password: "x", action: "getRoomMappings" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.mappings[0].dormName).toBe("Dorm 1");
+    expect(body.dorms).toEqual([
+      { id: 5, name: "Dorm 1", bedCount: 2 },
+      { id: 8, name: "Shiva dorm", bedCount: 1 },
+    ]);
+  });
+
+  it("rejects save without a room code", async () => {
+    const res = await post({
+      password: "x",
+      action: "saveRoomMapping",
+      mapping: { dormId: 8, channelRoomCode: "  " },
+    });
+    expect(res.status).toBe(400);
+    expect(queryMocks.upsertRoomTypeMapping).not.toHaveBeenCalled();
+  });
+
+  it("rejects delete without a mapping id", async () => {
+    const res = await post({ password: "x", action: "deleteRoomMapping" });
+    expect(res.status).toBe(400);
+    expect(queryMocks.deleteRoomTypeMapping).not.toHaveBeenCalled();
   });
 });

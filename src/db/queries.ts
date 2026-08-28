@@ -81,6 +81,10 @@ export async function addDorm(name: string) {
 
 export async function deleteDormAndBeds(dormId: number) {
   const db = getDb();
+  const mappings = await db.select({ id: roomTypeMapping.id }).from(roomTypeMapping).where(eq(roomTypeMapping.dormId, dormId));
+  for (const m of mappings) {
+    await deleteRoomTypeMapping(m.id);
+  }
   await db.delete(beds).where(eq(beds.dormId, dormId));
   await db.delete(dorms).where(eq(dorms.id, dormId));
 }
@@ -1214,26 +1218,54 @@ export async function getRoomTypeMappings() {
 }
 
 export async function upsertRoomTypeMapping(data: {
-  id?: number; dormId: number; dormName: string; channelRoomCode: string;
+  id?: number; dormId: number; dormName?: string; channelRoomCode: string;
   totalInventory: number; isActive?: number;
 }) {
   const db = getDb();
+  const code = (data.channelRoomCode || "").trim();
+  if (!data.dormId || !code) {
+    throw new Error("Dorm and Aiosell room code are required");
+  }
+  const dormRows = await db.select().from(dorms).where(eq(dorms.id, data.dormId)).limit(1);
+  if (dormRows.length === 0) {
+    throw new Error(`No dorm with id ${data.dormId}. Pick a dorm from the list.`);
+  }
+  const dormName = dormRows[0].name;
+  const isActive = data.isActive ?? 1;
+  const inventory = Number(data.totalInventory);
+  const totalInventory = Number.isFinite(inventory) && inventory >= 0 ? Math.floor(inventory) : 0;
+
+  const sameCode = await db.select().from(roomTypeMapping).where(eq(roomTypeMapping.channelRoomCode, code));
+  const clash = sameCode.find((r) => r.dormId !== data.dormId);
+  if (clash) {
+    throw new Error(`Aiosell code "${code}" is already mapped to ${clash.dormName}`);
+  }
+
   if (data.id) {
     return db.update(roomTypeMapping).set({
       dormId: data.dormId,
-      dormName: data.dormName,
-      channelRoomCode: data.channelRoomCode,
-      totalInventory: data.totalInventory,
-      isActive: data.isActive ?? 1,
+      dormName,
+      channelRoomCode: code,
+      totalInventory,
+      isActive,
     }).where(eq(roomTypeMapping.id, data.id));
   }
-  return db.insert(roomTypeMapping).values({
-    dormId: data.dormId,
-    dormName: data.dormName,
-    channelRoomCode: data.channelRoomCode,
-    totalInventory: data.totalInventory,
-    isActive: data.isActive ?? 1,
-  });
+
+  const existing = await db.select().from(roomTypeMapping).where(eq(roomTypeMapping.dormId, data.dormId)).limit(1);
+  if (existing[0]) {
+    return db.update(roomTypeMapping).set({
+      dormName,
+      channelRoomCode: code,
+      totalInventory,
+      isActive,
+    }).where(eq(roomTypeMapping.id, existing[0].id));
+  }
+
+  // D1 rejects Drizzle's `id = null` on AUTOINCREMENT PKs — omit the column.
+  return db.run(sql`
+    INSERT INTO room_type_mapping (dorm_id, dorm_name, channel_room_code, total_inventory, is_active)
+    VALUES (${data.dormId}, ${dormName}, ${code}, ${totalInventory}, ${isActive})
+  `);
 }
 
 export async function deleteRoomTypeMapping(id: number) {
@@ -1259,6 +1291,10 @@ export async function upsertRatePlanMapping(data: {
   ratePlanName: string; isActive?: number;
 }) {
   const db = getDb();
+  const room = await db.select({ id: roomTypeMapping.id }).from(roomTypeMapping).where(eq(roomTypeMapping.id, data.roomMappingId)).limit(1);
+  if (!room[0]) {
+    throw new Error("Map the room first");
+  }
   if (data.id) {
     return db.update(ratePlanMapping).set({
       roomMappingId: data.roomMappingId,
@@ -1267,12 +1303,10 @@ export async function upsertRatePlanMapping(data: {
       isActive: data.isActive ?? 1,
     }).where(eq(ratePlanMapping.id, data.id));
   }
-  return db.insert(ratePlanMapping).values({
-    roomMappingId: data.roomMappingId,
-    ratePlanCode: data.ratePlanCode,
-    ratePlanName: data.ratePlanName,
-    isActive: data.isActive ?? 1,
-  });
+  return db.run(sql`
+    INSERT INTO rate_plan_mapping (room_mapping_id, rate_plan_code, rate_plan_name, is_active)
+    VALUES (${data.roomMappingId}, ${data.ratePlanCode}, ${data.ratePlanName}, ${data.isActive ?? 1})
+  `);
 }
 
 export async function deleteRatePlanMapping(id: number) {
