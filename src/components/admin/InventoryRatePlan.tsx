@@ -17,7 +17,7 @@ type BlockData = { id: number; bedId: number; dormId: number; startDate: string;
 type AssignmentData = { bedId: number; dormId: number; checkinDate: string; checkoutDate: string; status: string };
 type RatePlanData = { id: number; roomMappingId: number; ratePlanCode: string; ratePlanName: string };
 type RoomMappingData = { id: number; dormId: number; dormName: string; channelRoomCode: string; totalInventory: number };
-type DailyRateData = { id: number; ratePlanId: number; date: string; rate: number; stopSell: number; minimumStay: number; adult1Rate: number | null; adult2Rate: number | null; childRate: number | null; infantRate: number | null; extraPersonRate: number | null };
+type DailyRateData = { id: number; ratePlanId: number; date: string; rate: number; stopSell: number; minimumStay: number; maximumStay: number | null; closeOnArrival: number; closeOnDeparture: number; minimumAdvanceReservation: number | null; maximumAdvanceReservation: number | null; adult1Rate: number | null; adult2Rate: number | null; childRate: number | null; infantRate: number | null; extraPersonRate: number | null };
 
 type GridData = {
   dorms: DormData[];

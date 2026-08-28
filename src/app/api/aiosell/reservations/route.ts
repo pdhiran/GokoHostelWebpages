@@ -6,8 +6,10 @@ import { logPmsCall } from "@/lib/pmsLog";
 
 const WEBHOOK_URL = "/api/aiosell/reservations";
 
-function respondSuccess(message: string) {
-  return NextResponse.json({ success: true, message });
+type HandlerResult = { success: boolean; message: string };
+
+function respondSuccess(message: string): HandlerResult {
+  return { success: true, message };
 }
 
 function respondError(message: string, status = 400) {
@@ -76,25 +78,24 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      let response: Response;
+      let result: HandlerResult;
       switch (payload.action) {
         case "book":
-          response = await handleNewBooking(payload);
+          result = await handleNewBooking(payload);
           break;
         case "modify":
-          response = await handleModifyBooking(payload);
+          result = await handleModifyBooking(payload);
           break;
         case "cancel":
-          response = await handleCancelBooking(payload);
+          result = await handleCancelBooking(payload);
           break;
         default:
           await logPull({ status: "failed", httpStatus: 400, errorMessage: `Unknown action: ${payload.action}`, response: { success: false, message: `Unknown action: ${payload.action}` }, request: body });
           return respondError(`Unknown action: ${payload.action}`);
       }
 
-      const responseBody = await response.json().catch(() => ({ success: true }));
-      await logPull({ status: "success", httpStatus: response.status, response: responseBody, request: body });
-      return NextResponse.json(responseBody, { status: response.status });
+      await logPull({ status: "success", httpStatus: 200, response: result, request: body });
+      return NextResponse.json(result);
     } catch (processingError: any) {
       const message = processingError?.message || "Processing failed";
       console.error("Reservation webhook error:", message);
