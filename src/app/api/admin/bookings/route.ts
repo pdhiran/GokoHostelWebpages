@@ -37,6 +37,7 @@ const ACTION_PERMISSIONS: Record<string, string | "admin_only"> = {
   search: "canViewBookings",
   getUnassigned: "canViewBookings",
   checkAvailability: "canViewBookings",
+  getAvailableBeds: "canViewBookings",
   getBookingHistory: "canViewBookings",
   createBooking: "canAddBooking",
   assignBeds: "canAddBooking",
