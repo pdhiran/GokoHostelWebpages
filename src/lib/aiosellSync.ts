@@ -6,7 +6,7 @@
  * Aiosell-originated events (OTA/Website bookings via webhook) must NOT push back.
  */
 
-import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate } from "@/db/queries";
 import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
@@ -24,7 +24,14 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
   const blockedBedIds = await getBlockedBedIdsForDate(dormId, date);
   const assignedCount = await getActiveAssignmentCountForDorm(dormId, date);
 
-  return Math.max(0, totalBeds - blockedBedIds.length - assignedCount);
+  const computed = Math.max(0, totalBeds - blockedBedIds.length - assignedCount);
+
+  const override = await getInventoryOverrideForDormDate(dormId, date);
+  if (override?.onlineAvailable != null) {
+    return override.onlineAvailable;
+  }
+
+  return computed;
 }
 
 export async function triggerInventoryPush(affectedDates?: string[]): Promise<void> {

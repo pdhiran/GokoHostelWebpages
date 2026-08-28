@@ -17,7 +17,7 @@ type BlockData = { id: number; bedId: number; dormId: number; startDate: string;
 type AssignmentData = { bedId: number; dormId: number; checkinDate: string; checkoutDate: string; status: string };
 type RatePlanData = { id: number; roomMappingId: number; ratePlanCode: string; ratePlanName: string };
 type RoomMappingData = { id: number; dormId: number; dormName: string; channelRoomCode: string; totalInventory: number };
-type DailyRateData = { id: number; ratePlanId: number; date: string; rate: number; stopSell: number; minimumStay: number; adult1Rate: number | null; adult2Rate: number | null };
+type DailyRateData = { id: number; ratePlanId: number; date: string; rate: number; stopSell: number; minimumStay: number; adult1Rate: number | null; adult2Rate: number | null; childRate: number | null; infantRate: number | null; extraPersonRate: number | null };
 
 type GridData = {
   dorms: DormData[];
@@ -439,9 +439,9 @@ function RateEditModal({ ratePlanId, date, data, password, username, onClose, on
   const [rate, setRate] = useState(String(existing?.rate ?? ""));
   const [adult1, setAdult1] = useState(String(existing?.adult1Rate ?? ""));
   const [adult2, setAdult2] = useState(String(existing?.adult2Rate ?? ""));
-  const [child, setChild] = useState("");
-  const [infant, setInfant] = useState("");
-  const [extra, setExtra] = useState("");
+  const [child, setChild] = useState(String(existing?.childRate ?? ""));
+  const [infant, setInfant] = useState(String(existing?.infantRate ?? ""));
+  const [extra, setExtra] = useState(String(existing?.extraPersonRate ?? ""));
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -555,6 +555,14 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   const [adjustType, setAdjustType] = useState<"percentage" | "flat">("percentage");
   const [adjustDays, setAdjustDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
+  // Restrictions state
+  const [restrictRpIds, setRestrictRpIds] = useState<number[]>([]);
+  const [restrictStart, setRestrictStart] = useState("");
+  const [restrictEnd, setRestrictEnd] = useState("");
+  const [restrictDays, setRestrictDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [restrictType, setRestrictType] = useState<string>("stopSell");
+  const [restrictValue, setRestrictValue] = useState<string | boolean>("");
+
   const dormBeds = useMemo(() => {
     if (!data || !blockDormId) return [];
     return data.beds.filter((b) => b.dormId === blockDormId);
@@ -642,6 +650,23 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
       });
       const json = await res.json();
       setResult(json.success ? `Adjusted ${json.updated} rate(s)` : json.error);
+      if (json.success) { onSaved(); }
+    } finally { setSaving(false); }
+  };
+
+  const handleSetRestrictions = async () => {
+    if (!restrictRpIds.length || !restrictStart || !restrictEnd || !restrictType) return;
+    setSaving(true);
+    try {
+      const booleanTypes = ["stopSell", "closeOnArrival", "closeOnDeparture"];
+      const val = booleanTypes.includes(restrictType) ? (restrictValue === true || restrictValue === "true") : (parseInt(String(restrictValue)) || null);
+      const res = await fetch("/api/admin/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, username, action: "bulkSetRestrictions", ratePlanIds: restrictRpIds, startDate: restrictStart, endDate: restrictEnd, dayFilter: restrictDays, restrictionType: restrictType, value: val }),
+      });
+      const json = await res.json();
+      setResult(json.success ? `Updated ${json.updated} restriction(s)` : json.error);
       if (json.success) { onSaved(); }
     } finally { setSaving(false); }
   };
@@ -780,7 +805,50 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
           )}
 
           {tab === "restrictions" && (
-            <p className="text-sm text-brand-green-dark/60">Restrictions (Open/Close, Min/Max LOS) can be managed via the rate push in Channel Manager or will be added in a future update.</p>
+            <>
+              <div>
+                <label className="text-xs font-medium">Rate Plans</label>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {data?.ratePlans.map((rp) => (
+                    <button key={rp.id} type="button" onClick={() => setRestrictRpIds(restrictRpIds.includes(rp.id) ? restrictRpIds.filter((x) => x !== rp.id) : [...restrictRpIds, rp.id])}
+                      className={cn("px-2 py-1 rounded text-[10px] font-medium border", restrictRpIds.includes(rp.id) ? "bg-brand-green text-white border-brand-green" : "border-input")}>
+                      {rp.ratePlanName || rp.ratePlanCode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="text-xs font-medium">Start</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={restrictStart} onChange={(e) => setRestrictStart(e.target.value)} /></div>
+                <div><label className="text-xs font-medium">End</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={restrictEnd} onChange={(e) => setRestrictEnd(e.target.value)} /></div>
+              </div>
+              <div><label className="text-xs font-medium">Days</label><div className="mt-1"><DaySelector days={restrictDays} setDays={setRestrictDays} /></div></div>
+              <div>
+                <label className="text-xs font-medium">Restriction Type</label>
+                <select className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={restrictType} onChange={(e) => { setRestrictType(e.target.value); setRestrictValue(""); }}>
+                  <option value="stopSell">Stop Sell</option>
+                  <option value="closeOnArrival">Close on Arrival</option>
+                  <option value="closeOnDeparture">Close on Departure</option>
+                  <option value="minimumStay">Minimum Stay</option>
+                  <option value="maximumStay">Maximum Stay</option>
+                  <option value="minimumAdvanceReservation">Min Advance Reservation</option>
+                  <option value="maximumAdvanceReservation">Max Advance Reservation</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Value</label>
+                {["stopSell", "closeOnArrival", "closeOnDeparture"].includes(restrictType) ? (
+                  <div className="mt-1 flex gap-2">
+                    <button type="button" onClick={() => setRestrictValue(true)} className={cn("flex-1 py-1.5 rounded text-xs font-medium border", restrictValue === true ? "bg-red-600 text-white border-red-600" : "border-input")}>Enable</button>
+                    <button type="button" onClick={() => setRestrictValue(false)} className={cn("flex-1 py-1.5 rounded text-xs font-medium border", restrictValue === false ? "bg-green-600 text-white border-green-600" : "border-input")}>Disable</button>
+                  </div>
+                ) : (
+                  <input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={String(restrictValue)} onChange={(e) => setRestrictValue(e.target.value)} placeholder="Number of nights / days" />
+                )}
+              </div>
+              <Button variant="cta" size="sm" className="w-full" onClick={handleSetRestrictions} disabled={saving || !restrictRpIds.length || !restrictStart || !restrictEnd || restrictValue === ""}>
+                {saving ? "Setting..." : "Set Restrictions"}
+              </Button>
+            </>
           )}
         </div>
 

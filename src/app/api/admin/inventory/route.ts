@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       const { dormId, channelId, date, onlineAvailable, offlineAvailable } = params;
       if (!dormId || !date) return NextResponse.json({ error: "dormId and date required" }, { status: 400 });
       await upsertInventoryOverride({ dormId, channelId: channelId || null, date, onlineAvailable, offlineAvailable, overriddenBy: actingUser });
+      triggerInventoryPush([date]).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -192,7 +193,21 @@ export async function POST(req: NextRequest) {
             newRate = direction === "increase" ? currentRate + value : currentRate - value;
           }
           newRate = Math.max(0, newRate);
-          await upsertDailyRate({ ratePlanId: rpId, date, rate: newRate, updatedBy: actingUser });
+          await upsertDailyRate({
+            ratePlanId: rpId, date, rate: newRate, updatedBy: actingUser,
+            stopSell: existing.stopSell,
+            minimumStay: existing.minimumStay,
+            maximumStay: existing.maximumStay,
+            closeOnArrival: existing.closeOnArrival,
+            closeOnDeparture: existing.closeOnDeparture,
+            minimumAdvanceReservation: existing.minimumAdvanceReservation,
+            maximumAdvanceReservation: existing.maximumAdvanceReservation,
+            adult1Rate: existing.adult1Rate,
+            adult2Rate: existing.adult2Rate,
+            childRate: existing.childRate,
+            infantRate: existing.infantRate,
+            extraPersonRate: existing.extraPersonRate,
+          });
           count++;
         }
       }
@@ -200,16 +215,30 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "bulkSetRestrictions") {
-      const { ratePlanIds, startDate, endDate, dayFilter, channelId, restrictionType, value } = params;
+      const { ratePlanIds, startDate, endDate, dayFilter, restrictionType, value } = params;
       if (!ratePlanIds?.length || !startDate || !endDate || !restrictionType) return NextResponse.json({ error: "ratePlanIds, dates, restrictionType required" }, { status: 400 });
       const allDates = generateDateRange(startDate, endDate);
       const filteredDates = filterByDays(allDates, dayFilter);
       let count = 0;
       for (const rpId of ratePlanIds) {
         for (const date of filteredDates) {
-          const updateData: any = { ratePlanId: rpId, date, rate: 0, updatedBy: actingUser };
           const existing = (await getDailyRates(rpId, date, date))[0];
-          if (existing) updateData.rate = existing.rate;
+          const updateData: any = {
+            ratePlanId: rpId, date, updatedBy: actingUser,
+            rate: existing?.rate ?? 0,
+            stopSell: existing?.stopSell ?? 0,
+            minimumStay: existing?.minimumStay ?? 1,
+            maximumStay: existing?.maximumStay ?? null,
+            closeOnArrival: existing?.closeOnArrival ?? 0,
+            closeOnDeparture: existing?.closeOnDeparture ?? 0,
+            minimumAdvanceReservation: existing?.minimumAdvanceReservation ?? null,
+            maximumAdvanceReservation: existing?.maximumAdvanceReservation ?? null,
+            adult1Rate: existing?.adult1Rate ?? null,
+            adult2Rate: existing?.adult2Rate ?? null,
+            childRate: existing?.childRate ?? null,
+            infantRate: existing?.infantRate ?? null,
+            extraPersonRate: existing?.extraPersonRate ?? null,
+          };
 
           switch (restrictionType) {
             case "stopSell": updateData.stopSell = value ? 1 : 0; break;
@@ -217,6 +246,9 @@ export async function POST(req: NextRequest) {
             case "closeOnDeparture": updateData.closeOnDeparture = value ? 1 : 0; break;
             case "minimumStay": updateData.minimumStay = value; break;
             case "maximumStay": updateData.maximumStay = value; break;
+            case "minimumAdvanceReservation": updateData.minimumAdvanceReservation = value; break;
+            case "maximumAdvanceReservation": updateData.maximumAdvanceReservation = value; break;
+            default: return NextResponse.json({ error: `Unknown restrictionType: ${restrictionType}` }, { status: 400 });
           }
           await upsertDailyRate(updateData);
           count++;
@@ -236,8 +268,8 @@ function generateDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
   const current = new Date(startDate + "T00:00:00");
   const end = new Date(endDate + "T00:00:00");
-  while (current < end) {
-    dates.push(current.toISOString().split("T")[0]);
+  while (current <= end) {
+    dates.push(current.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
     current.setDate(current.getDate() + 1);
   }
   return dates;

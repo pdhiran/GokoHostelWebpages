@@ -104,18 +104,6 @@ export type ReservationPayload = {
   }>;
 };
 
-const SANDBOX_CONFIG: AiosellConfig = {
-  hotelCode: "sandbox-pms",
-  pmsId: "sample-pms",
-  apiBaseUrl: "https://live.aiosell.com",
-  apiUsername: "aiosell",
-  apiPassword: "AIOsell@123",
-};
-
-export function getSandboxConfig(): AiosellConfig {
-  return { ...SANDBOX_CONFIG };
-}
-
 function buildAuthHeader(config: AiosellConfig): string {
   const encoded = btoa(`${config.apiUsername}:${config.apiPassword}`);
   return `Basic ${encoded}`;
@@ -257,18 +245,27 @@ export async function pushNoShow(
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/noshow`;
   return aiosellFetch(url, config, {
-    hotelId: config.hotelCode,
+    hotelCode: config.hotelCode,
     bookingId,
     partner,
   }, { type: "noshow", recordsAffected: 1 });
 }
 
-export function validateWebhookAuth(
-  authHeader: string | null,
-  expectedSecret: string
-): boolean {
-  if (!authHeader || !expectedSecret) return false;
-  return authHeader === expectedSecret || authHeader === `Bearer ${expectedSecret}`;
+export async function fetchFromAiosell(
+  config: AiosellConfig,
+  type: "inventory" | "rates" | "reservation",
+  startDate: string,
+  endDate: string
+): Promise<AiosellResponse & { data?: unknown }> {
+  const url = `${config.apiBaseUrl}/api/v2/cm/data/${config.pmsId}`;
+  const callType: AiosellCallType = type === "rates" ? "rate" : "inventory";
+  const result = await aiosellFetch(url, config, {
+    type,
+    hotelCode: config.hotelCode,
+    startDate,
+    endDate,
+  }, { type: callType });
+  return result as AiosellResponse & { data?: unknown };
 }
 
 export function parseReservationPayload(body: unknown): ReservationPayload | null {
@@ -282,17 +279,3 @@ export function parseReservationPayload(body: unknown): ReservationPayload | nul
   return data as unknown as ReservationPayload;
 }
 
-export function buildDefaultRestrictions(): RestrictionFields {
-  return {
-    stopSell: false,
-    minimumStay: 1,
-    maximumStay: null,
-    closeOnArrival: false,
-    closeOnDeparture: false,
-    minimumAdvanceReservation: null,
-    maximumAdvanceReservation: null,
-    minimumStayArrival: null,
-    maximumStayArrival: null,
-    exactStayArrival: null,
-  };
-}

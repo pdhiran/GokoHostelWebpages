@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChannelConfig, addBooking, updateBookingStatus, updateBookingFull, getAllBookings } from "@/db/queries";
+import { getChannelConfig, addBooking, updateBookingFull, getBookingByRef, unassignBookingBeds, addBookingHistoryEntry } from "@/db/queries";
+import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell";
 import { logPmsCall } from "@/lib/pmsLog";
 
@@ -143,20 +144,28 @@ function extractBookingFields(payload: ReservationPayload) {
 }
 
 async function handleNewBooking(payload: ReservationPayload) {
-  const existingBookings = await getAllBookings();
-  const duplicate = existingBookings.find((b) => b.bookingRef === payload.bookingId);
-  if (duplicate) {
+  const existing = await getBookingByRef(payload.bookingId);
+  if (existing) {
     return respondSuccess("Reservation already exists (duplicate)");
   }
 
-  await addBooking(extractBookingFields(payload));
+  const result = await addBooking(extractBookingFields(payload));
+  const bookingId = (result as any).meta?.last_row_id || (result as any).lastInsertRowid;
 
-  return respondSuccess("Reservation Updated Successfully");
+  if (bookingId) {
+    await addBookingHistoryEntry({
+      bookingId,
+      action: "Received from Channel",
+      details: `New booking via ${payload.channel || "aiosell"} (ref: ${payload.bookingId})`,
+      performedBy: "channel_manager",
+    });
+  }
+
+  return respondSuccess("Reservation Created Successfully");
 }
 
 async function handleModifyBooking(payload: ReservationPayload) {
-  const existingBookings = await getAllBookings();
-  const existing = existingBookings.find((b) => b.bookingRef === payload.bookingId);
+  const existing = await getBookingByRef(payload.bookingId);
 
   if (!existing) {
     return await handleNewBooking(payload);
@@ -180,7 +189,7 @@ async function handleModifyBooking(payload: ReservationPayload) {
     persons,
     paymentStatus: payload.pah !== undefined ? (payload.pah ? "pay_at_hotel" : "prepaid") : (existing.paymentStatus || "unknown"),
     specialRequests: payload.specialRequests || existing.specialRequests || "",
-    status: "received",
+    status: existing.status,
     rawData: JSON.stringify(payload),
     amountBeforeTax: payload.amount?.amountBeforeTax ?? existing.amountBeforeTax ?? 0,
     amountTax: payload.amount?.tax ?? existing.amountTax ?? 0,
@@ -192,18 +201,42 @@ async function handleModifyBooking(payload: ReservationPayload) {
     nightlyRate,
   });
 
+  await addBookingHistoryEntry({
+    bookingId: existing.id,
+    action: "Modified from Channel",
+    details: `Booking modified via ${payload.channel || "aiosell"}`,
+    performedBy: "channel_manager",
+  });
+
   return respondSuccess("Reservation Modified Successfully");
 }
 
 async function handleCancelBooking(payload: ReservationPayload) {
-  const existingBookings = await getAllBookings();
-  const existing = existingBookings.find((b) => b.bookingRef === payload.bookingId);
+  const existing = await getBookingByRef(payload.bookingId);
 
   if (!existing) {
     return respondSuccess("Reservation not found (may already be cancelled)");
   }
 
-  await updateBookingStatus(existing.id, "cancelled");
+  if (existing.status === "cancelled") {
+    return respondSuccess("Reservation already cancelled");
+  }
+
+  const now = new Date().toISOString();
+
+  await updateBookingFull(existing.id, {
+    status: "cancelled",
+    cancelledAt: now,
+    cancelledBy: "channel_manager",
+  });
+  await unassignBookingBeds(existing.id);
+  await addBookingHistoryEntry({
+    bookingId: existing.id,
+    action: "Cancelled from Channel",
+    details: `Cancelled via ${payload.channel || "aiosell"}`,
+    performedBy: "channel_manager",
+  });
+  triggerInventoryPush().catch(() => {});
 
   return respondSuccess("Reservation Cancelled Successfully");
 }

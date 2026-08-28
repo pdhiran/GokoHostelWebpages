@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
-import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, markRatesSynced } from "@/db/queries";
 import { pushRates, pushRateRestrictions, type AiosellConfig, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
 import { todayIST } from "@/lib/utils";
 
@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
               closeOnDeparture: dr.closeOnDeparture === 1,
               minimumAdvanceReservation: dr.minimumAdvanceReservation || null,
               maximumAdvanceReservation: dr.maximumAdvanceReservation || null,
+              // ponytail: these 3 fields aren't in daily_rates schema yet; null is correct for now
               minimumStayArrival: null,
               maximumStayArrival: null,
               exactStayArrival: null,
@@ -114,7 +115,12 @@ export async function POST(req: NextRequest) {
     }
 
     const overallSuccess = rateResult.success && (!restrictionResult || restrictionResult.success);
-    if (overallSuccess) await updateChannelSyncTime();
+    if (overallSuccess) {
+      await updateChannelSyncTime();
+      for (const rp of activeRatePlans) {
+        await markRatesSynced(rp.id, start, end);
+      }
+    }
 
     return NextResponse.json({
       success: overallSuccess,
@@ -123,7 +129,7 @@ export async function POST(req: NextRequest) {
       ratesPushed: totalRates,
       restrictionsPushed: totalRestrictions,
       restrictionResult: restrictionResult ? { success: restrictionResult.success, message: restrictionResult.message } : null,
-    });
+    }, overallSuccess ? undefined : { status: 502 });
   } catch (error: any) {
     console.error("Push rates error:", error?.message);
     return NextResponse.json({ error: "Push failed: " + (error?.message || "Unknown") }, { status: 500 });

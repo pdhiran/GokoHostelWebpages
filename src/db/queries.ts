@@ -338,6 +338,12 @@ export async function getAllBookings() {
   return db.select().from(bookings).orderBy(desc(bookings.id));
 }
 
+export async function getBookingByRef(ref: string) {
+  const db = getDb();
+  const rows = await db.select().from(bookings).where(eq(bookings.bookingRef, ref)).limit(1);
+  return rows[0] ?? null;
+}
+
 export async function getUpcomingBookings() {
   const db = getDb();
   const today = todayIST();
@@ -1755,6 +1761,14 @@ export async function getInventoryOverrides(dormId: number, startDate: string, e
       lte(inventoryOverrides.date, endDate)
     )
   );
+}
+
+export async function getInventoryOverrideForDormDate(dormId: number, date: string) {
+  const db = getDb();
+  const rows = await db.select().from(inventoryOverrides)
+    .where(and(eq(inventoryOverrides.dormId, dormId), eq(inventoryOverrides.date, date)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function upsertInventoryOverride(data: { dormId: number; channelId: number | null; date: string; onlineAvailable?: number | null; offlineAvailable?: number | null; overriddenBy: string }) {

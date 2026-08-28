@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig } from "@/db/queries";
-import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
+import { fetchFromAiosell, type AiosellConfig } from "@/lib/aiosell";
 
 export async function POST(req: NextRequest) {
   try {
-    const { password, username, bookingId, partner } = await req.json();
+    const { password, username, type, startDate, endDate } = await req.json();
     const auth = await authenticateUser(password, username);
     if (!auth || auth.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!bookingId || !partner) {
-      return NextResponse.json({ error: "bookingId and partner are required" }, { status: 400 });
+    if (!type || !startDate || !endDate) {
+      return NextResponse.json({ error: "type, startDate, and endDate are required" }, { status: 400 });
+    }
+
+    if (!["inventory", "rates", "reservation"].includes(type)) {
+      return NextResponse.json({ error: "type must be inventory, rates, or reservation" }, { status: 400 });
     }
 
     const config = await getChannelConfig();
@@ -28,11 +32,11 @@ export async function POST(req: NextRequest) {
       apiPassword: config.apiPassword,
     };
 
-    const result = await pushNoShow(aiosellConfig, bookingId, partner);
+    const result = await fetchFromAiosell(aiosellConfig, type, startDate, endDate);
 
-    return NextResponse.json(result, { status: result.success ? 200 : 502 });
+    return NextResponse.json(result);
   } catch (error: any) {
-    console.error("Push no-show error:", error?.message);
-    return NextResponse.json({ error: "Push failed: " + (error?.message || "Unknown") }, { status: 500 });
+    console.error("Fetch from Aiosell error:", error?.message);
+    return NextResponse.json({ error: "Fetch failed: " + (error?.message || "Unknown") }, { status: 500 });
   }
 }

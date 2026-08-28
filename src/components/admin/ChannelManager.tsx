@@ -506,6 +506,13 @@ function SyncTab({ password, username }: { password: string; username?: string }
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [pushing, setPushing] = useState<string | null>(null);
+  const [pushStartDate, setPushStartDate] = useState("");
+  const [pushEndDate, setPushEndDate] = useState("");
+  const [fetchType, setFetchType] = useState<"inventory" | "rates" | "reservation">("inventory");
+  const [fetchStart, setFetchStart] = useState("");
+  const [fetchEnd, setFetchEnd] = useState("");
+  const [fetchResult, setFetchResult] = useState<any>(null);
+  const [fetching, setFetching] = useState(false);
 
   useEffect(() => { loadLogs(); }, []);
 
@@ -532,20 +539,47 @@ function SyncTab({ password, username }: { password: string; username?: string }
     setPushing(null);
   };
 
+  const handleFetch = async () => {
+    if (!fetchStart || !fetchEnd) return;
+    setFetching(true);
+    setFetchResult(null);
+    try {
+      const res = await apiCall("/api/aiosell/fetch", { type: fetchType, startDate: fetchStart, endDate: fetchEnd });
+      setFetchResult(res);
+    } catch (e: any) { showError(e.message); }
+    setFetching(false);
+  };
+
   if (loading) return <AdminLoading />;
 
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold">Push to Aiosell</h3>
 
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Start Date</label>
+          <input type="date" className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={pushStartDate} onChange={(e) => setPushStartDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">End Date</label>
+          <input type="date" className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={pushEndDate} onChange={(e) => setPushEndDate(e.target.value)} />
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">Leave empty for defaults (today + 30 days)</p>
+
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => pushAction("Inventory", "/api/aiosell/push-inventory")} disabled={!!pushing}>
+        <Button size="sm" onClick={() => pushAction("Inventory", "/api/aiosell/push-inventory", { startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
           {pushing === "Inventory" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
           Push Inventory
         </Button>
-        <Button size="sm" onClick={() => pushAction("Rates", "/api/aiosell/push-rates", { includeRestrictions: true })} disabled={!!pushing}>
+        <Button size="sm" onClick={() => pushAction("Rates", "/api/aiosell/push-rates", { includeRestrictions: true, startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
           {pushing === "Rates" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
           Push Rates + Restrictions
+        </Button>
+        <Button size="sm" onClick={() => pushAction("Inv Restrictions", "/api/aiosell/push-inventory-restrictions", { startDate: pushStartDate || undefined, endDate: pushEndDate || undefined })} disabled={!!pushing}>
+          {pushing === "Inv Restrictions" ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <SendIcon className="h-3.5 w-3.5 mr-1" />}
+          Push Inv Restrictions
         </Button>
       </div>
 
@@ -567,11 +601,33 @@ function SyncTab({ password, username }: { password: string; username?: string }
               <span className="font-mono text-muted-foreground w-14">{log.direction}</span>
               <span className="font-medium w-20">{log.type}</span>
               <span className="flex-1 text-muted-foreground truncate">{log.errorMessage || `${log.recordsAffected} records`}</span>
-              <span className="text-muted-foreground">{new Date(log.createdAt).toLocaleTimeString()}</span>
+              <span className="text-muted-foreground">{new Date(log.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
             </div>
           ))}
         </div>
       )}
+
+      <div className="pt-4 border-t border-border">
+        <h3 className="text-sm font-semibold mb-2">Fetch from Aiosell</h3>
+        <div className="grid grid-cols-3 gap-2">
+          <select className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchType} onChange={(e) => setFetchType(e.target.value as any)}>
+            <option value="inventory">Inventory</option>
+            <option value="rates">Rates</option>
+            <option value="reservation">Reservations</option>
+          </select>
+          <input type="date" className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchStart} onChange={(e) => setFetchStart(e.target.value)} />
+          <input type="date" className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchEnd} onChange={(e) => setFetchEnd(e.target.value)} />
+        </div>
+        <Button size="sm" className="mt-2" onClick={handleFetch} disabled={fetching || !fetchStart || !fetchEnd}>
+          {fetching ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCwIcon className="h-3.5 w-3.5 mr-1" />}
+          Fetch
+        </Button>
+        {fetchResult && (
+          <div className="mt-2 max-h-60 overflow-auto rounded bg-muted/50 p-2">
+            <pre className="text-[10px] font-mono whitespace-pre-wrap break-all">{JSON.stringify(fetchResult, null, 2)}</pre>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
