@@ -97,7 +97,8 @@ export async function POST(req: NextRequest) {
 
     if (action === "blockBeds") {
       const { bedIds, dormId, startDate, endDate, reason } = params;
-      if (!bedIds?.length || !startDate || !endDate) return NextResponse.json({ error: "bedIds, startDate, endDate required" }, { status: 400 });
+      if (!bedIds?.length || !dormId || !startDate || !endDate) return NextResponse.json({ error: "bedIds, dormId, startDate, endDate required" }, { status: 400 });
+      if (startDate >= endDate) return NextResponse.json({ error: "startDate must be before endDate" }, { status: 400 });
       for (const bedId of bedIds) {
         await createBedBlock({ bedId, dormId, startDate, endDate, reason: reason || "", blockedBy: actingUser });
       }
@@ -175,7 +176,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "bulkAdjustRates") {
       const { ratePlanIds, startDate, endDate, dayFilter, channelId, direction, value, type } = params;
-      if (!ratePlanIds?.length || !startDate || !endDate || !value) return NextResponse.json({ error: "ratePlanIds, dates, value required" }, { status: 400 });
+      if (!ratePlanIds?.length || !startDate || !endDate || value == null) return NextResponse.json({ error: "ratePlanIds, dates, value required" }, { status: 400 });
       const allDates = generateDateRange(startDate, endDate);
       const filteredDates = filterByDays(allDates, dayFilter);
       let count = 0;

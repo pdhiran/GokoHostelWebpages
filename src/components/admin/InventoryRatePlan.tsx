@@ -371,10 +371,13 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
   const [onlineOverride, setOnlineOverride] = useState<string>("");
   const [offlineOverride, setOfflineOverride] = useState<string>("");
 
+  const [error, setError] = useState("");
+
   const handleSave = async () => {
     setSaving(true);
+    setError("");
     try {
-      await fetch("/api/admin/inventory", {
+      const res = await fetch("/api/admin/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -384,9 +387,11 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
           offlineAvailable: offlineOverride ? parseInt(offlineOverride) : null,
         }),
       });
+      const json = await res.json();
+      if (!json.success && !res.ok) { setError(json.error || "Save failed"); return; }
       onSaved();
-      onClose();
-    } finally {
+      setTimeout(onClose, 400);
+    } catch { setError("Network error"); } finally {
       setSaving(false);
     }
   };
@@ -413,6 +418,7 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
             <input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={offlineOverride} onChange={(e) => setOfflineOverride(e.target.value)} placeholder="0" />
           </div>
         </div>
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
         <div className="mt-4 flex gap-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={onClose}>Cancel</Button>
           <Button size="sm" className="flex-1" onClick={handleSave} disabled={saving}>
@@ -443,11 +449,13 @@ function RateEditModal({ ratePlanId, date, data, password, username, onClose, on
   const [infant, setInfant] = useState(String(existing?.infantRate ?? ""));
   const [extra, setExtra] = useState(String(existing?.extraPersonRate ?? ""));
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSave = async () => {
     setSaving(true);
+    setError("");
     try {
-      await fetch("/api/admin/inventory", {
+      const res = await fetch("/api/admin/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -461,9 +469,11 @@ function RateEditModal({ ratePlanId, date, data, password, username, onClose, on
           extraPersonRate: extra ? parseInt(extra) : null,
         }),
       });
+      const json = await res.json();
+      if (!json.success && !res.ok) { setError(json.error || "Save failed"); return; }
       onSaved();
-      onClose();
-    } finally {
+      setTimeout(onClose, 400);
+    } catch { setError("Network error"); } finally {
       setSaving(false);
     }
   };
@@ -505,6 +515,7 @@ function RateEditModal({ ratePlanId, date, data, password, username, onClose, on
             <input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Auto from Adult 1" />
           </div>
         </div>
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
         <div className="mt-4 flex gap-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={onClose}>Cancel</Button>
           <Button size="sm" className="flex-1" onClick={handleSave} disabled={saving}>
@@ -659,7 +670,8 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
     setSaving(true);
     try {
       const booleanTypes = ["stopSell", "closeOnArrival", "closeOnDeparture"];
-      const val = booleanTypes.includes(restrictType) ? (restrictValue === true || restrictValue === "true") : (parseInt(String(restrictValue)) || null);
+      const numVal = parseInt(String(restrictValue));
+      const val = booleanTypes.includes(restrictType) ? (restrictValue === true || restrictValue === "true") : (isNaN(numVal) ? null : numVal);
       const res = await fetch("/api/admin/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -812,7 +824,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
                   {data?.ratePlans.map((rp) => (
                     <button key={rp.id} type="button" onClick={() => setRestrictRpIds(restrictRpIds.includes(rp.id) ? restrictRpIds.filter((x) => x !== rp.id) : [...restrictRpIds, rp.id])}
                       className={cn("px-2 py-1 rounded text-[10px] font-medium border", restrictRpIds.includes(rp.id) ? "bg-brand-green text-white border-brand-green" : "border-input")}>
-                      {rp.ratePlanName || rp.ratePlanCode}
+                      {getRatePlanLabel(rp)}
                     </button>
                   ))}
                 </div>
