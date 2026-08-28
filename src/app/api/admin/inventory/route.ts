@@ -108,17 +108,31 @@ export async function POST(req: NextRequest) {
 
     if (action === "unblockBeds") {
       const { blockIds, bedIds, startDate, endDate } = params;
+      let pushDates: string[] | undefined;
+      let pushDormId: number | undefined;
       if (blockIds?.length) {
+        const blocks = await getActiveBedBlocks();
+        const targeted = blocks.filter((b: any) => blockIds.includes(b.id));
+        if (targeted.length > 0) {
+          const allDates = new Set<string>();
+          const dormIds = new Set<number>();
+          for (const b of targeted) {
+            generateDateRange(b.startDate, b.endDate).forEach((d) => allDates.add(d));
+            dormIds.add(b.dormId);
+          }
+          pushDates = [...allDates];
+          if (dormIds.size === 1) pushDormId = [...dormIds][0];
+        }
         for (const blockId of blockIds) {
           await deactivateBedBlock(blockId, actingUser);
         }
       } else if (bedIds?.length && startDate && endDate) {
         await deactivateBedBlocksByBedIds(bedIds, startDate, endDate, actingUser);
+        pushDates = generateDateRange(startDate, endDate);
       } else {
         return NextResponse.json({ error: "blockIds or (bedIds + dates) required" }, { status: 400 });
       }
-      const dates = startDate && endDate ? generateDateRange(startDate, endDate) : undefined;
-      triggerInventoryPush(dates).catch(() => {});
+      triggerInventoryPush(pushDates, pushDormId).catch(() => {});
       return NextResponse.json({ success: true });
     }
 

@@ -1190,7 +1190,7 @@ export async function getChannelConfig() {
 export async function upsertChannelConfig(data: {
   provider?: string; hotelCode: string; pmsId: string; apiBaseUrl: string;
   apiUsername: string; apiPassword: string; webhookSecret?: string;
-  bookingEngineUrl?: string; isActive?: number;
+  bookingEngineUrl?: string; isActive?: number; autoPushInventory?: number;
 }) {
   const db = getDb();
   const existing = await getChannelConfig();
