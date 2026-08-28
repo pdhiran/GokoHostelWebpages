@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import {
   RefreshCwIcon, Loader2Icon, ChevronLeftIcon, ChevronRightIcon,
   PackageIcon, BanIcon, EditIcon,
@@ -35,7 +35,7 @@ function generateDates(start: string, days: number): string[] {
   const dates: string[] = [];
   const d = new Date(start + "T00:00:00");
   for (let i = 0; i < days; i++) {
-    dates.push(d.toISOString().split("T")[0]);
+    dates.push(localDateStr(d));
     d.setDate(d.getDate() + 1);
   }
   return dates;
@@ -58,7 +58,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
   const [rangeStart, setRangeStart] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
-    return d.toISOString().split("T")[0];
+    return localDateStr(d);
   });
   const [rangeDays, setRangeDays] = useState(14);
   const [editingCell, setEditingCell] = useState<{ dormId: number; date: string } | null>(null);
@@ -69,7 +69,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
   const endDate = useMemo(() => {
     const d = new Date(rangeStart + "T00:00:00");
     d.setDate(d.getDate() + rangeDays);
-    return d.toISOString().split("T")[0];
+    return localDateStr(d);
   }, [rangeStart, rangeDays]);
 
   const fetchData = useCallback(async () => {
@@ -145,7 +145,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
   const shiftRange = (days: number) => {
     const d = new Date(rangeStart + "T00:00:00");
     d.setDate(d.getDate() + days);
-    setRangeStart(d.toISOString().split("T")[0]);
+    setRangeStart(localDateStr(d));
   };
 
   const colWidth = rangeDays <= 7 ? 80 : rangeDays <= 14 ? 60 : 48;
@@ -619,7 +619,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
       const dates: string[] = [];
       const d = new Date(rateStart + "T00:00:00");
       const end = new Date(rateEnd + "T00:00:00");
-      while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setDate(d.getDate() + 1); }
+      while (d <= end) { dates.push(localDateStr(d)); d.setDate(d.getDate() + 1); }
       const res = await fetch("/api/admin/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

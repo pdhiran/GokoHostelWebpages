@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExternalLinkIcon, Trash2Icon, PlusIcon, UploadIcon, PencilIcon, ShieldCheckIcon, ShieldAlertIcon, Loader2Icon, XIcon, FileTextIcon, LayoutListIcon, TableIcon, ChevronDownIcon, PhoneIcon, MapPinIcon, CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import { useAdminApi } from "./useAdminApi";
@@ -48,7 +48,7 @@ const FORM_C_FIELDS = [
 function getDefaults(): string[] {
   const arr = Array(17).fill("");
   const now = new Date();
-  arr[1] = now.toISOString().split("T")[0];
+  arr[1] = localDateStr(now);
   arr[2] = now.toTimeString().slice(0, 5);
   arr[8] = "India";
   return arr;

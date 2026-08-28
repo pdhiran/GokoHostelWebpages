@@ -5,7 +5,7 @@ import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { DownloadIcon, AlertCircleIcon, AlertTriangleIcon, InfoIcon, CopyIcon, CheckIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import type { Role } from "./types";
 
 type LogEntryData = {
@@ -63,7 +63,7 @@ export function ManagementLogs({ password, username, role }: { password: string;
   const downloadLogs = () => {
     const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `system-logs-${new Date().toISOString().split("T")[0]}.json`; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `system-logs-${localDateStr(new Date())}.json`; a.click();
     URL.revokeObjectURL(url);
   };
 

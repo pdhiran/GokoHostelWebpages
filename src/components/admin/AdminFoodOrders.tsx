@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { Loader2Icon, RefreshCwIcon, XIcon, PlusIcon, MinusIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon, BanknoteIcon, SmartphoneIcon, PrinterIcon, DownloadIcon, HistoryIcon, PencilIcon, TagIcon } from "lucide-react";
 import { isBluetoothSupported, printFoodBill, printCombinedBill, printOrderTicket, type BillItem } from "@/lib/thermalPrint";
 import { generateGuestBill, generateCombinedBill, type CombinedBillData, type BillOrder } from "@/components/admin/FoodBillGenerator";
@@ -2558,7 +2558,7 @@ function PaymentHistoryPanel({ apiCall, onClose }: { apiCall: (body: any) => Pro
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - parseInt(range));
-    return { from: from.toISOString().split("T")[0], to: to.toISOString().split("T")[0] };
+    return { from: localDateStr(from), to: localDateStr(to) };
   }, [range, customFrom, customTo]);
 
   const loadHistory = useCallback(async () => {

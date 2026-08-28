@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig, getRoomTypeMappings, getAvailableBedsForDorm, addChannelSyncLog, updateChannelSyncTime } from "@/db/queries";
 import { pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
+import { todayIST } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       rooms.push({ roomCode: mapping.channelRoomCode, available });
     }
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayIST();
     const updates: InventoryUpdate[] = [{
       startDate: today,
       endDate: today,

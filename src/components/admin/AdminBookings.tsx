@@ -7,7 +7,7 @@ import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlusIcon, Trash2Icon, CalendarIcon, RefreshCwIcon, XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
 import type { Role } from "./types";
@@ -134,7 +134,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
     await loadBookings();
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDateStr(new Date());
   const propertyBookings = bookings.filter((b) => {
     const prop = b.property || "goko_hostel";
     return prop === filterProperty;

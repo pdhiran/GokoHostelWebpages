@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser, hashPassword, verifyPassword, type UserRole } from "@/lib/auth";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
+import { todayIST } from "@/lib/utils";
 import {
   getCheckinsByMonth, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
   getAllBeds, getBedById, updateBedStatus, getAllDorms, getDormByName, addDorm, addBed, deleteBed, deleteDormAndBeds,
@@ -222,7 +223,7 @@ export async function POST(req: NextRequest) {
         const guestBed = allBeds.find((b) => b.status === "occupied" && b.guestContact === guestContact);
         if (guestBed) {
           const days = parseInt(newStayingDays) || 1;
-          const checkin = newArrivalDate || guestBed.checkinDate || new Date().toISOString().split("T")[0];
+          const checkin = newArrivalDate || guestBed.checkinDate || todayIST();
           const coDate = new Date(checkin + "T12:00:00Z");
           coDate.setUTCDate(coDate.getUTCDate() + days);
           const checkoutDate = coDate.toISOString().split("T")[0];
@@ -468,7 +469,7 @@ export async function POST(req: NextRequest) {
     if (action === "getDashboard") {
       const monthKey = getMonthKey();
       const allCheckins = await getCheckinsByMonth(monthKey);
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayIST();
       const todayCheckins = allCheckins.filter((r) => r.arrivalDate === today && r.status === "active");
 
       const allBeds = await getAllBeds();
@@ -587,7 +588,7 @@ export async function POST(req: NextRequest) {
       if (bed.status !== "available") return NextResponse.json({ error: "Bed is not available" }, { status: 400 });
 
       const days = parseInt(stayingDays) || 1;
-      const checkin = checkinDate || new Date().toISOString().split("T")[0];
+      const checkin = checkinDate || todayIST();
       const coDate = new Date(checkin + "T12:00:00Z");
       coDate.setUTCDate(coDate.getUTCDate() + days);
       const checkoutDate = coDate.toISOString().split("T")[0];

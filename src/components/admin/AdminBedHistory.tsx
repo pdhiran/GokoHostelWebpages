@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { useAdminApi } from "./useAdminApi";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { DownloadIcon, Trash2Icon } from "lucide-react";
@@ -78,7 +78,7 @@ export function AdminBedHistory({ password, username, role }: { password: string
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `bed-history-${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `bed-history-${localDateStr(new Date())}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };

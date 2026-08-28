@@ -6,7 +6,7 @@ import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DownloadIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { OrderHistory } from "./AdminFoodOrders";
 import type { Role } from "./types";
 
@@ -103,7 +103,7 @@ function RoomAuditTrail({ password, username, role }: { password: string; userna
     const body = filtered.map((e) => `"${e.timestamp}","${e.username}","${e.action}","${e.target}","${e.details}"`).join("\n");
     const blob = new Blob([header + "\n" + body], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `audit-log-${new Date().toISOString().split("T")[0]}.csv`; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `audit-log-${localDateStr(new Date())}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 

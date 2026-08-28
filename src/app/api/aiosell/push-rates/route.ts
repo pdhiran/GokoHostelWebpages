@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, addChannelSyncLog, updateChannelSyncTime } from "@/db/queries";
 import { pushRates, pushRateRestrictions, type AiosellConfig, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
+import { todayIST } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,8 +17,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Channel manager not configured or inactive" }, { status: 400 });
     }
 
-    const start = startDate || new Date().toISOString().split("T")[0];
-    const end = endDate || new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+    const start = startDate || todayIST();
+    const end = endDate || (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); })();
 
     const roomMappings = await getRoomTypeMappings();
     const activeMappings = roomMappings.filter((m) => m.isActive);

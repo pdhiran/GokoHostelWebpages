@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BanknoteIcon, SmartphoneIcon, AlertTriangleIcon, ShoppingCartIcon, TagIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
 
@@ -15,7 +15,7 @@ function getMonthStart() {
 }
 
 function getToday() {
-  return new Date().toISOString().split("T")[0];
+  return localDateStr(new Date());
 }
 
 export function AdminFoodBill({

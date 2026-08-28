@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Loader2Icon, RefreshCwIcon, SendIcon, CheckCircleIcon, SettingsIcon, XIcon, PencilIcon, RotateCcwIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 
 interface ReviewRequest {
   id: number;
@@ -38,7 +38,7 @@ interface Props {
 function getDateNDaysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().split("T")[0];
+  return localDateStr(d);
 }
 
 function formatDate(iso: string): string {

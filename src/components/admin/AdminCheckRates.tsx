@@ -7,7 +7,7 @@ import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2Icon, RefreshCwIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import type { Role } from "./types";
 
 type RateResult = {
@@ -36,9 +36,9 @@ export function AdminCheckRates({ password, username, role }: { password: string
   const [scraping, setScraping] = useState(false);
 
   const [city, setCity] = useState("Gokarna");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
+  const [startDate, setStartDate] = useState(localDateStr(new Date()));
   const [endDate, setEndDate] = useState(
-    new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0]
+    localDateStr(new Date(Date.now() + 7 * 86400000))
   );
   const [propertyType, setPropertyType] = useState("hostels");
   const [proxyUrl, setProxyUrl] = useState("");
@@ -253,10 +253,10 @@ export function AdminCheckRates({ password, username, role }: { password: string
 
 function generateDateRange(start: string, end: string): string[] {
   const dates: string[] = [];
-  const current = new Date(start);
-  const endDate = new Date(end);
+  const current = new Date(start + "T00:00:00");
+  const endDate = new Date(end + "T00:00:00");
   while (current < endDate) {
-    dates.push(current.toISOString().split("T")[0]);
+    dates.push(localDateStr(current));
     current.setDate(current.getDate() + 1);
   }
   return dates;

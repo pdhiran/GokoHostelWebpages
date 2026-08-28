@@ -1,5 +1,6 @@
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
+import { todayIST } from "@/lib/utils";
 import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
@@ -335,7 +336,7 @@ export async function getAllBookings() {
 
 export async function getUpcomingBookings() {
   const db = getDb();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayIST();
   return db.select().from(bookings)
     .where(and(
       eq(bookings.status, "confirmed"),

@@ -8,7 +8,7 @@ import { countries } from "@/content/countries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { CameraIcon, UploadIcon, CheckCircle2Icon, XIcon } from "lucide-react";
 
 const countryDialCodes: Record<string, string> = {
@@ -33,7 +33,7 @@ const countryDialCodes: Record<string, string> = {
 
 function getNow() {
   const now = new Date();
-  const date = now.toISOString().split("T")[0];
+  const date = localDateStr(now);
   const time = now.toTimeString().slice(0, 5);
   return { date, time };
 }

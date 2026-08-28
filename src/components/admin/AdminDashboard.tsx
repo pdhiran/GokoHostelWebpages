@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
 import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon, CheckCircleIcon, UtensilsIcon } from "lucide-react";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
@@ -125,7 +125,7 @@ export function AdminDashboard({
     } finally { setVibeMatchingId(null); }
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDateStr(new Date());
 
   if (loading) {
     return <AdminLoading message="Loading dashboard..." />;

@@ -7,6 +7,7 @@
  */
 
 import { getChannelConfig, getRoomTypeMappings, addChannelSyncLog, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate } from "@/db/queries";
+import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -36,7 +37,7 @@ export async function triggerInventoryPush(affectedDates?: string[]): Promise<vo
 
     const dates = affectedDates && affectedDates.length > 0
       ? affectedDates
-      : [new Date().toISOString().split("T")[0]];
+      : [todayIST()];
 
     const updates: InventoryUpdate[] = [];
     for (const date of dates) {

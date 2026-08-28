@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminApi } from "./useAdminApi";
 import { useAdminToast } from "@/components/admin/AdminToast";
-import { cn } from "@/lib/utils";
+import { cn, localDateStr } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { ChevronDownIcon, ChevronRightIcon, LogOutIcon, SparklesIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 import { parseBedRow, type Role, type BedRow } from "./types";
 import { AdminLoading } from "./AdminLoading";
 
-function fmtDate(d: Date): string { return d.toISOString().split("T")[0]; }
+function fmtDate(d: Date): string { return localDateStr(d); }
 function fmtShort(d: Date): string {
   const day = d.getDate();
   const mon = d.toLocaleDateString("en", { month: "short" });
