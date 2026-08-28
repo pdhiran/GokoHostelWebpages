@@ -42,6 +42,9 @@ type ChannelConfig = {
   bookingEngineUrl: string;
   isActive: number;
   autoPushInventory: number;
+  autoPushRates: number;
+  autoPushRateRestrictions: number;
+  autoPushInvRestrictions: number;
   lastSyncAt: string;
 };
 
@@ -92,6 +95,9 @@ const DEFAULT_CONFIG: ChannelConfig = {
   bookingEngineUrl: "",
   isActive: 0,
   autoPushInventory: 1,
+  autoPushRates: 0,
+  autoPushRateRestrictions: 0,
+  autoPushInvRestrictions: 0,
   lastSyncAt: "",
 };
 
@@ -216,14 +222,24 @@ function ConfigTab({ password, username }: { password: string; username?: string
           Enable Channel Manager
         </label>
         <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={config.autoPushInventory === 1}
-            onChange={(e) => setConfig({ ...config, autoPushInventory: e.target.checked ? 1 : 0 })}
-            className="rounded"
-          />
-          Auto-push inventory on bed changes
-          <span className="text-[10px] text-muted-foreground">(assign, checkout, block, unblock)</span>
+          <input type="checkbox" checked={config.autoPushInventory === 1} onChange={(e) => setConfig({ ...config, autoPushInventory: e.target.checked ? 1 : 0 })} className="rounded" />
+          Auto-push inventory
+          <span className="text-[10px] text-muted-foreground">(on bed assign, checkout, block, unblock)</span>
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={config.autoPushRates === 1} onChange={(e) => setConfig({ ...config, autoPushRates: e.target.checked ? 1 : 0 })} className="rounded" />
+          Auto-push rates
+          <span className="text-[10px] text-muted-foreground">(on rate set, adjust, bulk update)</span>
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={config.autoPushRateRestrictions === 1} onChange={(e) => setConfig({ ...config, autoPushRateRestrictions: e.target.checked ? 1 : 0 })} className="rounded" />
+          Auto-push rate restrictions
+          <span className="text-[10px] text-muted-foreground">(on stop-sell, min/max stay changes)</span>
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={config.autoPushInvRestrictions === 1} onChange={(e) => setConfig({ ...config, autoPushInvRestrictions: e.target.checked ? 1 : 0 })} className="rounded" />
+          Auto-push inventory restrictions
+          <span className="text-[10px] text-muted-foreground">(on room-level restriction changes)</span>
         </label>
       </div>
 

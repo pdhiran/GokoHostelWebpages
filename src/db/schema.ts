@@ -549,6 +549,9 @@ export const channelConfig = sqliteTable("channel_config", {
   bookingEngineUrl: text("booking_engine_url").default(""),
   isActive: integer("is_active").notNull().default(0),
   autoPushInventory: integer("auto_push_inventory").notNull().default(1),
+  autoPushRates: integer("auto_push_rates").notNull().default(0),
+  autoPushRateRestrictions: integer("auto_push_rate_restrictions").notNull().default(0),
+  autoPushInvRestrictions: integer("auto_push_inv_restrictions").notNull().default(0),
   lastSyncAt: text("last_sync_at").default(""),
   createdAt: text("created_at").notNull(),
 });

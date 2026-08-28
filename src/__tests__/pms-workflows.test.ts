@@ -40,6 +40,8 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/aiosellSync", () => ({
   triggerInventoryPush: vi.fn().mockResolvedValue(undefined),
+  triggerRatePush: vi.fn().mockResolvedValue(undefined),
+  triggerRestrictionPush: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {

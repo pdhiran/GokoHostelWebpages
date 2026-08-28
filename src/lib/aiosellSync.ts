@@ -6,13 +6,13 @@
  * Aiosell-originated events (OTA/Website bookings via webhook) must NOT push back.
  */
 
-import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate } from "@/db/queries";
 import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
+import { pushInventory, pushRates, pushRateRestrictions, pushInventoryRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
 
 export async function getDateAwareAvailability(dormId: number, date: string): Promise<number> {
   const db = getDb();
@@ -82,5 +82,96 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       status: "failed",
       errorMessage: `Auto-push error: ${error?.message || "Unknown"}`,
     }).catch(() => {});
+  }
+}
+
+function buildAiosellConfig(config: any): AiosellConfig {
+  return { hotelCode: config.hotelCode, pmsId: config.pmsId, apiBaseUrl: config.apiBaseUrl, apiUsername: config.apiUsername, apiPassword: config.apiPassword };
+}
+
+export async function triggerRatePush(affectedDates: string[]): Promise<void> {
+  try {
+    const config = await getChannelConfig();
+    if (!config || !config.isActive || !config.autoPushRates) return;
+
+    const dates = [...new Set(affectedDates)];
+    if (dates.length === 0) return;
+    const start = dates.sort()[0];
+    const end = dates[dates.length - 1];
+
+    const mappings = (await getRoomTypeMappings()).filter((m) => m.isActive);
+    const ratePlans = (await getRatePlanMappings()).filter((rp) => rp.isActive);
+    const dailyRatesData = await getAllDailyRates(start, end);
+
+    const ratesByPlan = new Map<number, typeof dailyRatesData>();
+    for (const dr of dailyRatesData) {
+      const arr = ratesByPlan.get(dr.ratePlanId) || [];
+      arr.push(dr);
+      ratesByPlan.set(dr.ratePlanId, arr);
+    }
+
+    const updates: RateUpdate[] = [];
+    for (const date of dates) {
+      const rates: Array<{ roomCode: string; rateplanCode: string; rate: number }> = [];
+      for (const rp of ratePlans) {
+        const mapping = mappings.find((m) => m.id === rp.roomMappingId);
+        if (!mapping) continue;
+        const dr = (ratesByPlan.get(rp.id) || []).find((r) => r.date === date);
+        if (!dr) continue;
+        rates.push({ roomCode: mapping.channelRoomCode, rateplanCode: rp.ratePlanCode, rate: dr.adult1Rate ?? dr.rate });
+      }
+      if (rates.length > 0) updates.push({ startDate: date, endDate: date, rates });
+    }
+
+    if (updates.length === 0) return;
+    const result = await pushRates(buildAiosellConfig(config), updates);
+    if (result.success) await updateChannelSyncTime();
+  } catch (error: any) {
+    console.error("Auto rate push failed:", error?.message);
+  }
+}
+
+export async function triggerRestrictionPush(affectedDates: string[]): Promise<void> {
+  try {
+    const config = await getChannelConfig();
+    if (!config || !config.isActive || !config.autoPushRateRestrictions) return;
+
+    const dates = [...new Set(affectedDates)];
+    if (dates.length === 0) return;
+    const start = dates.sort()[0];
+    const end = dates[dates.length - 1];
+
+    const mappings = (await getRoomTypeMappings()).filter((m) => m.isActive);
+    const ratePlans = (await getRatePlanMappings()).filter((rp) => rp.isActive);
+    const dailyRatesData = await getAllDailyRates(start, end);
+
+    const ratesByPlan = new Map<number, typeof dailyRatesData>();
+    for (const dr of dailyRatesData) {
+      const arr = ratesByPlan.get(dr.ratePlanId) || [];
+      arr.push(dr);
+      ratesByPlan.set(dr.ratePlanId, arr);
+    }
+
+    const updates: RateRestrictionUpdate[] = [];
+    for (const date of dates) {
+      const rates: Array<{ roomCode: string; rateplanCode: string; restrictions: RestrictionFields }> = [];
+      for (const rp of ratePlans) {
+        const mapping = mappings.find((m) => m.id === rp.roomMappingId);
+        if (!mapping) continue;
+        const dr = (ratesByPlan.get(rp.id) || []).find((r) => r.date === date);
+        if (!dr) continue;
+        rates.push({
+          roomCode: mapping.channelRoomCode, rateplanCode: rp.ratePlanCode,
+          restrictions: { stopSell: dr.stopSell === 1, minimumStay: dr.minimumStay || null, maximumStay: dr.maximumStay || null, closeOnArrival: dr.closeOnArrival === 1, closeOnDeparture: dr.closeOnDeparture === 1, minimumAdvanceReservation: dr.minimumAdvanceReservation || null, maximumAdvanceReservation: dr.maximumAdvanceReservation || null, minimumStayArrival: null, maximumStayArrival: null, exactStayArrival: null },
+        });
+      }
+      if (rates.length > 0) updates.push({ startDate: date, endDate: date, rates });
+    }
+
+    if (updates.length === 0) return;
+    const result = await pushRateRestrictions(buildAiosellConfig(config), updates);
+    if (result.success) await updateChannelSyncTime();
+  } catch (error: any) {
+    console.error("Auto restriction push failed:", error?.message);
   }
 }

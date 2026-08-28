@@ -22,17 +22,13 @@ export async function POST(req: NextRequest) {
       case "getConfig": {
         const cfg = await getChannelConfig();
         if (cfg) {
-          return NextResponse.json({ config: { ...cfg, apiPassword: cfg.apiPassword ? "••••••••" : "" } });
+          return NextResponse.json({ config: cfg });
         }
         return NextResponse.json({ config: null });
       }
 
       case "saveConfig": {
         const configData = { ...body.config };
-        if (configData.apiPassword === "••••••••") {
-          const existing = await getChannelConfig();
-          configData.apiPassword = existing?.apiPassword || "";
-        }
         if (configData.isActive && !configData.webhookSecret) {
           return NextResponse.json({ error: "Webhook secret is required to enable the channel manager" }, { status: 400 });
         }

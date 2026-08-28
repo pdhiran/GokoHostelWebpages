@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
-import { triggerInventoryPush } from "@/lib/aiosellSync";
+import { triggerInventoryPush, triggerRatePush, triggerRestrictionPush } from "@/lib/aiosellSync";
 import {
   getInventoryGridData, getChannels, upsertChannel, deleteChannel,
   getBedTypeConfigs, upsertBedTypeConfig,
@@ -177,6 +177,7 @@ export async function POST(req: NextRequest) {
         closeOnDeparture: closeOnDeparture !== undefined ? closeOnDeparture : (existing?.closeOnDeparture ?? 0),
         updatedBy: actingUser,
       });
+      triggerRatePush([date]).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -210,6 +211,7 @@ export async function POST(req: NextRequest) {
         }
         count++;
       }
+      triggerRatePush(filteredDates).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
@@ -259,6 +261,7 @@ export async function POST(req: NextRequest) {
           count++;
         }
       }
+      triggerRatePush(filteredDates).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
@@ -304,6 +307,7 @@ export async function POST(req: NextRequest) {
           count++;
         }
       }
+      triggerRestrictionPush(filteredDates).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
