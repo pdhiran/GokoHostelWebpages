@@ -532,7 +532,8 @@ function SyncTab({ password, username }: { password: string; username?: string }
   const loadLogs = async () => {
     setLoading(true);
     try {
-      const res = await apiCall("/api/admin/channel-manager", { action: "getSyncLogs", limit: 30 });
+      const since = new Date(Date.now() - 15 * 86400000).toISOString();
+      const res = await apiCall("/api/admin/channel-manager", { action: "getSyncLogs", limit: 50, since });
       setLogs(res.logs || []);
     } catch (e: any) { showError(e.message); }
     setLoading(false);

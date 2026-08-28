@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
         await createBedBlock({ bedId, dormId, startDate, endDate, reason: reason || "", blockedBy: actingUser });
       }
       const dates = generateDateRange(startDate, endDate);
-      triggerInventoryPush(dates).catch(() => {});
+      triggerInventoryPush(dates, dormId).catch(() => {});
       return NextResponse.json({ success: true, blocked: bedIds.length });
     }
 
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       const { dormId, channelId, date, onlineAvailable, offlineAvailable } = params;
       if (!dormId || !date) return NextResponse.json({ error: "dormId and date required" }, { status: 400 });
       await upsertInventoryOverride({ dormId, channelId: channelId || null, date, onlineAvailable, offlineAvailable, overriddenBy: actingUser });
-      triggerInventoryPush([date]).catch(() => {});
+      triggerInventoryPush([date], dormId).catch(() => {});
       return NextResponse.json({ success: true });
     }
 

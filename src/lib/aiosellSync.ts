@@ -34,17 +34,22 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
   return computed;
 }
 
-export async function triggerInventoryPush(affectedDates?: string[]): Promise<void> {
+export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<void> {
   try {
     const config = await getChannelConfig();
     if (!config || !config.isActive) return;
 
     const mappings = await getRoomTypeMappings();
-    const activeMappings = mappings.filter((m) => m.isActive);
+    let activeMappings = mappings.filter((m) => m.isActive);
     if (activeMappings.length === 0) return;
 
+    if (affectedDormId) {
+      activeMappings = activeMappings.filter((m) => m.dormId === affectedDormId);
+      if (activeMappings.length === 0) return;
+    }
+
     const dates = affectedDates && affectedDates.length > 0
-      ? affectedDates
+      ? [...new Set(affectedDates)]
       : [todayIST()];
 
     const updates: InventoryUpdate[] = [];

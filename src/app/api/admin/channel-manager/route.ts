@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
           direction: body.direction || undefined,
           type: body.type || undefined,
           status: body.status || undefined,
+          since: body.since || undefined,
         });
         return NextResponse.json({ logs });
       }

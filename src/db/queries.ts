@@ -1448,7 +1448,7 @@ export async function addChannelSyncLog(data: {
 
 export async function getChannelSyncLogs(
   limit = 50,
-  filters?: { direction?: string; type?: string; status?: string }
+  filters?: { direction?: string; type?: string; status?: string; since?: string }
 ) {
   limit = Math.min(Math.max(1, Number(limit) || 50), 200);
   const db = getDb();
@@ -1456,6 +1456,7 @@ export async function getChannelSyncLogs(
   if (filters?.direction) conditions.push(eq(channelSyncLog.direction, filters.direction));
   if (filters?.type) conditions.push(eq(channelSyncLog.type, filters.type));
   if (filters?.status) conditions.push(eq(channelSyncLog.status, filters.status));
+  if (filters?.since) conditions.push(gte(channelSyncLog.createdAt, filters.since));
   const q = db.select().from(channelSyncLog);
   if (conditions.length > 0) {
     return q.where(and(...conditions)).orderBy(desc(channelSyncLog.id)).limit(limit);
