@@ -185,12 +185,14 @@ export async function POST(req: NextRequest) {
       const { ratePlanId, dates, dayFilter, channelId, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, rate } = params;
       if (!ratePlanId || !dates?.length) return NextResponse.json({ error: "ratePlanId and dates required" }, { status: 400 });
       const filteredDates = filterByDays(dates, dayFilter);
+      const existingRates = !channelId && filteredDates.length > 0 ? await getDailyRates(ratePlanId, filteredDates[0], filteredDates[filteredDates.length - 1]) : [];
+      const existingByDate = new Map(existingRates.map((r: any) => [r.date, r]));
       let count = 0;
       for (const date of filteredDates) {
         if (channelId) {
           await upsertChannelRate({ ratePlanId, channelId, date, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, updatedBy: actingUser });
         } else {
-          const existing = (await getDailyRates(ratePlanId, date, date))[0];
+          const existing = existingByDate.get(date);
           await upsertDailyRate({
             ratePlanId, date,
             rate: rate ?? adult1Rate ?? 0,
@@ -273,9 +275,10 @@ export async function POST(req: NextRequest) {
       let count = 0;
       for (const rpId of ratePlanIds) {
         const existingRates = await getDailyRates(rpId, startDate, endDate);
-        const ratesByDate = new Map(existingRates.map((r) => [r.date, r]));
+        const ratesByDate = new Map(existingRates.map((r: any) => [r.date, r]));
         for (const date of filteredDates) {
           const existing = ratesByDate.get(date);
+          if (!existing) continue;
           const updateData: any = {
             ratePlanId: rpId, date, updatedBy: actingUser,
             rate: existing?.rate ?? 0,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateUser, type UserRole } from "@/lib/auth";
+import { authenticateUser } from "@/lib/auth";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 import {
@@ -10,7 +10,6 @@ import {
   getChannelConfig, getActiveBedBlocks,
   getRoomTypeMappings, getRatePlanMappings, getDailyRates,
 } from "@/db/queries";
-import { beds, bookings } from "@/db/schema";
 
 function bookingDateRange(checkinDate: string, checkoutDate?: string | null): string[] {
   if (!checkinDate) return [];

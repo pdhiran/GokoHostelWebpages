@@ -11,7 +11,7 @@ import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { pushInventory, pushRates, pushRateRestrictions, pushInventoryRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
 
 export async function getDateAwareAvailability(dormId: number, date: string): Promise<number> {
@@ -128,6 +128,7 @@ export async function triggerRatePush(affectedDates: string[]): Promise<void> {
     if (result.success) await updateChannelSyncTime();
   } catch (error: any) {
     console.error("Auto rate push failed:", error?.message);
+    await logPmsCall({ direction: "push", type: "rate", status: "failed", errorMessage: `Auto-push error: ${error?.message || "Unknown"}` }).catch(() => {});
   }
 }
 
@@ -173,5 +174,6 @@ export async function triggerRestrictionPush(affectedDates: string[]): Promise<v
     if (result.success) await updateChannelSyncTime();
   } catch (error: any) {
     console.error("Auto restriction push failed:", error?.message);
+    await logPmsCall({ direction: "push", type: "restriction", status: "failed", errorMessage: `Auto-push error: ${error?.message || "Unknown"}` }).catch(() => {});
   }
 }

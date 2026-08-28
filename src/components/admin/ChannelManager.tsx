@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   RefreshCwIcon, SaveIcon, PlusIcon, Trash2Icon, PencilIcon,
-  CheckCircleIcon, XCircleIcon, Loader2Icon, WifiIcon, SendIcon,
+  CheckCircleIcon, XCircleIcon, Loader2Icon, SendIcon,
   EyeIcon, EyeOffIcon,
 } from "lucide-react";
 import { suggestAiosellRoomCode } from "@/lib/channelMapping";
