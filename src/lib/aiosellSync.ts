@@ -37,11 +37,17 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
 export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<void> {
   try {
     const config = await getChannelConfig();
-    if (!config || !config.isActive) return;
+    if (!config || !config.isActive) {
+      await logPmsCall({ direction: "push", type: "inventory", status: "failed", errorMessage: "Auto-push skipped: channel manager inactive" }).catch(() => {});
+      return;
+    }
 
     const mappings = await getRoomTypeMappings();
     let activeMappings = mappings.filter((m) => m.isActive);
-    if (activeMappings.length === 0) return;
+    if (activeMappings.length === 0) {
+      await logPmsCall({ direction: "push", type: "inventory", status: "failed", errorMessage: "Auto-push skipped: no room mappings" }).catch(() => {});
+      return;
+    }
 
     if (affectedDormId) {
       activeMappings = activeMappings.filter((m) => m.dormId === affectedDormId);
@@ -70,7 +76,7 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       apiPassword: config.apiPassword,
     };
 
-    const result = await pushInventory(aiosellConfig, updates);
+    const result = await pushInventory(aiosellConfig, updates, undefined, "auto");
 
     if (result.success) await updateChannelSyncTime();
   } catch (error: any) {

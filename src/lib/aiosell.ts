@@ -115,7 +115,7 @@ async function aiosellFetch(
   url: string,
   config: AiosellConfig,
   body: Record<string, unknown>,
-  meta: { type: AiosellCallType; recordsAffected?: number }
+  meta: { type: AiosellCallType; recordsAffected?: number; source?: string }
 ): Promise<AiosellResponse> {
   const started = Date.now();
   const log = (entry: {
@@ -126,7 +126,7 @@ async function aiosellFetch(
   }) =>
     logPmsCall({
       direction: "push",
-      type: meta.type,
+      type: meta.source ? `${meta.type} (${meta.source})` : meta.type,
       status: entry.status,
       request: body,
       response: entry.response,
@@ -184,7 +184,8 @@ async function aiosellFetch(
 export async function pushInventory(
   config: AiosellConfig,
   updates: InventoryUpdate[],
-  toChannels?: string[]
+  toChannels?: string[],
+  source?: string
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/update/${config.pmsId}`;
   const body: Record<string, unknown> = {
@@ -193,7 +194,7 @@ export async function pushInventory(
   };
   if (toChannels?.length) body.toChannels = toChannels;
   const recordsAffected = updates.reduce((sum, u) => sum + u.rooms.length, 0);
-  return aiosellFetch(url, config, body, { type: "inventory", recordsAffected });
+  return aiosellFetch(url, config, body, { type: "inventory", recordsAffected, source });
 }
 
 export async function pushInventoryRestrictions(
