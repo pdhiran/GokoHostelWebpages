@@ -241,12 +241,14 @@ function prettyJson(raw: string | null | undefined): string {
 function PmsLogsPanel({ password, username }: { password: string; username?: string }) {
   const [logs, setLogs] = useState<PmsLogRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [filterDirection, setFilterDirection] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
   const loadLogs = async () => {
     setLoading(true);
+    setError("");
     try {
       const payload: Record<string, unknown> = {
         password,
@@ -262,10 +264,16 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLogs([]);
+        setError(typeof data.error === "string" ? data.error : `Failed to load logs (${res.status})`);
+        return;
       }
+      setLogs(data.logs || []);
+    } catch {
+      setLogs([]);
+      setError("Failed to load logs");
     } finally { setLoading(false); }
   };
 
@@ -319,7 +327,9 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
       </div>
 
       <div className="space-y-2">
-        {logs.length === 0 ? (
+        {error ? (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        ) : logs.length === 0 ? (
           <p className="py-12 text-center text-sm text-brand-green-dark/50">
             No PMS calls yet. They appear when inventory, rates, or no-show are pushed, or when Aiosell sends a reservation.
           </p>
@@ -335,10 +345,10 @@ function PmsLogCard({ log }: { log: PmsLogRow }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const failed = log.status !== "success";
-  const requestText = prettyJson(log.requestPayload);
-  const responseText = prettyJson(log.responsePayload);
 
   const copyLog = () => {
+    const requestText = prettyJson(log.requestPayload);
+    const responseText = prettyJson(log.responsePayload);
     const text = [
       `${log.direction} ${log.type} ${log.status}`,
       log.url ? `URL: ${log.httpMethod || "POST"} ${log.url}` : "",
@@ -402,25 +412,29 @@ function PmsLogCard({ log }: { log: PmsLogRow }) {
           <ChevronDownIcon className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
         </button>
       </div>
-      {open && (
+      {open && (() => {
+        const requestText = prettyJson(log.requestPayload);
+        const responseText = prettyJson(log.responsePayload);
+        return (
         <div className="space-y-2 border-t border-brand-mist/60 px-3 pb-3 pt-2">
-          {requestText && (
+          {requestText ? (
             <div>
               <p className="mb-0.5 text-[10px] font-medium text-brand-green-dark/50">Request</p>
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-brand-sand/50 p-2 text-[10px] text-brand-green-dark/60">{requestText}</pre>
             </div>
-          )}
-          {responseText && (
+          ) : null}
+          {responseText ? (
             <div>
               <p className="mb-0.5 text-[10px] font-medium text-brand-green-dark/50">Response</p>
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-brand-sand/50 p-2 text-[10px] text-brand-green-dark/60">{responseText}</pre>
             </div>
-          )}
+          ) : null}
           {!requestText && !responseText && (
             <p className="text-[10px] text-brand-green-dark/40">No request or response body stored.</p>
           )}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

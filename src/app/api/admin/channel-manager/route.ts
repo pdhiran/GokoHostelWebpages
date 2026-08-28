@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "getSyncLogs": {
-        const logs = await getChannelSyncLogs(body.limit || 50, {
+        const logs = await getChannelSyncLogs(body.limit, {
           direction: body.direction || undefined,
           type: body.type || undefined,
           status: body.status || undefined,

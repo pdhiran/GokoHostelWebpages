@@ -33,6 +33,23 @@ describe("serializePmsPayload", () => {
     expect(raw).not.toContain("shh");
   });
 
+  it("redacts guest PII keys", () => {
+    const parsed = JSON.parse(serializePmsPayload({
+      bookingId: "BK-1",
+      guest: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com", phone: "999" },
+    }));
+    expect(parsed.bookingId).toBe("BK-1");
+    expect(parsed.guest.firstName).toBe("[redacted]");
+    expect(parsed.guest.email).toBe("[redacted]");
+    expect(parsed.guest.phone).toBe("[redacted]");
+  });
+
+  it("redacts PII inside JSON strings", () => {
+    const parsed = JSON.parse(serializePmsPayload('{"email":"ada@example.com","bookingId":"BK-1"}'));
+    expect(parsed.email).toBe("[redacted]");
+    expect(parsed.bookingId).toBe("BK-1");
+  });
+
   it("truncates payloads over the cap and marks them", () => {
     const huge = "x".repeat(PMS_LOG_MAX_BYTES + 500);
     const out = serializePmsPayload(huge);

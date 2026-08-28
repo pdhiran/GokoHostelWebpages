@@ -22,12 +22,14 @@ export async function POST(req: NextRequest) {
     httpStatus: number;
     errorMessage?: string;
     response?: unknown;
+    /** Only pass after webhook auth succeeds — unauthenticated POSTs must not store bodies. */
+    request?: unknown;
   }) =>
     logPmsCall({
       direction: "pull",
       type: "reservation",
       status: opts.status,
-      request: body,
+      request: opts.request,
       response: opts.response,
       errorMessage: opts.errorMessage,
       recordsAffected: opts.status === "success" ? 1 : 0,
@@ -63,12 +65,12 @@ export async function POST(req: NextRequest) {
 
     const payload = parseReservationPayload(body);
     if (!payload) {
-      await logPull({ status: "failed", httpStatus: 400, errorMessage: "Invalid reservation payload", response: { success: false, message: "Invalid reservation payload: missing action, hotelCode, or bookingId" } });
+      await logPull({ status: "failed", httpStatus: 400, errorMessage: "Invalid reservation payload", response: { success: false, message: "Invalid reservation payload: missing action, hotelCode, or bookingId" }, request: body });
       return respondError("Invalid reservation payload: missing action, hotelCode, or bookingId");
     }
 
     if (payload.hotelCode !== config.hotelCode) {
-      await logPull({ status: "failed", httpStatus: 400, errorMessage: "Invalid hotel code", response: { success: false, message: "Invalid hotel code" } });
+      await logPull({ status: "failed", httpStatus: 400, errorMessage: "Invalid hotel code", response: { success: false, message: "Invalid hotel code" }, request: body });
       return respondError("Invalid hotel code");
     }
 
@@ -85,17 +87,17 @@ export async function POST(req: NextRequest) {
           response = await handleCancelBooking(payload);
           break;
         default:
-          await logPull({ status: "failed", httpStatus: 400, errorMessage: `Unknown action: ${payload.action}`, response: { success: false, message: `Unknown action: ${payload.action}` } });
+          await logPull({ status: "failed", httpStatus: 400, errorMessage: `Unknown action: ${payload.action}`, response: { success: false, message: `Unknown action: ${payload.action}` }, request: body });
           return respondError(`Unknown action: ${payload.action}`);
       }
 
-      const responseBody = await response.clone().json().catch(() => ({ success: true }));
-      await logPull({ status: "success", httpStatus: response.status, response: responseBody });
-      return response;
+      const responseBody = await response.json().catch(() => ({ success: true }));
+      await logPull({ status: "success", httpStatus: response.status, response: responseBody, request: body });
+      return NextResponse.json(responseBody, { status: response.status });
     } catch (processingError: any) {
       const message = processingError?.message || "Processing failed";
       console.error("Reservation webhook error:", message);
-      await logPull({ status: "failed", httpStatus: 500, errorMessage: message, response: { success: false, message: "Internal error processing reservation" } });
+      await logPull({ status: "failed", httpStatus: 500, errorMessage: message, response: { success: false, message: "Internal error processing reservation" }, request: body });
       return respondError("Internal error processing reservation", 500);
     }
   } catch (error: any) {

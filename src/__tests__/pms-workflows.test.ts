@@ -247,6 +247,7 @@ describe("PMS inbound webhook workflows", () => {
     expect(log.url).toBe("/api/aiosell/reservations");
     expect(JSON.stringify(log)).not.toContain("wrong-secret");
     expect(JSON.stringify(log)).not.toContain("whsec-test");
+    expect(log.requestPayload).toBeFalsy();
   });
 
   it("logs invalid JSON", async () => {
@@ -255,6 +256,7 @@ describe("PMS inbound webhook workflows", () => {
     const log = lastLog();
     expect(log.status).toBe("failed");
     expect(log.errorMessage).toBe("Invalid JSON body");
+    expect(log.requestPayload).toBeFalsy();
   });
 
   it("logs inactive channel manager", async () => {
@@ -262,12 +264,14 @@ describe("PMS inbound webhook workflows", () => {
     const res = await reservationsPOST(req(bookPayload, { authorization: "whsec-test" }));
     expect(res.status).toBe(503);
     expect(lastLog().httpStatus).toBe(503);
+    expect(lastLog().requestPayload).toBeFalsy();
   });
 
   it("logs invalid payload", async () => {
     const res = await reservationsPOST(req({ hotelCode: "GOKO-001" }, { authorization: "whsec-test" }));
     expect(res.status).toBe(400);
     expect(lastLog().errorMessage).toBe("Invalid reservation payload");
+    expect(lastLog().requestPayload).toBeTruthy();
   });
 
   it("logs hotel code mismatch", async () => {
@@ -289,7 +293,9 @@ describe("PMS inbound webhook workflows", () => {
     expect(log.recordsAffected).toBe(1);
     const reqBody = JSON.parse(log.requestPayload as string);
     expect(reqBody.bookingId).toBe("BK-100");
-    expect(reqBody.guest.email).toBe("ada@example.com");
+    expect(reqBody.guest.email).toBe("[redacted]");
+    expect(reqBody.guest.firstName).toBe("[redacted]");
+    expect(JSON.stringify(reqBody)).not.toContain("ada@example.com");
     const respBody = JSON.parse(log.responsePayload as string);
     expect(respBody.message).toMatch(/Updated Successfully/i);
   });

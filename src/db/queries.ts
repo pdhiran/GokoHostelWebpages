@@ -1400,8 +1400,9 @@ export async function addChannelSyncLog(data: {
         SELECT id FROM (SELECT id FROM channel_sync_log ORDER BY id DESC LIMIT 500)
       )
     `);
-  } catch {
-    // Fail silently — logging should never break PMS calls
+  } catch (err) {
+    // Never throw — logging must not break PMS calls. Surface the miss so a missing 0036 is obvious.
+    console.error("channel_sync_log write failed:", err instanceof Error ? err.message : err);
   }
 }
 
@@ -1409,6 +1410,7 @@ export async function getChannelSyncLogs(
   limit = 50,
   filters?: { direction?: string; type?: string; status?: string }
 ) {
+  limit = Math.min(Math.max(1, Number(limit) || 50), 200);
   const db = getDb();
   const conditions = [];
   if (filters?.direction) conditions.push(eq(channelSyncLog.direction, filters.direction));
