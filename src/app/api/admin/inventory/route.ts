@@ -147,11 +147,20 @@ export async function POST(req: NextRequest) {
     if (action === "updateRate") {
       const { ratePlanId, date, rate, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, stopSell, minimumStay, maximumStay, closeOnArrival, closeOnDeparture } = params;
       if (!ratePlanId || !date) return NextResponse.json({ error: "ratePlanId and date required" }, { status: 400 });
+      const existing = (await getDailyRates(ratePlanId, date, date))[0];
       await upsertDailyRate({
         ratePlanId, date,
-        rate: rate ?? 0,
-        adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate,
-        stopSell, minimumStay, maximumStay, closeOnArrival, closeOnDeparture,
+        rate: rate ?? existing?.rate ?? 0,
+        adult1Rate: adult1Rate !== undefined ? adult1Rate : (existing?.adult1Rate ?? null),
+        adult2Rate: adult2Rate !== undefined ? adult2Rate : (existing?.adult2Rate ?? null),
+        childRate: childRate !== undefined ? childRate : (existing?.childRate ?? null),
+        infantRate: infantRate !== undefined ? infantRate : (existing?.infantRate ?? null),
+        extraPersonRate: extraPersonRate !== undefined ? extraPersonRate : (existing?.extraPersonRate ?? null),
+        stopSell: stopSell !== undefined ? stopSell : (existing?.stopSell ?? 0),
+        minimumStay: minimumStay !== undefined ? minimumStay : (existing?.minimumStay ?? 1),
+        maximumStay: maximumStay !== undefined ? maximumStay : (existing?.maximumStay ?? null),
+        closeOnArrival: closeOnArrival !== undefined ? closeOnArrival : (existing?.closeOnArrival ?? 0),
+        closeOnDeparture: closeOnDeparture !== undefined ? closeOnDeparture : (existing?.closeOnDeparture ?? 0),
         updatedBy: actingUser,
       });
       return NextResponse.json({ success: true });
@@ -166,7 +175,24 @@ export async function POST(req: NextRequest) {
         if (channelId) {
           await upsertChannelRate({ ratePlanId, channelId, date, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, updatedBy: actingUser });
         } else {
-          await upsertDailyRate({ ratePlanId, date, rate: rate ?? adult1Rate ?? 0, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, updatedBy: actingUser });
+          const existing = (await getDailyRates(ratePlanId, date, date))[0];
+          await upsertDailyRate({
+            ratePlanId, date,
+            rate: rate ?? adult1Rate ?? 0,
+            adult1Rate: adult1Rate ?? existing?.adult1Rate ?? null,
+            adult2Rate: adult2Rate ?? existing?.adult2Rate ?? null,
+            childRate: childRate ?? existing?.childRate ?? null,
+            infantRate: infantRate ?? existing?.infantRate ?? null,
+            extraPersonRate: extraPersonRate ?? existing?.extraPersonRate ?? null,
+            stopSell: existing?.stopSell ?? 0,
+            minimumStay: existing?.minimumStay ?? 1,
+            maximumStay: existing?.maximumStay ?? null,
+            closeOnArrival: existing?.closeOnArrival ?? 0,
+            closeOnDeparture: existing?.closeOnDeparture ?? 0,
+            minimumAdvanceReservation: existing?.minimumAdvanceReservation ?? null,
+            maximumAdvanceReservation: existing?.maximumAdvanceReservation ?? null,
+            updatedBy: actingUser,
+          });
         }
         count++;
       }
@@ -193,6 +219,14 @@ export async function POST(req: NextRequest) {
             newRate = direction === "increase" ? currentRate + value : currentRate - value;
           }
           newRate = Math.max(0, newRate);
+          const adjustAmount = (val: number | null): number | null => {
+            if (val == null) return null;
+            if (type === "percentage") {
+              const delta = Math.round(val * (value / 100));
+              return Math.max(0, direction === "increase" ? val + delta : val - delta);
+            }
+            return Math.max(0, direction === "increase" ? val + value : val - value);
+          };
           await upsertDailyRate({
             ratePlanId: rpId, date, rate: newRate, updatedBy: actingUser,
             stopSell: existing.stopSell,
@@ -202,8 +236,8 @@ export async function POST(req: NextRequest) {
             closeOnDeparture: existing.closeOnDeparture,
             minimumAdvanceReservation: existing.minimumAdvanceReservation,
             maximumAdvanceReservation: existing.maximumAdvanceReservation,
-            adult1Rate: existing.adult1Rate,
-            adult2Rate: existing.adult2Rate,
+            adult1Rate: adjustAmount(existing.adult1Rate),
+            adult2Rate: adjustAmount(existing.adult2Rate),
             childRate: existing.childRate,
             infantRate: existing.infantRate,
             extraPersonRate: existing.extraPersonRate,

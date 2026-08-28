@@ -237,7 +237,21 @@ async function handleCancelBooking(payload: ReservationPayload) {
     details: `Cancelled via ${payload.channel || "aiosell"}`,
     performedBy: "channel_manager",
   });
-  triggerInventoryPush().catch(() => {});
+  const affectedDates = cancelDateRange(existing.checkinDate, existing.checkoutDate || "");
+  triggerInventoryPush(affectedDates).catch(() => {});
 
   return respondSuccess("Reservation Cancelled Successfully");
+}
+
+function cancelDateRange(checkinDate: string, checkoutDate: string): string[] {
+  if (!checkinDate) return [];
+  const dates: string[] = [];
+  const start = new Date(checkinDate + "T00:00:00");
+  const end = checkoutDate ? new Date(checkoutDate + "T00:00:00") : new Date(start);
+  end.setDate(end.getDate() + 1);
+  while (start < end) {
+    dates.push(start.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
+    start.setDate(start.getDate() + 1);
+  }
+  return dates;
 }

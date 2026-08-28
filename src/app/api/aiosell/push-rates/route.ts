@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         dateRates.push({
           roomCode: mapping.channelRoomCode,
           rateplanCode: rp.ratePlanCode,
-          rate: dr.rate,
+          rate: dr.adult1Rate ?? dr.rate,
         });
         rateUpdatesByDate.set(dr.date, dateRates);
 

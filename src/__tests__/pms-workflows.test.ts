@@ -695,7 +695,7 @@ describe("Restriction and rate adjustment workflows", () => {
       minimumStay: 2,
       maximumStay: 7,
       closeOnArrival: 1,
-      adult1Rate: 900,
+      adult1Rate: 990,
     }));
   });
 });

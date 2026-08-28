@@ -197,7 +197,7 @@ describe("Booking Dashboard: cancelBooking Logic", () => {
       );
       const section = cancelSection![0];
 
-      expect(section).toContain("triggerInventoryPush()");
+      expect(section).toContain("triggerInventoryPush(cancelDates)");
     });
   });
 
@@ -266,6 +266,6 @@ describe("Booking Dashboard: markNoShow Logic", () => {
     );
     const section = noShowSection![0];
 
-    expect(section).toContain("triggerInventoryPush()");
+    expect(section).toContain("triggerInventoryPush(bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate))");
   });
 });
