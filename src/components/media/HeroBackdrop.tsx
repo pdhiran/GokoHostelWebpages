@@ -22,6 +22,7 @@ export function HeroBackdrop({
   const reduceMotion = useReducedMotion();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia(
@@ -33,7 +34,21 @@ export function HeroBackdrop({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  const showVideo = Boolean(video) && !reduceMotion;
+  useEffect(() => {
+    if (!video || reduceMotion) return;
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (win.requestIdleCallback) {
+      const id = win.requestIdleCallback(() => setVideoReady(true), { timeout: 2000 });
+      return () => win.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(() => setVideoReady(true), 800);
+    return () => window.clearTimeout(t);
+  }, [video, reduceMotion]);
+
+  const showVideo = Boolean(video) && !reduceMotion && videoReady;
 
   useEffect(() => {
     if (!showVideo || !videoRef.current) return;
@@ -49,9 +64,9 @@ export function HeroBackdrop({
 
   return (
     <div className="relative h-full min-h-full w-full">
-      {!showVideo && image ? (
+      {!showVideo && (image || video?.poster) ? (
         <Image
-          src={image}
+          src={image || video!.poster}
           alt={imageAlt ?? ""}
           fill
           className="object-cover"

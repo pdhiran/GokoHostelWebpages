@@ -1,32 +1,21 @@
 import { describe, it, expect } from "vitest";
+import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
+import { CHECKIN_LOOKUP_DATA_KEYS, checkinLookupData } from "@/lib/checkinLookup";
+import { buildFoodLookupGuests } from "@/lib/foodLookup";
+import { normalizePhone } from "@/lib/phoneUtils";
+import { shouldPollOrderStatus, stepperIndex, STATUS_STEPS } from "@/lib/orderStatus";
 
 type UserRole = "admin" | "manager" | "staff";
 
-function checkPermission(
-  role: UserRole,
-  permissions: Record<string, boolean>,
-  actionPermissions: Record<string, string | "admin_only">,
-  action: string
-): "allowed" | "forbidden" | "admin_required" {
-  const requiredPerm = actionPermissions[action];
-  if (requiredPerm === "admin_only") {
-    return role === "admin" ? "allowed" : "admin_required";
-  }
-  if (requiredPerm && role !== "admin" && !permissions[requiredPerm]) {
-    return "forbidden";
-  }
-  return "allowed";
-}
-
-const CHECKINS_PERMISSIONS: Record<string, string | "admin_only"> = {
+const CHECKINS_PERMISSIONS: Record<string, ActionPerm> = {
   list: "canViewRecords", add: "canAddCheckin", addPast: "admin_only",
   update: "canEditRecords", delete: "canDeleteRecords",
   verifyCheckin: "canViewRecords", getFormCData: "canViewRecords",
   reExtractFormC: "admin_only", updateFormCData: "admin_only",
   getDashboard: "canViewDashboard", markVibeMatched: "canViewDashboard",
-  checkoutBed: "canViewDashboard", checkoutGuest: "canViewDashboard", undoCheckout: "canViewDashboard",
-  getBeds: "canViewBeds", assignBed: "canViewBeds", unassignBed: "canViewBeds",
-  changeBed: "canViewBeds", markClean: "canMarkClean",
+  checkoutBed: ["canCheckout", "canViewDashboard"], checkoutGuest: ["canCheckout", "canViewDashboard"], undoCheckout: ["canCheckout", "canViewDashboard"],
+  getBeds: "canViewBeds", assignBed: ["canAssignBed", "canViewBeds"], unassignBed: ["canAssignBed", "canViewBeds"],
+  changeBed: ["canAssignBed", "canViewBeds"], markClean: "canMarkClean",
   getBedHistory: "canViewBeds", deleteBedHistory: "admin_only",
   initDorms: "admin_only", removeDorm: "admin_only", removeBed: "admin_only",
   getSetting: "admin_only", setSetting: "admin_only", getStats: "admin_only", healthCheck: "admin_only",
@@ -39,21 +28,21 @@ const CHECKINS_PERMISSIONS: Record<string, string | "admin_only"> = {
   backfillManagerPermissions: "admin_only",
 };
 
-const FOOD_ORDERS_PERMISSIONS: Record<string, string | "admin_only"> = {
+const FOOD_ORDERS_PERMISSIONS: Record<string, ActionPerm> = {
   listOrders: "canViewFoodOrders", getOrderDetails: "canViewFoodOrders",
   getOrderModifications: "canViewFoodOrders", getActiveGuests: "canViewFoodOrders",
   getGuestsWithTabs: "canViewFoodOrders", getGuestTab: "canViewFoodOrders",
   getGuestAllOrders: "canViewFoodOrders", getWalkinOrders: "canViewFoodOrders",
   getCombinedBill: "canViewFoodOrders", getMenu: "canViewFoodOrders",
-  updateOrderStatus: "canViewFoodOrders", placeOrderForGuest: "canViewFoodOrders",
-  voidItem: "canViewFoodOrders", updateItemQuantity: "canViewFoodOrders",
-  reassignOrder: "canViewFoodOrders",
+  updateOrderStatus: ["canPlaceOrders", "canViewFoodOrders"], placeOrderForGuest: ["canPlaceOrders", "canViewFoodOrders"],
+  voidItem: ["canPlaceOrders", "canViewFoodOrders"], updateItemQuantity: ["canPlaceOrders", "canViewFoodOrders"],
+  reassignOrder: ["canPlaceOrders", "canViewFoodOrders"],
   markOrderPaid: "canMarkPaid", updatePaymentDetails: "canMarkPaid",
   applyDiscount: "canMarkPaid", removeDiscount: "canMarkPaid",
   cleanupOldOrders: "admin_only",
 };
 
-const EXPENSES_PERMISSIONS: Record<string, string | "admin_only"> = {
+const EXPENSES_PERMISSIONS: Record<string, ActionPerm> = {
   listExpenses: "canViewExpenses", getMyExpenses: "canViewExpenses",
   addExpense: "canAddExpense", updateExpense: "canEditExpense", deleteExpense: "canDeleteExpense",
   getFoodRevenue: "canViewFoodBills",
@@ -62,6 +51,21 @@ const EXPENSES_PERMISSIONS: Record<string, string | "admin_only"> = {
   saveReconciliation: "canManageAccounts", undoReconciliation: "canManageAccounts",
   adjustOpeningBalance: "canManageAccounts",
 };
+
+const BOOKINGS_PERMISSIONS: Record<string, ActionPerm> = {
+  checkIn: ["canCheckIn", "canAddBooking"],
+  checkOut: ["canCheckOut", "canAddBooking"],
+  createBooking: "canAddBooking",
+};
+
+function checkPermission(
+  role: UserRole,
+  permissions: Record<string, boolean>,
+  actionPermissions: Record<string, ActionPerm>,
+  action: string
+) {
+  return actionAllowed(role, permissions, actionPermissions[action]);
+}
 
 describe("RBAC: Admin always has access", () => {
   const role: UserRole = "admin";
@@ -157,6 +161,35 @@ describe("RBAC: Staff with specific permissions", () => {
   });
 });
 
+describe("RBAC: Dual-key OR (fine-grained or today's coarse key)", () => {
+  const role: UserRole = "staff";
+
+  it("assignBed allowed with canViewBeds (legacy) or canAssignBed (fine)", () => {
+    expect(checkPermission(role, { canViewBeds: true }, CHECKINS_PERMISSIONS, "assignBed")).toBe("allowed");
+    expect(checkPermission(role, { canAssignBed: true }, CHECKINS_PERMISSIONS, "assignBed")).toBe("allowed");
+    expect(checkPermission(role, {}, CHECKINS_PERMISSIONS, "assignBed")).toBe("forbidden");
+  });
+
+  it("checkoutBed allowed with canViewDashboard or canCheckout", () => {
+    expect(checkPermission(role, { canViewDashboard: true }, CHECKINS_PERMISSIONS, "checkoutBed")).toBe("allowed");
+    expect(checkPermission(role, { canCheckout: true }, CHECKINS_PERMISSIONS, "checkoutBed")).toBe("allowed");
+    expect(checkPermission(role, {}, CHECKINS_PERMISSIONS, "checkoutBed")).toBe("forbidden");
+  });
+
+  it("placeOrderForGuest allowed with canViewFoodOrders or canPlaceOrders", () => {
+    expect(checkPermission(role, { canViewFoodOrders: true }, FOOD_ORDERS_PERMISSIONS, "placeOrderForGuest")).toBe("allowed");
+    expect(checkPermission(role, { canPlaceOrders: true }, FOOD_ORDERS_PERMISSIONS, "placeOrderForGuest")).toBe("allowed");
+    expect(checkPermission(role, {}, FOOD_ORDERS_PERMISSIONS, "placeOrderForGuest")).toBe("forbidden");
+  });
+
+  it("bookings checkIn/checkOut allowed with canAddBooking or dedicated keys", () => {
+    expect(checkPermission(role, { canAddBooking: true }, BOOKINGS_PERMISSIONS, "checkIn")).toBe("allowed");
+    expect(checkPermission(role, { canCheckIn: true }, BOOKINGS_PERMISSIONS, "checkIn")).toBe("allowed");
+    expect(checkPermission(role, { canCheckOut: true }, BOOKINGS_PERMISSIONS, "checkOut")).toBe("allowed");
+    expect(checkPermission(role, { canCheckIn: true }, BOOKINGS_PERMISSIONS, "checkOut")).toBe("forbidden");
+  });
+});
+
 describe("RBAC: Manager with empty permissions (env password)", () => {
   const role: UserRole = "manager";
   const permissions = {};
@@ -193,5 +226,81 @@ describe("RBAC: All admin-only actions are accounted for", () => {
 
   it("cleanup is admin-only", () => {
     expect(FOOD_ORDERS_PERMISSIONS["cleanupOldOrders"]).toBe("admin_only");
+  });
+});
+
+describe("Check-in lookup contract", () => {
+  it("keeps returning-guest fields including Drive links and Form C", () => {
+    const data = checkinLookupData({
+      name: "Ada Guest",
+      contact: "9876543210",
+      comingFrom: "Goa",
+      nationality: "France",
+      emergencyName: "Sam",
+      emergencyPhone: "9123456780",
+      idType: "passport",
+      idCardLink: "https://drive.google.com/file/d/abc/view",
+      visaLink: "https://drive.google.com/file/d/visa/view",
+      formCData: '{"purposeOfVisit":"Leisure"}',
+    });
+    expect(Object.keys(data).sort()).toEqual([...CHECKIN_LOOKUP_DATA_KEYS].sort());
+    expect(data.idCardLink).toContain("drive.google.com");
+    expect(data.formCData).toContain("purposeOfVisit");
+    expect(data.emergencyName).toBe("Sam");
+  });
+});
+
+describe("Food lookup guests", () => {
+  it("matches normalized phones and keeps a later checkout record with a different id", () => {
+    const guests = buildFoodLookupGuests(
+      normalizePhone("+91 98765 43210"),
+      [{ id: 1, name: "In House", contact: "+919876543210" }],
+      [{ guestContact: "9876543210", dormName: "Palm", bedId: "A1" }],
+      [{ id: 2, name: "Left", contact: "9876543210" }]
+    );
+    expect(guests).toEqual([
+      { checkinId: 1, name: "In House", phone: "9876543210", roomInfo: "Palm - Bed A1", checkedOut: false },
+      { checkinId: 2, name: "Left", phone: "9876543210", roomInfo: "", checkedOut: true },
+    ]);
+  });
+
+  it("does not duplicate the same checkin id as both active and checked out", () => {
+    const guests = buildFoodLookupGuests(
+      "9876543210",
+      [{ id: 9, name: "Same", contact: "9876543210" }],
+      [],
+      [{ id: 9, name: "Same", contact: "9876543210" }]
+    );
+    expect(guests).toEqual([
+      { checkinId: 9, name: "Same", phone: "9876543210", roomInfo: "", checkedOut: false },
+    ]);
+  });
+
+  it("returns checked-out guest when not also active", () => {
+    const guests = buildFoodLookupGuests(
+      "9876543210",
+      [],
+      [],
+      [{ id: 9, name: "Gone", contact: "98765 43210" }]
+    );
+    expect(guests).toEqual([
+      { checkinId: 9, name: "Gone", phone: "9876543210", roomInfo: "", checkedOut: true },
+    ]);
+  });
+
+  it("returns empty for unknown phone", () => {
+    expect(buildFoodLookupGuests("1111111111", [{ id: 1, name: "X", contact: "9999999999" }], [], [])).toEqual([]);
+  });
+});
+
+describe("Order status polling / stepper", () => {
+  it("cancelled is not a stepper step and does not poll", () => {
+    expect(STATUS_STEPS.includes("cancelled" as (typeof STATUS_STEPS)[number])).toBe(false);
+    expect(stepperIndex("cancelled")).toBe(-1);
+    expect(stepperIndex("preparing")).toBe(2);
+    expect(shouldPollOrderStatus("cancelled", false)).toBe(false);
+    expect(shouldPollOrderStatus("served", false)).toBe(false);
+    expect(shouldPollOrderStatus("preparing", false)).toBe(true);
+    expect(shouldPollOrderStatus("preparing", true)).toBe(false);
   });
 });

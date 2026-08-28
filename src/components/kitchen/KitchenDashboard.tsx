@@ -251,9 +251,17 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
     prevPlacedCountRef.current = -1;
     fetchOrders();
     fetchMenuItems();
-    const interval = setInterval(fetchOrders, 5000);
+    const tick = () => {
+      if (!document.hidden) fetchOrders();
+    };
+    const interval = setInterval(tick, 5000);
+    const onVis = () => {
+      if (!document.hidden) fetchOrders();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
       if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
     };
   }, [fetchOrders, fetchMenuItems]);

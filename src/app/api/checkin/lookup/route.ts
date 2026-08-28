@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLatestCheckinByContact } from "@/db/queries";
+import { checkinLookupData } from "@/lib/checkinLookup";
 
 export async function GET(req: NextRequest) {
   const phone = req.nextUrl.searchParams.get("phone")?.replace(/[\s\-]/g, "") || "";
@@ -17,18 +18,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       found: true,
-      data: {
-        name: record.name,
-        contactNumber: record.contact,
-        comingFrom: record.comingFrom || "",
-        nationality: record.nationality || "India",
-        emergencyName: record.emergencyName || "",
-        emergencyPhone: record.emergencyPhone || "",
-        idType: record.idType || "",
-        idCardLink: record.idCardLink || "",
-        visaLink: record.visaLink || "",
-        formCData: record.formCData || "",
-      },
+      data: checkinLookupData(record),
     });
   } catch (error: any) {
     console.error("Lookup error:", error?.message || error);

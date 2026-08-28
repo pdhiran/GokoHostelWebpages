@@ -1,29 +1,33 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon, WifiIcon, StoreIcon, SlidersHorizontalIcon, GlobeIcon } from "lucide-react";
-import { AdminSetup } from "./AdminSetup";
-import { ManagementUsers } from "./ManagementUsers";
-import { ManagementBackup } from "./ManagementBackup";
-import { ManagementAudit } from "./ManagementAudit";
-import { ManagementLogs } from "./ManagementLogs";
-import { ManagementHealth } from "./ManagementHealth";
-import { AdminBedHistory } from "./AdminBedHistory";
-import { AdminCheckRates } from "./AdminCheckRates";
-import { AdminMenuManagement } from "./AdminMenuManagement";
-import { AdminFoodSettings } from "./AdminFoodSettings";
-import { AdminBulkImport } from "./AdminBulkImport";
-import { QRGenerator } from "./qr-generator";
-import { AccountSettings } from "./AccountSettings";
-import { ServerSync } from "./ServerSync";
-import { ChannelManager } from "./ChannelManager";
-import { ManagementSalesChannels } from "./ManagementSalesChannels";
-import { ManagementBedConfig } from "./ManagementBedConfig";
-import { AdminWebsite } from "./AdminWebsite";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role, ManagementTab } from "./types";
+
+const tabLoader = () => <div className="flex items-center justify-center py-16"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-green-dark border-t-transparent" /></div>;
+
+const AdminSetup = dynamic(() => import("./AdminSetup").then((m) => m.AdminSetup), { loading: tabLoader, ssr: false });
+const ManagementUsers = dynamic(() => import("./ManagementUsers").then((m) => m.ManagementUsers), { loading: tabLoader, ssr: false });
+const ManagementBackup = dynamic(() => import("./ManagementBackup").then((m) => m.ManagementBackup), { loading: tabLoader, ssr: false });
+const ManagementAudit = dynamic(() => import("./ManagementAudit").then((m) => m.ManagementAudit), { loading: tabLoader, ssr: false });
+const ManagementLogs = dynamic(() => import("./ManagementLogs").then((m) => m.ManagementLogs), { loading: tabLoader, ssr: false });
+const ManagementHealth = dynamic(() => import("./ManagementHealth").then((m) => m.ManagementHealth), { loading: tabLoader, ssr: false });
+const AdminBedHistory = dynamic(() => import("./AdminBedHistory").then((m) => m.AdminBedHistory), { loading: tabLoader, ssr: false });
+const AdminCheckRates = dynamic(() => import("./AdminCheckRates").then((m) => m.AdminCheckRates), { loading: tabLoader, ssr: false });
+const AdminMenuManagement = dynamic(() => import("./AdminMenuManagement").then((m) => m.AdminMenuManagement), { loading: tabLoader, ssr: false });
+const AdminFoodSettings = dynamic(() => import("./AdminFoodSettings").then((m) => m.AdminFoodSettings), { loading: tabLoader, ssr: false });
+const AdminBulkImport = dynamic(() => import("./AdminBulkImport").then((m) => m.AdminBulkImport), { loading: tabLoader, ssr: false });
+const QRGenerator = dynamic(() => import("./qr-generator").then((m) => m.QRGenerator), { loading: tabLoader, ssr: false });
+const AccountSettings = dynamic(() => import("./AccountSettings").then((m) => m.AccountSettings), { loading: tabLoader, ssr: false });
+const ServerSync = dynamic(() => import("./ServerSync").then((m) => m.ServerSync), { loading: tabLoader, ssr: false });
+const ChannelManager = dynamic(() => import("./ChannelManager").then((m) => m.ChannelManager), { loading: tabLoader, ssr: false });
+const ManagementSalesChannels = dynamic(() => import("./ManagementSalesChannels").then((m) => m.ManagementSalesChannels), { loading: tabLoader, ssr: false });
+const ManagementBedConfig = dynamic(() => import("./ManagementBedConfig").then((m) => m.ManagementBedConfig), { loading: tabLoader, ssr: false });
+const AdminWebsite = dynamic(() => import("./AdminWebsite").then((m) => m.AdminWebsite), { loading: tabLoader, ssr: false });
 
 const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly?: boolean; permission?: string }[] = [
   { id: "dorms", label: "Dorms", icon: <BedDoubleIcon className="h-3.5 w-3.5" />, adminOnly: true },

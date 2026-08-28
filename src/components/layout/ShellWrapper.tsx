@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { BookingGateProvider } from "@/components/booking/BookingGateProvider";
 
 const BARE_ROUTES = ["/admin", "/self-checkin", "/food-order", "/kitchen", "/my-bills", "/review"];
 
@@ -22,10 +23,10 @@ export function ShellWrapper({
   }
 
   return (
-    <>
+    <BookingGateProvider>
       {header}
       <main id="main-content">{children}</main>
       {footer}
-    </>
+    </BookingGateProvider>
   );
 }

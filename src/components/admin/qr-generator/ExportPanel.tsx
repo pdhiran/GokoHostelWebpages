@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { DownloadIcon, CopyIcon, CheckIcon, SaveIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { jsPDF } from "jspdf";
 import type { QRConfig } from "./types";
 
 interface Props {
@@ -47,6 +46,7 @@ export function ExportPanel({ config, downloadPNG, downloadSVG, getDataUrl, onSa
       const pageWidth = imgSize + margin * 2;
       const pageHeight = imgSize + margin * 2 + textHeight;
 
+      const { default: jsPDF } = await import("jspdf");
       const pdf = new jsPDF({
         orientation: pageWidth > pageHeight ? "landscape" : "portrait",
         unit: "px",

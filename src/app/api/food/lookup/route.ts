@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveCheckins, getAllBeds, getRecentlyCheckedOutGuests, getSetting } from "@/db/queries";
+import { buildFoodLookupGuests } from "@/lib/foodLookup";
 import { normalizePhone } from "@/lib/phoneUtils";
 
 export async function GET(req: NextRequest) {
@@ -20,35 +21,7 @@ export async function GET(req: NextRequest) {
       graceDays > 0 ? getRecentlyCheckedOutGuests(graceDays) : Promise.resolve([]),
     ]);
 
-    const activeMatches = activeCheckins
-      .filter((c) => normalizePhone(c.contact) === normalized)
-      .map((c) => {
-        const bed = allBeds.find(
-          (b) => b.guestContact && normalizePhone(b.guestContact) === normalized
-        );
-        const roomInfo = bed ? `${bed.dormName} - Bed ${bed.bedId}` : "";
-        return {
-          checkinId: c.id,
-          name: c.name,
-          phone: normalizePhone(c.contact),
-          roomInfo,
-          checkedOut: false,
-        };
-      });
-
-    const activeIds = new Set(activeMatches.map((m) => m.checkinId));
-
-    const checkedOutMatches = checkedOutGuests
-      .filter((c) => normalizePhone(c.contact) === normalized && !activeIds.has(c.id))
-      .map((c) => ({
-        checkinId: c.id,
-        name: c.name,
-        phone: normalizePhone(c.contact),
-        roomInfo: "",
-        checkedOut: true,
-      }));
-
-    const matches = [...activeMatches, ...checkedOutMatches];
+    const matches = buildFoodLookupGuests(normalized, activeCheckins, allBeds, checkedOutGuests);
 
     return NextResponse.json({
       found: matches.length > 0,

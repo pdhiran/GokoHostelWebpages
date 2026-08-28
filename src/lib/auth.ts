@@ -1,6 +1,7 @@
 import { getUserByUsername, getAllUsers } from "@/db/queries";
+import type { UserRole } from "@/lib/actionPermissions";
 
-export type UserRole = "admin" | "manager" | "staff";
+export type { UserRole };
 
 export type AuthResult = {
   role: UserRole;

@@ -30,6 +30,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
       <SheetContent
+        id="mobile-navigation"
         side="right"
         className={cn(
           "w-[min(100vw,22rem)] gap-0 border-l border-brand-mist bg-brand-sand p-0 shadow-lift"

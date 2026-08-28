@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   description: site.description,
   manifest: "/manifest.webmanifest",
   icons: { icon: "/logo.png", apple: "/icons/apple-touch-icon.png" },
-  appleWebApp: { capable: true, title: "Goko Admin", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: site.shortName, statusBarStyle: "black-translucent" },
   other: { "mobile-web-app-capable": "yes" },
   openGraph: {
     type: "website",

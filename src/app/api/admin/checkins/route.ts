@@ -3,6 +3,7 @@ import { driveDeleteFile } from "@/lib/googleApiFetch";
 import { getDb } from "@/db";
 import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser, hashPassword, verifyPassword, type UserRole } from "@/lib/auth";
+import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { todayIST } from "@/lib/utils";
 import {
@@ -19,7 +20,7 @@ import {
   createReviewRequest, getReviewRequestByCheckinId,
 } from "@/db/queries";
 import { beds, checkins, foodOrders } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 
 async function triggerGithubScrape(scrapeId: number, city: string, startDate: string, endDate: string, propertyType: string, proxyUrl: string = "") {
   const token = process.env.GITHUB_TOKEN;
@@ -73,15 +74,15 @@ export async function POST(req: NextRequest) {
     permissions = authResult.permissions;
     const actingUser = username || role;
 
-    const ACTION_PERMISSIONS: Record<string, string | "admin_only"> = {
+    const ACTION_PERMISSIONS: Record<string, ActionPerm> = {
       list: "canViewRecords", add: "canAddCheckin", addPast: "admin_only",
       update: "canEditRecords", delete: "canDeleteRecords",
       verifyCheckin: "canViewRecords", getFormCData: "canViewRecords",
       reExtractFormC: "admin_only", updateFormCData: "admin_only",
       getDashboard: "canViewDashboard", markVibeMatched: "canViewDashboard",
-      checkoutBed: "canViewDashboard", checkoutGuest: "canViewDashboard", undoCheckout: "canViewDashboard",
-      getBeds: "canViewBeds", assignBed: "canViewBeds", unassignBed: "canViewBeds",
-      changeBed: "canViewBeds", markClean: "canMarkClean",
+      checkoutBed: ["canCheckout", "canViewDashboard"], checkoutGuest: ["canCheckout", "canViewDashboard"], undoCheckout: ["canCheckout", "canViewDashboard"],
+      getBeds: "canViewBeds", assignBed: ["canAssignBed", "canViewBeds"], unassignBed: ["canAssignBed", "canViewBeds"],
+      changeBed: ["canAssignBed", "canViewBeds"], markClean: "canMarkClean",
       getBedHistory: "canViewBeds", deleteBedHistory: "admin_only",
       initDorms: "admin_only", removeDorm: "admin_only", removeBed: "admin_only",
       getSetting: "admin_only", setSetting: "admin_only", getStats: "admin_only", healthCheck: "admin_only",
@@ -95,11 +96,11 @@ export async function POST(req: NextRequest) {
     };
 
     const requiredPerm = action ? ACTION_PERMISSIONS[action] : ACTION_PERMISSIONS["list"];
-    if (requiredPerm === "admin_only") {
-      if (role !== "admin") {
-        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-      }
-    } else if (requiredPerm && role !== "admin" && !permissions[requiredPerm]) {
+    const gate = actionAllowed(role, permissions, requiredPerm);
+    if (gate === "admin_required") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
+    if (gate === "forbidden") {
       return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
     }
 
@@ -486,31 +487,39 @@ export async function POST(req: NextRequest) {
         if (c.contact) contactToCheckinId.set(c.contact, c.id);
       }
 
-      const todayCheckoutBeds = await Promise.all(checkoutBeds.map(async (b) => {
-        const checkinId = b.guestContact ? contactToCheckinId.get(b.guestContact) : undefined;
-        let pendingTab = 0;
-        let paidTotal = 0;
-        let totalOrders = 0;
-        let pendingOrders = 0;
-        if (checkinId) {
-          const db = getDb();
-          const tabRows = await db.select({
-            paymentStatus: foodOrders.paymentStatus,
-            total: sql<number>`COALESCE(SUM(${foodOrders.total}), 0)`,
-            count: sql<number>`COUNT(*)`,
-          }).from(foodOrders)
-            .where(eq(foodOrders.checkinId, checkinId))
-            .groupBy(foodOrders.paymentStatus);
-          for (const row of tabRows) {
-            totalOrders += row.count;
-            if (row.paymentStatus === "on_tab" || row.paymentStatus === "pending") {
-              pendingTab += row.total;
-              pendingOrders += row.count;
-            } else if (row.paymentStatus === "paid") {
-              paidTotal += row.total;
-            }
+      const uniqueCheckinIds = [...new Set(
+        checkoutBeds
+          .map((b) => (b.guestContact ? contactToCheckinId.get(b.guestContact) : undefined))
+          .filter((id): id is number => id != null)
+      )];
+      const tabByCheckin = new Map<number, { pendingTab: number; paidTotal: number; totalOrders: number; pendingOrders: number }>();
+      if (uniqueCheckinIds.length > 0) {
+        const db = getDb();
+        const tabRows = await db.select({
+          checkinId: foodOrders.checkinId,
+          paymentStatus: foodOrders.paymentStatus,
+          total: sql<number>`COALESCE(SUM(${foodOrders.total}), 0)`,
+          count: sql<number>`COUNT(*)`,
+        }).from(foodOrders)
+          .where(inArray(foodOrders.checkinId, uniqueCheckinIds))
+          .groupBy(foodOrders.checkinId, foodOrders.paymentStatus);
+        for (const row of tabRows) {
+          if (row.checkinId == null) continue;
+          const acc = tabByCheckin.get(row.checkinId) || { pendingTab: 0, paidTotal: 0, totalOrders: 0, pendingOrders: 0 };
+          acc.totalOrders += row.count;
+          if (row.paymentStatus === "on_tab" || row.paymentStatus === "pending") {
+            acc.pendingTab += row.total;
+            acc.pendingOrders += row.count;
+          } else if (row.paymentStatus === "paid") {
+            acc.paidTotal += row.total;
           }
+          tabByCheckin.set(row.checkinId, acc);
         }
+      }
+
+      const todayCheckoutBeds = checkoutBeds.map((b) => {
+        const checkinId = b.guestContact ? contactToCheckinId.get(b.guestContact) : undefined;
+        const tab = (checkinId && tabByCheckin.get(checkinId)) || { pendingTab: 0, paidTotal: 0, totalOrders: 0, pendingOrders: 0 };
         return {
           name: b.guestName || "",
           contact: b.guestContact || "",
@@ -518,13 +527,13 @@ export async function POST(req: NextRequest) {
           dorm: b.dormName,
           bedIdx: b.id,
           expectedCheckout: b.expectedCheckout || "",
-          pendingTab,
-          paidTotal,
-          totalOrders,
-          pendingOrders,
+          pendingTab: tab.pendingTab,
+          paidTotal: tab.paidTotal,
+          totalOrders: tab.totalOrders,
+          pendingOrders: tab.pendingOrders,
           checkinId: checkinId || null,
         };
-      }));
+      });
 
       const assignedContacts = new Map<string, string>();
       for (const b of allBeds) {

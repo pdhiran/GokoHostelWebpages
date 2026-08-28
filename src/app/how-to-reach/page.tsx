@@ -13,7 +13,7 @@ import {
   transportModes,
 } from "@/content/howToReach";
 import { buildMetadata } from "@/lib/seo";
-import { heroVideoB, site } from "@/lib/site";
+import { site } from "@/lib/site";
 
 export const metadata = buildMetadata({
   title: "How to Reach",
@@ -29,7 +29,7 @@ export default function HowToReachPage() {
         subtitle={howToReachHero.subtitle}
         image="/images/mahabaleshwar_temple.jpg"
         imageAlt="Travel to Gokarna"
-        heroVideo={heroVideoB}
+        heroVideo={null}
       />
 
       <section className="goko-mesh goko-noise py-16 md:py-24">

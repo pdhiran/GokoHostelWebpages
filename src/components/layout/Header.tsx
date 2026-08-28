@@ -141,7 +141,7 @@ export function Header() {
           >
             <span className="block h-0.5 w-5 bg-brand-green-dark" />
             <span className="block h-0.5 w-5 bg-brand-green-dark" />
-            <span className="sr-only">Open menu</span>
+            <span className="sr-only">{mobileOpen ? "Close menu" : "Open menu"}</span>
           </button>
         </div>
       </div>

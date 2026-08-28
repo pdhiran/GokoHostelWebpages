@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
+import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 import {
@@ -30,7 +31,7 @@ function diffDays(start: string, end: string): number {
   return Math.round((e.getTime() - s.getTime()) / 86400000);
 }
 
-const ACTION_PERMISSIONS: Record<string, string | "admin_only"> = {
+const ACTION_PERMISSIONS: Record<string, ActionPerm> = {
   getCalendarData: "canViewBookings",
   getDetail: "canViewBookings",
   search: "canViewBookings",
@@ -40,8 +41,8 @@ const ACTION_PERMISSIONS: Record<string, string | "admin_only"> = {
   getBookingHistory: "canViewBookings",
   createBooking: "canAddBooking",
   assignBeds: "canAddBooking",
-  checkIn: "canAddBooking",
-  checkOut: "canAddBooking",
+  checkIn: ["canCheckIn", "canAddBooking"],
+  checkOut: ["canCheckOut", "canAddBooking"],
   modifyCheckin: "canAddBooking",
   modifyCheckout: "canAddBooking",
   editReservation: "canAddBooking",
@@ -71,11 +72,11 @@ export async function POST(req: NextRequest) {
     if (!requiredPerm) {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
-    if (requiredPerm === "admin_only") {
-      if (role !== "admin") {
-        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-      }
-    } else if (role !== "admin" && !permissions[requiredPerm]) {
+    const gate = actionAllowed(role, permissions, requiredPerm);
+    if (gate === "admin_required") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
+    if (gate === "forbidden") {
       return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
     }
 

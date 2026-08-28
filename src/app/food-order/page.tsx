@@ -157,6 +157,7 @@ export default function FoodOrderPage() {
         setKitchenClosed(true);
         setKitchenStatus(status);
       }
+      setFetchError("");
       setView("phone");
     } catch {
       setFetchError("Unable to load menu. Please try again.");
@@ -399,14 +400,31 @@ export default function FoodOrderPage() {
                 onWalkin={handleWalkin}
                 savedPhone={savedPhone || undefined}
               />
-              <div className="mt-4 text-center">
-                <Link
-                  href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
-                  className="text-sm font-medium text-brand-green-dark/70 transition hover:text-brand-green"
-                >
-                  View my bills →
-                </Link>
-              </div>
+              {fetchError && (
+                <div className="mt-4 px-4 text-center">
+                  <p className="text-sm text-brand-red">{fetchError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setView("loading");
+                      fetchMenu();
+                    }}
+                    className="mt-2 text-sm font-medium text-brand-green underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+              {(guestInfo?.phone || savedPhone) && (
+                <div className="mt-4 text-center">
+                  <Link
+                    href={`/my-bills?phone=${encodeURIComponent(guestInfo?.phone || savedPhone || "")}`}
+                    className="text-sm font-medium text-brand-green-dark/70 transition hover:text-brand-green"
+                  >
+                    View my bills →
+                  </Link>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -433,7 +451,7 @@ export default function FoodOrderPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* <DarkModeToggle className="text-white/80 hover:bg-white/20" /> */}
                     <Link
-                      href={`/my-bills${guestInfo?.phone ? `?phone=${guestInfo.phone}` : ""}`}
+                      href={`/my-bills?phone=${encodeURIComponent(guestInfo?.phone || savedPhone || "")}`}
                       className="flex items-center gap-1.5 rounded-xl bg-brand-green/10 px-3 py-2 text-sm font-medium text-brand-green transition hover:bg-brand-green/15"
                     >
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

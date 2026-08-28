@@ -16,6 +16,7 @@ import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
 import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser } from "@/lib/auth";
+import { actionAllowed } from "@/lib/actionPermissions";
 
 function extractDriveFileId(link: string): string | null {
   const match = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -46,11 +47,11 @@ export async function POST(req: NextRequest) {
     };
 
     const requiredPerm = ACTION_PERMISSIONS[action];
-    if (requiredPerm === "admin_only") {
-      if (role !== "admin") {
-        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-      }
-    } else if (requiredPerm && role !== "admin" && !permissions[requiredPerm]) {
+    const gate = actionAllowed(role, permissions, requiredPerm);
+    if (gate === "admin_required") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
+    if (gate === "forbidden") {
       return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
     }
 

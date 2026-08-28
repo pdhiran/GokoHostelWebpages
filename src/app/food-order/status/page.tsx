@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
+import { STATUS_STEPS, stepperIndex, shouldPollOrderStatus } from "@/lib/orderStatus";
 
 interface OrderItem {
   name: string;
@@ -24,7 +25,6 @@ interface OrderData {
   createdAt: string;
 }
 
-const STATUS_STEPS = ["pending_approval", "placed", "preparing", "ready", "served"] as const;
 const STATUS_LABELS: Record<string, string> = {
   pending_approval: "Confirming",
   placed: "Placed",
@@ -58,12 +58,24 @@ function getElapsedTime(createdAt: string): string {
 function OrderStatusContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get("order") || "";
-  const phone = searchParams.get("phone") || "";
+  const phoneParam = searchParams.get("phone") || "";
 
+  const [phone, setPhone] = useState(phoneParam);
+  const [phoneReady, setPhoneReady] = useState(!!phoneParam);
   const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    if (phoneParam) {
+      setPhone(phoneParam);
+      setPhoneReady(true);
+      return;
+    }
+    setPhone(localStorage.getItem("gokoFoodPhone") || "");
+    setPhoneReady(true);
+  }, [phoneParam]);
 
   const fetchStatus = useCallback(async () => {
     if (!orderNumber || !phone) {
@@ -93,10 +105,25 @@ function OrderStatusContent() {
   }, [orderNumber, phone]);
 
   useEffect(() => {
+    if (!phoneReady) return;
     fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
+  }, [phoneReady, fetchStatus]);
+
+  useEffect(() => {
+    if (!order || !shouldPollOrderStatus(order.status, false)) return;
+    const tick = () => {
+      if (shouldPollOrderStatus(order.status, document.hidden)) fetchStatus();
+    };
+    const interval = setInterval(tick, 10000);
+    const onVis = () => {
+      if (shouldPollOrderStatus(order.status, document.hidden)) fetchStatus();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [order?.status, fetchStatus]);
 
   useEffect(() => {
     if (!order) return;
@@ -137,7 +164,8 @@ function OrderStatusContent() {
     );
   }
 
-  const currentStepIndex = STATUS_STEPS.indexOf(order.status as (typeof STATUS_STEPS)[number]);
+  const currentStepIndex = stepperIndex(order.status);
+  const isCancelled = order.status === "cancelled";
 
   return (
     <div className="min-h-screen goko-mesh goko-noise bg-brand-sand dark:bg-background p-4 pt-8">
@@ -154,7 +182,7 @@ function OrderStatusContent() {
             {/* Connecting line */}
             <div className="absolute left-0 right-0 top-5 h-0.5 bg-gray-200 dark:bg-white/10" />
             <div
-              className="absolute left-0 top-5 h-0.5 bg-brand-green transition-all duration-500"
+              className={`absolute left-0 top-5 h-0.5 transition-all duration-500 ${isCancelled ? "bg-brand-red/40" : "bg-brand-green"}`}
               style={{
                 width: `${Math.max(0, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
               }}
@@ -188,8 +216,8 @@ function OrderStatusContent() {
             })}
           </div>
 
-          <div className="mt-5 rounded-xl bg-brand-green/10 dark:bg-brand-green/20 p-3 text-center">
-            <p className="text-sm font-medium text-brand-green-dark dark:text-brand-green">
+          <div className={`mt-5 rounded-xl p-3 text-center ${isCancelled ? "bg-brand-red/10" : "bg-brand-green/10 dark:bg-brand-green/20"}`}>
+            <p className={`text-sm font-medium ${isCancelled ? "text-brand-red" : "text-brand-green-dark dark:text-brand-green"}`}>
               {order.status === "pending_approval" && "Waiting for staff to confirm your order"}
               {order.status === "placed" && "Your order has been received"}
               {order.status === "preparing" && "The kitchen is preparing your food"}

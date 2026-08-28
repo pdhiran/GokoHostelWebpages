@@ -38,6 +38,7 @@ import {
 } from "@/db/queries";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { authenticateUser } from "@/lib/auth";
+import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { getDb } from "@/db";
 import { foodOrders, foodOrderItems, checkins, orderModifications } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
@@ -55,26 +56,25 @@ export async function POST(req: NextRequest) {
     const { role, displayName, permissions } = auth;
     const actorName = username || displayName;
 
-    const ACTION_PERMISSIONS: Record<string, string | "admin_only"> = {
+    const ACTION_PERMISSIONS: Record<string, ActionPerm> = {
       listOrders: "canViewFoodOrders", getOrderDetails: "canViewFoodOrders",
       getOrderModifications: "canViewFoodOrders", getActiveGuests: "canViewFoodOrders",
       getGuestsWithTabs: "canViewFoodOrders", getGuestTab: "canViewFoodOrders",
       getGuestAllOrders: "canViewFoodOrders", getWalkinOrders: "canViewFoodOrders",
       getCombinedBill: "canViewFoodOrders", getMenu: "canViewFoodOrders",
-      updateOrderStatus: "canViewFoodOrders", placeOrderForGuest: "canViewFoodOrders",
-      voidItem: "canViewFoodOrders", updateItemQuantity: "canViewFoodOrders",
-      reassignOrder: "canViewFoodOrders",
+      updateOrderStatus: ["canPlaceOrders", "canViewFoodOrders"], placeOrderForGuest: ["canPlaceOrders", "canViewFoodOrders"],
+      voidItem: ["canPlaceOrders", "canViewFoodOrders"], updateItemQuantity: ["canPlaceOrders", "canViewFoodOrders"],
+      reassignOrder: ["canPlaceOrders", "canViewFoodOrders"],
       markOrderPaid: "canMarkPaid", updatePaymentDetails: "canMarkPaid",
       applyDiscount: "canMarkPaid", removeDiscount: "canMarkPaid",
       cleanupOldOrders: "admin_only",
     };
 
-    const requiredPerm = ACTION_PERMISSIONS[action];
-    if (requiredPerm === "admin_only") {
-      if (role !== "admin") {
-        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-      }
-    } else if (requiredPerm && role !== "admin" && !permissions[requiredPerm]) {
+    const gate = actionAllowed(role, permissions, ACTION_PERMISSIONS[action]);
+    if (gate === "admin_required") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
+    if (gate === "forbidden") {
       return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
     }
 
@@ -428,8 +428,9 @@ export async function POST(req: NextRequest) {
         const discTaxRate = Number(discTaxRateStr) || 5;
 
         const orderData: { id: number; grossSubtotal: number; discountableSubtotal: number }[] = [];
+        const itemsByOrder = await getFoodOrderItemsBatch(orderIds);
         for (const oid of orderIds) {
-          const items = await getFoodOrderItems(oid);
+          const items = itemsByOrder.get(oid) || [];
           const activeItems = items.filter((i) => i.status !== "voided");
           const exemptions = await getMenuItemCategoryExemptions(activeItems.map((i) => i.menuItemId));
           const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
@@ -496,8 +497,9 @@ export async function POST(req: NextRequest) {
         const rmTaxRateStr = await getSetting("food_tax_rate");
         const rmTaxRate = Number(rmTaxRateStr) || 5;
 
+        const rmItemsByOrder = await getFoodOrderItemsBatch(removeOrderIds);
         for (const oid of removeOrderIds) {
-          const items = await getFoodOrderItems(oid);
+          const items = rmItemsByOrder.get(oid) || [];
           const activeItems = items.filter((i) => i.status !== "voided");
           const grossSubtotal = activeItems.reduce((sum, i) => sum + i.lineTotal, 0);
           const newTax = Math.round((grossSubtotal * rmTaxRate) / 100);
