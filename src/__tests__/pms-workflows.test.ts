@@ -24,6 +24,7 @@ const { captured, queryMocks } = vi.hoisted(() => {
       upsertRatePlanMapping: vi.fn(),
       deleteRatePlanMapping: vi.fn(),
       getDailyRates: vi.fn(),
+      upsertDailyRate: vi.fn(),
       bulkUpsertDailyRates: vi.fn(),
       getAllDorms: vi.fn(),
       getAllBeds: vi.fn(),
@@ -49,11 +50,14 @@ import {
   unassignBookingBeds,
   addBookingHistoryEntry,
   getChannelSyncLogs,
+  getDailyRates,
+  upsertDailyRate,
 } from "@/db/queries";
 import { authenticateUser } from "@/lib/auth";
 import { pushInventory, pushRates, pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 import { POST as reservationsPOST } from "@/app/api/aiosell/reservations/route";
 import { POST as channelManagerPOST } from "@/app/api/admin/channel-manager/route";
+import { POST as inventoryPOST } from "@/app/api/admin/inventory/route";
 
 const CFG: AiosellConfig = {
   hotelCode: "GOKO-001",
@@ -379,6 +383,93 @@ describe("PMS inbound webhook workflows", () => {
     expect(lastLog().status).toBe("failed");
     expect(lastLog().errorMessage).toBe("D1 write failed");
   });
+
+  it("modify preserves existing status (does not reset to received)", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9,
+      bookingRef: "BK-100",
+      guestName: "Old",
+      contact: "",
+      platform: "booking.com",
+      status: "confirmed",
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-03",
+      roomType: "DORM-6",
+      persons: 1,
+      paymentStatus: "prepaid",
+      specialRequests: "",
+      amountBeforeTax: 0,
+      amountTax: 0,
+      amountTotal: 0,
+      currency: "INR",
+      email: "",
+      cmBookingId: "",
+      ratePlan: "",
+      nightlyRate: 0,
+    } as never);
+    const res = await reservationsPOST(req({ ...bookPayload, action: "modify" }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(updateBookingFull).toHaveBeenCalledWith(9, expect.objectContaining({
+      status: "confirmed",
+    }));
+    expect(updateBookingFull).not.toHaveBeenCalledWith(9, expect.objectContaining({
+      status: "received",
+    }));
+  });
+
+  it("cancel already-cancelled booking returns success without updating", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({ id: 9, bookingRef: "BK-100", status: "cancelled" } as never);
+    const res = await reservationsPOST(req({
+      action: "cancel",
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-100",
+    }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.message).toMatch(/already cancelled/i);
+    expect(updateBookingFull).not.toHaveBeenCalled();
+    expect(unassignBookingBeds).not.toHaveBeenCalled();
+  });
+
+  it("cancel logs history entry with correct content", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({ id: 9, bookingRef: "BK-100", status: "confirmed" } as never);
+    await reservationsPOST(req({
+      action: "cancel",
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-100",
+    }, { authorization: "whsec-test" }));
+    expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 9,
+      action: "Cancelled from Channel",
+      details: expect.stringContaining("booking.com"),
+      performedBy: "channel_manager",
+    }));
+  });
+
+  it("modify creates new booking when not found (fallback to handleNewBooking)", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue(null as never);
+    const res = await reservationsPOST(req({ ...bookPayload, action: "modify" }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalledOnce();
+    expect(updateBookingFull).not.toHaveBeenCalled();
+    const body = await res.json();
+    expect(body.message).toMatch(/Created Successfully/i);
+  });
+
+  it("book logs history entry on successful insert", async () => {
+    vi.mocked(addBooking).mockResolvedValue({ meta: { last_row_id: 42 } } as never);
+    const res = await reservationsPOST(req(bookPayload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 42,
+      action: "Received from Channel",
+      details: expect.stringContaining("BK-100"),
+      performedBy: "channel_manager",
+    }));
+  });
 });
 
 describe("PMS log list API", () => {
@@ -478,5 +569,133 @@ describe("room mapping API", () => {
     const res = await post({ password: "x", action: "deleteRoomMapping" });
     expect(res.status).toBe(400);
     expect(queryMocks.deleteRoomTypeMapping).not.toHaveBeenCalled();
+  });
+});
+
+describe("Restriction and rate adjustment workflows", () => {
+  beforeEach(() => {
+    vi.mocked(authenticateUser).mockReset();
+    vi.mocked(authenticateUser).mockResolvedValue({ role: "admin", displayName: "Admin", permissions: {} } as never);
+    queryMocks.getDailyRates.mockReset();
+    queryMocks.upsertDailyRate.mockReset();
+    queryMocks.upsertDailyRate.mockResolvedValue(undefined);
+  });
+
+  function post(body: unknown) {
+    return inventoryPOST(new NextRequest("http://localhost/api/admin/inventory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }));
+  }
+
+  it("bulkSetRestrictions preserves other fields when setting closeOnArrival", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([{
+      id: 1,
+      ratePlanId: 10,
+      date: "2026-09-01",
+      rate: 1500,
+      stopSell: 1,
+      minimumStay: 3,
+      maximumStay: null,
+      closeOnArrival: 0,
+      closeOnDeparture: 0,
+      minimumAdvanceReservation: null,
+      maximumAdvanceReservation: null,
+      adult1Rate: null,
+      adult2Rate: null,
+      childRate: null,
+      infantRate: null,
+      extraPersonRate: null,
+    }]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRestrictions",
+      ratePlanIds: [10],
+      startDate: "2026-09-01",
+      endDate: "2026-09-01",
+      restrictionType: "closeOnArrival",
+      value: true,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.updated).toBe(1);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({
+      ratePlanId: 10,
+      date: "2026-09-01",
+      rate: 1500,
+      stopSell: 1,
+      minimumStay: 3,
+      closeOnArrival: 1,
+    }));
+  });
+
+  it("bulkSetRestrictions rejects unknown restrictionType", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([{
+      id: 1, ratePlanId: 10, date: "2026-09-01", rate: 1000,
+      stopSell: 0, minimumStay: 1, maximumStay: null,
+      closeOnArrival: 0, closeOnDeparture: 0,
+      minimumAdvanceReservation: null, maximumAdvanceReservation: null,
+      adult1Rate: null, adult2Rate: null, childRate: null, infantRate: null, extraPersonRate: null,
+    }]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRestrictions",
+      ratePlanIds: [10],
+      startDate: "2026-09-01",
+      endDate: "2026-09-01",
+      restrictionType: "foobar",
+      value: true,
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Unknown restrictionType/);
+    expect(queryMocks.upsertDailyRate).not.toHaveBeenCalled();
+  });
+
+  it("bulkAdjustRates preserves restrictions when adjusting rate", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([{
+      id: 1,
+      ratePlanId: 10,
+      date: "2026-09-01",
+      rate: 1000,
+      stopSell: 1,
+      minimumStay: 2,
+      maximumStay: 7,
+      closeOnArrival: 1,
+      closeOnDeparture: 0,
+      minimumAdvanceReservation: null,
+      maximumAdvanceReservation: null,
+      adult1Rate: 900,
+      adult2Rate: null,
+      childRate: null,
+      infantRate: null,
+      extraPersonRate: null,
+    }]);
+    const res = await post({
+      password: "x",
+      action: "bulkAdjustRates",
+      ratePlanIds: [10],
+      startDate: "2026-09-01",
+      endDate: "2026-09-01",
+      direction: "increase",
+      value: 10,
+      type: "percentage",
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.updated).toBe(1);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({
+      ratePlanId: 10,
+      date: "2026-09-01",
+      rate: 1100,
+      stopSell: 1,
+      minimumStay: 2,
+      maximumStay: 7,
+      closeOnArrival: 1,
+      adult1Rate: 900,
+    }));
   });
 });
