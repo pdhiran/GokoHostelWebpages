@@ -29,5 +29,17 @@
 			"binding": "MEDIA",
 			"bucket_name": "goko-media"
 		}
+	],
+	// v1 created OpenNext's ISR Durable Object (Workers Free 10ms cannot SSR those pages).
+	// v2 deletes it. Do not re-add DO / incremental-cache R2 bindings.
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["DOQueueHandler"]
+		},
+		{
+			"tag": "v2",
+			"deleted_classes": ["DOQueueHandler"]
+		}
 	]
 }

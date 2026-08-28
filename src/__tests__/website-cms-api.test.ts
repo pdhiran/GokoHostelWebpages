@@ -46,6 +46,7 @@ import { deleteMediaKeys, getMediaBucket, getMediaObject, putMediaObject } from 
 import { POST as websitePOST } from "@/app/api/admin/website/route";
 import { POST as uploadPOST } from "@/app/api/admin/website/upload/route";
 import { GET as mediaGET } from "@/app/api/media/[...key]/route";
+import { GET as siteGET } from "@/app/api/site/route";
 
 const admin = { role: "admin" as const, displayName: "Admin", permissions: {} };
 const staff = { role: "staff" as const, displayName: "Staff", permissions: {} };
@@ -604,6 +605,53 @@ describe("GET /api/media/[...key]", () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/jpeg");
+  });
+});
+
+describe("GET /api/site", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(siteQueries.getSiteEvents).mockResolvedValue([]);
+    vi.mocked(siteQueries.getSiteCommunitySpaces).mockResolvedValue([]);
+    vi.mocked(siteQueries.getSitePageCopy).mockResolvedValue(null as never);
+  });
+
+  it("returns events JSON with a CDN cache header", async () => {
+    const res = await siteGET(new NextRequest("http://localhost/api/site?page=events"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toContain("s-maxage=60");
+    const body = await res.json();
+    expect(body.copy.hero.title).toBe(defaultEventsCopy.hero.title);
+    expect(body.upcoming).toEqual([]);
+    expect(body.past).toEqual([]);
+  });
+
+  it("returns community JSON", async () => {
+    const res = await siteGET(new NextRequest("http://localhost/api/site?page=community"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.spaces).toEqual([]);
+    expect(body.copy.intro.title).toBeTruthy();
+  });
+
+  it("rejects unknown pages", async () => {
+    const res = await siteGET(new NextRequest("http://localhost/api/site?page=stay"));
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects a missing page query", async () => {
+    const res = await siteGET(new NextRequest("http://localhost/api/site"));
+    expect(res.status).toBe(404);
+  });
+
+  it("falls back to seed events when D1 throws", async () => {
+    vi.mocked(siteQueries.getSiteEvents).mockRejectedValue(new Error("no such table"));
+    const res = await siteGET(new NextRequest("http://localhost/api/site?page=events"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.upcoming.map((e: { title: string }) => e.title)).toEqual(
+      upcomingEvents.map((e) => e.title),
+    );
   });
 });
 

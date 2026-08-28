@@ -238,3 +238,24 @@ describe("Pi migrator", () => {
     expect(src).toMatch(/0035_site_cms\.sql[\s\S]*Cloudflare-only/);
   });
 });
+
+describe("Workers Free 10ms", () => {
+  it("does not SSR CMS pages or keep paid-only Worker bindings", () => {
+    const events = readFileSync("src/app/events/page.tsx", "utf8");
+    const community = readFileSync("src/app/community-area/page.tsx", "utf8");
+    const wrangler = readFileSync("wrangler.jsonc", "utf8");
+    const openNext = readFileSync("open-next.config.ts", "utf8");
+    expect(events).not.toMatch(/loadEventsPageData/);
+    expect(events).toMatch(/force-static/);
+    expect(events).not.toMatch(/force-dynamic/);
+    expect(events).not.toMatch(/revalidate/);
+    expect(community).not.toMatch(/loadCommunityPageData/);
+    expect(community).toMatch(/force-static/);
+    expect(community).not.toMatch(/force-dynamic/);
+    expect(community).not.toMatch(/revalidate/);
+    expect(wrangler).not.toMatch(/cpu_ms/);
+    expect(wrangler).not.toMatch(/NEXT_CACHE_DO_QUEUE/);
+    expect(wrangler).not.toMatch(/NEXT_INC_CACHE_R2_BUCKET/);
+    expect(openNext).not.toMatch(/doQueue|r2IncrementalCache/);
+  });
+});

@@ -1,4 +1,3 @@
-import { cache } from "react";
 import { communitySpaces, type CommunitySpace } from "@/content/community";
 import { pastEvents, upcomingEvents, type EventItem } from "@/content/events";
 import {
@@ -22,6 +21,17 @@ import {
 
 export type { CommunityPageCopy, EventsPageCopy };
 export { defaultCommunityCopy, defaultEventsCopy, parseJsonArray };
+
+export type EventsPageData = {
+  copy: EventsPageCopy;
+  upcoming: EventItem[];
+  past: EventItem[];
+};
+
+export type CommunityPageData = {
+  copy: CommunityPageCopy;
+  spaces: CommunitySpace[];
+};
 
 export function eventRowToItem(row: SiteEventRow): EventItem {
   const photos = mergeGallery(
@@ -56,7 +66,7 @@ export function spaceRowToItem(row: SiteCommunitySpaceRow): CommunitySpace {
 /** `null` = D1 unavailable (use hardcoded fallback). A successful query, even with 0 rows, is live CMS data. */
 export function resolveEventsPageData(
   db: { rows: SiteEventRow[]; copyRaw: string | null } | null,
-): { copy: EventsPageCopy; upcoming: EventItem[]; past: EventItem[] } {
+): EventsPageData {
   if (!db) {
     return { copy: defaultEventsCopy, upcoming: upcomingEvents, past: pastEvents };
   }
@@ -70,7 +80,7 @@ export function resolveEventsPageData(
 
 export function resolveCommunityPageData(
   db: { rows: SiteCommunitySpaceRow[]; copyRaw: string | null } | null,
-): { copy: CommunityPageCopy; spaces: CommunitySpace[] } {
+): CommunityPageData {
   if (!db) {
     return { copy: defaultCommunityCopy, spaces: communitySpaces };
   }
@@ -80,11 +90,7 @@ export function resolveCommunityPageData(
   };
 }
 
-export const loadEventsPageData = cache(async function loadEventsPageData(): Promise<{
-  copy: EventsPageCopy;
-  upcoming: EventItem[];
-  past: EventItem[];
-}> {
+export async function loadEventsPageData(): Promise<EventsPageData> {
   try {
     const [rows, copyRow] = await Promise.all([
       getSiteEvents(),
@@ -95,12 +101,9 @@ export const loadEventsPageData = cache(async function loadEventsPageData(): Pro
     console.error("Events CMS load failed:", error);
     return resolveEventsPageData(null);
   }
-});
+}
 
-export const loadCommunityPageData = cache(async function loadCommunityPageData(): Promise<{
-  copy: CommunityPageCopy;
-  spaces: CommunitySpace[];
-}> {
+export async function loadCommunityPageData(): Promise<CommunityPageData> {
   try {
     const [rows, copyRow] = await Promise.all([
       getSiteCommunitySpaces(),
@@ -111,4 +114,4 @@ export const loadCommunityPageData = cache(async function loadCommunityPageData(
     console.error("Community CMS load failed:", error);
     return resolveCommunityPageData(null);
   }
-});
+}
