@@ -51,8 +51,7 @@ export async function POST(req: NextRequest) {
       if (!startDate || !endDate) return NextResponse.json({ error: "startDate and endDate required" }, { status: 400 });
       const data = await getInventoryGridData(startDate, endDate);
       const bedConfigs = await getBedTypeConfigs();
-      const channels = await getChannels();
-      return NextResponse.json({ ...data, bedConfigs, channels });
+      return NextResponse.json({ ...data, bedConfigs });
     }
 
     if (action === "getChannels") {
@@ -222,8 +221,10 @@ export async function POST(req: NextRequest) {
       const filteredDates = filterByDays(allDates, dayFilter);
       let count = 0;
       for (const rpId of ratePlanIds) {
+        const existingRates = await getDailyRates(rpId, startDate, endDate);
+        const ratesByDate = new Map(existingRates.map((r) => [r.date, r]));
         for (const date of filteredDates) {
-          const existing = (await getDailyRates(rpId, date, date))[0];
+          const existing = ratesByDate.get(date);
           const updateData: any = {
             ratePlanId: rpId, date, updatedBy: actingUser,
             rate: existing?.rate ?? 0,

@@ -1865,5 +1865,9 @@ export async function getInventoryGridData(startDate: string, endDate: string) {
     and(gte(dailyRates.date, startDate), lte(dailyRates.date, endDate))
   );
 
-  return { dorms: allDorms, beds: allBeds, blocks, assignments, roomMappings, ratePlans, rates };
+  const overrides = await db.select().from(inventoryOverrides).where(
+    and(gte(inventoryOverrides.date, startDate), lte(inventoryOverrides.date, endDate))
+  );
+
+  return { dorms: allDorms, beds: allBeds, blocks, assignments, roomMappings, ratePlans, rates, overrides };
 }

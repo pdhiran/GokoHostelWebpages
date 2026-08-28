@@ -19,6 +19,8 @@ type RatePlanData = { id: number; roomMappingId: number; ratePlanCode: string; r
 type RoomMappingData = { id: number; dormId: number; dormName: string; channelRoomCode: string; totalInventory: number };
 type DailyRateData = { id: number; ratePlanId: number; date: string; rate: number; stopSell: number; minimumStay: number; maximumStay: number | null; closeOnArrival: number; closeOnDeparture: number; minimumAdvanceReservation: number | null; maximumAdvanceReservation: number | null; adult1Rate: number | null; adult2Rate: number | null; childRate: number | null; infantRate: number | null; extraPersonRate: number | null };
 
+type OverrideData = { id: number; dormId: number; channelId: number | null; date: string; onlineAvailable: number | null; offlineAvailable: number | null };
+
 type GridData = {
   dorms: DormData[];
   beds: BedData[];
@@ -27,8 +29,8 @@ type GridData = {
   roomMappings: RoomMappingData[];
   ratePlans: RatePlanData[];
   rates: DailyRateData[];
+  overrides: OverrideData[];
   bedConfigs: Array<{ id: number; dormId: number; bedType: string; maxOccupancy: number; extraPersonAllowed: number }>;
-  channels: Array<{ id: number; name: string; code: string; isActive: number }>;
 };
 
 function generateDates(start: string, days: number): string[] {
@@ -92,8 +94,8 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const computeAvailability = useCallback((dormId: number, date: string): { total: number; blocked: number; assigned: number; available: number } => {
-    if (!data) return { total: 0, blocked: 0, assigned: 0, available: 0 };
+  const computeAvailability = useCallback((dormId: number, date: string): { total: number; blocked: number; assigned: number; available: number; overridden: boolean } => {
+    if (!data) return { total: 0, blocked: 0, assigned: 0, available: 0, overridden: false };
     const dormBeds = data.beds.filter((b) => b.dormId === dormId);
     const total = dormBeds.length;
     const blockedBedIds = new Set(
@@ -103,8 +105,10 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
     const assigned = data.assignments.filter(
       (a) => a.dormId === dormId && a.status === "assigned" && a.checkinDate <= date && a.checkoutDate > date
     ).length;
-    const available = Math.max(0, total - blocked - assigned);
-    return { total, blocked, assigned, available };
+    const computed = Math.max(0, total - blocked - assigned);
+    const override = data.overrides?.find((o) => o.dormId === dormId && o.date === date);
+    const available = override?.onlineAvailable != null ? override.onlineAvailable : computed;
+    return { total, blocked, assigned, available, overridden: override?.onlineAvailable != null };
   }, [data]);
 
   const computeHeaderStats = useCallback((date: string) => {
@@ -125,7 +129,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
     if (!data) return null;
     const r = data.rates.find((rt) => rt.ratePlanId === ratePlanId && rt.date === date);
     if (!r) return null;
-    return r.adult2Rate ?? r.adult1Rate ?? r.rate;
+    return r.adult1Rate ?? r.rate;
   }, [data]);
 
   const getRatePlansForDorm = useCallback((dormId: number): RatePlanData[] => {
@@ -254,7 +258,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                     <span className="text-xs font-semibold text-brand-green-dark dark:text-zinc-200 truncate">{dorm.name}</span>
                   </div>
                   {dates.map((date) => {
-                    const { available, blocked } = computeAvailability(dorm.id, date);
+                    const { available, blocked, overridden } = computeAvailability(dorm.id, date);
                     return (
                       <button
                         key={date}
@@ -264,11 +268,14 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                           "shrink-0 border-r border-brand-mist/50 px-1 py-2 text-center text-xs font-medium cursor-pointer transition-colors hover:bg-brand-green/[0.04]",
                           available === 0 && "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400",
                           available > 0 && "text-brand-green-dark dark:text-zinc-200",
+                          overridden && "underline decoration-blue-400 decoration-dotted",
                         )}
                         style={{ width: colWidth }}
+                        title={overridden ? "Override active" : undefined}
                       >
                         {available}
                         {blocked > 0 && <BanIcon className="inline ml-0.5 h-2.5 w-2.5 text-orange-400" />}
+                        {overridden && <EditIcon className="inline ml-0.5 h-2.5 w-2.5 text-blue-400" />}
                       </button>
                     );
                   })}
