@@ -601,7 +601,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
       });
       const json = await res.json();
       setResult(json.success ? `Blocked ${json.blocked} bed(s)` : json.error);
-      if (json.success) { onSaved(); }
+      if (json.success) { onSaved(); setTimeout(onClose, 800); }
     } finally { setSaving(false); }
   };
 
@@ -616,7 +616,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
       });
       const json = await res.json();
       setResult(json.success ? "Beds unblocked" : json.error);
-      if (json.success) { onSaved(); }
+      if (json.success) { onSaved(); setTimeout(onClose, 800); }
     } finally { setSaving(false); }
   };
 
@@ -635,7 +635,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
       });
       const json = await res.json();
       setResult(json.success ? `Updated ${json.updated} rate(s)` : json.error);
-      if (json.success) { onSaved(); }
+      if (json.success) { onSaved(); setTimeout(onClose, 800); }
     } finally { setSaving(false); }
   };
 
@@ -650,7 +650,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
       });
       const json = await res.json();
       setResult(json.success ? `Adjusted ${json.updated} rate(s)` : json.error);
-      if (json.success) { onSaved(); }
+      if (json.success) { onSaved(); setTimeout(onClose, 800); }
     } finally { setSaving(false); }
   };
 
@@ -667,7 +667,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
       });
       const json = await res.json();
       setResult(json.success ? `Updated ${json.updated} restriction(s)` : json.error);
-      if (json.success) { onSaved(); }
+      if (json.success) { onSaved(); setTimeout(onClose, 800); }
     } finally { setSaving(false); }
   };
 
