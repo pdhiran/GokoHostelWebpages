@@ -3,7 +3,7 @@ import { authenticateUser } from "@/lib/auth";
 import { isPiRuntime } from "@/lib/runtime";
 import { deleteMediaKeys } from "@/lib/mediaR2";
 import { collectMediaKeys, keyToMediaUrl, mediaUrlToKey, releasedMediaKeys, sanitizeSiteImageUrl } from "@/lib/mediaKeys";
-import { defaultCommunityCopy, defaultEventsCopy, parseCommunityCopy, parseEventsCopy, parseJsonArray } from "@/lib/siteCopy";
+import { defaultCommunityCopy, defaultEventsCopy, mergeGallery, parseCommunityCopy, parseEventsCopy, parseJsonArray } from "@/lib/siteCopy";
 import {
   addSiteCommunitySpace,
   addSiteEvent,
@@ -28,15 +28,17 @@ function jsonTags(input: unknown): string {
   return "[]";
 }
 
-function jsonPhotos(input: unknown): string {
-  if (Array.isArray(input)) {
-    return JSON.stringify(input.map((t) => sanitizeSiteImageUrl(String(t).trim())).filter(Boolean));
-  }
-  if (typeof input === "string" && input) {
-    const url = sanitizeSiteImageUrl(input);
-    return url ? JSON.stringify([url]) : "[]";
-  }
-  return "[]";
+function incomingPhotoList(photos: unknown): string[] | { error: string } {
+  if (photos === undefined) return [];
+  if (!Array.isArray(photos)) return { error: "Photos must be an array" };
+  return photos.map((t) => sanitizeSiteImageUrl(String(t).trim())).filter(Boolean);
+}
+
+function buildGallery(coverRaw: unknown, photosRaw: unknown): { coverUrl: string; photosJson: string } | { error: string } {
+  const extras = incomingPhotoList(photosRaw);
+  if (!Array.isArray(extras)) return extras;
+  const urls = mergeGallery(sanitizeSiteImageUrl(String(coverRaw || "")), extras);
+  return { coverUrl: urls[0] || "", photosJson: JSON.stringify(urls) };
 }
 
 function nextOrder(rows: { displayOrder: number }[]) {
@@ -154,6 +156,8 @@ export async function POST(req: NextRequest) {
 
       case "addEvent": {
         if (!String(params.title || "").trim()) return NextResponse.json({ error: "Title is required" }, { status: 400 });
+        const gallery = buildGallery(params.coverUrl, params.photos);
+        if ("error" in gallery) return NextResponse.json({ error: gallery.error }, { status: 400 });
         const existing = await getSiteEvents(params.isPast ? true : false);
         await addSiteEvent({
           date: String(params.date || "").trim(),
@@ -161,8 +165,8 @@ export async function POST(req: NextRequest) {
           description: String(params.description || "").trim(),
           tags: jsonTags(params.tags),
           isPast: params.isPast ? 1 : 0,
-          coverUrl: sanitizeSiteImageUrl(String(params.coverUrl || "")),
-          photos: jsonPhotos(params.photos),
+          coverUrl: gallery.coverUrl,
+          photos: gallery.photosJson,
           displayOrder: nextOrder(existing),
         });
         return NextResponse.json({ ok: true });
@@ -173,8 +177,15 @@ export async function POST(req: NextRequest) {
         if (!id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
         const prev = await getSiteEventById(id);
         if (!prev) return NextResponse.json({ error: "Event not found" }, { status: 404 });
-        const coverUrl = params.coverUrl !== undefined ? sanitizeSiteImageUrl(String(params.coverUrl || "")) : prev.coverUrl;
-        const photos = params.photos !== undefined ? jsonPhotos(params.photos) : prev.photos;
+        const gallery = (params.coverUrl !== undefined || params.photos !== undefined)
+          ? buildGallery(
+            params.coverUrl !== undefined ? params.coverUrl : prev.coverUrl,
+            params.photos !== undefined ? params.photos : parseJsonArray(prev.photos),
+          )
+          : { coverUrl: prev.coverUrl, photosJson: prev.photos };
+        if ("error" in gallery) return NextResponse.json({ error: gallery.error }, { status: 400 });
+        const coverUrl = gallery.coverUrl;
+        const photos = gallery.photosJson;
         const data: Parameters<typeof updateSiteEvent>[1] = { coverUrl, photos };
         if (params.date !== undefined) data.date = String(params.date);
         if (params.title !== undefined) {
@@ -196,7 +207,7 @@ export async function POST(req: NextRequest) {
         }
         await updateSiteEvent(id, data);
         const prevPhotos = parseJsonArray(prev.photos);
-        const nextPhotos = params.photos !== undefined ? parseJsonArray(photos) : prevPhotos;
+        const nextPhotos = parseJsonArray(photos);
         const released = releasedMediaKeys(
           [prev.coverUrl, ...prevPhotos],
           [coverUrl, ...nextPhotos],
@@ -217,13 +228,15 @@ export async function POST(req: NextRequest) {
 
       case "addSpace": {
         if (!String(params.title || "").trim()) return NextResponse.json({ error: "Title is required" }, { status: 400 });
+        const gallery = buildGallery(params.imageUrl, params.photos);
+        if ("error" in gallery) return NextResponse.json({ error: gallery.error }, { status: 400 });
         const existing = await getSiteCommunitySpaces();
         await addSiteCommunitySpace({
           title: String(params.title).trim(),
           icon: safeIcon(params.icon),
           description: String(params.description || "").trim(),
-          imageUrl: sanitizeSiteImageUrl(String(params.imageUrl || "")),
-          photos: jsonPhotos(params.photos),
+          imageUrl: gallery.coverUrl,
+          photos: gallery.photosJson,
           displayOrder: nextOrder(existing),
         });
         return NextResponse.json({ ok: true });
@@ -234,8 +247,15 @@ export async function POST(req: NextRequest) {
         if (!id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
         const prev = await getSiteCommunitySpaceById(id);
         if (!prev) return NextResponse.json({ error: "Space not found" }, { status: 404 });
-        const imageUrl = params.imageUrl !== undefined ? sanitizeSiteImageUrl(String(params.imageUrl || "")) : prev.imageUrl;
-        const photos = params.photos !== undefined ? jsonPhotos(params.photos) : prev.photos;
+        const gallery = (params.imageUrl !== undefined || params.photos !== undefined)
+          ? buildGallery(
+            params.imageUrl !== undefined ? params.imageUrl : prev.imageUrl,
+            params.photos !== undefined ? params.photos : parseJsonArray(prev.photos),
+          )
+          : { coverUrl: prev.imageUrl, photosJson: prev.photos };
+        if ("error" in gallery) return NextResponse.json({ error: gallery.error }, { status: 400 });
+        const imageUrl = gallery.coverUrl;
+        const photos = gallery.photosJson;
         const data: Parameters<typeof updateSiteCommunitySpace>[1] = { imageUrl, photos };
         if (params.title !== undefined) {
           const title = String(params.title).trim();
@@ -247,7 +267,7 @@ export async function POST(req: NextRequest) {
         if (params.displayOrder !== undefined) data.displayOrder = Number(params.displayOrder) || 0;
         await updateSiteCommunitySpace(id, data);
         const prevPhotos = parseJsonArray(prev.photos);
-        const nextPhotos = params.photos !== undefined ? parseJsonArray(photos) : prevPhotos;
+        const nextPhotos = parseJsonArray(photos);
         const released = releasedMediaKeys(
           [prev.imageUrl, ...prevPhotos],
           [imageUrl, ...nextPhotos],
@@ -267,8 +287,10 @@ export async function POST(req: NextRequest) {
       }
 
       case "discardMedia": {
-        const key = mediaUrlToKey(String(params.url || ""));
-        if (key) await safeDeleteMediaKeys([key]);
+        const raw = params.urls !== undefined ? params.urls : params.url;
+        const list = Array.isArray(raw) ? raw : [raw];
+        const keys = list.map((u) => mediaUrlToKey(String(u || ""))).filter((k): k is string => Boolean(k));
+        if (keys.length) await safeDeleteMediaKeys(keys);
         return NextResponse.json({ ok: true });
       }
 

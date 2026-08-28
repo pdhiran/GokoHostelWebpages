@@ -200,7 +200,25 @@ describe("POST /api/admin/website", () => {
     });
     expect(res.status).toBe(200);
     expect(siteQueries.addSiteEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ coverUrl: "", photos: JSON.stringify(["/images/ok.jpg"]) }),
+      expect.objectContaining({ coverUrl: "/images/ok.jpg", photos: JSON.stringify(["/images/ok.jpg"]) }),
+    );
+  });
+
+  it("rejects a non-array photos payload", async () => {
+    const res = await call({ action: "addEvent", password: "x", title: "X", photos: "/images/a.jpg" });
+    expect(res.status).toBe(400);
+    expect(siteQueries.addSiteEvent).not.toHaveBeenCalled();
+  });
+
+  it("caps galleries at 8 photos and sets cover to the first", async () => {
+    const photos = Array.from({ length: 9 }, (_, i) => `/images/${i}.jpg`);
+    const res = await call({ action: "addEvent", password: "x", title: "X", photos });
+    expect(res.status).toBe(200);
+    expect(siteQueries.addSiteEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        coverUrl: "/images/0.jpg",
+        photos: JSON.stringify(photos.slice(0, 8)),
+      }),
     );
   });
 
@@ -233,6 +251,25 @@ describe("POST /api/admin/website", () => {
     expect(res.status).toBe(200);
     expect(deleteMediaKeys).toHaveBeenCalledWith(["events/old.jpg"]);
     expect(siteQueries.countMediaUrlRefs).toHaveBeenCalledWith("/api/media/events/old.jpg");
+  });
+
+  it("releases one extra R2 photo when the gallery shrinks", async () => {
+    vi.mocked(siteQueries.getSiteEventById).mockResolvedValue({
+      id: 1, date: "x", title: "Old", description: "", tags: "[]",
+      isPast: 0,
+      coverUrl: "/api/media/events/a.jpg",
+      photos: JSON.stringify(["/api/media/events/a.jpg", "/api/media/events/b.jpg", "/api/media/events/c.jpg"]),
+      displayOrder: 0, updatedAt: "",
+    });
+    const res = await call({
+      action: "updateEvent",
+      password: "x",
+      id: 1,
+      coverUrl: "/api/media/events/a.jpg",
+      photos: ["/api/media/events/a.jpg", "/api/media/events/c.jpg"],
+    });
+    expect(res.status).toBe(200);
+    expect(deleteMediaKeys).toHaveBeenCalledWith(["events/b.jpg"]);
   });
 
   it("deletes R2 objects when an event is removed", async () => {
@@ -434,6 +471,16 @@ describe("POST /api/admin/website", () => {
     const stat = await call({ action: "discardMedia", password: "x", url: "/images/a.jpg" });
     expect(stat.status).toBe(200);
     expect(deleteMediaKeys).not.toHaveBeenCalled();
+  });
+
+  it("discards a batch of pending uploads", async () => {
+    const res = await call({
+      action: "discardMedia",
+      password: "x",
+      urls: ["/api/media/events/a.jpg", "/api/media/events/b.jpg", "/images/skip.jpg"],
+    });
+    expect(res.status).toBe(200);
+    expect(deleteMediaKeys).toHaveBeenCalledWith(["events/a.jpg", "events/b.jpg"]);
   });
 });
 

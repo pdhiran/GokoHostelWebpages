@@ -1,24 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useId, useState, type Dispatch, type SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AdminLoading } from "./AdminLoading";
-import { SiteImageField } from "./SiteImageField";
+import { SiteImageField, SiteImageGallery } from "./SiteImageField";
 import { useAdminToast } from "./AdminToast";
 import { cn } from "@/lib/utils";
-import { ICON_NAMES } from "@/components/ui/Icon";
+import { Icon, ICON_NAMES } from "@/components/ui/Icon";
 import {
   defaultCommunityCopy,
   defaultEventsCopy,
+  mergeGallery,
   parseJsonArray,
   type CommunityPageCopy,
   type EventsPageCopy,
 } from "@/lib/siteCopy";
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ExternalLinkIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import type { Role } from "./types";
+import { isMediaUrl } from "@/lib/mediaKeys";
 
 type EventRow = {
   id: number;
@@ -48,23 +51,38 @@ type EventForm = {
   description: string;
   tags: string;
   isPast: boolean;
-  coverUrl: string;
   photos: string[];
 };
 
 const emptyEvent: EventForm = {
-  date: "", title: "", description: "", tags: "", isPast: false, coverUrl: "", photos: [],
+  date: "", title: "", description: "", tags: "", isPast: false, photos: [],
 };
 
 type SpaceForm = {
   title: string;
   icon: string;
   description: string;
-  imageUrl: string;
   photos: string[];
 };
 
-const emptySpace: SpaceForm = { title: "", icon: "sofa", description: "", imageUrl: "", photos: [] };
+const emptySpace: SpaceForm = { title: "", icon: "sofa", description: "", photos: [] };
+
+function rowGallery(cover: string, photos: string) {
+  return mergeGallery(cover, parseJsonArray(photos));
+}
+
+function discardUnsavedMedia(urls: string[], keep: string[], password: string, username?: string) {
+  const keepSet = new Set(keep);
+  const drop = urls.filter((url) => isMediaUrl(url) && !keepSet.has(url));
+  if (!drop.length) return;
+  const payload: Record<string, unknown> = { password, action: "discardMedia", urls: drop };
+  if (username) payload.username = username;
+  void fetch("/api/admin/website", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
 
 export function AdminWebsite({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { showError, showSuccess } = useAdminToast();
@@ -81,10 +99,12 @@ export function AdminWebsite({ password, username, role }: { password: string; u
   const [eventForm, setEventForm] = useState<EventForm>(emptyEvent);
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [showEventForm, setShowEventForm] = useState(false);
+  const [savedEventPhotos, setSavedEventPhotos] = useState<string[]>([]);
 
   const [spaceForm, setSpaceForm] = useState<SpaceForm>(emptySpace);
   const [editingSpaceId, setEditingSpaceId] = useState<number | null>(null);
   const [showSpaceForm, setShowSpaceForm] = useState(false);
+  const [savedSpacePhotos, setSavedSpacePhotos] = useState<string[]>([]);
 
   const apiCall = useCallback(async (body: Record<string, unknown>) => {
     const payload: Record<string, unknown> = { password, ...body };
@@ -133,7 +153,7 @@ export function AdminWebsite({ password, username, role }: { password: string; u
   if (loadError) {
     const piOrMigrate = /live site|no such table|not bound/i.test(loadError);
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
         <p className="font-medium">Could not load website content</p>
         <p className="mt-1">{loadError}</p>
         {piOrMigrate ? (
@@ -187,14 +207,14 @@ export function AdminWebsite({ password, username, role }: { password: string; u
     if (!eventForm.title.trim()) { showError("Title is required"); return; }
     setSaving(true);
     try {
-      const photos = eventForm.photos.length ? eventForm.photos : (eventForm.coverUrl ? [eventForm.coverUrl] : []);
+      const photos = eventForm.photos;
       const payload = {
         date: eventForm.date,
         title: eventForm.title,
         description: eventForm.description,
         tags: eventForm.tags,
         isPast: eventForm.isPast,
-        coverUrl: eventForm.coverUrl,
+        coverUrl: photos[0] || "",
         photos,
       };
       const res = editingEventId
@@ -205,6 +225,8 @@ export function AdminWebsite({ password, username, role }: { password: string; u
       showSuccess(editingEventId ? "Event updated" : "Event added");
       setShowEventForm(false);
       setEditingEventId(null);
+      setEventForm(emptyEvent);
+      setSavedEventPhotos([]);
       await loadAll();
     } catch {
       showError("Could not reach the website CMS");
@@ -215,12 +237,12 @@ export function AdminWebsite({ password, username, role }: { password: string; u
     if (!spaceForm.title.trim()) { showError("Title is required"); return; }
     setSaving(true);
     try {
-      const photos = spaceForm.photos.length ? spaceForm.photos : (spaceForm.imageUrl ? [spaceForm.imageUrl] : []);
+      const photos = spaceForm.photos;
       const payload = {
         title: spaceForm.title,
         icon: spaceForm.icon,
         description: spaceForm.description,
-        imageUrl: spaceForm.imageUrl,
+        imageUrl: photos[0] || "",
         photos,
       };
       const res = editingSpaceId
@@ -231,6 +253,8 @@ export function AdminWebsite({ password, username, role }: { password: string; u
       showSuccess(editingSpaceId ? "Space updated" : "Space added");
       setShowSpaceForm(false);
       setEditingSpaceId(null);
+      setSpaceForm(emptySpace);
+      setSavedSpacePhotos([]);
       await loadAll();
     } catch {
       showError("Could not reach the website CMS");
@@ -238,6 +262,7 @@ export function AdminWebsite({ password, username, role }: { password: string; u
   };
 
   const deleteItem = async (action: "deleteEvent" | "deleteSpace", id: number, okMsg: string) => {
+    setSaving(true);
     try {
       const res = await apiCall({ action, id });
       const data = await res.json();
@@ -245,31 +270,96 @@ export function AdminWebsite({ password, username, role }: { password: string; u
       else { showSuccess(okMsg); await loadAll(); }
     } catch {
       showError("Could not reach the website CMS");
-    }
+    } finally { setSaving(false); }
   };
 
+  const cancelEventEditor = () => {
+    discardUnsavedMedia(eventForm.photos, savedEventPhotos, password, username);
+    setShowEventForm(false);
+    setEditingEventId(null);
+    setEventForm(emptyEvent);
+    setSavedEventPhotos([]);
+  };
+
+  const openEventEditor = (row: EventRow | null) => {
+    discardUnsavedMedia(eventForm.photos, savedEventPhotos, password, username);
+    if (!row) {
+      setEventForm(emptyEvent);
+      setEditingEventId(null);
+      setSavedEventPhotos([]);
+    } else {
+      const photos = rowGallery(row.coverUrl, row.photos);
+      setEventForm({
+        date: row.date, title: row.title, description: row.description,
+        tags: parseJsonArray(row.tags).join(", "), isPast: Boolean(row.isPast),
+        photos,
+      });
+      setEditingEventId(row.id);
+      setSavedEventPhotos(photos);
+    }
+    setShowEventForm(true);
+  };
+
+  const cancelSpaceEditor = () => {
+    discardUnsavedMedia(spaceForm.photos, savedSpacePhotos, password, username);
+    setShowSpaceForm(false);
+    setEditingSpaceId(null);
+    setSpaceForm(emptySpace);
+    setSavedSpacePhotos([]);
+  };
+
+  const openSpaceEditor = (row: SpaceRow | null) => {
+    discardUnsavedMedia(spaceForm.photos, savedSpacePhotos, password, username);
+    if (!row) {
+      setSpaceForm(emptySpace);
+      setEditingSpaceId(null);
+      setSavedSpacePhotos([]);
+    } else {
+      const photos = rowGallery(row.imageUrl, row.photos);
+      setSpaceForm({
+        title: row.title, icon: row.icon, description: row.description, photos,
+      });
+      setEditingSpaceId(row.id);
+      setSavedSpacePhotos(photos);
+    }
+    setShowSpaceForm(true);
+  };
+
+  const liveHref = tab === "events" ? "/events" : "/community-area";
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="font-display text-lg font-bold text-brand-green">Website pages</h3>
-        <p className="mt-1 text-sm text-brand-green-dark/70">
-          Edit Events and Community Area. Uploads preview here; they go live when you save — no deploy needed.
-          {" "}<a href="/events" target="_blank" rel="noreferrer" className="underline">Open Events</a>
-          {" · "}
-          <a href="/community-area" target="_blank" rel="noreferrer" className="underline">Open Community Area</a>
-        </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="font-display text-lg font-bold text-brand-green">Website</h3>
+          <p className="mt-1 max-w-xl text-sm text-brand-green-dark/70">
+            What guests see on Events and Community Area. Photos preview here; they go live when you save.
+          </p>
+        </div>
+        <a
+          href={liveHref}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 self-start rounded-full border border-brand-mist bg-white px-3 py-1.5 text-xs font-medium text-brand-green hover:bg-brand-sand/60"
+        >
+          View live page <ExternalLinkIcon className="size-3.5" />
+        </a>
       </div>
 
-      <div className="flex gap-1.5 rounded-xl border border-brand-mist bg-white p-1.5">
+      <div className="flex gap-1 rounded-2xl border border-brand-mist bg-brand-sand/40 p-1" role="tablist" aria-label="Website pages">
         {(["events", "community"] as const).map((id) => (
           <button
             key={id}
             type="button"
+            role="tab"
+            aria-selected={tab === id}
             disabled={locked}
             onClick={() => setTab(id)}
             className={cn(
-              "rounded-lg px-4 py-2 text-sm font-medium",
-              tab === id ? "bg-brand-green/10 text-brand-green" : "text-brand-green-dark/60 hover:bg-brand-sand/50",
+              "flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors",
+              tab === id
+                ? "bg-white text-brand-green shadow-sm"
+                : "text-brand-green-dark/60 hover:text-brand-green-dark",
             )}
           >
             {id === "events" ? "Events" : "Community Area"}
@@ -278,23 +368,41 @@ export function AdminWebsite({ password, username, role }: { password: string; u
       </div>
 
       {tab === "events" && (
-        <div className="space-y-8">
-          <section className="space-y-4 rounded-xl border border-brand-mist bg-white p-4 md:p-6">
-            <h4 className="font-semibold text-brand-green-dark">Page text</h4>
-            <Field label="Hero title" value={eventsCopy.hero.title} onChange={(v) => setEventsCopy({ ...eventsCopy, hero: { ...eventsCopy.hero, title: v } })} />
-            <Area label="Hero subtitle" value={eventsCopy.hero.subtitle} onChange={(v) => setEventsCopy({ ...eventsCopy, hero: { ...eventsCopy.hero, subtitle: v } })} />
-            <Field label="Chips (comma separated)" value={eventsCopy.hero.chips.join(", ")} onChange={(v) => setEventsCopy({ ...eventsCopy, hero: { ...eventsCopy.hero, chips: v.split(",").map((s) => s.trim()).filter(Boolean) } })} />
-            <SiteImageField label="Hero still image (reduced-motion fallback — looping video is not edited here)" value={eventsCopy.hero.ribbonImage} kind="hero" folder="heroes" password={password} username={username} onBusy={onBusy} onChange={(url) => setEventsCopy((prev) => ({ ...prev, hero: { ...prev.hero, ribbonImage: url } }))} />
-            <Field label="Bottom CTA title" value={eventsCopy.pastCta.title} onChange={(v) => setEventsCopy({ ...eventsCopy, pastCta: { ...eventsCopy.pastCta, title: v } })} />
-            <Area label="Bottom CTA text" value={eventsCopy.pastCta.body} onChange={(v) => setEventsCopy({ ...eventsCopy, pastCta: { ...eventsCopy.pastCta, body: v } })} />
-            <Button type="button" onClick={saveEventsCopy} disabled={locked}>{saving ? "Saving…" : busyUploads ? "Uploading…" : "Save page text"}</Button>
+        <div className="flex flex-col gap-8">
+          <section className="overflow-hidden rounded-2xl border border-brand-mist bg-white">
+            <HeroPreview
+              image={eventsCopy.hero.ribbonImage}
+              title={eventsCopy.hero.title}
+              subtitle={eventsCopy.hero.subtitle}
+            />
+            <div className="flex flex-col gap-4 p-4 md:p-6">
+              <div>
+                <h4 className="font-display text-base font-semibold text-brand-green-dark">Page look</h4>
+                <p className="text-xs text-brand-green-dark/55">Hero still is the fallback when video does not play. Looping video stays in code.</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Hero title" value={eventsCopy.hero.title} onChange={(v) => setEventsCopy({ ...eventsCopy, hero: { ...eventsCopy.hero, title: v } })} />
+                <Field label="Chips (comma separated)" value={eventsCopy.hero.chips.join(", ")} onChange={(v) => setEventsCopy({ ...eventsCopy, hero: { ...eventsCopy.hero, chips: v.split(",").map((s) => s.trim()).filter(Boolean) } })} />
+                <div className="md:col-span-2">
+                  <Area label="Hero subtitle" value={eventsCopy.hero.subtitle} onChange={(v) => setEventsCopy({ ...eventsCopy, hero: { ...eventsCopy.hero, subtitle: v } })} />
+                </div>
+                <div className="md:col-span-2">
+                  <SiteImageField label="Hero still image" value={eventsCopy.hero.ribbonImage} kind="hero" folder="heroes" password={password} username={username} onBusy={onBusy} disabled={locked} onChange={(url) => setEventsCopy((prev) => ({ ...prev, hero: { ...prev.hero, ribbonImage: url } }))} />
+                </div>
+                <Field label="Bottom CTA title" value={eventsCopy.pastCta.title} onChange={(v) => setEventsCopy({ ...eventsCopy, pastCta: { ...eventsCopy.pastCta, title: v } })} />
+                <Area label="Bottom CTA text" value={eventsCopy.pastCta.body} onChange={(v) => setEventsCopy({ ...eventsCopy, pastCta: { ...eventsCopy.pastCta, body: v } })} />
+              </div>
+              <div>
+                <Button type="button" onClick={saveEventsCopy} disabled={locked}>{saving ? "Saving…" : busyUploads ? "Uploading…" : "Save page look"}</Button>
+              </div>
+            </div>
           </section>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-brand-green-dark">Events</h4>
-              <Button type="button" size="sm" disabled={locked} onClick={() => { setEventForm(emptyEvent); setEditingEventId(null); setShowEventForm(true); }}>
-                <PlusIcon className="mr-1 h-4 w-4" /> Add event
+          <section className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="font-display text-base font-semibold text-brand-green-dark">Event cards</h4>
+              <Button type="button" size="sm" disabled={locked} onClick={() => openEventEditor(null)}>
+                <PlusIcon className="mr-1 size-4" /> Add event
               </Button>
             </div>
             {showEventForm && (
@@ -306,43 +414,32 @@ export function AdminWebsite({ password, username, role }: { password: string; u
                 username={username}
                 saving={locked}
                 uploading={busyUploads > 0}
+                editing={editingEventId != null}
                 onBusy={onBusy}
                 onSave={saveEvent}
-                onCancel={() => { setShowEventForm(false); setEditingEventId(null); }}
+                onCancel={cancelEventEditor}
               />
             )}
-            <EventList
+            <EventGrid
               title="Upcoming"
               rows={upcoming}
               locked={locked}
-              onEdit={(row) => {
-                setEventForm({
-                  date: row.date, title: row.title, description: row.description,
-                  tags: parseJsonArray(row.tags).join(", "), isPast: false,
-                  coverUrl: row.coverUrl, photos: parseJsonArray(row.photos),
-                });
-                setEditingEventId(row.id);
-                setShowEventForm(true);
-              }}
+              editingId={editingEventId}
+              onEdit={(row) => openEventEditor(row)}
               onDelete={async (row) => {
+                if (editingEventId === row.id) return;
                 if (!confirm(`Delete “${row.title}”?`)) return;
                 await deleteItem("deleteEvent", row.id, "Event deleted");
               }}
             />
-            <EventList
-              title="Past"
+            <EventGrid
+              title="Past / memories"
               rows={past}
               locked={locked}
-              onEdit={(row) => {
-                setEventForm({
-                  date: row.date, title: row.title, description: row.description,
-                  tags: parseJsonArray(row.tags).join(", "), isPast: true,
-                  coverUrl: row.coverUrl, photos: parseJsonArray(row.photos),
-                });
-                setEditingEventId(row.id);
-                setShowEventForm(true);
-              }}
+              editingId={editingEventId}
+              onEdit={(row) => openEventEditor(row)}
               onDelete={async (row) => {
+                if (editingEventId === row.id) return;
                 if (!confirm(`Delete “${row.title}”?`)) return;
                 await deleteItem("deleteEvent", row.id, "Event deleted");
               }}
@@ -352,107 +449,170 @@ export function AdminWebsite({ password, username, role }: { password: string; u
       )}
 
       {tab === "community" && (
-        <div className="space-y-8">
-          <section className="space-y-4 rounded-xl border border-brand-mist bg-white p-4 md:p-6">
-            <h4 className="font-semibold text-brand-green-dark">Page text</h4>
-            <Field label="Hero title" value={communityCopy.hero.title} onChange={(v) => setCommunityCopy({ ...communityCopy, hero: { ...communityCopy.hero, title: v } })} />
-            <Area label="Hero subtitle" value={communityCopy.hero.subtitle} onChange={(v) => setCommunityCopy({ ...communityCopy, hero: { ...communityCopy.hero, subtitle: v } })} />
-            <SiteImageField label="Hero still (reduced-motion fallback — looping video is not edited here)" value={communityCopy.hero.ribbonImage} kind="hero" folder="heroes" password={password} username={username} onBusy={onBusy} onChange={(url) => setCommunityCopy((prev) => ({ ...prev, hero: { ...prev.hero, ribbonImage: url } }))} />
-            <Field label="Intro title" value={communityCopy.intro.title} onChange={(v) => setCommunityCopy({ ...communityCopy, intro: { ...communityCopy.intro, title: v } })} />
-            <Area label="Intro paragraph" value={communityCopy.intro.paragraph} onChange={(v) => setCommunityCopy({ ...communityCopy, intro: { ...communityCopy.intro, paragraph: v } })} />
-            <Field label="Activities title" value={communityCopy.activities.title} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, title: v } })} />
-            <Field label="Activities subtitle" value={communityCopy.activities.subtitle} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, subtitle: v } })} />
-            <Field label="Activity badges (comma separated)" value={communityCopy.activities.badges.join(", ")} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, badges: v.split(",").map((s) => s.trim()).filter(Boolean) } })} />
-            <Field label="Weekly rhythm title" value={communityCopy.activities.rhythmTitle} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, rhythmTitle: v } })} />
-            <Area label="Weekly rhythm intro" value={communityCopy.activities.rhythmIntro} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, rhythmIntro: v } })} />
-            <div className="space-y-2">
-              <Label>Weekly schedule</Label>
-              {communityCopy.activities.weekly.map((w, i) => (
-                <div key={i} className="grid gap-2 sm:grid-cols-[8rem_1fr]">
-                  <Input value={w.label} onChange={(e) => {
-                    const weekly = communityCopy.activities.weekly.map((row, idx) => idx === i ? { ...row, label: e.target.value } : row);
-                    setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, weekly } });
-                  }} />
-                  <Input value={w.text} onChange={(e) => {
-                    const weekly = communityCopy.activities.weekly.map((row, idx) => idx === i ? { ...row, text: e.target.value } : row);
-                    setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, weekly } });
-                  }} />
+        <div className="flex flex-col gap-8">
+          <section className="overflow-hidden rounded-2xl border border-brand-mist bg-white">
+            <HeroPreview
+              image={communityCopy.hero.ribbonImage}
+              title={communityCopy.hero.title}
+              subtitle={communityCopy.hero.subtitle}
+            />
+            <div className="flex flex-col gap-4 p-4 md:p-6">
+              <h4 className="font-display text-base font-semibold text-brand-green-dark">Page look</h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Hero title" value={communityCopy.hero.title} onChange={(v) => setCommunityCopy({ ...communityCopy, hero: { ...communityCopy.hero, title: v } })} />
+                <div className="md:col-span-2">
+                  <Area label="Hero subtitle" value={communityCopy.hero.subtitle} onChange={(v) => setCommunityCopy({ ...communityCopy, hero: { ...communityCopy.hero, subtitle: v } })} />
                 </div>
-              ))}
-            </div>
-            <div className="space-y-3">
-              <Label>Special event cards</Label>
-              {communityCopy.specialEvents.cards.map((c, i) => (
-                <div key={i} className="space-y-2 rounded-lg border border-brand-mist p-3">
-                  <Input value={c.title} onChange={(e) => {
-                    const cards = communityCopy.specialEvents.cards.map((row, idx) => idx === i ? { ...row, title: e.target.value } : row);
-                    setCommunityCopy({ ...communityCopy, specialEvents: { ...communityCopy.specialEvents, cards } });
-                  }} />
-                  <Textarea value={c.description} onChange={(e) => {
-                    const cards = communityCopy.specialEvents.cards.map((row, idx) => idx === i ? { ...row, description: e.target.value } : row);
-                    setCommunityCopy({ ...communityCopy, specialEvents: { ...communityCopy.specialEvents, cards } });
-                  }} />
+                <div className="md:col-span-2">
+                  <SiteImageField label="Hero still (video stays in code)" value={communityCopy.hero.ribbonImage} kind="hero" folder="heroes" password={password} username={username} onBusy={onBusy} disabled={locked} onChange={(url) => setCommunityCopy((prev) => ({ ...prev, hero: { ...prev.hero, ribbonImage: url } }))} />
                 </div>
-              ))}
+              </div>
+
+              <details className="rounded-xl border border-brand-mist bg-brand-sand/20 p-4 open:bg-white">
+                <summary className="cursor-pointer font-medium text-brand-green-dark">Intro</summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  <Field label="Intro title" value={communityCopy.intro.title} onChange={(v) => setCommunityCopy({ ...communityCopy, intro: { ...communityCopy.intro, title: v } })} />
+                  <Area label="Intro paragraph" value={communityCopy.intro.paragraph} onChange={(v) => setCommunityCopy({ ...communityCopy, intro: { ...communityCopy.intro, paragraph: v } })} />
+                </div>
+              </details>
+
+              <details className="rounded-xl border border-brand-mist bg-brand-sand/20 p-4 open:bg-white">
+                <summary className="cursor-pointer font-medium text-brand-green-dark">Activities & weekly rhythm</summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  <Field label="Activities title" value={communityCopy.activities.title} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, title: v } })} />
+                  <Field label="Activities subtitle" value={communityCopy.activities.subtitle} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, subtitle: v } })} />
+                  <Field label="Activity badges (comma separated)" value={communityCopy.activities.badges.join(", ")} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, badges: v.split(",").map((s) => s.trim()).filter(Boolean) } })} />
+                  <Field label="Weekly rhythm title" value={communityCopy.activities.rhythmTitle} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, rhythmTitle: v } })} />
+                  <Area label="Weekly rhythm intro" value={communityCopy.activities.rhythmIntro} onChange={(v) => setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, rhythmIntro: v } })} />
+                  <div className="flex flex-col gap-2">
+                    <Label>Weekly schedule</Label>
+                    {communityCopy.activities.weekly.map((w, i) => (
+                      <div key={i} className="grid gap-2 sm:grid-cols-[8rem_1fr]">
+                        <Input value={w.label} onChange={(e) => {
+                          const weekly = communityCopy.activities.weekly.map((row, idx) => idx === i ? { ...row, label: e.target.value } : row);
+                          setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, weekly } });
+                        }} />
+                        <Input value={w.text} onChange={(e) => {
+                          const weekly = communityCopy.activities.weekly.map((row, idx) => idx === i ? { ...row, text: e.target.value } : row);
+                          setCommunityCopy({ ...communityCopy, activities: { ...communityCopy.activities, weekly } });
+                        }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </details>
+
+              <details className="rounded-xl border border-brand-mist bg-brand-sand/20 p-4 open:bg-white">
+                <summary className="cursor-pointer font-medium text-brand-green-dark">Special event cards</summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {communityCopy.specialEvents.cards.map((c, i) => (
+                    <div key={i} className="flex flex-col gap-2 rounded-xl border border-brand-mist p-3">
+                      <Input value={c.title} onChange={(e) => {
+                        const cards = communityCopy.specialEvents.cards.map((row, idx) => idx === i ? { ...row, title: e.target.value } : row);
+                        setCommunityCopy({ ...communityCopy, specialEvents: { ...communityCopy.specialEvents, cards } });
+                      }} />
+                      <Textarea value={c.description} onChange={(e) => {
+                        const cards = communityCopy.specialEvents.cards.map((row, idx) => idx === i ? { ...row, description: e.target.value } : row);
+                        setCommunityCopy({ ...communityCopy, specialEvents: { ...communityCopy.specialEvents, cards } });
+                      }} />
+                    </div>
+                  ))}
+                </div>
+              </details>
+
+              <div>
+                <Button type="button" onClick={saveCommunityCopy} disabled={locked}>{saving ? "Saving…" : busyUploads ? "Uploading…" : "Save page look"}</Button>
+              </div>
             </div>
-            <Button type="button" onClick={saveCommunityCopy} disabled={locked}>{saving ? "Saving…" : busyUploads ? "Uploading…" : "Save page text"}</Button>
           </section>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-brand-green-dark">Common spaces</h4>
-              <Button type="button" size="sm" disabled={locked} onClick={() => { setSpaceForm(emptySpace); setEditingSpaceId(null); setShowSpaceForm(true); }}>
-                <PlusIcon className="mr-1 h-4 w-4" /> Add space
+          <section className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="font-display text-base font-semibold text-brand-green-dark">Common spaces</h4>
+              <Button type="button" size="sm" disabled={locked} onClick={() => openSpaceEditor(null)}>
+                <PlusIcon className="mr-1 size-4" /> Add space
               </Button>
             </div>
             {showSpaceForm && (
-              <div key={editingSpaceId ?? "new"} className="space-y-3 rounded-xl border border-brand-mist bg-white p-4">
-                <Field label="Title" value={spaceForm.title} onChange={(v) => setSpaceForm({ ...spaceForm, title: v })} />
-                <div className="space-y-1.5">
+              <div key={editingSpaceId ?? "new"} className="flex flex-col gap-4 rounded-2xl border border-brand-green/20 bg-white p-4 shadow-sm md:p-6">
+                <p className="text-sm font-medium text-brand-green">{editingSpaceId ? "Edit space" : "New space"}</p>
+                <Field label="Title" value={spaceForm.title} onChange={(v) => setSpaceForm((prev) => ({ ...prev, title: v }))} />
+                <div className="flex flex-col gap-1.5">
                   <Label>Icon</Label>
-                  <select
-                    className="h-10 w-full rounded-md border border-brand-mist bg-white px-3 text-sm"
-                    value={spaceForm.icon}
-                    onChange={(e) => setSpaceForm({ ...spaceForm, icon: e.target.value })}
-                  >
-                    {ICON_NAMES.map((name) => <option key={name} value={name}>{name}</option>)}
-                  </select>
+                  <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
+                    {ICON_NAMES.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        title={name}
+                        aria-label={name}
+                        onClick={() => setSpaceForm((prev) => ({ ...prev, icon: name }))}
+                        className={cn(
+                          "flex size-10 items-center justify-center rounded-xl border text-brand-green-dark transition-colors",
+                          spaceForm.icon === name
+                            ? "border-brand-green bg-brand-green/10 text-brand-green"
+                            : "border-brand-mist hover:bg-brand-sand/50",
+                        )}
+                      >
+                        <Icon name={name} className="size-5" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <Area label="Description" value={spaceForm.description} onChange={(v) => setSpaceForm({ ...spaceForm, description: v })} />
-                <SiteImageField label="Cover photo" value={spaceForm.imageUrl} kind="card" folder="community" password={password} username={username} onBusy={onBusy} onChange={(url) => setSpaceForm((prev) => ({ ...prev, imageUrl: url, photos: url ? [url] : [] }))} />
+                <Area label="Description" value={spaceForm.description} onChange={(v) => setSpaceForm((prev) => ({ ...prev, description: v }))} />
+                <SiteImageGallery
+                  label="Photos"
+                  values={spaceForm.photos}
+                  kind="card"
+                  folder="community"
+                  password={password}
+                  username={username}
+                  onBusy={onBusy}
+                  disabled={locked}
+                  onChange={(photos) => setSpaceForm((prev) => ({ ...prev, photos }))}
+                />
                 <div className="flex gap-2">
                   <Button type="button" onClick={saveSpace} disabled={locked}>{saving ? "Saving…" : busyUploads ? "Uploading…" : editingSpaceId ? "Save space" : "Add space"}</Button>
-                  <Button type="button" variant="outline" disabled={locked} onClick={() => { setShowSpaceForm(false); setEditingSpaceId(null); }}>Cancel</Button>
+                  <Button type="button" variant="outline" disabled={locked} onClick={cancelSpaceEditor}>Cancel</Button>
                 </div>
               </div>
             )}
-            {spaces.length === 0 ? <p className="text-sm text-brand-green-dark/50">None yet.</p> : null}
-            <ul className="space-y-2">
-              {spaces.map((row) => (
-                <li key={row.id} className="flex items-center gap-3 rounded-xl border border-brand-mist bg-white p-3">
-                  {row.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={row.imageUrl} alt="" className="h-14 w-20 rounded-md object-cover" />
-                  ) : <div className="h-14 w-20 rounded-md bg-brand-sand" />}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-brand-green-dark">{row.title}</p>
-                    <p className="truncate text-xs text-brand-green-dark/60">{row.description}</p>
-                  </div>
-                  <Button type="button" size="icon-sm" variant="ghost" disabled={locked} onClick={() => {
-                    setSpaceForm({
-                      title: row.title, icon: row.icon, description: row.description,
-                      imageUrl: row.imageUrl, photos: parseJsonArray(row.photos),
-                    });
-                    setEditingSpaceId(row.id);
-                    setShowSpaceForm(true);
-                  }}><PencilIcon className="h-4 w-4" /></Button>
-                  <Button type="button" size="icon-sm" variant="ghost" disabled={locked} onClick={async () => {
-                    if (!confirm(`Delete “${row.title}”?`)) return;
-                    await deleteItem("deleteSpace", row.id, "Space deleted");
-                  }}><Trash2Icon className="h-4 w-4" /></Button>
-                </li>
-              ))}
-            </ul>
+            {spaces.length === 0 ? <p className="text-sm text-brand-green-dark/50">None yet.</p> : (
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {spaces.map((row) => {
+                  const photos = rowGallery(row.imageUrl, row.photos);
+                  return (
+                    <li key={row.id} className="overflow-hidden rounded-2xl border border-brand-mist bg-white">
+                      <div className="relative aspect-[16/10] bg-brand-sand">
+                        {photos[0] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={photos[0]} alt="" className="size-full object-cover" />
+                        ) : null}
+                        {photos.length > 1 ? (
+                          <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
+                            {photos.length} photos
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="flex items-start gap-2 p-3">
+                        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-green/10 text-brand-green">
+                          <Icon name={row.icon} className="size-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-brand-green-dark">{row.title}</p>
+                          <p className="line-clamp-2 text-xs text-brand-green-dark/60">{row.description}</p>
+                        </div>
+                        <Button type="button" size="icon-sm" variant="ghost" disabled={locked} aria-label={`Edit ${row.title}`} onClick={() => openSpaceEditor(row)}><PencilIcon className="size-4" /></Button>
+                        <Button type="button" size="icon-sm" variant="ghost" disabled={locked || editingSpaceId === row.id} aria-label={`Delete ${row.title}`} onClick={async () => {
+                          if (!confirm(`Delete “${row.title}”?`)) return;
+                          await deleteItem("deleteSpace", row.id, "Space deleted");
+                        }}><Trash2Icon className="size-4" /></Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </div>
       )}
@@ -460,26 +620,44 @@ export function AdminWebsite({ password, username, role }: { password: string; u
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function HeroPreview({ image, title, subtitle }: { image: string; title: string; subtitle: string }) {
   return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} />
+    <div className="relative aspect-[16/9] max-h-56 w-full overflow-hidden bg-brand-green-dark sm:max-h-64">
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt="" className="size-full object-cover" />
+      ) : null}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 p-4 md:p-6">
+        <p className="font-display text-xl font-bold text-white drop-shadow md:text-2xl">{title || "Hero title"}</p>
+        {subtitle ? <p className="mt-1 line-clamp-2 text-sm text-white/85">{subtitle}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const id = useId();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
 
 function Area({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const id = useId();
   return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Textarea value={value} onChange={(e) => onChange(e.target.value)} rows={3} />
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} rows={3} />
     </div>
   );
 }
 
 function EventEditor({
-  form, setForm, password, username, saving, uploading, onBusy, onSave, onCancel,
+  form, setForm, password, username, saving, uploading, editing, onBusy, onSave, onCancel,
 }: {
   form: EventForm;
   setForm: Dispatch<SetStateAction<EventForm>>;
@@ -487,30 +665,43 @@ function EventEditor({
   username?: string;
   saving: boolean;
   uploading: boolean;
+  editing: boolean;
   onBusy: (busy: boolean) => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
   return (
-    <div className="space-y-3 rounded-xl border border-brand-mist bg-white p-4">
-      <Field label="Date (as shown on the card)" value={form.date} onChange={(v) => setForm((prev) => ({ ...prev, date: v }))} />
-      <Field label="Title" value={form.title} onChange={(v) => setForm((prev) => ({ ...prev, title: v }))} />
-      <Area label="Description" value={form.description} onChange={(v) => setForm((prev) => ({ ...prev, description: v }))} />
-      <Field label="Tags (comma separated)" value={form.tags} onChange={(v) => setForm((prev) => ({ ...prev, tags: v }))} />
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={form.isPast} onChange={(e) => setForm((prev) => ({ ...prev, isPast: e.target.checked }))} />
-        Past event (moves it to “Memories”)
-      </label>
-      <SiteImageField
-        label="Cover photo"
-        value={form.coverUrl}
-        kind="card"
-        folder="events"
-        password={password}
-        username={username}
-        onBusy={onBusy}
-        onChange={(url) => setForm((prev) => ({ ...prev, coverUrl: url, photos: url ? [url] : [] }))}
-      />
+    <div className="flex flex-col gap-4 rounded-2xl border border-brand-green/20 bg-white p-4 shadow-sm md:p-6">
+      <p className="text-sm font-medium text-brand-green">{editing ? "Edit event" : "New event"}</p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Date (as shown on the card)" value={form.date} onChange={(v) => setForm((prev) => ({ ...prev, date: v }))} />
+        <Field label="Title" value={form.title} onChange={(v) => setForm((prev) => ({ ...prev, title: v }))} />
+        <div className="md:col-span-2">
+          <Area label="Description" value={form.description} onChange={(v) => setForm((prev) => ({ ...prev, description: v }))} />
+        </div>
+        <Field label="Tags (comma separated)" value={form.tags} onChange={(v) => setForm((prev) => ({ ...prev, tags: v }))} />
+        <label className="flex items-center gap-2 self-end pb-2 text-sm text-brand-green-dark">
+          <Checkbox
+            checked={form.isPast}
+            disabled={saving}
+            onCheckedChange={(checked) => setForm((prev) => ({ ...prev, isPast: checked === true }))}
+          />
+          Past event (moves it to Memories)
+        </label>
+        <div className="md:col-span-2">
+          <SiteImageGallery
+            label="Photos"
+            values={form.photos}
+            kind="card"
+            folder="events"
+            password={password}
+            username={username}
+            onBusy={onBusy}
+            disabled={saving}
+            onChange={(photos) => setForm((prev) => ({ ...prev, photos }))}
+          />
+        </div>
+      </div>
       <div className="flex gap-2">
         <Button type="button" onClick={onSave} disabled={saving}>{saving && !uploading ? "Saving…" : uploading ? "Uploading…" : "Save event"}</Button>
         <Button type="button" variant="outline" disabled={saving} onClick={onCancel}>Cancel</Button>
@@ -519,35 +710,49 @@ function EventEditor({
   );
 }
 
-function EventList({
-  title, rows, locked, onEdit, onDelete,
+function EventGrid({
+  title, rows, locked, editingId, onEdit, onDelete,
 }: {
   title: string;
   rows: EventRow[];
   locked: boolean;
+  editingId: number | null;
   onEdit: (row: EventRow) => void;
   onDelete: (row: EventRow) => void;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-brand-green-dark/50">{title}</p>
-      {rows.length === 0 ? <p className="text-sm text-brand-green-dark/50">None yet.</p> : null}
-      <ul className="space-y-2">
-        {rows.map((row) => (
-          <li key={row.id} className="flex items-center gap-3 rounded-xl border border-brand-mist bg-white p-3">
-            {row.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={row.coverUrl} alt="" className="h-14 w-20 rounded-md object-cover" />
-            ) : <div className="h-14 w-20 rounded-md bg-brand-sand" />}
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-brand-green-dark">{row.title}</p>
-              <p className="text-xs text-brand-red">{row.date}</p>
-            </div>
-            <Button type="button" size="icon-sm" variant="ghost" disabled={locked} onClick={() => onEdit(row)}><PencilIcon className="h-4 w-4" /></Button>
-            <Button type="button" size="icon-sm" variant="ghost" disabled={locked} onClick={() => onDelete(row)}><Trash2Icon className="h-4 w-4" /></Button>
-          </li>
-        ))}
-      </ul>
+      {rows.length === 0 ? <p className="text-sm text-brand-green-dark/50">None yet.</p> : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {rows.map((row) => {
+            const photos = rowGallery(row.coverUrl, row.photos);
+            return (
+              <li key={row.id} className="overflow-hidden rounded-2xl border border-brand-mist bg-white">
+                <div className="relative aspect-[16/10] bg-brand-sand">
+                  {photos[0] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photos[0]} alt="" className="size-full object-cover" />
+                  ) : null}
+                  {photos.length > 1 ? (
+                    <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
+                      {photos.length} photos
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex items-start gap-2 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-brand-green-dark">{row.title}</p>
+                    <p className="text-xs text-brand-red">{row.date}</p>
+                  </div>
+                  <Button type="button" size="icon-sm" variant="ghost" disabled={locked} aria-label={`Edit ${row.title}`} onClick={() => onEdit(row)}><PencilIcon className="size-4" /></Button>
+                  <Button type="button" size="icon-sm" variant="ghost" disabled={locked || editingId === row.id} aria-label={`Delete ${row.title}`} onClick={() => onDelete(row)}><Trash2Icon className="size-4" /></Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

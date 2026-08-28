@@ -72,6 +72,21 @@ export function parseJsonArray(raw: string): string[] {
   }
 }
 
+export const SITE_GALLERY_MAX = 8;
+
+/** Cover first, then extras; drop blanks and duplicates. Cap matches the admin gallery. */
+export function mergeGallery(cover: string, photos: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const url of [cover, ...photos]) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+    if (out.length >= SITE_GALLERY_MAX) break;
+  }
+  return out;
+}
+
 function str(v: unknown, fallback: string): string {
   return typeof v === "string" ? v : fallback;
 }

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { cropRect } from "@/lib/cropRect";
 import { isSafeMediaKey, mediaUrlToKey, releasedMediaKeys, sanitizeSiteImageUrl } from "@/lib/mediaKeys";
-import { parseCommunityCopy, parseEventsCopy, parseJsonArray } from "@/lib/siteCopy";
+import { mergeGallery, parseCommunityCopy, parseEventsCopy, parseJsonArray } from "@/lib/siteCopy";
 import { resolveCommunityPageData, resolveEventsPageData } from "@/lib/siteContent";
 import { upcomingEvents, pastEvents } from "@/content/events";
 import { communitySpaces } from "@/content/community";
@@ -132,6 +132,20 @@ describe("CMS page data resolution", () => {
       copyRaw: null,
     });
     expect(events.upcoming[0].cover).toBe("/images/a.jpg");
+    expect(events.upcoming[0].photos).toEqual(["/images/a.jpg"]);
+  });
+
+  it("keeps a distinct cover in the public slideshow", () => {
+    const events = resolveEventsPageData({
+      rows: [{
+        id: 1, date: "x", title: "Live", description: "",
+        tags: "[]", isPast: 0, coverUrl: "/images/cover.jpg",
+        photos: '["/images/b.jpg"]', displayOrder: 0, updatedAt: "",
+      }],
+      copyRaw: null,
+    });
+    expect(events.upcoming[0].cover).toBe("/images/cover.jpg");
+    expect(events.upcoming[0].photos).toEqual(["/images/cover.jpg", "/images/b.jpg"]);
   });
 
   it("fills missing copy fields instead of crashing", () => {
@@ -142,6 +156,11 @@ describe("CMS page data resolution", () => {
     expect(parseCommunityCopy(null)).toBeNull();
     expect(parseJsonArray("not-array")).toEqual([]);
     expect(parseJsonArray('["a", 1, "b"]')).toEqual(["a", "b"]);
+    expect(mergeGallery("/images/a.jpg", ["/images/a.jpg", "/images/b.jpg"])).toEqual(["/images/a.jpg", "/images/b.jpg"]);
+    expect(mergeGallery("/images/cover.jpg", ["/images/b.jpg"])).toEqual(["/images/cover.jpg", "/images/b.jpg"]);
+    expect(mergeGallery("", ["/images/a.jpg", "/images/a.jpg"])).toEqual(["/images/a.jpg"]);
+    expect(mergeGallery("", [])).toEqual([]);
+    expect(mergeGallery("", Array.from({ length: 9 }, (_, i) => `/images/${i}.jpg`))).toHaveLength(8);
     expect(parseJsonArray('["a", "", "  "]')).toEqual(["a"]);
   });
 

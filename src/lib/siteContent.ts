@@ -12,6 +12,7 @@ import { sanitizeSiteImageUrl } from "@/lib/mediaKeys";
 import {
   defaultCommunityCopy,
   defaultEventsCopy,
+  mergeGallery,
   parseCommunityCopy,
   parseEventsCopy,
   parseJsonArray,
@@ -23,27 +24,32 @@ export type { CommunityPageCopy, EventsPageCopy };
 export { defaultCommunityCopy, defaultEventsCopy, parseJsonArray };
 
 export function eventRowToItem(row: SiteEventRow): EventItem {
-  const photos = parseJsonArray(row.photos).map(sanitizeSiteImageUrl).filter(Boolean);
+  const photos = mergeGallery(
+    sanitizeSiteImageUrl(row.coverUrl),
+    parseJsonArray(row.photos).map(sanitizeSiteImageUrl).filter(Boolean),
+  );
   return {
     date: row.date,
     title: row.title,
     description: row.description,
     tags: parseJsonArray(row.tags),
     past: Boolean(row.isPast),
-    cover: sanitizeSiteImageUrl(row.coverUrl) || photos[0] || undefined,
+    cover: photos[0] || undefined,
     photos,
   };
 }
 
 export function spaceRowToItem(row: SiteCommunitySpaceRow): CommunitySpace {
-  const photos = parseJsonArray(row.photos).map(sanitizeSiteImageUrl).filter(Boolean);
-  const image = sanitizeSiteImageUrl(row.imageUrl) || photos[0] || "";
+  const photos = mergeGallery(
+    sanitizeSiteImageUrl(row.imageUrl),
+    parseJsonArray(row.photos).map(sanitizeSiteImageUrl).filter(Boolean),
+  );
   return {
     title: row.title,
     icon: row.icon,
     description: row.description,
-    image,
-    photos: photos.length ? photos : image ? [image] : [],
+    image: photos[0] || "",
+    photos,
   };
 }
 
