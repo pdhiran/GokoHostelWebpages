@@ -23,5 +23,11 @@
 			"database_name": "goko-hostel-db",
 			"database_id": "03946725-70cb-4c9e-babd-8292e673a7fa"
 		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "goko-media"
+		}
 	]
 }

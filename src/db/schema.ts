@@ -704,3 +704,38 @@ export const inventoryOverrides = sqliteTable("inventory_overrides", {
 }, (table) => [
   uniqueIndex("idx_inventory_overrides_dorm_channel_date").on(table.dormId, table.channelId, table.date),
 ]);
+
+// Customer-facing website CMS (Cloudflare-only; not synced to Pi)
+export const siteEvents = sqliteTable("site_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull().default(""),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  tags: text("tags").notNull().default("[]"),
+  isPast: integer("is_past").notNull().default(0),
+  coverUrl: text("cover_url").notNull().default(""),
+  photos: text("photos").notNull().default("[]"),
+  displayOrder: integer("display_order").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(""),
+}, (table) => [
+  index("idx_site_events_past_order").on(table.isPast, table.displayOrder),
+]);
+
+export const siteCommunitySpaces = sqliteTable("site_community_spaces", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  icon: text("icon").notNull().default("sofa"),
+  description: text("description").notNull().default(""),
+  imageUrl: text("image_url").notNull().default(""),
+  photos: text("photos").notNull().default("[]"),
+  displayOrder: integer("display_order").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(""),
+}, (table) => [
+  index("idx_site_community_spaces_order").on(table.displayOrder),
+]);
+
+export const sitePageCopy = sqliteTable("site_page_copy", {
+  page: text("page").primaryKey(),
+  content: text("content").notNull().default("{}"),
+  updatedAt: text("updated_at").notNull().default(""),
+});

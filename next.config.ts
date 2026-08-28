@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
   ...(isPi ? { output: "standalone" } : {}),
   env: {
     BUILD_VERSION: process.env.BUILD_VERSION || "unknown",
+    NEXT_PUBLIC_GOKO_RUNTIME: process.env.NEXT_PUBLIC_GOKO_RUNTIME || process.env.GOKO_RUNTIME || "cloudflare",
   },
 };
 

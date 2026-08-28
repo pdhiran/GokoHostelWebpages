@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon, WifiIcon, StoreIcon, SlidersHorizontalIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon, WifiIcon, StoreIcon, SlidersHorizontalIcon, GlobeIcon } from "lucide-react";
 import { AdminSetup } from "./AdminSetup";
 import { ManagementUsers } from "./ManagementUsers";
 import { ManagementBackup } from "./ManagementBackup";
@@ -21,6 +21,7 @@ import { ServerSync } from "./ServerSync";
 import { ChannelManager } from "./ChannelManager";
 import { ManagementSalesChannels } from "./ManagementSalesChannels";
 import { ManagementBedConfig } from "./ManagementBedConfig";
+import { AdminWebsite } from "./AdminWebsite";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role, ManagementTab } from "./types";
 
@@ -34,6 +35,7 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "history", label: "History", icon: <HistoryIcon className="h-3.5 w-3.5" /> },
   { id: "rates", label: "Rates", icon: <IndianRupeeIcon className="h-3.5 w-3.5" /> },
   { id: "menu", label: "Menu", icon: <UtensilsIcon className="h-3.5 w-3.5" />, adminOnly: true },
+  { id: "website", label: "Website", icon: <GlobeIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "foodSettings", label: "Food Settings", icon: <SettingsIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "bulkUpload", label: "Bulk Upload", icon: <UploadIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "qrGenerator", label: "QR Codes", icon: <QrCodeIcon className="h-3.5 w-3.5" />, permission: "canUseQRGenerator" },
@@ -46,12 +48,15 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
 
 export function AdminManagement({ password, username, role, permissions = {}, initialTab, onTabUsed }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean>; initialTab?: ManagementTab; onTabUsed?: () => void }) {
   const visibleTabs = TABS.filter((t) => {
+    if (t.id === "website" && process.env.NEXT_PUBLIC_GOKO_RUNTIME === "pi") return false;
     if (t.adminOnly && role !== "admin") return false;
     if (t.permission && role !== "admin" && !permissions[t.permission]) return false;
     return true;
   });
   const defaultTab = visibleTabs[0]?.id || "history";
-  const [tab, setTab] = useTabWithHistory<ManagementTab>("tab", defaultTab);
+  const [tab, setTab] = useTabWithHistory<ManagementTab>("tab", defaultTab, {
+    validValues: visibleTabs.map((t) => t.id),
+  });
 
   useEffect(() => {
     if (initialTab && visibleTabs.some((t) => t.id === initialTab)) {
@@ -149,6 +154,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         {tab === "history" && <AdminBedHistory password={password} username={username} role={role} />}
         {tab === "rates" && <AdminCheckRates password={password} username={username} role={role} />}
         {tab === "menu" && <AdminMenuManagement password={password} username={username} role={role} />}
+        {tab === "website" && visibleTabs.some((t) => t.id === "website") && <AdminWebsite password={password} username={username} role={role} />}
         {tab === "foodSettings" && <AdminFoodSettings password={password} username={username} role={role} />}
         {tab === "bulkUpload" && <AdminBulkImport password={password} username={username} role={role} />}
         {tab === "qrGenerator" && <QRGenerator password={password} username={username} role={role} />}

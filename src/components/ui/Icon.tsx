@@ -52,6 +52,8 @@ const iconMap: Record<string, ComponentType<LucideProps>> = {
   target: Target,
 };
 
+export const ICON_NAMES = Object.keys(iconMap);
+
 export function Icon({
   name,
   className = "h-6 w-6",

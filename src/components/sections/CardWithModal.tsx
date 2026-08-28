@@ -36,8 +36,8 @@ function PhotoCarousel({ photos, alt }: { photos: string[]; alt: string }) {
     <div className="relative">
       <div className="overflow-hidden" ref={emblaRef}>
         <div className="flex touch-pan-y">
-          {photos.map((src) => (
-            <div className="min-w-0 flex-[0_0_100%]" key={src}>
+          {photos.map((src, i) => (
+            <div className="min-w-0 flex-[0_0_100%]" key={`${src}-${i}`}>
               <Image
                 src={src}
                 alt={alt}
@@ -96,7 +96,7 @@ const fallbackImg = "/images/IMG_3345.jpg";
 
 export function EventCard({ ev }: { ev: EventItem }) {
   const [open, setOpen] = useState(false);
-  const photos = ev.photos?.length ? ev.photos : [ev.cover ?? fallbackImg];
+  const photos = ev.photos?.length ? ev.photos : [ev.cover || fallbackImg];
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -111,7 +111,7 @@ export function EventCard({ ev }: { ev: EventItem }) {
       >
         <div className="relative aspect-[16/10] overflow-hidden">
           <Image
-            src={ev.cover ?? fallbackImg}
+            src={ev.cover || fallbackImg}
             alt=""
             fill
             className="object-cover transition-transform duration-500 group-hover/event:scale-105"
@@ -134,9 +134,9 @@ export function EventCard({ ev }: { ev: EventItem }) {
             {ev.description}
           </p>
           <ul className="mt-4 flex flex-wrap gap-2">
-            {ev.tags.map((t) => (
+            {ev.tags.map((t, i) => (
               <li
-                key={t}
+                key={`${t}-${i}`}
                 className="rounded-full bg-brand-sand px-3 py-1 text-xs font-medium text-brand-green"
               >
                 {t}
@@ -176,9 +176,9 @@ export function EventCard({ ev }: { ev: EventItem }) {
               {ev.description}
             </DialogPrimitive.Description>
             <ul className="mt-6 flex flex-wrap gap-2">
-              {ev.tags.map((t) => (
+              {ev.tags.map((t, i) => (
                 <li
-                  key={t}
+                  key={`${t}-${i}`}
                   className="rounded-full bg-brand-sand px-3.5 py-1.5 text-sm font-medium text-brand-green"
                 >
                   {t}
@@ -202,7 +202,8 @@ export function EventCard({ ev }: { ev: EventItem }) {
 
 export function CommunitySpaceCard({ space }: { space: CommunitySpace }) {
   const [open, setOpen] = useState(false);
-  const photos = space.photos.length ? space.photos : [space.image];
+  const image = space.image || fallbackImg;
+  const photos = space.photos.length ? space.photos : [image];
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -217,7 +218,7 @@ export function CommunitySpaceCard({ space }: { space: CommunitySpace }) {
       >
         <div className="relative aspect-[16/10] overflow-hidden">
           <Image
-            src={space.image}
+            src={image}
             alt={space.title}
             fill
             className="object-cover transition-transform duration-500 group-hover/space:scale-105"
