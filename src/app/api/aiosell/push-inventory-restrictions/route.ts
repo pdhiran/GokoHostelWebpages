@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
-import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, addChannelSyncLog, updateChannelSyncTime } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime } from "@/db/queries";
 import { pushInventoryRestrictions, type AiosellConfig, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
 import { todayIST } from "@/lib/utils";
 
@@ -93,16 +93,6 @@ export async function POST(req: NextRequest) {
 
     const totalRestrictions = updates.reduce((sum, u) => sum + u.rooms.length, 0);
     const result = await pushInventoryRestrictions(aiosellConfig, updates);
-
-    await addChannelSyncLog({
-      direction: "push",
-      type: "restriction",
-      status: result.success ? "success" : "failed",
-      requestPayload: JSON.stringify({ startDate: start, endDate: end, count: totalRestrictions }),
-      responsePayload: JSON.stringify(result),
-      errorMessage: result.success ? "" : (result.message || ""),
-      recordsAffected: totalRestrictions,
-    });
 
     if (result.success) await updateChannelSyncTime();
 

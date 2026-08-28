@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
-import { getChannelConfig, getRoomTypeMappings, addChannelSyncLog, updateChannelSyncTime } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime } from "@/db/queries";
 import { getDateAwareAvailability } from "@/lib/aiosellSync";
 import { pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
 import { todayIST } from "@/lib/utils";
@@ -58,16 +58,6 @@ export async function POST(req: NextRequest) {
     };
 
     const result = await pushInventory(aiosellConfig, updates);
-
-    await addChannelSyncLog({
-      direction: "push",
-      type: "inventory",
-      status: result.success ? "success" : "failed",
-      requestPayload: JSON.stringify({ startDate: start, endDate: end, mappings: activeMappings.length, dates: dates.length }),
-      responsePayload: JSON.stringify(result),
-      errorMessage: result.success ? "" : (result.message || ""),
-      recordsAffected: updates.reduce((sum, u) => sum + u.rooms.length, 0),
-    });
 
     if (result.success) await updateChannelSyncTime();
 

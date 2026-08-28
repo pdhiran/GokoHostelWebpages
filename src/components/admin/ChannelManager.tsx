@@ -41,6 +41,7 @@ type ChannelConfig = {
   webhookSecret: string;
   bookingEngineUrl: string;
   isActive: number;
+  autoPushInventory: number;
   lastSyncAt: string;
 };
 
@@ -90,6 +91,7 @@ const DEFAULT_CONFIG: ChannelConfig = {
   webhookSecret: "",
   bookingEngineUrl: "",
   isActive: 0,
+  autoPushInventory: 1,
   lastSyncAt: "",
 };
 
@@ -203,7 +205,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
         </div>
       </div>
 
-      <div className="flex items-center gap-3 pt-2">
+      <div className="flex flex-col gap-2 pt-2">
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input
             type="checkbox"
@@ -212,6 +214,16 @@ function ConfigTab({ password, username }: { password: string; username?: string
             className="rounded"
           />
           Enable Channel Manager
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.autoPushInventory === 1}
+            onChange={(e) => setConfig({ ...config, autoPushInventory: e.target.checked ? 1 : 0 })}
+            className="rounded"
+          />
+          Auto-push inventory on bed changes
+          <span className="text-[10px] text-muted-foreground">(assign, checkout, block, unblock)</span>
         </label>
       </div>
 
@@ -539,12 +551,16 @@ function SyncTab({ password, username }: { password: string; username?: string }
     setLoading(false);
   };
 
+  const [pushResult, setPushResult] = useState<{ type: string; warnings?: string[] } | null>(null);
+
   const pushAction = async (type: string, url: string, extra?: Record<string, unknown>) => {
     setPushing(type);
+    setPushResult(null);
     try {
       const res = await apiCall(url, extra || {});
       if (res.success || res.pushed) {
         showSuccess(`${type} push completed`);
+        if (res.warnings?.length) setPushResult({ type, warnings: res.warnings });
       } else {
         showError(res.error || res.message || "Push failed");
       }
@@ -600,6 +616,15 @@ function SyncTab({ password, username }: { password: string; username?: string }
           Push Inv Restrictions
         </Button>
       </div>
+
+      {pushResult?.warnings && pushResult.warnings.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 p-2">
+          <p className="text-[10px] font-medium text-amber-800 dark:text-amber-300 mb-1">{pushResult.type} — {pushResult.warnings.length} warning(s):</p>
+          <div className="max-h-24 overflow-y-auto text-[10px] text-amber-700 dark:text-amber-400 space-y-0.5">
+            {[...new Set(pushResult.warnings)].map((w, i) => <div key={i}>{w}</div>)}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between pt-2">
         <h3 className="text-sm font-semibold">Sync Log</h3>

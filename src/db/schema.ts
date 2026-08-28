@@ -548,6 +548,7 @@ export const channelConfig = sqliteTable("channel_config", {
   webhookSecret: text("webhook_secret").default(""),
   bookingEngineUrl: text("booking_engine_url").default(""),
   isActive: integer("is_active").notNull().default(0),
+  autoPushInventory: integer("auto_push_inventory").notNull().default(1),
   lastSyncAt: text("last_sync_at").default(""),
   createdAt: text("created_at").notNull(),
 });
