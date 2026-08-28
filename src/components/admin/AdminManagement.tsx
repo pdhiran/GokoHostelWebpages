@@ -149,7 +149,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         {tab === "users" && <ManagementUsers password={password} role={role} />}
         {tab === "backup" && <ManagementBackup password={password} role={role} />}
         {tab === "audit" && <ManagementAudit password={password} role={role} />}
-        {tab === "logs" && <ManagementLogs password={password} role={role} />}
+        {tab === "logs" && <ManagementLogs password={password} username={username} role={role} />}
         {tab === "health" && <ManagementHealth password={password} role={role} />}
         {tab === "history" && <AdminBedHistory password={password} username={username} role={role} />}
         {tab === "rates" && <AdminCheckRates password={password} username={username} role={role} />}

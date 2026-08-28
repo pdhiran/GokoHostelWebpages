@@ -1376,23 +1376,49 @@ export async function addChannelSyncLog(data: {
   direction: string; type: string; status: string;
   requestPayload?: string; responsePayload?: string;
   errorMessage?: string; recordsAffected?: number;
+  httpMethod?: string; url?: string; httpStatus?: number; durationMs?: number;
 }) {
-  const db = getDb();
-  return db.insert(channelSyncLog).values({
-    direction: data.direction,
-    type: data.type,
-    status: data.status,
-    requestPayload: data.requestPayload || "",
-    responsePayload: data.responsePayload || "",
-    errorMessage: data.errorMessage || "",
-    recordsAffected: data.recordsAffected || 0,
-    createdAt: new Date().toISOString(),
-  });
+  try {
+    const db = getDb();
+    await db.insert(channelSyncLog).values({
+      direction: data.direction,
+      type: data.type,
+      status: data.status,
+      requestPayload: data.requestPayload || "",
+      responsePayload: data.responsePayload || "",
+      errorMessage: data.errorMessage || "",
+      recordsAffected: data.recordsAffected || 0,
+      createdAt: new Date().toISOString(),
+      httpMethod: data.httpMethod || "",
+      url: data.url || "",
+      httpStatus: data.httpStatus ?? null,
+      durationMs: data.durationMs ?? null,
+    });
+    // Keep newest 500. Wrapped subquery: SQLite rejects DELETE ... NOT IN (SELECT same table).
+    await db.run(sql`
+      DELETE FROM channel_sync_log WHERE id NOT IN (
+        SELECT id FROM (SELECT id FROM channel_sync_log ORDER BY id DESC LIMIT 500)
+      )
+    `);
+  } catch {
+    // Fail silently — logging should never break PMS calls
+  }
 }
 
-export async function getChannelSyncLogs(limit = 50) {
+export async function getChannelSyncLogs(
+  limit = 50,
+  filters?: { direction?: string; type?: string; status?: string }
+) {
   const db = getDb();
-  return db.select().from(channelSyncLog).orderBy(desc(channelSyncLog.id)).limit(limit);
+  const conditions = [];
+  if (filters?.direction) conditions.push(eq(channelSyncLog.direction, filters.direction));
+  if (filters?.type) conditions.push(eq(channelSyncLog.type, filters.type));
+  if (filters?.status) conditions.push(eq(channelSyncLog.status, filters.status));
+  const q = db.select().from(channelSyncLog);
+  if (conditions.length > 0) {
+    return q.where(and(...conditions)).orderBy(desc(channelSyncLog.id)).limit(limit);
+  }
+  return q.orderBy(desc(channelSyncLog.id)).limit(limit);
 }
 
 export async function getAvailableBedsForDorm(dormId: number): Promise<number> {

@@ -6,7 +6,8 @@
  * Aiosell-originated events (OTA/Website bookings via webhook) must NOT push back.
  */
 
-import { getChannelConfig, getRoomTypeMappings, addChannelSyncLog, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate } from "@/db/queries";
+import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
@@ -59,20 +60,10 @@ export async function triggerInventoryPush(affectedDates?: string[]): Promise<vo
 
     const result = await pushInventory(aiosellConfig, updates);
 
-    await addChannelSyncLog({
-      direction: "push",
-      type: "inventory",
-      status: result.success ? "success" : "failed",
-      requestPayload: JSON.stringify(updates),
-      responsePayload: JSON.stringify(result),
-      errorMessage: result.success ? "" : (result.message || ""),
-      recordsAffected: updates.reduce((sum, u) => sum + u.rooms.length, 0),
-    });
-
     if (result.success) await updateChannelSyncTime();
   } catch (error: any) {
     console.error("Auto inventory push failed:", error?.message);
-    await addChannelSyncLog({
+    await logPmsCall({
       direction: "push",
       type: "inventory",
       status: "failed",

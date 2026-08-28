@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
-import { getChannelConfig, addChannelSyncLog } from "@/db/queries";
+import { getChannelConfig } from "@/db/queries";
 import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 
 export async function POST(req: NextRequest) {
@@ -29,16 +29,6 @@ export async function POST(req: NextRequest) {
     };
 
     const result = await pushNoShow(aiosellConfig, bookingId, partner);
-
-    await addChannelSyncLog({
-      direction: "push",
-      type: "noshow",
-      status: result.success ? "success" : "failed",
-      requestPayload: JSON.stringify({ bookingId, partner }),
-      responsePayload: JSON.stringify(result),
-      errorMessage: result.success ? "" : (result.message || ""),
-      recordsAffected: 1,
-    });
 
     return NextResponse.json(result);
   } catch (error: any) {

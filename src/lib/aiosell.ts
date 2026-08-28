@@ -4,6 +4,8 @@
  * and inbound webhook parsing (reservations).
  */
 
+import { logPmsCall } from "@/lib/pmsLog";
+
 export type AiosellConfig = {
   hotelCode: string;
   pmsId: string;
@@ -119,30 +121,76 @@ function buildAuthHeader(config: AiosellConfig): string {
   return `Basic ${encoded}`;
 }
 
+type AiosellCallType = "inventory" | "rate" | "restriction" | "noshow";
+
 async function aiosellFetch(
   url: string,
   config: AiosellConfig,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  meta: { type: AiosellCallType; recordsAffected?: number }
 ): Promise<AiosellResponse> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: buildAuthHeader(config),
-    },
-    body: JSON.stringify(body),
-  });
+  const started = Date.now();
+  const log = (entry: {
+    status: "success" | "failed";
+    httpStatus: number;
+    response?: unknown;
+    errorMessage?: string;
+  }) =>
+    logPmsCall({
+      direction: "push",
+      type: meta.type,
+      status: entry.status,
+      request: body,
+      response: entry.response,
+      errorMessage: entry.errorMessage,
+      recordsAffected: meta.recordsAffected,
+      httpMethod: "POST",
+      url,
+      httpStatus: entry.httpStatus,
+      durationMs: Date.now() - started,
+    }).catch(() => {});
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    return {
-      success: false,
-      message: `HTTP ${response.status}: ${text.slice(0, 200)}`,
-    };
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: buildAuthHeader(config),
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      const result: AiosellResponse = {
+        success: false,
+        message: `HTTP ${response.status}: ${text.slice(0, 200)}`,
+      };
+      await log({ status: "failed", httpStatus: response.status, response: result, errorMessage: result.message });
+      return result;
+    }
+
+    let data: AiosellResponse;
+    try {
+      data = await response.json() as AiosellResponse;
+    } catch {
+      const message = `HTTP ${response.status}: invalid JSON response`;
+      await log({ status: "failed", httpStatus: response.status, errorMessage: message });
+      return { success: false, message };
+    }
+
+    await log({
+      status: data.success === false ? "failed" : "success",
+      httpStatus: response.status,
+      response: data,
+      errorMessage: data.success === false ? (data.message || "") : "",
+    });
+    return data;
+  } catch (error: any) {
+    const message = error?.message || "Network error";
+    await log({ status: "failed", httpStatus: 0, errorMessage: message });
+    return { success: false, message };
   }
-
-  const data = await response.json() as AiosellResponse;
-  return data;
 }
 
 export async function pushInventory(
@@ -156,7 +204,8 @@ export async function pushInventory(
     updates,
   };
   if (toChannels?.length) body.toChannels = toChannels;
-  return aiosellFetch(url, config, body);
+  const recordsAffected = updates.reduce((sum, u) => sum + u.rooms.length, 0);
+  return aiosellFetch(url, config, body, { type: "inventory", recordsAffected });
 }
 
 export async function pushInventoryRestrictions(
@@ -170,7 +219,8 @@ export async function pushInventoryRestrictions(
     updates,
   };
   if (toChannels?.length) body.toChannels = toChannels;
-  return aiosellFetch(url, config, body);
+  const recordsAffected = updates.reduce((sum, u) => sum + u.rooms.length, 0);
+  return aiosellFetch(url, config, body, { type: "restriction", recordsAffected });
 }
 
 export async function pushRates(
@@ -178,10 +228,11 @@ export async function pushRates(
   updates: RateUpdate[]
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/update-rates/${config.pmsId}`;
+  const recordsAffected = updates.reduce((sum, u) => sum + u.rates.length, 0);
   return aiosellFetch(url, config, {
     hotelCode: config.hotelCode,
     updates,
-  });
+  }, { type: "rate", recordsAffected });
 }
 
 export async function pushRateRestrictions(
@@ -195,7 +246,8 @@ export async function pushRateRestrictions(
     updates,
   };
   if (toChannels?.length) body.toChannels = toChannels;
-  return aiosellFetch(url, config, body);
+  const recordsAffected = updates.reduce((sum, u) => sum + u.rates.length, 0);
+  return aiosellFetch(url, config, body, { type: "restriction", recordsAffected });
 }
 
 export async function pushNoShow(
@@ -208,7 +260,7 @@ export async function pushNoShow(
     hotelId: config.hotelCode,
     bookingId,
     partner,
-  });
+  }, { type: "noshow", recordsAffected: 1 });
 }
 
 export function validateWebhookAuth(

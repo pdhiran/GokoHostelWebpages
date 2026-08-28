@@ -424,6 +424,7 @@ function SyncTab({ password, username }: { password: string; username?: string }
           <RefreshCwIcon className="h-3.5 w-3.5" />
         </Button>
       </div>
+      <p className="text-[10px] text-muted-foreground">Full request/response JSON: Management → Logs → PMS</p>
 
       {logs.length === 0 ? (
         <p className="text-xs text-muted-foreground">No sync activity yet.</p>

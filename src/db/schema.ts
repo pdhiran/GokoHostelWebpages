@@ -603,6 +603,10 @@ export const channelSyncLog = sqliteTable("channel_sync_log", {
   errorMessage: text("error_message").default(""),
   recordsAffected: integer("records_affected").default(0),
   createdAt: text("created_at").notNull(),
+  httpMethod: text("http_method").default(""),
+  url: text("url").default(""),
+  httpStatus: integer("http_status"),
+  durationMs: integer("duration_ms"),
 }, (table) => [
   index("idx_channel_sync_created").on(table.createdAt),
   index("idx_channel_sync_type").on(table.type),

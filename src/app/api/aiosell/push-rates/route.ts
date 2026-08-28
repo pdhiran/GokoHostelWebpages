@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
-import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, addChannelSyncLog, updateChannelSyncTime } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime } from "@/db/queries";
 import { pushRates, pushRateRestrictions, type AiosellConfig, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
 import { todayIST } from "@/lib/utils";
 
@@ -101,16 +101,6 @@ export async function POST(req: NextRequest) {
     const totalRates = rateUpdates.reduce((sum, u) => sum + u.rates.length, 0);
     const rateResult = await pushRates(aiosellConfig, rateUpdates);
 
-    await addChannelSyncLog({
-      direction: "push",
-      type: "rate",
-      status: rateResult.success ? "success" : "failed",
-      requestPayload: JSON.stringify({ startDate: start, endDate: end, rateCount: totalRates }),
-      responsePayload: JSON.stringify(rateResult),
-      errorMessage: rateResult.success ? "" : (rateResult.message || ""),
-      recordsAffected: totalRates,
-    });
-
     let restrictionResult = null;
     let totalRestrictions = 0;
     if (includeRestrictions && restrictionUpdatesByDate.size > 0) {
@@ -121,16 +111,6 @@ export async function POST(req: NextRequest) {
       }));
       totalRestrictions = restrictionUpdates.reduce((sum, u) => sum + u.rates.length, 0);
       restrictionResult = await pushRateRestrictions(aiosellConfig, restrictionUpdates);
-
-      await addChannelSyncLog({
-        direction: "push",
-        type: "restriction",
-        status: restrictionResult.success ? "success" : "failed",
-        requestPayload: JSON.stringify({ startDate: start, endDate: end, count: totalRestrictions }),
-        responsePayload: JSON.stringify(restrictionResult),
-        errorMessage: restrictionResult.success ? "" : (restrictionResult.message || ""),
-        recordsAffected: totalRestrictions,
-      });
     }
 
     const overallSuccess = rateResult.success && (!restrictionResult || restrictionResult.success);

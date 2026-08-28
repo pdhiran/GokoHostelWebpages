@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChannelConfig, addBooking, updateBookingStatus, updateBookingFull, getAllBookings, addChannelSyncLog } from "@/db/queries";
+import { getChannelConfig, addBooking, updateBookingStatus, updateBookingFull, getAllBookings } from "@/db/queries";
 import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell";
+import { logPmsCall } from "@/lib/pmsLog";
+
+const WEBHOOK_URL = "/api/aiosell/reservations";
 
 function respondSuccess(message: string) {
   return NextResponse.json({ success: true, message });
@@ -11,38 +14,66 @@ function respondError(message: string, status = 400) {
 }
 
 export async function POST(req: NextRequest) {
+  const started = Date.now();
   let body: unknown;
+
+  const logPull = (opts: {
+    status: "success" | "failed";
+    httpStatus: number;
+    errorMessage?: string;
+    response?: unknown;
+  }) =>
+    logPmsCall({
+      direction: "pull",
+      type: "reservation",
+      status: opts.status,
+      request: body,
+      response: opts.response,
+      errorMessage: opts.errorMessage,
+      recordsAffected: opts.status === "success" ? 1 : 0,
+      httpMethod: "POST",
+      url: WEBHOOK_URL,
+      httpStatus: opts.httpStatus,
+      durationMs: Date.now() - started,
+    }).catch(() => {});
+
   try {
     body = await req.json();
   } catch {
+    await logPull({ status: "failed", httpStatus: 400, errorMessage: "Invalid JSON body" });
     return respondError("Invalid JSON body");
   }
 
   try {
     const config = await getChannelConfig();
     if (!config || !config.isActive) {
+      await logPull({ status: "failed", httpStatus: 503, errorMessage: "Channel manager not active", response: { success: false, message: "Channel manager not active" } });
       return respondError("Channel manager not active", 503);
     }
 
     const authHeader = req.headers.get("authorization") || req.headers.get("x-api-key") || "";
     if (!config.webhookSecret) {
+      await logPull({ status: "failed", httpStatus: 503, errorMessage: "Webhook not configured", response: { success: false, message: "Webhook not configured" } });
       return respondError("Webhook not configured", 503);
     }
     if (authHeader !== config.webhookSecret && authHeader !== `Bearer ${config.webhookSecret}`) {
+      await logPull({ status: "failed", httpStatus: 401, errorMessage: "Unauthorized", response: { success: false, message: "Unauthorized" } });
       return respondError("Unauthorized", 401);
     }
 
     const payload = parseReservationPayload(body);
     if (!payload) {
+      await logPull({ status: "failed", httpStatus: 400, errorMessage: "Invalid reservation payload", response: { success: false, message: "Invalid reservation payload: missing action, hotelCode, or bookingId" } });
       return respondError("Invalid reservation payload: missing action, hotelCode, or bookingId");
     }
 
     if (payload.hotelCode !== config.hotelCode) {
+      await logPull({ status: "failed", httpStatus: 400, errorMessage: "Invalid hotel code", response: { success: false, message: "Invalid hotel code" } });
       return respondError("Invalid hotel code");
     }
 
-    let response: Response;
     try {
+      let response: Response;
       switch (payload.action) {
         case "book":
           response = await handleNewBooking(payload);
@@ -54,37 +85,23 @@ export async function POST(req: NextRequest) {
           response = await handleCancelBooking(payload);
           break;
         default:
+          await logPull({ status: "failed", httpStatus: 400, errorMessage: `Unknown action: ${payload.action}`, response: { success: false, message: `Unknown action: ${payload.action}` } });
           return respondError(`Unknown action: ${payload.action}`);
       }
 
-      await addChannelSyncLog({
-        direction: "pull",
-        type: "reservation",
-        status: "success",
-        requestPayload: JSON.stringify(body),
-        recordsAffected: 1,
-      });
-
+      const responseBody = await response.clone().json().catch(() => ({ success: true }));
+      await logPull({ status: "success", httpStatus: response.status, response: responseBody });
       return response;
     } catch (processingError: any) {
-      await addChannelSyncLog({
-        direction: "pull",
-        type: "reservation",
-        status: "failed",
-        requestPayload: JSON.stringify(body),
-        errorMessage: processingError?.message || "Processing failed",
-      }).catch(() => {});
-      throw processingError;
+      const message = processingError?.message || "Processing failed";
+      console.error("Reservation webhook error:", message);
+      await logPull({ status: "failed", httpStatus: 500, errorMessage: message, response: { success: false, message: "Internal error processing reservation" } });
+      return respondError("Internal error processing reservation", 500);
     }
   } catch (error: any) {
-    console.error("Reservation webhook error:", error?.message);
-    await addChannelSyncLog({
-      direction: "pull",
-      type: "reservation",
-      status: "failed",
-      requestPayload: JSON.stringify(body),
-      errorMessage: error?.message || "Unknown",
-    }).catch(() => {});
+    const message = error?.message || "Unknown";
+    console.error("Reservation webhook error:", message);
+    await logPull({ status: "failed", httpStatus: 500, errorMessage: message, response: { success: false, message: "Internal error processing reservation" } });
     return respondError("Internal error processing reservation", 500);
   }
 }
