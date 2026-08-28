@@ -8,6 +8,7 @@ import {
   cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
   addBooking, updateBookingFull, getAllDorms, getAllBeds, getBedById,
   getChannelConfig, getActiveBedBlocks,
+  getRoomTypeMappings, getRatePlanMappings, getDailyRates,
 } from "@/db/queries";
 import { beds, bookings } from "@/db/schema";
 
@@ -157,6 +158,25 @@ export async function POST(req: NextRequest) {
         })),
       }));
       return NextResponse.json({ dorms: result });
+    }
+
+    if (action === "getAvailableBeds") {
+      const { checkinDate, checkoutDate } = body;
+      if (!checkinDate || !checkoutDate) return NextResponse.json({ error: "checkinDate and checkoutDate required" }, { status: 400 });
+      const available = await getAvailableBedsForRange(checkinDate, checkoutDate);
+      const beds = available.map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId, dormName: b.dormName }));
+      const dormRates: Record<number, number> = {};
+      const mappings = await getRoomTypeMappings();
+      const ratePlans = await getRatePlanMappings();
+      for (const mapping of mappings) {
+        const plans = ratePlans.filter((rp) => rp.roomMappingId === mapping.id && rp.isActive);
+        if (plans.length === 0) continue;
+        const rates = await getDailyRates(plans[0].id, checkinDate, checkinDate);
+        if (rates.length > 0) {
+          dormRates[mapping.dormId] = rates[0].adult1Rate ?? rates[0].rate;
+        }
+      }
+      return NextResponse.json({ beds, dormRates });
     }
 
     if (action === "getBookingHistory") {

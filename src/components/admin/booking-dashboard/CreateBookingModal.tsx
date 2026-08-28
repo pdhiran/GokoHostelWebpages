@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { overlayVariants, modalVariants } from "@/lib/animations";
@@ -11,6 +11,8 @@ import { XIcon, Loader2Icon, CheckIcon } from "lucide-react";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { getNights, formatCurrency, calculateTax } from "./utils";
 import type { CalendarDorm, DateRange } from "./types";
+
+type AvailableBed = { id: number; bedId: string; dormId: number; dormName: string };
 
 export function CreateBookingModal({
   dorms,
@@ -43,6 +45,9 @@ export function CreateBookingModal({
   const [nightlyRate, setNightlyRate] = useState(500);
   const [specialRequests, setSpecialRequests] = useState("");
   const [selectedBeds, setSelectedBeds] = useState<number[]>([]);
+  const [availableBedsList, setAvailableBedsList] = useState<AvailableBed[]>([]);
+  const [loadingBeds, setLoadingBeds] = useState(false);
+  const [dormRates, setDormRates] = useState<Record<number, number>>({});
 
   const nights = useMemo(() => getNights(checkinDate, checkoutDate), [checkinDate, checkoutDate]);
   const pricing = useMemo(() => {
@@ -50,18 +55,50 @@ export function CreateBookingModal({
     return calculateTax(subtotal);
   }, [nightlyRate, nights, selectedBeds.length]);
 
-  const availableBeds = useMemo(() => {
-    return dorms.map((dorm) => ({
-      ...dorm,
-      beds: dorm.beds.filter((bed) => !bed.isBlocked),
-    }));
-  }, [dorms]);
+  useEffect(() => {
+    if (!checkinDate || !checkoutDate || checkinDate >= checkoutDate) return;
+    setLoadingBeds(true);
+    setSelectedBeds([]);
+    const fetchBeds = async () => {
+      try {
+        const payload: Record<string, unknown> = { password, action: "getAvailableBeds", checkinDate, checkoutDate };
+        if (username) payload.username = username;
+        const res = await fetch("/api/admin/bookings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableBedsList(data.beds || []);
+          setDormRates(data.dormRates || {});
+        }
+      } catch { /* ignore */ }
+      setLoadingBeds(false);
+    };
+    fetchBeds();
+  }, [checkinDate, checkoutDate, password, username]);
 
-  const toggleBed = useCallback((bedId: number) => {
-    setSelectedBeds((prev) =>
-      prev.includes(bedId) ? prev.filter((id) => id !== bedId) : [...prev, bedId],
-    );
-  }, []);
+  const availableBeds = useMemo(() => {
+    const dormMap = new Map<number, { id: number; name: string; beds: AvailableBed[] }>();
+    for (const bed of availableBedsList) {
+      if (!dormMap.has(bed.dormId)) {
+        dormMap.set(bed.dormId, { id: bed.dormId, name: bed.dormName, beds: [] });
+      }
+      dormMap.get(bed.dormId)!.beds.push(bed);
+    }
+    return Array.from(dormMap.values());
+  }, [availableBedsList]);
+
+  const toggleBed = useCallback((bedId: number, dormId: number) => {
+    setSelectedBeds((prev) => {
+      const next = prev.includes(bedId) ? prev.filter((id) => id !== bedId) : [...prev, bedId];
+      if (!prev.includes(bedId) && dormRates[dormId] && nightlyRate === 500) {
+        setNightlyRate(dormRates[dormId]);
+      }
+      return next;
+    });
+  }, [dormRates, nightlyRate]);
 
   const canSubmit = guestName.trim() && phone.trim() && selectedBeds.length > 0 && nights > 0;
 
@@ -240,37 +277,49 @@ export function CreateBookingModal({
             {/* Bed picker */}
             <div>
               <Label className="text-xs">Select Beds ({selectedBeds.length} selected)</Label>
-              <div className="mt-2 space-y-2">
-                {availableBeds.map((dorm) => (
-                  <div key={dorm.id} className="rounded-lg border border-border p-2">
-                    <div className="mb-1.5 text-[11px] font-semibold text-foreground">{dorm.name}</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {dorm.beds.map((bed) => {
-                        const isSelected = selectedBeds.includes(bed.id);
-                        return (
-                          <button
-                            key={bed.id}
-                            type="button"
-                            onClick={() => toggleBed(bed.id)}
-                            className={cn(
-                              "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
-                              isSelected
-                                ? "border-brand-green bg-brand-green/10 text-brand-green"
-                                : "border-input bg-background text-muted-foreground hover:bg-muted",
-                            )}
-                          >
-                            {isSelected && <CheckIcon className="size-3" />}
-                            {bed.bedId}
-                          </button>
-                        );
-                      })}
-                      {dorm.beds.length === 0 && (
-                        <span className="text-[10px] text-muted-foreground">No available beds</span>
-                      )}
+              {loadingBeds ? (
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2Icon className="size-3.5 animate-spin" /> Loading available beds...
+                </div>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {availableBeds.map((dorm) => (
+                    <div key={dorm.id} className="rounded-lg border border-border p-2">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-foreground">{dorm.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{dorm.beds.length} available{dormRates[dorm.id] ? ` · ₹${dormRates[dorm.id]}/night` : ""}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {dorm.beds.map((bed) => {
+                          const isSelected = selectedBeds.includes(bed.id);
+                          return (
+                            <button
+                              key={bed.id}
+                              type="button"
+                              onClick={() => toggleBed(bed.id, dorm.id)}
+                              className={cn(
+                                "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                                isSelected
+                                  ? "border-brand-green bg-brand-green/10 text-brand-green"
+                                  : "border-input bg-background text-muted-foreground hover:bg-muted",
+                              )}
+                            >
+                              {isSelected && <CheckIcon className="size-3" />}
+                              {bed.bedId}
+                            </button>
+                          );
+                        })}
+                        {dorm.beds.length === 0 && (
+                          <span className="text-[10px] text-muted-foreground">No available beds</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                  {availableBeds.length === 0 && !loadingBeds && (
+                    <p className="text-xs text-muted-foreground">No beds available for the selected dates</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Special requests */}
