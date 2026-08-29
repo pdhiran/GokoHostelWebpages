@@ -5,9 +5,11 @@ alwaysApply: true
 
 # Goko Web — maintainer ops
 
-Before deploy, D1 migrate, Pi work, Website CMS, or R2: **read `MAINTAINER.local.md` at the repo root** (gitignored). If that file is missing, say so and do not invent live IDs or “auto-deploy” behavior.
+Before deploy, D1 migrate, Pi work, Website CMS, or R2: **read `MAINTAINER.local.md` and `docs/` at the repo root** (both gitignored). If those are missing, say so and do not invent live IDs or “auto-deploy” behavior.
 
-That file is the source of truth for: Cloudflare account/worker/D1 IDs, current R2 status, migration stamp history, CMS vs Pi, and upkeep commands.
+`MAINTAINER.local.md` is the source of truth for: Cloudflare account/worker/D1 IDs, current R2 status, migration stamp history, CMS vs Pi, and upkeep commands.
+
+`docs/` is the local-only project handbook (how the system works, every flow, **secrets and passwords**). Start at `docs/README.md`. New agent session: `docs/llm-onboarding.md`, then `docs/secrets-and-access.md` if you need to run anything.
 
 ## Do this
 
@@ -17,9 +19,10 @@ That file is the source of truth for: Cloudflare account/worker/D1 IDs, current 
 - Website CMS (Events + Community Area) is D1 + R2, admin-only under Management → Website. **Not** synced to the Pi. Pi migrator **skips** `0035_site_cms.sql`.
 - Guest ID/visa/bill photos still go to **Google Drive**. CMS card/hero JPEGs go to **R2** (`goko-media` / `MEDIA`) once the account has R2 enabled.
 - `npm test` (Vitest) exists; run it for CMS/auth/stock changes.
+- After a product change, update the matching file under gitignored `docs/` (see `.cursor/rules/goko-local-docs.mdc`). Do not commit `docs/`.
 
 ## Do not
 
 - Follow `goko-web-overview.mdc` “auto-deploy on push” / “do not run deploy:cf” — that is outdated.
 - Enable R2 via Wrangler API if the dashboard has never opened R2 (error 10042). User must enable R2 in the Cloudflare dashboard first.
-- Put secrets, SSH passwords, or live Worker version IDs in git. Keep them in `MAINTAINER.local.md`.
+- Put secrets, SSH passwords, or live Worker version IDs in git. Keep them in `MAINTAINER.local.md` and `docs/` (both gitignored).

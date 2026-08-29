@@ -38,5 +38,8 @@ yarn-error.log*
 # Local maintainer handbook (ops notes, live IDs, current status — keep off GitHub)
 MAINTAINER.local.md
 
+# Local project handbook (architecture, flows, secrets — keep off GitHub)
+/docs/
+
 # typescript
 *.tsbuildinfo
