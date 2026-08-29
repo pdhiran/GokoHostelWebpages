@@ -153,7 +153,7 @@ export function SyncStatusBar({ password, username, role, onNavigateToSync }: { 
             Pi:
             {status.piOnline
               ? <span className="text-emerald-600">● Online</span>
-              : <span className="text-red-600">● Offline</span>}
+              : <span className="text-red-600">● Unreachable</span>}
             {status.piOnline && status.lastSync && (
               <span className="text-brand-green-dark/60">(synced {timeAgo(status.lastSync)})</span>
             )}

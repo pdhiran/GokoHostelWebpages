@@ -81,13 +81,13 @@ export async function POST(request: NextRequest) {
         };
 
         let remoteServer = { online: false, build: "unknown", records: 0, lastSeen: null as string | null };
-        let internetConnected = false;
+        let remoteReachable = false;
 
         const remoteUrl = getRemoteUrl();
         if (remoteUrl) {
           const remoteHeartbeat = await fetchRemoteHeartbeat(remoteUrl);
           if (remoteHeartbeat) {
-            internetConnected = true;
+            remoteReachable = true;
             const remoteTotal = Object.values(remoteHeartbeat.dbCounts).reduce((a, b) => a + b, 0);
             remoteServer = {
               online: true,
@@ -115,7 +115,44 @@ export async function POST(request: NextRequest) {
             }
           }
         } else {
-          internetConnected = true;
+          remoteReachable = true;
+        }
+
+        // On Cloudflare this request already proved the public internet is up.
+        // On the Pi, "internet" means we can reach the live site.
+        const internetConnected = isPiRuntime()
+          ? (remoteUrl ? remoteReachable : true)
+          : true;
+
+        let piUnreachableSince: string | null = null;
+        if (localRuntime === "cloudflare") {
+          const existing = await db
+            .select()
+            .from(schema.settings)
+            .where(eq(schema.settings.key, "pi_unreachable_since"));
+          const stored = existing[0]?.value || "";
+          if (!remoteServer.online) {
+            if (stored) {
+              piUnreachableSince = stored;
+            } else {
+              piUnreachableSince = new Date().toISOString();
+              await db.insert(schema.settings).values({
+                key: "pi_unreachable_since",
+                value: piUnreachableSince,
+              }).onConflictDoUpdate({
+                target: schema.settings.key,
+                set: { value: piUnreachableSince },
+              });
+            }
+          } else if (stored) {
+            await db
+              .insert(schema.settings)
+              .values({ key: "pi_unreachable_since", value: "" })
+              .onConflictDoUpdate({
+                target: schema.settings.key,
+                set: { value: "" },
+              });
+          }
         }
 
         const settingsRows = await db
@@ -139,6 +176,7 @@ export async function POST(request: NextRequest) {
         const lastLog = lastLogRows[0];
 
         const status = {
+          runtime: localRuntime,
           cloudflare: localRuntime === "cloudflare" ? localServer : remoteServer,
           pi: localRuntime === "pi" ? localServer : remoteServer,
           internetConnected,
@@ -159,9 +197,7 @@ export async function POST(request: NextRequest) {
           pendingChanges: syncStatus.pendingChanges,
           buildsMatch: status.cloudflare.build === status.pi.build,
           syncFailed: syncStatus.lastStatus === "error",
-          piUnreachableSince: (localRuntime === "cloudflare" && !remoteServer.online)
-            ? new Date().toISOString()
-            : null,
+          piUnreachableSince,
         };
 
         return NextResponse.json({ status, barStatus });

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { XIcon, Loader2Icon, CheckIcon } from "lucide-react";
 import { useAdminToast } from "@/components/admin/AdminToast";
+import { fetchWithRetry } from "@/components/admin/useAdminApi";
 import { getNights, formatCurrency, calculateTax } from "./utils";
 import type { CalendarDorm, DateRange } from "./types";
 
@@ -63,7 +64,7 @@ export function CreateBookingModal({
       try {
         const payload: Record<string, unknown> = { password, action: "getAvailableBeds", checkinDate, checkoutDate };
         if (username) payload.username = username;
-        const res = await fetch("/api/admin/bookings", {
+        const res = await fetchWithRetry("/api/admin/bookings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

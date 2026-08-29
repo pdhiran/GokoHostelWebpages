@@ -18,13 +18,19 @@ function useChannelApi(password: string, username?: string) {
   const call = async (url: string, body: Record<string, any> = {}) => {
     const payload: Record<string, any> = { password, ...body };
     if (username) payload.username = username;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("json")) break;
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
+    }
+    const data = await res!.json();
+    if (!res!.ok) throw new Error(data.error || `Request failed (${res!.status})`);
     return data;
   };
   return { call };

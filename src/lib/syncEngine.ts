@@ -61,6 +61,13 @@ const FK_REMAP: Record<string, Record<string, string>> = {
   expenses: { vendorId: "vendors", accountId: "accounts" },
 };
 
+/** Parse an FK integer from a sync payload. null/"" must not become 0. */
+export function parseSyncFkId(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 // --- Types ---
 
 export interface SyncRecord {
@@ -628,7 +635,7 @@ export async function resolveConflict(
       : JSON.parse(conflict.piData);
 
     const table = getTableSchema(conflict.tableName);
-    const { id: _id, ...updateData } = winningData;
+    const updateData = await prepareRecordForWrite(db, conflict.tableName, winningData);
 
     await db.update(table).set({
       ...updateData,
@@ -836,10 +843,9 @@ async function remapForeignKeys(
   const remapped = { ...data };
 
   for (const [column, parentTable] of Object.entries(fkConfig)) {
-    const remoteId = Number(remapped[column]);
-    if (!Number.isFinite(remoteId)) continue;
+    const remoteId = parseSyncFkId(remapped[column]);
+    if (remoteId == null) continue;
 
-    // Look up local ID via sync_id_map
     const mapping = await db
       .select()
       .from(schema.syncIdMap)
@@ -852,22 +858,10 @@ async function remapForeignKeys(
 
     if (mapping.length > 0) {
       remapped[column] = mapping[0].localId;
-    }
-    // If no mapping found, try to look up by sync_id on the parent table directly
-    else {
-      const parentSchemaTable = getTableSchema(parentTable);
-      const parentRow = await db
-        .select()
-        .from(parentSchemaTable)
-        .where(eq(parentSchemaTable.id, remoteId));
-
-      if (parentRow.length > 0) {
-        remapped[column] = parentRow[0].id;
-      }
-      // If parent doesn't exist locally, leave null to avoid FK violation
-      else {
-        remapped[column] = null;
-      }
+    } else {
+      // Do not fall back to "parent exists at this numeric id" — D1 and Pi
+      // autoincrements have diverged (e.g. CF dorm 9 = EXECUTIVE, Pi dorm 9 = Dorm 1).
+      remapped[column] = null;
     }
   }
 

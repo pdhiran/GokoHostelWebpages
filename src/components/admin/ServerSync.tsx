@@ -32,6 +32,7 @@ type ServerStatus = {
 };
 
 type SyncStatus = {
+  runtime?: "cloudflare" | "pi";
   cloudflare: ServerStatus;
   pi: ServerStatus;
   internetConnected: boolean;
@@ -344,6 +345,12 @@ export function ServerSync({ password, username, role }: { password: string; use
             server={status.pi}
           />
         </div>
+
+        {!status.pi.online && status.runtime !== "pi" && (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+            Cloudflare cannot reach the Pi public URL (tunnel down). The Pi app may still be running on hostel Wi‑Fi. Restart <span className="font-mono">cloudflared</span> on the Pi to bring it back.
+          </p>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex items-center gap-3 rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
@@ -778,7 +785,9 @@ function ServerCard({ label, sublabel, icon, server }: { label: string; sublabel
   const lastSeenMs = server.lastSeen ? Date.now() - new Date(server.lastSeen).getTime() : Infinity;
   const isStale = lastSeenMs > 300000;
   const statusColor = !server.online ? "text-red-500" : isStale ? "text-amber-500" : "text-emerald-500";
-  const statusLabel = !server.online ? "Offline" : isStale ? "Stale" : "Online";
+  const statusLabel = !server.online
+    ? (server.lastSeen ? "Unreachable" : "Offline")
+    : isStale ? "Stale" : "Online";
 
   return (
     <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
@@ -801,7 +810,7 @@ function ServerCard({ label, sublabel, icon, server }: { label: string; sublabel
           <p className="text-xs font-mono font-medium text-brand-green-dark">{server.build}</p>
         </div>
         <div className="rounded-lg bg-brand-sand/50 px-2 py-1.5">
-          <p className="text-[10px] text-brand-green-dark/50">Records</p>
+          <p className="text-[10px] text-brand-green-dark/50">{server.online ? "Records" : "Records (cached)"}</p>
           <p className="text-xs font-medium text-brand-green-dark">{server.records.toLocaleString()}</p>
         </div>
         <div className="rounded-lg bg-brand-sand/50 px-2 py-1.5">
