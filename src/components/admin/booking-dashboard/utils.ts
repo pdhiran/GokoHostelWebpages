@@ -91,3 +91,8 @@ export function formatDateCompact(dateStr: string): string {
 export function isToday(dateStr: string): boolean {
   return dateStr === getHostelToday();
 }
+
+export function isWeekend(dateStr: string): boolean {
+  const day = new Date(dateStr + "T12:00:00Z").getUTCDay();
+  return day === 0 || day === 6;
+}

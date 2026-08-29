@@ -141,13 +141,17 @@ export function BookingDashboard({
   );
 
   if (loading && bookings.length === 0) {
-    return <AdminLoading message="Loading booking calendar..." />;
+    return (
+      <div className="flex h-full min-h-0 flex-1 items-center justify-center">
+        <AdminLoading message="Loading booking calendar..." />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-4">
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Booking Calendar</h2>
         <div className="flex flex-wrap items-center gap-2">
           <BookingSearchBar
@@ -167,7 +171,7 @@ export function BookingDashboard({
       </div>
 
       {/* Controls row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <DateRangeSelector dateRange={dateRange} onChange={handleDateRangeChange} />
         <div className="flex items-center gap-2">
           {unassignedBookings.length > 0 && (
@@ -221,17 +225,19 @@ export function BookingDashboard({
 
       {/* Unassigned panel */}
       {showUnassigned && (
-        <UnassignedBookings
-          bookings={unassignedBookings}
-          dorms={dorms}
-          dateRange={dateRange}
-          onAssign={async (bookingId, bedIds) => {
-            await handleBookingAction("assignBeds", bookingId, { bedIds });
-          }}
-          onClose={() => setShowUnassigned(false)}
-          password={password}
-          username={username}
-        />
+        <div className="shrink-0">
+          <UnassignedBookings
+            bookings={unassignedBookings}
+            dorms={dorms}
+            dateRange={dateRange}
+            onAssign={async (bookingId, bedIds) => {
+              await handleBookingAction("assignBeds", bookingId, { bedIds });
+            }}
+            onClose={() => setShowUnassigned(false)}
+            password={password}
+            username={username}
+          />
+        </div>
       )}
 
       {/* Main content */}
@@ -247,12 +253,14 @@ export function BookingDashboard({
           onToggleDorm={handleToggleDorm}
         />
       ) : (
-        <BookingTableView
-          bookings={bookings}
-          assignments={assignments}
-          onSelectBooking={setSelectedBookingId}
-          selectedBookingId={selectedBookingId}
-        />
+        <div className="min-h-0 flex-1 overflow-auto">
+          <BookingTableView
+            bookings={bookings}
+            assignments={assignments}
+            onSelectBooking={setSelectedBookingId}
+            selectedBookingId={selectedBookingId}
+          />
+        </div>
       )}
 
       {/* Detail panel */}

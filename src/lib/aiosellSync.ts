@@ -104,7 +104,7 @@ function buildAiosellConfig(config: any): AiosellConfig {
   return { hotelCode: config.hotelCode, pmsId: config.pmsId, apiBaseUrl: config.apiBaseUrl, apiUsername: config.apiUsername, apiPassword: config.apiPassword };
 }
 
-export async function triggerRatePush(affectedDates: string[]): Promise<void> {
+export async function triggerRatePush(affectedDates: string[], affectedRatePlanIds?: number[]): Promise<void> {
   try {
     const config = await getChannelConfig();
     if (!config || !config.isActive || !config.autoPushRates) return;
@@ -115,7 +115,10 @@ export async function triggerRatePush(affectedDates: string[]): Promise<void> {
     const end = dates[dates.length - 1];
 
     const mappings = (await getRoomTypeMappings()).filter((m) => m.isActive);
-    const ratePlans = (await getRatePlanMappings()).filter((rp) => rp.isActive);
+    let ratePlans = (await getRatePlanMappings()).filter((rp) => rp.isActive);
+    if (affectedRatePlanIds?.length) {
+      ratePlans = ratePlans.filter((rp) => affectedRatePlanIds.includes(rp.id));
+    }
     const dailyRatesData = await getAllDailyRates(start, end);
 
     const ratesByPlan = new Map<number, typeof dailyRatesData>();
@@ -147,7 +150,7 @@ export async function triggerRatePush(affectedDates: string[]): Promise<void> {
   }
 }
 
-export async function triggerRestrictionPush(affectedDates: string[]): Promise<void> {
+export async function triggerRestrictionPush(affectedDates: string[], affectedRatePlanIds?: number[]): Promise<void> {
   try {
     const config = await getChannelConfig();
     if (!config || !config.isActive || !config.autoPushRateRestrictions) return;
@@ -158,7 +161,10 @@ export async function triggerRestrictionPush(affectedDates: string[]): Promise<v
     const end = dates[dates.length - 1];
 
     const mappings = (await getRoomTypeMappings()).filter((m) => m.isActive);
-    const ratePlans = (await getRatePlanMappings()).filter((rp) => rp.isActive);
+    let ratePlans = (await getRatePlanMappings()).filter((rp) => rp.isActive);
+    if (affectedRatePlanIds?.length) {
+      ratePlans = ratePlans.filter((rp) => affectedRatePlanIds.includes(rp.id));
+    }
     const dailyRatesData = await getAllDailyRates(start, end);
 
     const ratesByPlan = new Map<number, typeof dailyRatesData>();

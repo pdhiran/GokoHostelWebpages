@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { isWeekend } from "@/components/admin/booking-dashboard/utils";
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -267,5 +268,42 @@ describe("Booking Dashboard: markNoShow Logic", () => {
     const section = noShowSection![0];
 
     expect(section).toContain("triggerInventoryPush(bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate))");
+  });
+});
+
+describe("Booking Calendar: sticky dates and row colour", () => {
+  const grid = readFile("src/components/admin/booking-dashboard/BookingCalendarGrid.tsx");
+  const dashboard = readFile("src/components/admin/booking-dashboard/index.tsx");
+  const adminPage = readFile("src/app/admin/page.tsx");
+  const utils = readFile("src/components/admin/booking-dashboard/utils.ts");
+
+  it("scrolls inside overflow-auto so sticky top is not cancelled by overflow-x-auto alone", () => {
+    const open = grid.indexOf("return (");
+    const slice = grid.slice(open, open + 400);
+    expect(slice).toMatch(/overflow-auto/);
+    expect(slice).not.toMatch(/className="overflow-x-auto/);
+    expect(grid).toMatch(/sticky top-0 z-20/);
+    expect(grid).toMatch(/sticky top-0 left-0 z-30/);
+    expect(grid).toMatch(/sticky left-0 z-20/);
+  });
+
+  it("fills leftover viewport and skips y-transform on the bookings tab", () => {
+    expect(dashboard).toMatch(/flex h-full min-h-0 flex-1 flex-col gap-4/);
+    expect(adminPage).toMatch(/fillViewport = section === "inventory" \|\| section === "bookings"/);
+    expect(adminPage).toMatch(/fillViewport \? fadeIn : pageTransition/);
+  });
+
+  it("tints weekends, today, dorm groups, and blocked beds", () => {
+    expect(utils).toContain("export function isWeekend");
+    expect(utils).toContain("getUTCDay()");
+    expect(grid).toContain("isWeekend(date)");
+    expect(grid).toContain("bg-emerald-50");
+    expect(grid).toContain("bg-sky-50");
+    expect(grid).toContain("bg-brand-sand");
+    expect(grid).toContain("bg-amber-50/90");
+    expect(grid).toContain("bg-gray-100");
+    expect(isWeekend("2026-08-29")).toBe(true);
+    expect(isWeekend("2026-08-30")).toBe(true);
+    expect(isWeekend("2026-08-31")).toBe(false);
   });
 });

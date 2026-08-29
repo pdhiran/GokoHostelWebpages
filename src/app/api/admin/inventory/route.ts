@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
         closeOnDeparture: closeOnDeparture !== undefined ? closeOnDeparture : (existing?.closeOnDeparture ?? 0),
         updatedBy: actingUser,
       });
-      await triggerRatePush([date]).catch(() => {});
+      await triggerRatePush([date], [ratePlanId]).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
         }
         count++;
       }
-      await triggerRatePush(filteredDates).catch(() => {});
+      await triggerRatePush(filteredDates, [ratePlanId]).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
@@ -263,7 +263,7 @@ export async function POST(req: NextRequest) {
           count++;
         }
       }
-      await triggerRatePush(filteredDates).catch(() => {});
+      await triggerRatePush(filteredDates, ratePlanIds).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
@@ -310,7 +310,7 @@ export async function POST(req: NextRequest) {
           count++;
         }
       }
-      await triggerRestrictionPush(filteredDates).catch(() => {});
+      await triggerRestrictionPush(filteredDates, ratePlanIds).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 

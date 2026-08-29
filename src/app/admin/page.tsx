@@ -322,10 +322,12 @@ function AdminPageInner() {
     return true;
   });
 
+  const fillViewport = section === "inventory" || section === "bookings";
+
   return (
     <section className={cn(
       "flex flex-col bg-brand-sand dark:bg-background",
-      section === "inventory" ? "h-dvh" : "min-h-screen",
+      fillViewport ? "h-dvh" : "min-h-screen",
     )}>
       {/* Top navigation */}
       <nav className="sticky top-0 z-30 shrink-0 border-b border-brand-mist dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-none">
@@ -458,16 +460,16 @@ function AdminPageInner() {
       {/* Section content — animated tab transitions */}
       <div className={cn(
         "mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6",
-        section === "inventory" && "flex min-h-0 flex-1 flex-col",
+        fillViewport && "flex min-h-0 flex-1 flex-col",
       )}>
         <AnimatePresence mode="wait">
           <motion.div
             key={section}
-            variants={section === "inventory" ? fadeIn : pageTransition}
+            variants={fillViewport ? fadeIn : pageTransition}
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={cn(section === "inventory" && "flex h-full min-h-0 flex-1 flex-col")}
+            className={cn(fillViewport && "flex h-full min-h-0 flex-1 flex-col")}
           >
             {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); setSection(s); }} permissions={permissions} />}
             {section === "bookings" && <BookingDashboard password={password} username={username} role={role} permissions={permissions} />}
