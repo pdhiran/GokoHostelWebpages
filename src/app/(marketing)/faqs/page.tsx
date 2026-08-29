@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { ButtonLink } from "@/components/ui/button";
 import { faqCategories, faqHero, faqStillHaveQuestions } from "@/content/faqs";
 import { buildMetadata } from "@/lib/seo";
-import { site } from "@/lib/site";
+import { heroVideoB, site } from "@/lib/site";
 
 export const dynamic = "force-static";
 
@@ -47,7 +47,7 @@ export default function FaqsPage() {
         subtitle={faqHero.subtitle}
         image="/legacy-images/62f5bf7bfc22850018b36726-62f5bf7bfc228579eab3678c_home_faq.webp"
         imageAlt="Goko Hostel common area where guests relax and connect"
-        heroVideo={null}
+        heroVideo={heroVideoB}
       />
       <section className="py-16 md:py-24">
         <Container>

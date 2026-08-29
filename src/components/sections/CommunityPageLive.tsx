@@ -6,6 +6,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { CommunitySpaceCard } from "@/components/sections/CardWithModal";
 import { Container } from "@/components/ui/Container";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { heroVideoB } from "@/lib/site";
 import type { CommunityPageData } from "@/lib/siteContent";
 
 export function CommunityPageLive({ initial }: { initial: CommunityPageData }) {
@@ -36,7 +37,7 @@ export function CommunityPageLive({ initial }: { initial: CommunityPageData }) {
         subtitle={copy.hero.subtitle}
         image={copy.hero.ribbonImage}
         imageAlt="Goko community space"
-        heroVideo={null}
+        heroVideo={heroVideoB}
       />
 
       <section className="py-16 md:py-24">

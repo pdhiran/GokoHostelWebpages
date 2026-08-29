@@ -190,4 +190,24 @@ describe("Workers CPU: marketing chrome split", () => {
     expect(header).toContain("BookNowButton");
     expect(header).toContain("Book now");
   });
+
+  it("does not replace looping heroes with stills", () => {
+    const backdrop = readFile("src/components/media/HeroBackdrop.tsx");
+    expect(backdrop).not.toContain("requestIdleCallback");
+    expect(backdrop).toContain("const showVideo = Boolean(video) && !reduceMotion;");
+
+    const ribbon = readFile("src/components/layout/PageRibbon.tsx");
+    expect(ribbon).toContain("heroVideo = heroLoopVideo");
+
+    expect(readFile("src/components/sections/HomeHeroPremium.tsx")).toContain("video={heroLoopVideo}");
+    expect(readFile("src/app/(marketing)/stay/page.tsx")).toContain("heroVideo={heroVideoB}");
+    expect(readFile("src/components/sections/EventsPageLive.tsx")).not.toMatch(/heroVideo=/);
+    expect(readFile("src/components/sections/CommunityPageLive.tsx")).toContain("heroVideo={heroVideoB}");
+    expect(readFile("src/app/(marketing)/faqs/page.tsx")).toContain("heroVideo={heroVideoB}");
+    expect(readFile("src/app/(marketing)/how-to-reach/page.tsx")).toContain("heroVideo={heroVideoB}");
+    expect(readFile("src/app/(marketing)/story/page.tsx")).not.toMatch(/heroVideo=/);
+    expect(readFile("src/app/(marketing)/reviews/page.tsx")).not.toMatch(/heroVideo=/);
+    expect(readFile("src/app/(marketing)/booking-enquiry/page.tsx")).not.toMatch(/heroVideo=/);
+    expect(readFile("src/app/(marketing)/things-to-do/page.tsx")).toContain("heroVideo={null}");
+  });
 });

@@ -13,7 +13,7 @@ import {
   transportModes,
 } from "@/content/howToReach";
 import { buildMetadata } from "@/lib/seo";
-import { site } from "@/lib/site";
+import { heroVideoB, site } from "@/lib/site";
 
 export const dynamic = "force-static";
 
@@ -31,7 +31,7 @@ export default function HowToReachPage() {
         subtitle={howToReachHero.subtitle}
         image="/images/mahabaleshwar_temple.jpg"
         imageAlt="Travel to Gokarna"
-        heroVideo={null}
+        heroVideo={heroVideoB}
       />
 
       <section className="goko-mesh goko-noise py-16 md:py-24">
