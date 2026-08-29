@@ -238,7 +238,7 @@ async function handleCancelBooking(payload: ReservationPayload) {
     performedBy: "channel_manager",
   });
   const affectedDates = cancelDateRange(existing.checkinDate, existing.checkoutDate || "");
-  triggerInventoryPush(affectedDates).catch(() => {});
+  await triggerInventoryPush(affectedDates).catch(() => {});
 
   return respondSuccess("Reservation Cancelled Successfully");
 }

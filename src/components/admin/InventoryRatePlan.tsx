@@ -43,15 +43,23 @@ function generateDates(start: string, days: number): string[] {
   return dates;
 }
 
-function formatDateShort(dateStr: string): { day: string; weekday: string; isToday: boolean } {
+function formatDateShort(dateStr: string): { day: string; weekday: string; isToday: boolean; isWeekend: boolean } {
   const d = new Date(dateStr + "T00:00:00");
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const weekdayNum = d.getDay();
   return {
     day: d.getDate().toString(),
     weekday: d.toLocaleDateString("en-US", { weekday: "short" }),
     isToday: d.getTime() === today.getTime(),
+    isWeekend: weekdayNum === 0 || weekdayNum === 6,
   };
+}
+
+function dateTint(isWeekend: boolean, isToday: boolean) {
+  if (isToday) return "bg-brand-green/[0.09] dark:bg-brand-green/20";
+  if (isWeekend) return "bg-amber-50/90 dark:bg-amber-950/25";
+  return "";
 }
 
 export function InventoryRatePlan({ password, username, role, permissions }: Props) {
@@ -163,9 +171,9 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-[calc(100dvh-9rem)] flex-col gap-4">
       {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon-sm" onClick={() => shiftRange(-rangeDays)}>
             <ChevronLeftIcon className="h-4 w-4" />
@@ -194,27 +202,27 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
         </Button>
       </div>
 
-      {/* Grid */}
-      <div className="overflow-x-auto rounded-xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none">
+      {/* Grid — overflow-auto so sticky header/labels pin inside this scrollport (overflow-x-auto alone would cancel sticky top) */}
+      <div className="isolate min-h-0 flex-1 overflow-auto overscroll-contain rounded-xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none">
         <div className="min-w-max">
           {/* Date header */}
-          <div className="flex border-b border-brand-mist sticky top-0 z-10 bg-white dark:bg-card">
-            <div className="w-[160px] shrink-0 border-r border-brand-mist px-3 py-2 text-xs font-semibold text-brand-green-dark/60 dark:text-zinc-400">
+          <div className="sticky top-0 z-20 flex border-b border-brand-mist bg-brand-sand shadow-[0_1px_4px_rgba(45,92,63,0.08)] dark:bg-zinc-800 dark:shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
+            <div className="sticky left-0 z-30 w-[160px] shrink-0 border-r border-brand-mist bg-brand-sand px-3 py-2 text-xs font-semibold text-brand-green-dark/60 dark:bg-zinc-800 dark:text-zinc-400">
               Dorm / Rate Plan
             </div>
             {dates.map((date) => {
-              const { day, weekday, isToday } = formatDateShort(date);
+              const { day, weekday, isToday, isWeekend } = formatDateShort(date);
               return (
                 <div
                   key={date}
                   className={cn(
                     "shrink-0 border-r border-brand-mist px-1 py-1.5 text-center",
-                    isToday && "bg-brand-green/[0.04]"
+                    dateTint(isWeekend, isToday),
                   )}
                   style={{ width: colWidth }}
                 >
-                  <div className="text-[10px] text-brand-green-dark/50 dark:text-zinc-500">{weekday}</div>
-                  <div className={cn("text-xs font-semibold", isToday ? "text-brand-green" : "text-brand-green-dark dark:text-zinc-200")}>{day}</div>
+                  <div className={cn("text-[10px]", isWeekend && !isToday ? "text-amber-700/70 dark:text-amber-400/70" : "text-brand-green-dark/50 dark:text-zinc-500")}>{weekday}</div>
+                  <div className={cn("text-xs font-semibold", isToday ? "text-brand-green" : isWeekend ? "text-amber-800 dark:text-amber-300" : "text-brand-green-dark dark:text-zinc-200")}>{day}</div>
                 </div>
               );
             })}
@@ -222,11 +230,12 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
 
           {/* Header stats rows */}
           {["occupancy", "available", "sold"].map((stat) => (
-            <div key={stat} className="flex border-b border-brand-mist/50">
-              <div className="w-[160px] shrink-0 border-r border-brand-mist px-3 py-1.5 text-[11px] font-medium text-brand-green-dark/50 dark:text-zinc-500 capitalize">
+            <div key={stat} className="flex border-b border-brand-mist/50 bg-slate-50 dark:bg-zinc-800/60">
+              <div className="sticky left-0 z-10 w-[160px] shrink-0 border-r border-brand-mist bg-slate-50 px-3 py-1.5 text-[11px] font-medium capitalize text-brand-green-dark/50 dark:bg-zinc-800 dark:text-zinc-500">
                 {stat === "occupancy" ? "Occupancy %" : stat === "available" ? "Available" : "Sold"}
               </div>
               {dates.map((date) => {
+                const { isToday, isWeekend } = formatDateShort(date);
                 const stats = computeHeaderStats(date);
                 const val = stat === "occupancy" ? `${stats.occupancy}%` : stat === "available" ? stats.available : stats.sold;
                 return (
@@ -234,6 +243,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                     key={date}
                     className={cn(
                       "shrink-0 border-r border-brand-mist/50 px-1 py-1.5 text-center text-[11px] font-medium",
+                      dateTint(isWeekend, isToday),
                       stat === "occupancy" && stats.occupancy >= 90 && "text-red-600",
                       stat === "occupancy" && stats.occupancy >= 70 && stats.occupancy < 90 && "text-amber-600",
                       stat === "available" && stats.available === 0 && "text-red-600 font-bold",
@@ -248,57 +258,68 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
           ))}
 
           {/* Dorm rows */}
-          {data?.dorms.map((dorm) => {
+          {data?.dorms.map((dorm, dormIdx) => {
             const ratePlans = getRatePlansForDorm(dorm.id);
+            const dormLabelBg = dormIdx % 2 === 0
+              ? "bg-emerald-50 dark:bg-emerald-950/30"
+              : "bg-sky-50 dark:bg-sky-950/25";
             return (
               <div key={dorm.id}>
                 {/* Availability row */}
-                <div className="flex border-b border-brand-mist">
-                  <div className="w-[160px] shrink-0 border-r border-brand-mist px-3 py-2 flex items-center gap-2">
-                    <span className="text-xs font-semibold text-brand-green-dark dark:text-zinc-200 truncate">{dorm.name}</span>
+                <div className={cn("flex border-b border-brand-mist", dormLabelBg)}>
+                  <div className={cn("sticky left-0 z-10 flex w-[160px] shrink-0 items-center gap-2 border-r border-brand-mist px-3 py-2", dormLabelBg)}>
+                    <span className="truncate text-xs font-semibold text-brand-green-dark dark:text-zinc-200">{dorm.name}</span>
                   </div>
                   {dates.map((date) => {
                     const { available, blocked, overridden } = computeAvailability(dorm.id, date);
+                    const { isToday, isWeekend } = formatDateShort(date);
                     return (
                       <button
                         key={date}
                         type="button"
                         onClick={() => setEditingCell({ dormId: dorm.id, date })}
                         className={cn(
-                          "shrink-0 border-r border-brand-mist/50 px-1 py-2 text-center text-xs font-medium cursor-pointer transition-colors hover:bg-brand-green/[0.04]",
+                          "shrink-0 cursor-pointer border-r border-brand-mist/50 px-1 py-2 text-center text-xs font-medium transition-colors hover:bg-brand-green/[0.08]",
+                          dateTint(isWeekend, isToday),
                           available === 0 && "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400",
                           available > 0 && "text-brand-green-dark dark:text-zinc-200",
-                          overridden && "underline decoration-blue-400 decoration-dotted",
+                          overridden && "underline decoration-dotted decoration-blue-400",
                         )}
                         style={{ width: colWidth }}
                         title={overridden ? "Override active" : undefined}
                       >
                         {available}
-                        {blocked > 0 && <BanIcon className="inline ml-0.5 h-2.5 w-2.5 text-orange-400" />}
-                        {overridden && <EditIcon className="inline ml-0.5 h-2.5 w-2.5 text-blue-400" />}
+                        {blocked > 0 && <BanIcon className="ml-0.5 inline h-2.5 w-2.5 text-orange-400" />}
+                        {overridden && <EditIcon className="ml-0.5 inline h-2.5 w-2.5 text-blue-400" />}
                       </button>
                     );
                   })}
                 </div>
 
                 {/* Rate plan rows */}
-                {ratePlans.length > 0 ? ratePlans.map((rp) => (
-                  <div key={rp.id} className="flex border-b border-brand-mist/30">
-                    <div className="w-[160px] shrink-0 border-r border-brand-mist px-3 py-1.5 pl-5 flex items-center gap-1.5">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-green/60 shrink-0" />
-                      <span className="text-[11px] font-medium text-brand-green-dark/70 dark:text-zinc-400 truncate">{rp.ratePlanName || rp.ratePlanCode}</span>
+                {ratePlans.length > 0 ? ratePlans.map((rp, rpIdx) => {
+                  const rpBg = rpIdx % 2 === 0
+                    ? "bg-white dark:bg-card"
+                    : "bg-brand-sand dark:bg-zinc-800";
+                  return (
+                  <div key={rp.id} className={cn("flex border-b border-brand-mist/30", rpBg)}>
+                    <div className={cn("sticky left-0 z-10 flex w-[160px] shrink-0 items-center gap-1.5 border-r border-brand-mist px-3 py-1.5 pl-5", rpBg)}>
+                      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green/60" />
+                      <span className="truncate text-[11px] font-medium text-brand-green-dark/70 dark:text-zinc-400">{rp.ratePlanName || rp.ratePlanCode}</span>
                     </div>
                     {dates.map((date) => {
                       const rateVal = getRateForCell(rp.id, date);
                       const rateRow = data?.rates.find((r) => r.ratePlanId === rp.id && r.date === date);
                       const isStopped = rateRow?.stopSell === 1;
+                      const { isToday, isWeekend } = formatDateShort(date);
                       return (
                         <button
                           key={date}
                           type="button"
                           onClick={() => setEditingRate({ ratePlanId: rp.id, date })}
                           className={cn(
-                            "shrink-0 border-r border-brand-mist/30 px-1 py-1.5 text-center text-[11px] cursor-pointer transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/10",
+                            "shrink-0 cursor-pointer border-r border-brand-mist/30 px-1 py-1.5 text-center text-[11px] transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/10",
+                            dateTint(isWeekend, isToday),
                             isStopped && "bg-gray-100 text-gray-400 line-through dark:bg-gray-800/30",
                             !isStopped && rateVal && "text-brand-green-dark dark:text-zinc-300",
                           )}
@@ -309,14 +330,18 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                       );
                     })}
                   </div>
-                )) : (
-                  <div className="flex border-b border-brand-mist/30">
-                    <div className="w-[160px] shrink-0 border-r border-brand-mist px-3 py-1.5 pl-5">
+                  );
+                }) : (
+                  <div className="flex border-b border-brand-mist/30 bg-white dark:bg-card">
+                    <div className="sticky left-0 z-10 w-[160px] shrink-0 border-r border-brand-mist bg-white px-3 py-1.5 pl-5 dark:bg-card">
                       <span className="text-[10px] italic text-brand-green-dark/40 dark:text-zinc-600">No rate plans</span>
                     </div>
-                    {dates.map((date) => (
-                      <div key={date} className="shrink-0 border-r border-brand-mist/30 px-1 py-1.5 text-center text-[10px] text-brand-green-dark/30" style={{ width: colWidth }}>—</div>
-                    ))}
+                    {dates.map((date) => {
+                      const { isToday, isWeekend } = formatDateShort(date);
+                      return (
+                        <div key={date} className={cn("shrink-0 border-r border-brand-mist/30 px-1 py-1.5 text-center text-[10px] text-brand-green-dark/30", dateTint(isWeekend, isToday))} style={{ width: colWidth }}>—</div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

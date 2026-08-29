@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
         await createBedBlock({ bedId, dormId, startDate, endDate, reason: reason || "", blockedBy: actingUser });
       }
       const dates = generateDateRange(startDate, endDate);
-      triggerInventoryPush(dates, dormId).catch(() => {});
+      await triggerInventoryPush(dates, dormId).catch(() => {});
       return NextResponse.json({ success: true, blocked: bedIds.length });
     }
 
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       } else {
         return NextResponse.json({ error: "blockIds or (bedIds + dates) required" }, { status: 400 });
       }
-      triggerInventoryPush(pushDates, pushDormId).catch(() => {});
+      await triggerInventoryPush(pushDates, pushDormId).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
       const { dormId, channelId, date, onlineAvailable, offlineAvailable } = params;
       if (!dormId || !date) return NextResponse.json({ error: "dormId and date required" }, { status: 400 });
       await upsertInventoryOverride({ dormId, channelId: channelId || null, date, onlineAvailable, offlineAvailable, overriddenBy: actingUser });
-      triggerInventoryPush([date], dormId).catch(() => {});
+      await triggerInventoryPush([date], dormId).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
         closeOnDeparture: closeOnDeparture !== undefined ? closeOnDeparture : (existing?.closeOnDeparture ?? 0),
         updatedBy: actingUser,
       });
-      triggerRatePush([date]).catch(() => {});
+      await triggerRatePush([date]).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
         }
         count++;
       }
-      triggerRatePush(filteredDates).catch(() => {});
+      await triggerRatePush(filteredDates).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
@@ -263,7 +263,7 @@ export async function POST(req: NextRequest) {
           count++;
         }
       }
-      triggerRatePush(filteredDates).catch(() => {});
+      await triggerRatePush(filteredDates).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
@@ -310,7 +310,7 @@ export async function POST(req: NextRequest) {
           count++;
         }
       }
-      triggerRestrictionPush(filteredDates).catch(() => {});
+      await triggerRestrictionPush(filteredDates).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 

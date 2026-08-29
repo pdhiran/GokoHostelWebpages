@@ -245,7 +245,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      triggerInventoryPush(bookingDateRange(checkinDate, checkoutDate)).catch(() => {});
+      await triggerInventoryPush(bookingDateRange(checkinDate, checkoutDate)).catch(() => {});
       return NextResponse.json({ success: true, bookingId: newBookingId });
     }
 
@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      triggerInventoryPush(bookingDateRange(checkinDate, checkoutDate)).catch(() => {});
+      await triggerInventoryPush(bookingDateRange(checkinDate, checkoutDate)).catch(() => {});
       return NextResponse.json({ success: true, assigned: assignedBeds });
     }
 
@@ -345,7 +345,7 @@ export async function POST(req: NextRequest) {
       });
 
       const dates = detail ? bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate) : [];
-      triggerInventoryPush(dates).catch(() => {});
+      await triggerInventoryPush(dates).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -444,7 +444,7 @@ export async function POST(req: NextRequest) {
       }
 
       const cancelDates = detail ? bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate) : [];
-      triggerInventoryPush(cancelDates).catch(() => {});
+      await triggerInventoryPush(cancelDates).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -485,7 +485,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      triggerInventoryPush(bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate)).catch(() => {});
+      await triggerInventoryPush(bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate)).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -505,7 +505,7 @@ export async function POST(req: NextRequest) {
       });
 
       const dates = detail ? bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate) : [];
-      triggerInventoryPush(dates).catch(() => {});
+      await triggerInventoryPush(dates).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -609,7 +609,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      triggerInventoryPush([...bookingDateRange(oldCheckin, oldCheckout), ...bookingDateRange(newCheckinDate, oldCheckout)]).catch(() => {});
+      await triggerInventoryPush([...bookingDateRange(oldCheckin, oldCheckout), ...bookingDateRange(newCheckinDate, oldCheckout)]).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -701,7 +701,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      triggerInventoryPush([...bookingDateRange(oldCheckin, oldCheckout), ...bookingDateRange(oldCheckin, newCheckoutDate)]).catch(() => {});
+      await triggerInventoryPush([...bookingDateRange(oldCheckin, oldCheckout), ...bookingDateRange(oldCheckin, newCheckoutDate)]).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -778,7 +778,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      triggerInventoryPush(bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate)).catch(() => {});
+      await triggerInventoryPush(bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate)).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -822,7 +822,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      triggerInventoryPush(bookingDateRange(checkinDate, checkoutDate)).catch(() => {});
+      await triggerInventoryPush(bookingDateRange(checkinDate, checkoutDate)).catch(() => {});
       return NextResponse.json({ success: true });
     }
 
