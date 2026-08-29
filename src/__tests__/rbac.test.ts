@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { CHECKIN_LOOKUP_DATA_KEYS, checkinLookupData } from "@/lib/checkinLookup";
 import { buildFoodLookupGuests } from "@/lib/foodLookup";
@@ -290,6 +291,64 @@ describe("Food lookup guests", () => {
 
   it("returns empty for unknown phone", () => {
     expect(buildFoodLookupGuests("1111111111", [{ id: 1, name: "X", contact: "9999999999" }], [], [])).toEqual([]);
+  });
+});
+
+function expenseGate(role: UserRole, permissions: Record<string, boolean>, action: string) {
+  const gate = checkPermission(role, permissions, EXPENSES_PERMISSIONS, action);
+  if (gate === "admin_required") return { status: 403, error: "Admin access required" };
+  if (gate === "forbidden") return { status: 403, error: "You don't have permission to perform this action" };
+  return { status: 200, error: null };
+}
+
+describe("Mock workflows: Bill Records edit (production 8:39pm failure)", () => {
+  const ui = readFileSync("src/components/admin/AdminBillRecords.tsx", "utf8");
+  const route = readFileSync("src/app/api/admin/expenses/route.ts", "utf8");
+
+  it("round 1: manager with canEditExpense can save a submitted bill (the Admin-only 403)", () => {
+    const user = { role: "manager" as const, permissions: { canViewExpenses: true, canEditExpense: true } };
+    expect(expenseGate(user.role, user.permissions, "updateExpense")).toEqual({ status: 200, error: null });
+    expect(expenseGate(user.role, user.permissions, "listExpenses")).toEqual({ status: 200, error: null });
+    expect(ui).toContain('hasPermission(role, permissions, "canEditExpense")');
+    expect(ui).toContain('action: "updateExpense"');
+  });
+
+  it("round 1: staff who can only view bills is still blocked from save and delete", () => {
+    const perms = { canViewExpenses: true };
+    expect(expenseGate("staff", perms, "listExpenses").status).toBe(200);
+    expect(expenseGate("staff", perms, "updateExpense")).toEqual({
+      status: 403,
+      error: "You don't have permission to perform this action",
+    });
+    expect(expenseGate("staff", perms, "deleteExpense").status).toBe(403);
+  });
+
+  it("round 2: staff with edit but not delete can update the Cloudflare bill and cannot delete it", () => {
+    const perms = { canViewExpenses: true, canEditExpense: true };
+    expect(expenseGate("staff", perms, "updateExpense").status).toBe(200);
+    expect(expenseGate("staff", perms, "deleteExpense").status).toBe(403);
+    expect(expenseGate("staff", perms, "addExpense").status).toBe(403);
+  });
+
+  it("round 2: admin can update, delete, and undo reconciliation", () => {
+    expect(expenseGate("admin", {}, "updateExpense").status).toBe(200);
+    expect(expenseGate("admin", {}, "deleteExpense").status).toBe(200);
+    expect(expenseGate("admin", {}, "undoReconciliation").status).toBe(200);
+  });
+
+  it("round 3: update/delete/undo do not still return Admin only after the permission map", () => {
+    for (const action of ["updateExpense", "deleteExpense", "undoReconciliation"]) {
+      const section = route.match(new RegExp(`case "${action}":[\\s\\S]*?(?=\\n      case "|\\n      default:)`))?.[0] ?? "";
+      expect(section.length).toBeGreaterThan(20);
+      expect(section).not.toContain('error: "Admin only"');
+      expect(section).not.toContain('role !== "admin"');
+    }
+    expect(route).toContain('updateExpense: "canEditExpense"');
+    expect(route).toContain('deleteExpense: "canDeleteExpense"');
+  });
+
+  it("round 3: env-password manager with empty permissions cannot edit bills", () => {
+    expect(expenseGate("manager", {}, "updateExpense").status).toBe(403);
   });
 });
 

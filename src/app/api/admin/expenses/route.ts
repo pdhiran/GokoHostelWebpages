@@ -145,9 +145,6 @@ export async function POST(req: NextRequest) {
       }
 
       case "updateExpense": {
-        if (role !== "admin") {
-          return NextResponse.json({ error: "Admin only" }, { status: 403 });
-        }
         const { id, amount, category, customCategory, purpose, billImage: updateBillImage, billMimeType: updateBillMime } = rest;
         if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -197,9 +194,6 @@ export async function POST(req: NextRequest) {
       }
 
       case "deleteExpense": {
-        if (role !== "admin") {
-          return NextResponse.json({ error: "Admin only" }, { status: 403 });
-        }
         const { id, billImageLink } = rest;
         if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -558,9 +552,6 @@ export async function POST(req: NextRequest) {
       }
 
       case "undoReconciliation": {
-        if (role !== "admin") {
-          return NextResponse.json({ error: "Admin only" }, { status: 403 });
-        }
         const { date } = rest;
         if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
 
