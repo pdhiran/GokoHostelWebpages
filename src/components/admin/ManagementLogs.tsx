@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAdminApi } from "./useAdminApi";
+import { useAdminApi, fetchWithRetry } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { DownloadIcon, AlertCircleIcon, AlertTriangleIcon, InfoIcon, CopyIcon, CheckIcon, ChevronDownIcon } from "lucide-react";
@@ -259,7 +259,7 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
       if (filterDirection) payload.direction = filterDirection;
       if (filterType) payload.type = filterType;
       if (filterStatus) payload.status = filterStatus;
-      const res = await fetch("/api/admin/channel-manager", {
+      const res = await fetchWithRetry("/api/admin/channel-manager", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
