@@ -61,7 +61,14 @@ export async function POST(req: NextRequest) {
       await logPull({ status: "failed", httpStatus: 503, errorMessage: "Webhook not configured", response: { success: false, message: "Webhook not configured" } });
       return respondError("Webhook not configured", 503);
     }
-    if (authHeader !== config.webhookSecret && authHeader !== `Bearer ${config.webhookSecret}`) {
+    let authValid = authHeader === config.webhookSecret || authHeader === `Bearer ${config.webhookSecret}`;
+    if (!authValid && authHeader.startsWith("Basic ")) {
+      try {
+        const decoded = atob(authHeader.slice(6));
+        authValid = decoded === config.webhookSecret || decoded.split(":").slice(1).join(":") === config.webhookSecret;
+      } catch {}
+    }
+    if (!authValid) {
       await logPull({ status: "failed", httpStatus: 401, errorMessage: "Unauthorized", response: { success: false, message: "Unauthorized" } });
       return respondError("Unauthorized", 401);
     }
