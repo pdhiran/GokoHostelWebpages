@@ -14,7 +14,7 @@ import { AdminToastProvider } from "@/components/admin/AdminToast";
 import type { Role, AdminSection, ManagementTab } from "@/components/admin/types";
 import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
 import { SyncStatusBar } from "@/components/admin/SyncStatusBar";
-import { fadeInUp, fadeInScale, slideDown, staggerContainer, staggerItem, overlayVariants, modalVariants, pageTransition } from "@/lib/animations";
+import { fadeIn, fadeInUp, fadeInScale, slideDown, staggerContainer, staggerItem, overlayVariants, modalVariants, pageTransition } from "@/lib/animations";
 
 const tabLoader = () => <div className="flex items-center justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-green-dark border-t-transparent" /></div>;
 
@@ -323,9 +323,12 @@ function AdminPageInner() {
   });
 
   return (
-    <section className="min-h-screen bg-brand-sand dark:bg-background">
+    <section className={cn(
+      "flex flex-col bg-brand-sand dark:bg-background",
+      section === "inventory" ? "h-dvh" : "min-h-screen",
+    )}>
       {/* Top navigation */}
-      <nav className="sticky top-0 z-30 border-b border-brand-mist dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-none">
+      <nav className="sticky top-0 z-30 shrink-0 border-b border-brand-mist dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-none">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-2 sm:px-6">
           {/* Mobile/Tablet hamburger */}
           <button
@@ -442,23 +445,29 @@ function AdminPageInner() {
 
       {/* Sync status bar */}
       {role === "admin" && (
-        <SyncStatusBar
-          password={password}
-          username={username}
-          role={role}
-          onNavigateToSync={() => { setManagementTab("serverSync"); setSection("management"); }}
-        />
+        <div className="shrink-0">
+          <SyncStatusBar
+            password={password}
+            username={username}
+            role={role}
+            onNavigateToSync={() => { setManagementTab("serverSync"); setSection("management"); }}
+          />
+        </div>
       )}
 
       {/* Section content — animated tab transitions */}
-      <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+      <div className={cn(
+        "mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6",
+        section === "inventory" && "flex min-h-0 flex-1 flex-col",
+      )}>
         <AnimatePresence mode="wait">
           <motion.div
             key={section}
-            variants={pageTransition}
+            variants={section === "inventory" ? fadeIn : pageTransition}
             initial="hidden"
             animate="visible"
             exit="exit"
+            className={cn(section === "inventory" && "flex h-full min-h-0 flex-1 flex-col")}
           >
             {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); setSection(s); }} permissions={permissions} />}
             {section === "bookings" && <BookingDashboard password={password} username={username} role={role} permissions={permissions} />}

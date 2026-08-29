@@ -164,14 +164,14 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
 
   if (loading && !data) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="flex h-full min-h-0 flex-1 items-center justify-center py-20">
         <Loader2Icon className="h-6 w-6 animate-spin text-brand-green" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100dvh-9rem)] flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-4">
       {/* Controls */}
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
