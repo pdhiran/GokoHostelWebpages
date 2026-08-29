@@ -102,8 +102,8 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const computeAvailability = useCallback((dormId: number, date: string): { total: number; blocked: number; assigned: number; available: number; overridden: boolean } => {
-    if (!data) return { total: 0, blocked: 0, assigned: 0, available: 0, overridden: false };
+  const computeAvailability = useCallback((dormId: number, date: string): { total: number; blocked: number; assigned: number; available: number; online: number; offline: number; overridden: boolean } => {
+    if (!data) return { total: 0, blocked: 0, assigned: 0, available: 0, online: 0, offline: 0, overridden: false };
     const dormBeds = data.beds.filter((b) => b.dormId === dormId);
     const total = dormBeds.length;
     const blockedBedIds = new Set(
@@ -114,9 +114,11 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
       (a) => a.dormId === dormId && a.status === "assigned" && a.checkinDate <= date && a.checkoutDate > date
     ).length;
     const override = data.overrides?.find((o) => o.dormId === dormId && o.date === date);
-    const ceiling = override?.onlineAvailable ?? total;
-    const available = Math.max(0, ceiling - blocked - assigned);
-    return { total, blocked, assigned, available, overridden: override?.onlineAvailable != null };
+    const physicalAvailable = Math.max(0, total - blocked - assigned);
+    const onlineCeiling = override?.onlineAvailable ?? total;
+    const online = Math.max(0, onlineCeiling - blocked - assigned);
+    const offline = Math.max(0, physicalAvailable - online);
+    return { total, blocked, assigned, available: physicalAvailable, online, offline, overridden: override?.onlineAvailable != null };
   }, [data]);
 
   const computeHeaderStats = useCallback((date: string) => {
@@ -394,14 +396,15 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
 // --- Inventory Detail Modal ---
 function InventoryDetailModal({ dormId, date, data, computeAvailability, password, username, onClose, onSaved }: {
   dormId: number; date: string; data: GridData;
-  computeAvailability: (dormId: number, date: string) => { total: number; blocked: number; assigned: number; available: number };
+  computeAvailability: (dormId: number, date: string) => { total: number; blocked: number; assigned: number; available: number; online: number; offline: number; overridden: boolean };
   password: string; username?: string; onClose: () => void; onSaved: () => void;
 }) {
   const stats = computeAvailability(dormId, date);
   const dorm = data.dorms.find((d) => d.id === dormId);
+  const existingOverride = data.overrides?.find((o) => o.dormId === dormId && o.date === date);
   const [saving, setSaving] = useState(false);
-  const [onlineOverride, setOnlineOverride] = useState<string>("");
-  const [offlineOverride, setOfflineOverride] = useState<string>("");
+  const [onlineOverride, setOnlineOverride] = useState<string>(existingOverride?.onlineAvailable != null ? String(existingOverride.onlineAvailable) : "");
+  const [offlineOverride, setOfflineOverride] = useState<string>(existingOverride?.offlineAvailable != null ? String(existingOverride.offlineAvailable) : "");
 
   const [error, setError] = useState("");
 
@@ -415,8 +418,8 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
         body: JSON.stringify({
           password, username, action: "updateInventoryOverride",
           dormId, channelId: null, date,
-          onlineAvailable: onlineOverride ? parseInt(onlineOverride) : null,
-          offlineAvailable: offlineOverride ? parseInt(offlineOverride) : null,
+          onlineAvailable: onlineOverride !== "" ? parseInt(onlineOverride) : null,
+          offlineAvailable: null,
         }),
       });
       const json = await res.json();
@@ -442,12 +445,22 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
           <div className="flex justify-between"><span className="text-brand-green-dark/60">Available</span><span className="font-bold text-brand-green">{stats.available}</span></div>
           <hr className="border-brand-mist" />
           <div>
-            <label className="text-xs text-brand-green-dark/60">Online Available Override</label>
-            <input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={onlineOverride} onChange={(e) => setOnlineOverride(e.target.value)} placeholder={String(stats.available)} />
+            <label className="text-xs text-brand-green-dark/60">Online (OTA/PMS)</label>
+            <input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={onlineOverride} onChange={(e) => setOnlineOverride(e.target.value)} placeholder={String(stats.available)} min={0} max={stats.total} />
+            <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Pushed to Aiosell. Blocks and bookings subtract from this.</p>
           </div>
           <div>
-            <label className="text-xs text-brand-green-dark/60">Offline Available Override</label>
-            <input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={offlineOverride} onChange={(e) => setOfflineOverride(e.target.value)} placeholder="0" />
+            <label className="text-xs text-brand-green-dark/60">Offline (Walk-ins)</label>
+            {(() => {
+              const onlineVal = onlineOverride ? parseInt(onlineOverride) : stats.available;
+              const offlineComputed = Math.max(0, stats.available - onlineVal);
+              return (
+                <>
+                  <div className="mt-1 rounded-md border border-input bg-muted/50 px-3 py-1.5 text-sm font-medium">{offlineComputed}</div>
+                  <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Auto: available ({stats.available}) - online ({onlineVal}) = {offlineComputed} for walk-ins</p>
+                </>
+              );
+            })()}
           </div>
         </div>
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}

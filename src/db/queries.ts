@@ -1,6 +1,7 @@
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
 import { todayIST } from "@/lib/utils";
+import { bedsFitInventoryCap, capPhysicalBedsToInventory, stayNights } from "@/lib/inventoryAvailability";
 import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides, inventoryDirty } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
@@ -1555,34 +1556,59 @@ export async function checkBedAvailability(bedId: number, checkinDate: string, c
   return (conflicts[0]?.count ?? 0) === 0;
 }
 
-export async function getAvailableBedsForRange(checkinDate: string, checkoutDate: string, dormId?: number) {
+async function loadBedsAvailabilityForRange(checkinDate: string, checkoutDate: string, dormId?: number) {
   const db = getDb();
   const allBeds = dormId
     ? await db.select().from(beds).where(eq(beds.dormId, dormId))
     : await db.select().from(beds);
 
-  const occupiedBedIds = new Set(
-    (await db.select({ bedId: bookingBedAssignments.bedId }).from(bookingBedAssignments).where(
-      and(
-        eq(bookingBedAssignments.status, "assigned"),
-        sql`${bookingBedAssignments.checkinDate} < ${checkoutDate}`,
-        sql`${bookingBedAssignments.checkoutDate} > ${checkinDate}`
-      )
-    )).map(r => r.bedId)
+  const assignments = await db.select().from(bookingBedAssignments).where(
+    and(
+      eq(bookingBedAssignments.status, "assigned"),
+      sql`${bookingBedAssignments.checkinDate} < ${checkoutDate}`,
+      sql`${bookingBedAssignments.checkoutDate} > ${checkinDate}`
+    )
   );
 
-  const blockedBedIds = new Set(
-    (await db.select({ bedId: bedBlocks.bedId }).from(bedBlocks).where(
-      and(
-        eq(bedBlocks.isActive, 1),
-        sql`${bedBlocks.startDate} < ${checkoutDate}`,
-        sql`${bedBlocks.endDate} > ${checkinDate}`,
-        ...(dormId ? [eq(bedBlocks.dormId, dormId)] : [])
-      )
-    )).map(r => r.bedId)
+  const blocks = await db.select().from(bedBlocks).where(
+    and(
+      eq(bedBlocks.isActive, 1),
+      sql`${bedBlocks.startDate} < ${checkoutDate}`,
+      sql`${bedBlocks.endDate} > ${checkinDate}`,
+      ...(dormId ? [eq(bedBlocks.dormId, dormId)] : [])
+    )
   );
 
-  return allBeds.filter(b => !occupiedBedIds.has(b.id) && !blockedBedIds.has(b.id));
+  const nights = stayNights(checkinDate, checkoutDate);
+  const lastNight = nights[nights.length - 1];
+  const overrides = lastNight
+    ? await db.select().from(inventoryOverrides).where(
+        and(gte(inventoryOverrides.date, checkinDate), lte(inventoryOverrides.date, lastNight))
+      )
+    : [];
+
+  const occupiedBedIds = new Set(assignments.map((r) => r.bedId));
+  const blockedBedIds = new Set(blocks.map((r) => r.bedId));
+  const physical = allBeds.filter((b) => !occupiedBedIds.has(b.id) && !blockedBedIds.has(b.id));
+  return { allBeds, assignments, blocks, overrides, nights, physical };
+}
+
+export async function getAvailableBedsForRange(checkinDate: string, checkoutDate: string, dormId?: number) {
+  const { allBeds, assignments, blocks, overrides, nights, physical } = await loadBedsAvailabilityForRange(checkinDate, checkoutDate, dormId);
+  return capPhysicalBedsToInventory(physical, allBeds, nights, blocks, assignments, overrides);
+}
+
+export async function validateBedsForRange(bedIds: number[], checkinDate: string, checkoutDate: string): Promise<string | null> {
+  if (bedIds.length === 0) return null;
+  const { allBeds, assignments, blocks, overrides, nights, physical } = await loadBedsAvailabilityForRange(checkinDate, checkoutDate);
+  const byId = new Map(allBeds.map((b) => [b.id, b]));
+  const requested = [];
+  for (const id of bedIds) {
+    const bed = byId.get(id);
+    if (!bed) return "One or more beds were not found";
+    requested.push({ id: bed.id, dormId: bed.dormId });
+  }
+  return bedsFitInventoryCap(requested, new Set(physical.map((b) => b.id)), nights, allBeds, blocks, assignments, overrides);
 }
 
 export async function assignBedToBooking(data: {

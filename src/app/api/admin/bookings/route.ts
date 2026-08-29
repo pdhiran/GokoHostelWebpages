@@ -5,7 +5,7 @@ import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 import {
   getBookingCalendarData, getBookingDetail, searchBookings, getUnassignedBookings,
-  checkBedAvailability, getAvailableBedsForRange, assignBedToBooking, unassignBookingBeds,
+  checkBedAvailability, getAvailableBedsForRange, validateBedsForRange, assignBedToBooking, unassignBookingBeds,
   cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
   addBooking, updateBookingFull, getAllDorms, getAllBeds, getBedById,
   getChannelConfig, getActiveBedBlocks,
@@ -197,6 +197,10 @@ export async function POST(req: NextRequest) {
 
       const nights = diffDays(checkinDate, checkoutDate);
       const bedsCount = (bedIds as number[])?.length || 1;
+      if (bedIds && Array.isArray(bedIds) && bedIds.length > 0) {
+        const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate);
+        if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
+      }
       const totalBeforeTax = (nightlyRate || 0) * nights * bedsCount;
       const tax = Math.round(totalBeforeTax * 0.12);
       const total = totalBeforeTax + tax;
@@ -262,6 +266,8 @@ export async function POST(req: NextRequest) {
 
       const checkinDate = detail.booking.checkinDate;
       const checkoutDate = detail.booking.checkoutDate || checkinDate;
+      const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate);
+      if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
       const assignedBeds: string[] = [];
 
       for (const bedId of bedIds) {
