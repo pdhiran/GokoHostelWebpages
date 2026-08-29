@@ -628,6 +628,7 @@ export const bookingBedAssignments = sqliteTable("booking_bed_assignments", {
   status: text("status").notNull().default("assigned"),
   assignedBy: text("assigned_by").default(""),
   assignedAt: text("assigned_at").notNull(),
+  inventoryPool: text("inventory_pool").notNull().default("online"),
 }, (table) => [
   index("idx_bba_bed_dates").on(table.bedId, table.checkinDate, table.checkoutDate),
   index("idx_bba_booking").on(table.bookingId),

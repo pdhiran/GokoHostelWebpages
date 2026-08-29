@@ -105,7 +105,8 @@ describe("Booking Dashboard: modifyCheckin Scenarios", () => {
     expect(modifySection).not.toBeNull();
     const section = modifySection![0];
 
-    expect(section).toContain("isLater = newCheckinDate > oldCheckin");
+    expect(section).toContain("isEarlier = newCheckinDate < oldCheckin");
+    expect(section).toContain("Late check-in");
     expect(section).toContain("await unassignBookingBeds(bookingId)");
     expect(section).toContain("checkinDate: newCheckinDate, checkoutDate: a.checkoutDate");
   });
@@ -198,7 +199,7 @@ describe("Booking Dashboard: cancelBooking Logic", () => {
       );
       const section = cancelSection![0];
 
-      expect(section).toContain("triggerInventoryPush(cancelDates)");
+      expect(section).toContain("pushIfOtaChanged(before, dormIds, cancelDates)");
     });
   });
 
@@ -267,7 +268,19 @@ describe("Booking Dashboard: markNoShow Logic", () => {
     );
     const section = noShowSection![0];
 
-    expect(section).toContain("triggerInventoryPush(bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate))");
+    expect(section).toContain("pushIfOtaChanged(before, dormIds, bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate))");
+  });
+});
+
+describe("Booking Dashboard: moveRoom assigns the new bed before releasing the old one", () => {
+  const routeCode = readFile("src/app/api/admin/bookings/route.ts");
+
+  it("keeps the guest on the old bed if the new bed cannot be assigned", () => {
+    const section = routeCode.match(/action === "moveRoom"[\s\S]*?action === "assignGuest"/)![0];
+    const assignAt = section.indexOf("assignTaggedBeds(bookingId, [newBedId]");
+    const cancelAt = section.indexOf("cancelBedAssignments([oldAssignmentId])");
+    expect(assignAt).toBeGreaterThan(0);
+    expect(cancelAt).toBeGreaterThan(assignAt);
   });
 });
 

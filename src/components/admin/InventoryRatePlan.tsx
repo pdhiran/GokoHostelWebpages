@@ -7,6 +7,7 @@ import {
   RefreshCwIcon, Loader2Icon, ChevronLeftIcon, ChevronRightIcon,
   PackageIcon, BanIcon, EditIcon,
 } from "lucide-react";
+import { computeNightAvailability, pickInventoryOverride, remainingSplit, type NightAvailability } from "@/lib/inventoryAvailability";
 import type { Role } from "./types";
 
 type Props = { password: string; username?: string; role: Role; permissions: Record<string, boolean> };
@@ -14,7 +15,7 @@ type Props = { password: string; username?: string; role: Role; permissions: Rec
 type DormData = { id: number; name: string };
 type BedData = { id: number; dormId: number; bedId: string };
 type BlockData = { id: number; bedId: number; dormId: number; startDate: string; endDate: string; reason: string };
-type AssignmentData = { bedId: number; dormId: number; checkinDate: string; checkoutDate: string; status: string };
+type AssignmentData = { bedId: number; dormId: number; checkinDate: string; checkoutDate: string; status: string; inventoryPool?: string | null };
 type RatePlanData = { id: number; roomMappingId: number; ratePlanCode: string; ratePlanName: string };
 type RoomMappingData = { id: number; dormId: number; dormName: string; channelRoomCode: string; totalInventory: number };
 type DailyRateData = { id: number; ratePlanId: number; date: string; rate: number; stopSell: number; minimumStay: number; maximumStay: number | null; closeOnArrival: number; closeOnDeparture: number; minimumAdvanceReservation: number | null; maximumAdvanceReservation: number | null; adult1Rate: number | null; adult2Rate: number | null; childRate: number | null; infantRate: number | null; extraPersonRate: number | null };
@@ -102,23 +103,9 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const computeAvailability = useCallback((dormId: number, date: string): { total: number; blocked: number; assigned: number; available: number; online: number; offline: number; overridden: boolean } => {
-    if (!data) return { total: 0, blocked: 0, assigned: 0, available: 0, online: 0, offline: 0, overridden: false };
-    const dormBeds = data.beds.filter((b) => b.dormId === dormId);
-    const total = dormBeds.length;
-    const blockedBedIds = new Set(
-      data.blocks.filter((bl) => bl.dormId === dormId && bl.startDate <= date && bl.endDate > date).map((bl) => bl.bedId)
-    );
-    const blocked = blockedBedIds.size;
-    const assigned = data.assignments.filter(
-      (a) => a.dormId === dormId && a.status === "assigned" && a.checkinDate <= date && a.checkoutDate > date
-    ).length;
-    const override = data.overrides?.find((o) => o.dormId === dormId && o.date === date);
-    const physicalAvailable = Math.max(0, total - blocked - assigned);
-    const onlineCeiling = override?.onlineAvailable ?? total;
-    const online = Math.max(0, onlineCeiling - blocked - assigned);
-    const offline = Math.max(0, physicalAvailable - online);
-    return { total, blocked, assigned, available: physicalAvailable, online, offline, overridden: override?.onlineAvailable != null };
+  const computeAvailability = useCallback((dormId: number, date: string) => {
+    if (!data) return { total: 0, blocked: 0, assigned: 0, onlineAssigned: 0, available: 0, online: 0, offline: 0, overridden: false };
+    return computeNightAvailability(dormId, date, data.beds, data.blocks, data.assignments, data.overrides ?? []);
   }, [data]);
 
   const computeHeaderStats = useCallback((date: string) => {
@@ -202,6 +189,12 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
         <Button variant="ghost" size="icon-sm" onClick={fetchData} disabled={loading}>
           <RefreshCwIcon className={cn("h-4 w-4", loading && "animate-spin")} />
         </Button>
+        <span className="text-[10px] text-muted-foreground">
+          Cells: <span className="font-medium text-sky-700 dark:text-sky-400">OTA</span>
+          <span className="mx-0.5">/</span>
+          <span className="font-medium text-emerald-700 dark:text-emerald-400">walk-in</span>
+          {" "}when split
+        </span>
       </div>
 
       {/* Grid — overflow-auto so sticky header/labels pin inside this scrollport (overflow-x-auto alone would cancel sticky top) */}
@@ -273,8 +266,9 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                     <span className="truncate text-xs font-semibold text-brand-green-dark dark:text-zinc-200">{dorm.name}</span>
                   </div>
                   {dates.map((date) => {
-                    const { available, blocked, overridden } = computeAvailability(dorm.id, date);
+                    const { available, blocked, overridden, online, offline } = computeAvailability(dorm.id, date);
                     const { isToday, isWeekend } = formatDateShort(date);
+                    const split = overridden || offline > 0;
                     return (
                       <button
                         key={date}
@@ -284,13 +278,19 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                           "shrink-0 cursor-pointer border-r border-brand-mist/50 px-1 py-2 text-center text-xs font-medium transition-colors hover:bg-brand-green/[0.08]",
                           dateTint(isWeekend, isToday),
                           available === 0 && "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400",
-                          available > 0 && "text-brand-green-dark dark:text-zinc-200",
+                          available > 0 && !split && "text-brand-green-dark dark:text-zinc-200",
                           overridden && "underline decoration-dotted decoration-blue-400",
                         )}
                         style={{ width: colWidth }}
-                        title={overridden ? "Override active" : undefined}
+                        title={split ? `${online} online (OTA) · ${offline} walk-in` : overridden ? "Override active" : undefined}
                       >
-                        {available}
+                        {split ? (
+                          <span className="tabular-nums">
+                            <span className="text-sky-700 dark:text-sky-400">{online}</span>
+                            <span className="text-muted-foreground/40">/</span>
+                            <span className="text-emerald-700 dark:text-emerald-400">{offline}</span>
+                          </span>
+                        ) : available}
                         {blocked > 0 && <BanIcon className="ml-0.5 inline h-2.5 w-2.5 text-orange-400" />}
                         {overridden && <EditIcon className="ml-0.5 inline h-2.5 w-2.5 text-blue-400" />}
                       </button>
@@ -396,12 +396,12 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
 // --- Inventory Detail Modal ---
 function InventoryDetailModal({ dormId, date, data, computeAvailability, password, username, onClose, onSaved }: {
   dormId: number; date: string; data: GridData;
-  computeAvailability: (dormId: number, date: string) => { total: number; blocked: number; assigned: number; available: number; online: number; offline: number; overridden: boolean };
+  computeAvailability: (dormId: number, date: string) => NightAvailability;
   password: string; username?: string; onClose: () => void; onSaved: () => void;
 }) {
   const stats = computeAvailability(dormId, date);
   const dorm = data.dorms.find((d) => d.id === dormId);
-  const existingOverride = data.overrides?.find((o) => o.dormId === dormId && o.date === date);
+  const existingOverride = pickInventoryOverride(data.overrides ?? [], dormId, date);
   const [saving, setSaving] = useState(false);
   const [onlineOverride, setOnlineOverride] = useState<string>(existingOverride?.onlineAvailable != null ? String(existingOverride.onlineAvailable) : "");
   const [offlineOverride, setOfflineOverride] = useState<string>(existingOverride?.offlineAvailable != null ? String(existingOverride.offlineAvailable) : "");
@@ -447,17 +447,17 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
           <div>
             <label className="text-xs text-brand-green-dark/60">Online (OTA/PMS)</label>
             <input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={onlineOverride} onChange={(e) => setOnlineOverride(e.target.value)} placeholder={String(stats.available)} min={0} max={stats.total} />
-            <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Pushed to Aiosell. Blocks and bookings subtract from this.</p>
+            <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Pushed to Aiosell. Walk-in bookings and taking a blocked bed do not reduce this.</p>
           </div>
           <div>
             <label className="text-xs text-brand-green-dark/60">Offline (Walk-ins)</label>
             {(() => {
-              const onlineVal = onlineOverride ? parseInt(onlineOverride) : stats.available;
-              const offlineComputed = Math.max(0, stats.available - onlineVal);
+              const ceiling = onlineOverride !== "" ? parseInt(onlineOverride, 10) : stats.total;
+              const { online, offline } = remainingSplit(stats.available, Number.isFinite(ceiling) ? ceiling : stats.total, stats.onlineAssigned);
               return (
                 <>
-                  <div className="mt-1 rounded-md border border-input bg-muted/50 px-3 py-1.5 text-sm font-medium">{offlineComputed}</div>
-                  <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Auto: available ({stats.available}) - online ({onlineVal}) = {offlineComputed} for walk-ins</p>
+                  <div className="mt-1 rounded-md border border-input bg-muted/50 px-3 py-1.5 text-sm font-medium">{offline}</div>
+                  <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Auto: {stats.available} available − {online} OTA remaining = {offline} walk-in</p>
                 </>
               );
             })()}

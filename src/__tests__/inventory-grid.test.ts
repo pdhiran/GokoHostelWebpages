@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { cn, localDateStr } from "@/lib/utils";
+import { computeNightAvailability } from "@/lib/inventoryAvailability";
 
 const ui = readFileSync("src/components/admin/InventoryRatePlan.tsx", "utf8");
 const adminPage = readFileSync("src/app/admin/page.tsx", "utf8");
@@ -48,19 +49,7 @@ type MockGrid = {
 };
 
 function computeAvailability(data: MockGrid, dormId: number, date: string) {
-  const dormBeds = data.beds.filter((b) => b.dormId === dormId);
-  const total = dormBeds.length;
-  const blockedBedIds = new Set(
-    data.blocks.filter((bl) => bl.dormId === dormId && bl.startDate <= date && bl.endDate > date).map((bl) => bl.bedId)
-  );
-  const blocked = blockedBedIds.size;
-  const assigned = data.assignments.filter(
-    (a) => a.dormId === dormId && a.status === "assigned" && a.checkinDate <= date && a.checkoutDate > date
-  ).length;
-  const override = data.overrides.find((o) => o.dormId === dormId && o.date === date);
-  const ceiling = override?.onlineAvailable ?? total;
-  const available = Math.max(0, ceiling - blocked - assigned);
-  return { total, blocked, assigned, available, overridden: override?.onlineAvailable != null };
+  return computeNightAvailability(dormId, date, data.beds, data.blocks, data.assignments, data.overrides);
 }
 
 function computeHeaderStats(data: MockGrid, date: string) {
@@ -168,6 +157,7 @@ describe("Inventory grid: sticky + colour structure", () => {
     expect(ui).toContain("bg-emerald-50");
     expect(ui).toContain("bg-sky-50");
     expect(ui).toContain("bg-brand-sand");
+    expect(ui).toContain("remainingSplit");
   });
 });
 
@@ -220,15 +210,19 @@ describe("Inventory grid: date helpers stay in sync with source", () => {
 
 describe("Inventory grid: availability and occupancy workflows", () => {
   it("matches the source occupancy formula (blocked exclusive-end, cancelled ignored, override wins)", () => {
-    expect(ui).toContain("bl.startDate <= date && bl.endDate > date");
-    expect(ui).toContain('a.status === "assigned" && a.checkinDate <= date && a.checkoutDate > date');
-    expect(ui).toContain("override?.onlineAvailable ?? total");
+    expect(ui).toContain("computeNightAvailability");
+    expect(ui).toContain("OTA");
+    expect(ui).toContain("walk-in");
     expect(ui).toContain("Math.round((totalAssigned / sellable) * 100)");
 
     const data = fixture();
 
     const d1_29 = computeAvailability(data, 1, "2026-08-29");
-    expect(d1_29).toEqual({ total: 12, blocked: 1, assigned: 1, available: 10, overridden: false });
+    expect(d1_29.total).toBe(12);
+    expect(d1_29.blocked).toBe(1);
+    expect(d1_29.assigned).toBe(1);
+    expect(d1_29.available).toBe(10);
+    expect(d1_29.overridden).toBe(false);
 
     const d1_31 = computeAvailability(data, 1, "2026-08-31");
     expect(d1_31.blocked).toBe(0);
@@ -242,7 +236,9 @@ describe("Inventory grid: availability and occupancy workflows", () => {
     const d2_29 = computeAvailability(data, 2, "2026-08-29");
     expect(d2_29.assigned).toBe(0);
     expect(d2_29.overridden).toBe(true);
-    expect(d2_29.available).toBe(3);
+    expect(d2_29.available).toBe(8);
+    expect(d2_29.online).toBe(3);
+    expect(d2_29.offline).toBe(5);
 
     const stats29 = computeHeaderStats(data, "2026-08-29");
     expect(stats29.sold).toBe(1);

@@ -6,7 +6,7 @@
  * Aiosell-originated events (OTA/Website bookings via webhook) must NOT push back.
  */
 
-import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty, getDirtyInventory, clearDirtyInventory } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getOnlineAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty, getDirtyInventory, clearDirtyInventory } from "@/db/queries";
 import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
@@ -23,11 +23,30 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
 
   const blockedBedIds = await getBlockedBedIdsForDate(dormId, date);
   const assignedCount = await getActiveAssignmentCountForDorm(dormId, date);
+  const onlineAssigned = await getOnlineAssignmentCountForDorm(dormId, date);
 
   const override = await getInventoryOverrideForDormDate(dormId, date);
   const ceiling = override?.onlineAvailable ?? totalBeds;
+  const available = Math.max(0, totalBeds - blockedBedIds.length - assignedCount);
+  return Math.min(available, Math.max(0, ceiling - onlineAssigned));
+}
 
-  return Math.max(0, ceiling - blockedBedIds.length - assignedCount);
+export async function otaFingerprint(dormIds: number[], dates: string[]): Promise<string> {
+  const dorms = [...new Set(dormIds.filter((id) => id > 0))];
+  const nights = [...new Set(dates.filter(Boolean))];
+  const parts: string[] = [];
+  for (const dormId of dorms) {
+    for (const date of nights) {
+      parts.push(`${dormId}:${date}:${await getDateAwareAvailability(dormId, date)}`);
+    }
+  }
+  return parts.sort().join("|");
+}
+
+export async function pushIfOtaChanged(before: string, dormIds: number[], dates: string[]): Promise<void> {
+  if (dates.length === 0 || dormIds.length === 0) return;
+  const after = await otaFingerprint(dormIds, dates);
+  if (before !== after) await triggerInventoryPush(dates);
 }
 
 export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<void> {

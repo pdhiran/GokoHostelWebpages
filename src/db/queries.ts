@@ -1,7 +1,7 @@
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { getDb } from "./index";
 import { todayIST } from "@/lib/utils";
-import { bedsFitInventoryCap, capPhysicalBedsToInventory, stayNights } from "@/lib/inventoryAvailability";
+import { bedsFitInventoryCap, pickInventoryOverride, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
 import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides, inventoryDirty } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
@@ -427,6 +427,22 @@ export async function getActiveAssignmentCountForDorm(dormId: number, date: stri
         eq(bookingBedAssignments.status, "assigned"),
         lte(bookingBedAssignments.checkinDate, date),
         sql`${bookingBedAssignments.checkoutDate} > ${date}`
+      )
+    );
+  return rows[0]?.count ?? 0;
+}
+
+export async function getOnlineAssignmentCountForDorm(dormId: number, date: string): Promise<number> {
+  const db = getDb();
+  const rows = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(bookingBedAssignments)
+    .where(
+      and(
+        eq(bookingBedAssignments.dormId, dormId),
+        eq(bookingBedAssignments.status, "assigned"),
+        lte(bookingBedAssignments.checkinDate, date),
+        sql`${bookingBedAssignments.checkoutDate} > ${date}`,
+        sql`coalesce(${bookingBedAssignments.inventoryPool}, 'online') = 'online'`
       )
     );
   return rows[0]?.count ?? 0;
@@ -1591,37 +1607,40 @@ async function loadBedsAvailabilityForRange(checkinDate: string, checkoutDate: s
   const occupiedBedIds = new Set(assignments.map((r) => r.bedId));
   const blockedBedIds = new Set(blocks.map((r) => r.bedId));
   const physical = allBeds.filter((b) => !occupiedBedIds.has(b.id) && !blockedBedIds.has(b.id));
-  return { allBeds, assignments, blocks, overrides, nights, physical };
+  const blockedOnly = allBeds.filter((b) => !occupiedBedIds.has(b.id) && blockedBedIds.has(b.id));
+  return { allBeds, assignments, blocks, overrides, nights, physical, blockedOnly };
 }
 
 export async function getAvailableBedsForRange(checkinDate: string, checkoutDate: string, dormId?: number) {
-  const { allBeds, assignments, blocks, overrides, nights, physical } = await loadBedsAvailabilityForRange(checkinDate, checkoutDate, dormId);
-  return capPhysicalBedsToInventory(physical, allBeds, nights, blocks, assignments, overrides);
+  const { allBeds, assignments, blocks, overrides, nights, physical, blockedOnly } = await loadBedsAvailabilityForRange(checkinDate, checkoutDate, dormId);
+  if (nights.length === 0) return [];
+  return tagBedsForPicker(physical, blockedOnly, allBeds, nights, blocks, assignments, overrides);
 }
 
 export async function validateBedsForRange(bedIds: number[], checkinDate: string, checkoutDate: string): Promise<string | null> {
   if (bedIds.length === 0) return null;
-  const { allBeds, assignments, blocks, overrides, nights, physical } = await loadBedsAvailabilityForRange(checkinDate, checkoutDate);
-  const byId = new Map(allBeds.map((b) => [b.id, b]));
+  const tagged = await getAvailableBedsForRange(checkinDate, checkoutDate);
+  const byId = new Map(tagged.map((b) => [b.id, b]));
   const requested = [];
   for (const id of bedIds) {
-    const bed = byId.get(id);
-    if (!bed) return "One or more beds were not found";
-    requested.push({ id: bed.id, dormId: bed.dormId });
+    if (!byId.has(id)) return "One or more beds are not available for these dates";
+    requested.push({ id });
   }
-  return bedsFitInventoryCap(requested, new Set(physical.map((b) => b.id)), nights, allBeds, blocks, assignments, overrides);
+  return bedsFitInventoryCap(requested, new Set(tagged.map((b) => b.id)));
 }
 
 export async function assignBedToBooking(data: {
   bookingId: number; bedId: number; dormId: number;
   checkinDate: string; checkoutDate: string; assignedBy: string;
+  inventoryPool?: string;
 }): Promise<boolean> {
   const db = getDb();
   const now = new Date().toISOString();
+  const pool = data.inventoryPool || "online";
 
   const result: any = await db.run(sql`
-    INSERT INTO booking_bed_assignments (booking_id, bed_id, dorm_id, checkin_date, checkout_date, status, assigned_by, assigned_at)
-    SELECT ${data.bookingId}, ${data.bedId}, ${data.dormId}, ${data.checkinDate}, ${data.checkoutDate}, 'assigned', ${data.assignedBy}, ${now}
+    INSERT INTO booking_bed_assignments (booking_id, bed_id, dorm_id, checkin_date, checkout_date, status, assigned_by, assigned_at, inventory_pool)
+    SELECT ${data.bookingId}, ${data.bedId}, ${data.dormId}, ${data.checkinDate}, ${data.checkoutDate}, 'assigned', ${data.assignedBy}, ${now}, ${pool}
     WHERE NOT EXISTS (
       SELECT 1 FROM booking_bed_assignments
       WHERE bed_id = ${data.bedId} AND status = 'assigned'
@@ -1739,7 +1758,7 @@ export async function getBlockedBedIdsForDate(dormId: number, date: string): Pro
       sql`${bedBlocks.endDate} > ${date}`
     )
   );
-  return rows.map(r => r.bedId);
+  return [...new Set(rows.map(r => r.bedId))];
 }
 
 export async function createBedBlock(data: { bedId: number; dormId: number; startDate: string; endDate: string; reason: string; blockedBy: string }) {
@@ -1795,9 +1814,8 @@ export async function getInventoryOverrides(dormId: number, startDate: string, e
 export async function getInventoryOverrideForDormDate(dormId: number, date: string) {
   const db = getDb();
   const rows = await db.select().from(inventoryOverrides)
-    .where(and(eq(inventoryOverrides.dormId, dormId), eq(inventoryOverrides.date, date)))
-    .limit(1);
-  return rows[0] ?? null;
+    .where(and(eq(inventoryOverrides.dormId, dormId), eq(inventoryOverrides.date, date)));
+  return pickInventoryOverride(rows, dormId, date);
 }
 
 export async function upsertInventoryOverride(data: { dormId: number; channelId: number | null; date: string; onlineAvailable?: number | null; offlineAvailable?: number | null; overriddenBy: string }) {

@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  applyBookingToNight,
+  assignmentPool,
   bedsFitInventoryCap,
-  capPhysicalBedsToInventory,
-  inventoryAvailableForNight,
-  inventoryCapForStay,
+  computeNightAvailability,
+  occupiedNights,
+  pickInventoryOverride,
+  remainingSplit,
+  shouldPushPms,
   stayNights,
+  tagBedsForPicker,
 } from "@/lib/inventoryAvailability";
 
 const queries = readFileSync("src/db/queries.ts", "utf8");
 const route = readFileSync("src/app/api/admin/bookings/route.ts", "utf8");
+const sync = readFileSync("src/lib/aiosellSync.ts", "utf8");
 
 function executiveBeds() {
   return Array.from({ length: 12 }, (_, i) => ({
@@ -19,87 +25,250 @@ function executiveBeds() {
   }));
 }
 
+const override5 = [{ dormId: 2, date: "2026-08-31", onlineAvailable: 5, channelId: null }];
+
 describe("stayNights", () => {
   it("uses exclusive checkout so 31 Aug–1 Sep is one night", () => {
     expect(stayNights("2026-08-31", "2026-09-01")).toEqual(["2026-08-31"]);
     expect(stayNights("2026-08-31", "2026-09-02")).toEqual(["2026-08-31", "2026-09-01"]);
-    expect(stayNights("2026-08-31", "2026-08-31")).toEqual([]);
   });
 });
 
-describe("New Booking picker matches inventory", () => {
-  it("caps EXECUTIVE to override 5 when 12 beds are physically free", () => {
-    const beds = executiveBeds();
-    const nights = stayNights("2026-08-31", "2026-09-01");
-    const overrides = [{ dormId: 2, date: "2026-08-31", onlineAvailable: 5, channelId: null }];
-    expect(inventoryAvailableForNight(2, "2026-08-31", beds, [], [], overrides)).toBe(5);
-
-    const capped = capPhysicalBedsToInventory(beds, beds, nights, [], [], overrides);
-    expect(capped).toHaveLength(5);
-    expect(capped.map((b) => b.bedId)).toEqual(["EXE-1", "EXE-2", "EXE-3", "EXE-4", "EXE-5"]);
+describe("occupiedNights", () => {
+  it("does not include the checkout morning, unlike the old +1-day loop", () => {
+    expect(occupiedNights("2026-08-31", "2026-09-01")).toEqual(["2026-08-31"]);
+    expect(occupiedNights("2026-08-31", "2026-09-02")).toEqual(["2026-08-31", "2026-09-01"]);
   });
 
-  it("uses the min inventory across nights of a stay", () => {
-    const beds = executiveBeds();
-    const nights = stayNights("2026-08-31", "2026-09-02");
+  it("treats a missing checkout as a single night", () => {
+    expect(occupiedNights("2026-08-31")).toEqual(["2026-08-31"]);
+    expect(occupiedNights("2026-08-31", "2026-08-31")).toEqual(["2026-08-31"]);
+  });
+});
+
+describe("pickInventoryOverride", () => {
+  it("prefers the dorm-wide (null channel) row over a channel-specific one", () => {
+    const picked = pickInventoryOverride(
+      [
+        { dormId: 2, date: "2026-08-31", channelId: 9, onlineAvailable: 2 },
+        { dormId: 2, date: "2026-08-31", channelId: null, onlineAvailable: 5 },
+      ],
+      2,
+      "2026-08-31",
+    );
+    expect(picked?.onlineAvailable).toBe(5);
+  });
+});
+
+describe("Inventory split: EXECUTIVE 12 beds, 5 online / 7 walk-in", () => {
+  const beds = executiveBeds();
+
+  it("starts at 5 OTA and 7 walk-in with 12 physical available", () => {
+    const snap = computeNightAvailability(2, "2026-08-31", beds, [], [], override5);
+    expect(snap).toMatchObject({ total: 12, blocked: 0, assigned: 0, available: 12, online: 5, offline: 7, overridden: true });
+  });
+
+  it("tags EXE-1..5 as online and EXE-6..12 as walk-in so New Booking shows the 7 offline beds", () => {
+    const tagged = tagBedsForPicker(beds, [], beds, ["2026-08-31"], [], [], override5);
+    expect(tagged.filter((b) => b.pool === "online").map((b) => b.bedId)).toEqual(["EXE-1", "EXE-2", "EXE-3", "EXE-4", "EXE-5"]);
+    expect(tagged.filter((b) => b.pool === "offline")).toHaveLength(7);
+    expect(tagged).toHaveLength(12);
+  });
+});
+
+describe("Mock workflows", () => {
+  const beds = executiveBeds();
+
+  it("walk-in on an offline bed: online stays 5, no PMS push", () => {
+    const before = computeNightAvailability(2, "2026-08-31", beds, [], [], override5);
+    const after = applyBookingToNight(before, "offline");
+    expect(after.online).toBe(5);
+    expect(after.offline).toBe(6);
+    expect(after.available).toBe(11);
+    expect(shouldPushPms(["offline"])).toBe(false);
+  });
+
+  it("OTA bed selected: online drops to 4 and PMS should push", () => {
+    const before = computeNightAvailability(2, "2026-08-31", beds, [], [], override5);
+    const after = applyBookingToNight(before, "online");
+    expect(after.online).toBe(4);
+    expect(after.offline).toBe(7);
+    expect(shouldPushPms(["online"])).toBe(true);
+    expect(shouldPushPms(["offline", "online"])).toBe(true);
+  });
+
+  it("blocking 2 beds keeps online at 5 and shrinks walk-in", () => {
+    const blocks = [
+      { bedId: 11, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" },
+      { bedId: 12, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" },
+    ];
+    const snap = computeNightAvailability(2, "2026-08-31", beds, blocks, [], override5);
+    expect(snap.blocked).toBe(2);
+    expect(snap.available).toBe(10);
+    expect(snap.online).toBe(5);
+    expect(snap.offline).toBe(5);
+  });
+
+  it("overlapping blocks on the same bed count as one blocked bed", () => {
+    const blocks = [
+      { bedId: 12, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-02" },
+      { bedId: 12, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" },
+    ];
+    const snap = computeNightAvailability(2, "2026-08-31", beds, blocks, [], override5);
+    expect(snap.blocked).toBe(1);
+    expect(snap.available).toBe(11);
+    expect(snap.online).toBe(5);
+    expect(snap.offline).toBe(6);
+  });
+
+  it("booking a blocked bed clears the block, online stays 5, no PMS push", () => {
+    const blocks = [{ bedId: 12, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" }];
+    const before = computeNightAvailability(2, "2026-08-31", beds, blocks, [], override5);
+    expect(before.blocked).toBe(1);
+    expect(before.online).toBe(5);
+    const after = applyBookingToNight(before, "block");
+    expect(after.blocked).toBe(0);
+    expect(after.assigned).toBe(1);
+    expect(after.online).toBe(5);
+    expect(after.available).toBe(before.available);
+    expect(shouldPushPms(["block"])).toBe(false);
+  });
+
+  it("blocked beds appear in the picker as pool=block alongside walk-in beds", () => {
+    const blocks = [{ bedId: 12, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" }];
+    const free = beds.filter((b) => b.id !== 12);
+    const blockedOnly = beds.filter((b) => b.id === 12);
+    const tagged = tagBedsForPicker(free, blockedOnly, beds, ["2026-08-31"], blocks, [], override5);
+    expect(tagged.find((b) => b.bedId === "EXE-12")?.pool).toBe("block");
+    expect(tagged.filter((b) => b.pool === "offline").length).toBeGreaterThan(0);
+  });
+
+  it("legacy assignments without a pool count as online so existing PMS numbers do not jump up", () => {
+    expect(assignmentPool(null)).toBe("online");
+    expect(assignmentPool("offline")).toBe("offline");
+    const assignments = [{ dormId: 2, checkinDate: "2026-08-31", checkoutDate: "2026-09-01", status: "assigned" }];
+    const snap = computeNightAvailability(2, "2026-08-31", beds, [], assignments, override5);
+    expect(snap.onlineAssigned).toBe(1);
+    expect(snap.online).toBe(4);
+  });
+
+  it("rejects beds that are not in the tagged picker list", () => {
+    expect(bedsFitInventoryCap([{ id: 99 }], new Set([1, 2]))).toBe("One or more beds are not available for these dates");
+    expect(bedsFitInventoryCap([{ id: 1 }], new Set([1, 2]))).toBeNull();
+  });
+
+  it("mixed online + walk-in selection pushes because an OTA bed was taken", () => {
+    let snap = computeNightAvailability(2, "2026-08-31", beds, [], [], override5);
+    snap = applyBookingToNight(snap, "offline");
+    const beforeOnline = snap.online;
+    snap = applyBookingToNight(snap, "online");
+    expect(shouldPushPms(["offline", "online"], { online: beforeOnline }, snap)).toBe(true);
+    expect(snap.online).toBe(4);
+    expect(snap.offline).toBe(6);
+  });
+
+  it("multi-night stay tags only the min OTA slots across nights as online", () => {
     const overrides = [
       { dormId: 2, date: "2026-08-31", onlineAvailable: 5, channelId: null },
       { dormId: 2, date: "2026-09-01", onlineAvailable: 2, channelId: null },
     ];
-    expect(inventoryCapForStay(2, nights, beds, [], [], overrides)).toBe(2);
-    expect(capPhysicalBedsToInventory(beds, beds, nights, [], [], overrides)).toHaveLength(2);
+    const tagged = tagBedsForPicker(beds, [], beds, ["2026-08-31", "2026-09-01"], [], [], overrides);
+    expect(tagged.filter((b) => b.pool === "online")).toHaveLength(2);
+    expect(tagged.filter((b) => b.pool === "offline")).toHaveLength(10);
   });
 
-  it("subtracts blocked and assigned from the override ceiling, matching inventory cells", () => {
-    const beds = executiveBeds();
-    const blocks = [{ bedId: 1, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" }];
-    const assignments = [{ dormId: 2, checkinDate: "2026-08-31", checkoutDate: "2026-09-01", status: "assigned" }];
-    const overrides = [{ dormId: 2, date: "2026-08-31", onlineAvailable: 5, channelId: null }];
-    expect(inventoryAvailableForNight(2, "2026-08-31", beds, blocks, assignments, overrides)).toBe(3);
+  it("walk-in that eats past OTA slack drops remaining OTA and should push", () => {
+    let snap = computeNightAvailability(2, "2026-08-31", beds, [], [], override5);
+    for (let i = 0; i < 7; i++) snap = applyBookingToNight(snap, "offline");
+    expect(snap.online).toBe(5);
+    expect(snap.available).toBe(5);
+    const before = { online: snap.online };
+    snap = applyBookingToNight(snap, "offline");
+    expect(snap.online).toBe(4);
+    expect(shouldPushPms(["offline"])).toBe(false);
+    expect(shouldPushPms(["offline"], before, snap)).toBe(true);
   });
 
-  it("without an override, returns all physically free beds", () => {
-    const beds = executiveBeds();
-    const physical = beds.slice(0, 10);
-    const capped = capPhysicalBedsToInventory(physical, beds, ["2026-08-31"], [], [], []);
-    expect(capped).toHaveLength(10);
-  });
-
-  it("allows assigning any physically free beds up to the inventory cap", () => {
-    const beds = executiveBeds();
-    const physicalIds = new Set(beds.map((b) => b.id));
-    const overrides = [{ dormId: 2, date: "2026-08-31", onlineAvailable: 5, channelId: null }];
-    const nights = ["2026-08-31"];
-    const laterFive = beds.slice(7).map((b) => ({ id: b.id, dormId: b.dormId }));
-    expect(bedsFitInventoryCap(laterFive, physicalIds, nights, beds, [], [], overrides)).toBeNull();
-    expect(bedsFitInventoryCap(beds.map((b) => ({ id: b.id, dormId: b.dormId })), physicalIds, nights, beds, [], [], overrides)).toBe(
-      "Not enough inventory for one or more dorms on these dates",
-    );
-  });
-
-  it("rejects occupied or blocked beds even when inventory still has a ceiling", () => {
-    const beds = executiveBeds();
-    const physicalIds = new Set(beds.slice(1).map((b) => b.id));
-    const overrides = [{ dormId: 2, date: "2026-08-31", onlineAvailable: 5, channelId: null }];
-    expect(bedsFitInventoryCap([{ id: 1, dormId: 2 }], physicalIds, ["2026-08-31"], beds, [], [], overrides)).toBe(
-      "One or more beds are not available for these dates",
-    );
+  it("remaining walk-in uses ceiling minus online-assigned, not ceiling minus available", () => {
+    const split = remainingSplit(11, 5, 1);
+    expect(split).toEqual({ online: 4, offline: 7 });
   });
 });
 
-describe("New Booking inventory cap is wired through the API", () => {
-  it("caps getAvailableBedsForRange with inventory overrides", () => {
-    expect(queries).toContain("capPhysicalBedsToInventory(physical, allBeds, nights, blocks, assignments, overrides)");
-    expect(queries).toContain("export async function validateBedsForRange");
+describe("Wiring", () => {
+  it("tags picker beds including blocked, stores inventory_pool, and only pushes PMS when OTA numbers change", () => {
+    expect(queries).toContain("tagBedsForPicker(physical, blockedOnly");
+    expect(queries).toContain("inventory_pool");
+    expect(queries).toContain("deactivateBedBlocksByBedIds");
+    expect(queries).toContain("pickInventoryOverride(rows, dormId, date)");
+    expect(queries).toContain("[...new Set(rows.map(r => r.bedId))]");
+    expect(route).toContain("assignTaggedBeds");
+    expect(route).toContain('status: "cancelled"');
+    expect(route).toContain("pushIfOtaChanged");
+    expect(route).toContain("occupiedNights");
+    expect(sync).toContain("getOnlineAssignmentCountForDorm");
+    expect(sync).toContain("Math.min(available, Math.max(0, ceiling - onlineAssigned))");
+    expect(sync).toContain("if (before !== after) await triggerInventoryPush(dates)");
+    expect(queries).toContain("if (nights.length === 0) return []");
+    expect(route).toContain("checkoutDate must be after checkinDate");
+    expect(route).toContain("pool: b.pool");
   });
 
-  it("rejects over-cap bed lists on create and assign before writing", () => {
-    const create = route.match(/action === "createBooking"[\s\S]*?action === "assignBeds"/)![0];
-    expect(create).toContain("validateBedsForRange(bedIds, checkinDate, checkoutDate)");
-    expect(create.indexOf("validateBedsForRange")).toBeLessThan(create.indexOf("addBooking("));
+  it("clears a block only after the bed assignment succeeds", () => {
+    const helper = route.match(/async function assignTaggedBeds[\s\S]*?\nfunction diffDays/)![0];
+    expect(helper.indexOf("assignBedToBooking")).toBeLessThan(helper.indexOf("deactivateBedBlocksByBedIds"));
+  });
+});
 
-    const assign = route.match(/action === "assignBeds"[\s\S]*?action === "checkIn"/)![0];
-    expect(assign).toContain("validateBedsForRange(bedIds, checkinDate, checkoutDate)");
-    expect(assign.indexOf("validateBedsForRange")).toBeLessThan(assign.indexOf("assignBedToBooking("));
+describe("Sequential mock: create offline then online then blocked, with PMS log", () => {
+  it("writes three bookings and only logs a PMS push for the online one", () => {
+    const beds = executiveBeds();
+    let snap = computeNightAvailability(2, "2026-08-31", beds, [], [], override5);
+    const pmsLog: Array<{ booking: string; action: "push" | "skip"; online: number; offline: number }> = [];
+
+    function create(name: string, pool: "online" | "offline" | "block") {
+      const action = shouldPushPms([pool]) ? "push" : "skip";
+      snap = applyBookingToNight(snap, pool);
+      pmsLog.push({ booking: name, action, online: snap.online, offline: snap.offline });
+    }
+
+    create("offline-walkin", "offline");
+    create("online-ota", "online");
+    create("took-block", "block");
+
+    expect(pmsLog).toEqual([
+      { booking: "offline-walkin", action: "skip", online: 5, offline: 6 },
+      { booking: "online-ota", action: "push", online: 4, offline: 6 },
+      { booking: "took-block", action: "skip", online: 4, offline: 6 },
+    ]);
+    expect(pmsLog.filter((e) => e.action === "push")).toHaveLength(1);
+    expect(snap.assigned).toBe(3);
+  });
+
+  it("round 2: mixed pick pushes, walk-in slack does not, squeeze walk-in does", () => {
+    const beds = executiveBeds();
+    let snap = computeNightAvailability(2, "2026-08-31", beds, [], [], override5);
+    const log: Array<"push" | "skip"> = [];
+
+    function book(pool: "online" | "offline" | "block") {
+      const before = { online: snap.online };
+      snap = applyBookingToNight(snap, pool);
+      log.push(shouldPushPms([pool], before, snap) ? "push" : "skip");
+    }
+
+    book("offline");
+    book("offline");
+    book("online");
+    book("block");
+    for (let i = 0; i < 5; i++) book("offline");
+    book("offline");
+
+    expect(log).toEqual([
+      "skip", "skip", "push", "skip",
+      "skip", "skip", "skip", "skip", "skip",
+      "push",
+    ]);
+    expect(snap.online).toBe(3);
+    expect(snap.assigned).toBe(10);
   });
 });
