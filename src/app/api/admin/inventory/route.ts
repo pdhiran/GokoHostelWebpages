@@ -278,7 +278,6 @@ export async function POST(req: NextRequest) {
         const ratesByDate = new Map(existingRates.map((r: any) => [r.date, r]));
         for (const date of filteredDates) {
           const existing = ratesByDate.get(date);
-          if (!existing) continue;
           const updateData: any = {
             ratePlanId: rpId, date, updatedBy: actingUser,
             rate: existing?.rate ?? 0,

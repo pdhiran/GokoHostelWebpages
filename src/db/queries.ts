@@ -1478,9 +1478,10 @@ export async function getAvailableBedsForDorm(dormId: number): Promise<number> {
 
 export async function getBookingCalendarData(startDate: string, endDate: string) {
   const db = getDb();
+  // endDate is the last visible night (inclusive), not an exclusive checkout.
   const bookingRows = await db.select().from(bookings).where(
     and(
-      sql`${bookings.checkinDate} < ${endDate}`,
+      sql`${bookings.checkinDate} <= ${endDate}`,
       sql`${bookings.checkoutDate} > ${startDate}`,
       sql`${bookings.status} != 'cancelled'`
     )
@@ -1489,7 +1490,7 @@ export async function getBookingCalendarData(startDate: string, endDate: string)
   const assignments = await db.select().from(bookingBedAssignments).where(
     and(
       eq(bookingBedAssignments.status, "assigned"),
-      sql`${bookingBedAssignments.checkinDate} < ${endDate}`,
+      sql`${bookingBedAssignments.checkinDate} <= ${endDate}`,
       sql`${bookingBedAssignments.checkoutDate} > ${startDate}`
     )
   );
@@ -1723,7 +1724,7 @@ export async function getActiveBedBlocks(dormId?: number, startDate?: string, en
   let conditions = eq(bedBlocks.isActive, 1);
   if (dormId) conditions = and(conditions, eq(bedBlocks.dormId, dormId))!;
   if (startDate && endDate) {
-    conditions = and(conditions, sql`${bedBlocks.startDate} < ${endDate}`, sql`${bedBlocks.endDate} > ${startDate}`)!;
+    conditions = and(conditions, sql`${bedBlocks.startDate} <= ${endDate}`, sql`${bedBlocks.endDate} > ${startDate}`)!;
   }
   return db.select().from(bedBlocks).where(conditions);
 }
@@ -1878,12 +1879,12 @@ export async function getInventoryGridData(startDate: string, endDate: string) {
   const allDorms = await db.select().from(dorms);
   const allBeds = await db.select().from(beds);
   const blocks = await db.select().from(bedBlocks).where(
-    and(eq(bedBlocks.isActive, 1), sql`${bedBlocks.startDate} < ${endDate}`, sql`${bedBlocks.endDate} > ${startDate}`)
+    and(eq(bedBlocks.isActive, 1), sql`${bedBlocks.startDate} <= ${endDate}`, sql`${bedBlocks.endDate} > ${startDate}`)
   );
   const assignments = await db.select().from(bookingBedAssignments).where(
     and(
       eq(bookingBedAssignments.status, "assigned"),
-      sql`${bookingBedAssignments.checkinDate} < ${endDate}`,
+      sql`${bookingBedAssignments.checkinDate} <= ${endDate}`,
       sql`${bookingBedAssignments.checkoutDate} > ${startDate}`
     )
   );
