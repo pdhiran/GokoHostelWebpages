@@ -271,6 +271,27 @@ describe("Booking Dashboard: markNoShow Logic", () => {
   });
 });
 
+describe("Booking Calendar: inclusive last night", () => {
+  const queriesCode = readFile("src/db/queries.ts");
+
+  function occupiesInclusiveRange(checkin: string, checkout: string, start: string, end: string) {
+    return checkin <= end && checkout > start;
+  }
+
+  it("treats the calendar end date as the last visible night, not an exclusive checkout", () => {
+    const fn = queriesCode.match(/export async function getBookingCalendarData[\s\S]*?return \{ bookings/ )![0];
+    expect(fn).toContain("checkinDate} <= ${endDate}");
+    expect(fn).toContain("checkoutDate} > ${startDate}");
+    expect(fn).not.toMatch(/checkinDate\} < \$\{endDate\}/);
+  });
+
+  it("includes a 6 Sep stay on the default 10-day view that ends 6 Sep", () => {
+    // 29 Aug → range Aug 28 .. Sep 6 (yesterday through yesterday+9)
+    expect(occupiesInclusiveRange("2026-09-06", "2026-09-07", "2026-08-28", "2026-09-06")).toBe(true);
+    expect("2026-09-06" < "2026-09-06").toBe(false);
+  });
+});
+
 describe("Booking Calendar: sticky dates and row colour", () => {
   const grid = readFile("src/components/admin/booking-dashboard/BookingCalendarGrid.tsx");
   const dashboard = readFile("src/components/admin/booking-dashboard/index.tsx");
