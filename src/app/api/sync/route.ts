@@ -567,22 +567,26 @@ export async function POST(request: NextRequest) {
       }
 
       case "shutdownPi":
-      case "deployUpdate": {
-        const isPiAction = action === "shutdownPi" || action === "deployUpdate";
-
+      case "deployUpdate":
+      case "restartCloudflared": {
         if (isPiRuntime()) {
           if (action === "shutdownPi") {
             exec("nohup sudo /sbin/shutdown -h +1 'GokoWeb admin initiated shutdown' &", (err) => {
               if (err) console.error("[sync] Shutdown error:", err.message);
             });
             return NextResponse.json({ ok: true, message: "Raspberry Pi will shut down in 1 minute. Unplug power after the green LED stops flashing." });
-          } else {
-            const scriptPath = `${process.cwd()}/scripts/check-and-deploy.sh`;
-            exec(`nohup bash -c 'sleep 2 && flock -n /tmp/goko-deploy-manual.lock bash ${scriptPath}' >> /home/goko/deploy.log 2>&1 &`, (err) => {
-              if (err) console.error("[sync] Deploy error:", err.message);
-            });
-            return NextResponse.json({ ok: true, message: "Deploy triggered. The Pi will pull the latest code, rebuild, and restart. This may take 5-10 minutes." });
           }
+          if (action === "restartCloudflared") {
+            exec("nohup sudo systemctl restart cloudflared &", (err) => {
+              if (err) console.error("[sync] cloudflared restart error:", err.message);
+            });
+            return NextResponse.json({ ok: true, message: "Restarted cloudflared. Wait ~15s, then refresh Server Sync on the live site." });
+          }
+          const scriptPath = `${process.cwd()}/scripts/check-and-deploy.sh`;
+          exec(`nohup bash -c 'sleep 2 && flock -n /tmp/goko-deploy-manual.lock bash ${scriptPath}' >> /home/goko/deploy.log 2>&1 &`, (err) => {
+            if (err) console.error("[sync] Deploy error:", err.message);
+          });
+          return NextResponse.json({ ok: true, message: "Deploy triggered. The Pi will pull the latest code, rebuild, and restart. This may take 5-10 minutes." });
         }
 
         const piUrl = process.env.PI_PUBLIC_URL;

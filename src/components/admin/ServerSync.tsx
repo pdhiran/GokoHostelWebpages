@@ -118,6 +118,8 @@ export function ServerSync({ password, username, role }: { password: string; use
   const [shutdownMessage, setShutdownMessage] = useState<string | null>(null);
   const [deploying, setDeploying] = useState(false);
   const [deployMessage, setDeployMessage] = useState<string | null>(null);
+  const [restartingTunnel, setRestartingTunnel] = useState(false);
+  const [tunnelMessage, setTunnelMessage] = useState<string | null>(null);
   const [failoverEnabled, setFailoverEnabled] = useState(false);
   const [failoverActive, setFailoverActive] = useState(false);
   const [failoverLoading, setFailoverLoading] = useState(false);
@@ -264,6 +266,19 @@ export function ServerSync({ password, username, role }: { password: string; use
       setDeployMessage("Failed to trigger deploy.");
     }
     setDeploying(false);
+  };
+
+  const handleRestartTunnel = async () => {
+    setRestartingTunnel(true);
+    setTunnelMessage(null);
+    const res = await apiCall("restartCloudflared");
+    if (res && res.ok) {
+      const data = await res.json();
+      setTunnelMessage(data.message || "Tunnel restart requested.");
+    } else {
+      setTunnelMessage("Failed to restart tunnel.");
+    }
+    setRestartingTunnel(false);
   };
 
   const handleToggleFailover = async () => {
@@ -417,8 +432,8 @@ export function ServerSync({ password, username, role }: { password: string; use
           </div>
         )}
 
-        {/* Pi Deploy & Shutdown Controls */}
-        {status.pi.online && (
+        {/* Pi Deploy, Tunnel & Shutdown Controls */}
+        {(status.pi.online || status.runtime === "pi") && (
           <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -441,6 +456,34 @@ export function ServerSync({ password, username, role }: { password: string; use
             {deployMessage && (
               <div className="mt-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 p-3">
                 <p className="text-xs font-medium text-blue-800">{deployMessage}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {status.runtime === "pi" && (
+          <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <WifiIcon className="h-5 w-5 text-purple-500" />
+                <div>
+                  <p className="text-sm font-medium text-brand-green-dark">Public tunnel</p>
+                  <p className="text-xs text-brand-green-dark/60">Restart cloudflared so pi.gokohostel.com works from the internet</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRestartTunnel}
+                disabled={restartingTunnel}
+                className="flex items-center gap-1.5 rounded-lg border border-purple-200 px-3 py-1.5 text-[11px] font-medium text-purple-600 transition-colors hover:bg-purple-50 disabled:opacity-50"
+              >
+                {restartingTunnel ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <RefreshCwIcon className="h-3.5 w-3.5" />}
+                {restartingTunnel ? "Restarting..." : "Restart tunnel"}
+              </button>
+            </div>
+            {tunnelMessage && (
+              <div className="mt-3 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200 p-3">
+                <p className="text-xs font-medium text-purple-800">{tunnelMessage}</p>
               </div>
             )}
           </div>
