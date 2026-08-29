@@ -24,14 +24,10 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
   const blockedBedIds = await getBlockedBedIdsForDate(dormId, date);
   const assignedCount = await getActiveAssignmentCountForDorm(dormId, date);
 
-  const computed = Math.max(0, totalBeds - blockedBedIds.length - assignedCount);
-
   const override = await getInventoryOverrideForDormDate(dormId, date);
-  if (override?.onlineAvailable != null) {
-    return override.onlineAvailable;
-  }
+  const ceiling = override?.onlineAvailable ?? totalBeds;
 
-  return computed;
+  return Math.max(0, ceiling - blockedBedIds.length - assignedCount);
 }
 
 export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<void> {

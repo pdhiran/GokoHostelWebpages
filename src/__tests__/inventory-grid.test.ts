@@ -57,9 +57,9 @@ function computeAvailability(data: MockGrid, dormId: number, date: string) {
   const assigned = data.assignments.filter(
     (a) => a.dormId === dormId && a.status === "assigned" && a.checkinDate <= date && a.checkoutDate > date
   ).length;
-  const computed = Math.max(0, total - blocked - assigned);
   const override = data.overrides.find((o) => o.dormId === dormId && o.date === date);
-  const available = override?.onlineAvailable != null ? override.onlineAvailable : computed;
+  const ceiling = override?.onlineAvailable ?? total;
+  const available = Math.max(0, ceiling - blocked - assigned);
   return { total, blocked, assigned, available, overridden: override?.onlineAvailable != null };
 }
 
@@ -222,7 +222,7 @@ describe("Inventory grid: availability and occupancy workflows", () => {
   it("matches the source occupancy formula (blocked exclusive-end, cancelled ignored, override wins)", () => {
     expect(ui).toContain("bl.startDate <= date && bl.endDate > date");
     expect(ui).toContain('a.status === "assigned" && a.checkinDate <= date && a.checkoutDate > date');
-    expect(ui).toContain("override?.onlineAvailable != null ? override.onlineAvailable : computed");
+    expect(ui).toContain("override?.onlineAvailable ?? total");
     expect(ui).toContain("Math.round((totalAssigned / sellable) * 100)");
 
     const data = fixture();

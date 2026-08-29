@@ -113,9 +113,9 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
     const assigned = data.assignments.filter(
       (a) => a.dormId === dormId && a.status === "assigned" && a.checkinDate <= date && a.checkoutDate > date
     ).length;
-    const computed = Math.max(0, total - blocked - assigned);
     const override = data.overrides?.find((o) => o.dormId === dormId && o.date === date);
-    const available = override?.onlineAvailable != null ? override.onlineAvailable : computed;
+    const ceiling = override?.onlineAvailable ?? total;
+    const available = Math.max(0, ceiling - blocked - assigned);
     return { total, blocked, assigned, available, overridden: override?.onlineAvailable != null };
   }, [data]);
 
