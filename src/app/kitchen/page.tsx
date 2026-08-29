@@ -1,10 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import dynamic from "next/dynamic";
 import { LockIcon } from "lucide-react";
-import { KitchenDashboard } from "@/components/kitchen/KitchenDashboard";
-import { fadeInScale } from "@/lib/animations";
+
+const KitchenDashboard = dynamic(
+  () => import("@/components/kitchen/KitchenDashboard").then((m) => m.KitchenDashboard),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+      </div>
+    ),
+  },
+);
 
 export default function KitchenPage() {
   const [password, setPassword] = useState("");
@@ -51,12 +61,7 @@ export default function KitchenPage() {
   if (!password) {
     return (
       <section className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-background">
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={fadeInScale}
-          className="w-full max-w-sm rounded-2xl border border-gray-200 dark:border-border bg-white dark:bg-card p-8 shadow-lg"
-        >
+        <div className="w-full max-w-sm rounded-2xl border border-gray-200 dark:border-border bg-white dark:bg-card p-8 shadow-lg">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 dark:bg-amber-500/10">
             <LockIcon className="h-6 w-6 text-amber-500" />
           </div>
@@ -81,11 +86,7 @@ export default function KitchenPage() {
               autoFocus
               className="w-full rounded-xl border border-gray-300 dark:border-border bg-white dark:bg-muted px-4 py-3 text-gray-900 dark:text-foreground placeholder-gray-400 dark:placeholder-muted-foreground outline-none transition-all duration-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-500/30 focus:shadow-sm"
             />
-            <AnimatePresence>
-              {error && (
-                <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="text-sm text-red-500">{error}</motion.p>
-              )}
-            </AnimatePresence>
+            {error && <p className="text-sm text-red-500">{error}</p>}
             <button
               type="submit"
               disabled={loading || !inputPassword}
@@ -94,7 +95,7 @@ export default function KitchenPage() {
               {loading ? "Verifying..." : "Enter Kitchen"}
             </button>
           </form>
-        </motion.div>
+        </div>
       </section>
     );
   }

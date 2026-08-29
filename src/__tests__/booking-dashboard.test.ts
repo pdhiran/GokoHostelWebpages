@@ -324,7 +324,8 @@ describe("Booking Calendar: sticky dates and row colour", () => {
   it("fills leftover viewport and skips y-transform on the bookings tab", () => {
     expect(dashboard).toMatch(/flex h-full min-h-0 flex-1 flex-col gap-4/);
     expect(adminPage).toMatch(/fillViewport = section === "inventory" \|\| section === "bookings"/);
-    expect(adminPage).toMatch(/fillViewport \? fadeIn : pageTransition/);
+    expect(adminPage).toMatch(/fillViewport && "flex h-full min-h-0 flex-1 flex-col"/);
+    expect(adminPage).not.toMatch(/framer-motion/);
   });
 
   it("tints weekends, today, dorm groups, and blocked beds", () => {
@@ -339,5 +340,25 @@ describe("Booking Calendar: sticky dates and row colour", () => {
     expect(isWeekend("2026-08-29")).toBe(true);
     expect(isWeekend("2026-08-30")).toBe(true);
     expect(isWeekend("2026-08-31")).toBe(false);
+  });
+});
+
+describe("Booking API: calendar enrich and rates batch", () => {
+  const route = readFile("src/app/api/admin/bookings/route.ts");
+
+  it("maps beds by id instead of find-per-assignment", () => {
+    const section = route.match(/action === "getCalendarData"[\s\S]*?action === "getDetail"/)![0];
+    expect(section).toContain("new Map(allBeds.map");
+    expect(section).toContain("bedById.get(a.bedId)");
+    expect(section).not.toContain("allBeds.find");
+  });
+
+  it("loads check-in-day rates once via getAllDailyRates", () => {
+    const section = route.match(/action === "getAvailableBeds"[\s\S]*?action === "getBookingHistory"/)![0];
+    expect(section).toContain("getAllDailyRates(checkinDate, checkinDate)");
+    expect(section).not.toMatch(/await getDailyRates\(/);
+    expect(section).toContain("adult1Rate ?? rate.rate");
+    expect(section).toContain("pool: b.pool");
+    expect(section).toMatch(/if \(rate\) \{\s*dormRates\[mapping\.dormId\] = rate\.adult1Rate \?\? rate\.rate;/);
   });
 });

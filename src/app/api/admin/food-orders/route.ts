@@ -36,6 +36,7 @@ import {
   deleteFoodOrderItem,
   getMenuItemCategoryExemptions,
 } from "@/db/queries";
+import { parseFoodCheckoutGraceDays } from "@/lib/foodLookup";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { authenticateUser } from "@/lib/auth";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
@@ -552,8 +553,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "getActiveGuests": {
-        const graceDaysStr = await getSetting("food_checkout_grace_days");
-        const graceDays = Number(graceDaysStr) || 10;
+        const graceDays = parseFoodCheckoutGraceDays(await getSetting("food_checkout_grace_days"));
         const [guests, allBeds, checkedOutGuests] = await Promise.all([
           getActiveCheckins(),
           getAllBeds(),

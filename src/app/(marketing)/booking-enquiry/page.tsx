@@ -5,6 +5,8 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Container } from "@/components/ui/Container";
 import { buildMetadata } from "@/lib/seo";
 
+export const dynamic = "force-static";
+
 export const metadata = buildMetadata({
   title: "Booking Enquiry",
   description:

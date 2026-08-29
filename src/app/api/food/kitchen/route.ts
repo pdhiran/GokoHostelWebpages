@@ -7,6 +7,7 @@ import {
   updateFoodOrderStatus,
   toggleMenuItemAvailability,
   getAllMenuItems,
+  getMenuItemTagsByIds,
   getActiveMenuCategories,
   addOrderModification,
   updateFoodOrder,
@@ -24,7 +25,7 @@ import {
 } from "@/db/queries";
 import { getDb } from "@/db";
 import { foodOrderItems, foodOrders, orderModifications } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { authenticateKitchen } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -40,17 +41,23 @@ export async function POST(req: NextRequest) {
 
     if (action === "listOrders") {
       const orders = await getActiveFoodOrders();
-      const allItems = await getAllMenuItems();
-      const menuItemTags = new Map(allItems.map((m) => [m.id, m.tags || "[]"]));
-
-      const db = getDb();
-      const modCounts = await db.select({
-        orderId: orderModifications.orderId,
-        count: sql<number>`COUNT(*)`,
-      }).from(orderModifications).groupBy(orderModifications.orderId);
-      const modCountMap = new Map(modCounts.map((r) => [r.orderId, r.count]));
-
       const itemsMap = await getFoodOrderItemsBatch(orders.map((o) => o.id));
+      const tagIds = [...new Set(
+        [...itemsMap.values()].flat().map((i) => i.menuItemId).filter((id): id is number => typeof id === "number"),
+      )];
+      const menuItemTags = await getMenuItemTagsByIds(tagIds);
+
+      const orderIds = orders.map((o) => o.id);
+      const modCountMap = new Map<number, number>();
+      if (orderIds.length > 0) {
+        const db = getDb();
+        const modCounts = await db.select({
+          orderId: orderModifications.orderId,
+          count: sql<number>`COUNT(*)`,
+        }).from(orderModifications).where(inArray(orderModifications.orderId, orderIds)).groupBy(orderModifications.orderId);
+        for (const row of modCounts) modCountMap.set(row.orderId, row.count);
+      }
+
       const ordersWithItems = orders.map((order) => {
         const items = itemsMap.get(order.id) || [];
         return {

@@ -20,6 +20,8 @@ import { excerpt } from "@/lib/format";
 import { buildMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
 
+export const dynamic = "force-static";
+
 const homeReviewGrid = guestReviews.slice(0, 6);
 
 export const metadata = buildMetadata({

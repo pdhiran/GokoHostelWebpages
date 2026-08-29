@@ -15,6 +15,8 @@ import { stayGalleryById } from "@/lib/stayGallery";
 import { buildMetadata } from "@/lib/seo";
 import { heroVideoB } from "@/lib/site";
 
+export const dynamic = "force-static";
+
 export const metadata = buildMetadata({
   title: "Stay",
   description: stayHero.subtitle,

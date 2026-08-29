@@ -74,6 +74,10 @@ export async function POST(req: NextRequest) {
     permissions = authResult.permissions;
     const actingUser = username || role;
 
+    if (action === "auth") {
+      return NextResponse.json({ role, permissions });
+    }
+
     const ACTION_PERMISSIONS: Record<string, ActionPerm> = {
       list: "canViewRecords", add: "canAddCheckin", addPast: "admin_only",
       update: "canEditRecords", delete: "canDeleteRecords",

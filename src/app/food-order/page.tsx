@@ -1,13 +1,23 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { PhoneEntry, type GuestInfo } from "@/components/food/PhoneEntry";
-import { MenuBrowser, type CartItem } from "@/components/food/MenuBrowser";
-import { FoodCart, type CartItemData, type GuestInfoData } from "@/components/food/FoodCart";
+import type { CartItem } from "@/components/food/MenuBrowser";
+import type { CartItemData, GuestInfoData } from "@/components/food/FoodCart";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
 // import { DarkModeToggle } from "@/components/DarkModeToggle";
+
+const MenuBrowser = dynamic(
+  () => import("@/components/food/MenuBrowser").then((m) => m.MenuBrowser),
+  { ssr: false },
+);
+const FoodCart = dynamic(
+  () => import("@/components/food/FoodCart").then((m) => m.FoodCart),
+  { ssr: false },
+);
 
 type View = "loading" | "phone" | "menu" | "cart";
 

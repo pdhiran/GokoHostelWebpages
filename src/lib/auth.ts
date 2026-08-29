@@ -58,9 +58,9 @@ export async function authenticateKitchen(password: string): Promise<{ role: Use
   if (process.env.MANAGER_PASSWORD && password === process.env.MANAGER_PASSWORD) return { role: "manager", displayName: "Manager" };
 
   try {
+    const computed = await hashPassword(password);
     const allUsers = await getAllUsers();
     for (const user of allUsers) {
-      const computed = await hashPassword(password);
       if (computed === user.passwordHash) {
         return { role: (user.role as UserRole) || "staff", displayName: user.displayName || user.username };
       }

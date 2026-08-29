@@ -7,6 +7,8 @@ import { faqCategories, faqHero, faqStillHaveQuestions } from "@/content/faqs";
 import { buildMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
 
+export const dynamic = "force-static";
+
 export const metadata = buildMetadata({
   title: "FAQs",
   description:

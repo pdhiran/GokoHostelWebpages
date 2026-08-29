@@ -600,6 +600,15 @@ export async function getAllMenuItems() {
   return db.select().from(menuItems).orderBy(menuItems.categoryId, menuItems.displayOrder);
 }
 
+export async function getMenuItemTagsByIds(ids: number[]): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  if (ids.length === 0) return map;
+  const db = getDb();
+  const rows = await db.select({ id: menuItems.id, tags: menuItems.tags }).from(menuItems).where(inArray(menuItems.id, ids));
+  for (const row of rows) map.set(row.id, row.tags || "[]");
+  return map;
+}
+
 export async function addMenuItem(data: {
   categoryId: number; name: string; nameKannada?: string; description?: string;
   price: number; priceText?: string; tags?: string; ingredients?: string;

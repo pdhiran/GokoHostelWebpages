@@ -10,7 +10,7 @@ import {
   cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
   addBooking, updateBookingFull, getAllDorms, getAllBeds, getBedById,
   getChannelConfig, getActiveBedBlocks,
-  getRoomTypeMappings, getRatePlanMappings, getDailyRates,
+  getRoomTypeMappings, getRatePlanMappings, getAllDailyRates,
   deactivateBedBlocksByBedIds,
 } from "@/db/queries";
 
@@ -141,8 +141,9 @@ export async function POST(req: NextRequest) {
         return { ...b, nights, balance };
       });
 
+      const bedById = new Map(allBeds.map((b) => [b.id, b]));
       const enrichedAssignments = calendarData.assignments.map((a) => {
-        const bed = allBeds.find((b) => b.id === a.bedId);
+        const bed = bedById.get(a.bedId);
         return {
           ...a,
           dormName: bed?.dormName || "",
@@ -205,12 +206,17 @@ export async function POST(req: NextRequest) {
       const dormRates: Record<number, number> = {};
       const mappings = await getRoomTypeMappings();
       const ratePlans = await getRatePlanMappings();
+      const dayRates = await getAllDailyRates(checkinDate, checkinDate);
+      const ratesByPlan = new Map<number, (typeof dayRates)[number]>();
+      for (const row of dayRates) {
+        if (!ratesByPlan.has(row.ratePlanId)) ratesByPlan.set(row.ratePlanId, row);
+      }
       for (const mapping of mappings) {
         const plans = ratePlans.filter((rp) => rp.roomMappingId === mapping.id && rp.isActive);
         if (plans.length === 0) continue;
-        const rates = await getDailyRates(plans[0].id, checkinDate, checkinDate);
-        if (rates.length > 0) {
-          dormRates[mapping.dormId] = rates[0].adult1Rate ?? rates[0].rate;
+        const rate = ratesByPlan.get(plans[0].id);
+        if (rate) {
+          dormRates[mapping.dormId] = rate.adult1Rate ?? rate.rate;
         }
       }
       return NextResponse.json({ beds, dormRates });

@@ -127,7 +127,6 @@ describe("Inventory grid: sticky + colour structure", () => {
     expect(ui).toMatch(/h-full min-h-0 flex-1/);
     expect(adminPage).toMatch(/fillViewport = section === "inventory" \|\| section === "bookings"/);
     expect(adminPage).toMatch(/fillViewport \? "h-dvh" : "min-h-screen"/);
-    expect(adminPage).toMatch(/fillViewport \? fadeIn : pageTransition/);
     expect(adminPage).toMatch(/fillViewport && "flex h-full min-h-0 flex-1 flex-col"/);
     const overflowAt = ui.indexOf("overflow-auto");
     const stickyAt = ui.indexOf("sticky top-0");

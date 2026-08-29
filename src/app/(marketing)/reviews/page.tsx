@@ -9,6 +9,8 @@ import { guestReviews } from "@/content/reviews";
 import { buildMetadata } from "@/lib/seo";
 import { site, social } from "@/lib/site";
 
+export const dynamic = "force-static";
+
 export const metadata = buildMetadata({
   title: "Reviews",
   description:

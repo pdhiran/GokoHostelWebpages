@@ -1,6 +1,8 @@
-import { SelfCheckinForm } from "@/components/forms/SelfCheckinForm";
+import { SelfCheckinFormIsland } from "@/components/forms/SelfCheckinFormIsland";
 import { Container } from "@/components/ui/Container";
 import { buildMetadata } from "@/lib/seo";
+
+export const dynamic = "force-static";
 
 export const metadata = buildMetadata({
   title: "Self Check-in",
@@ -20,7 +22,7 @@ export default function SelfCheckinPage() {
             Complete your self check-in below
           </p>
         </div>
-        <SelfCheckinForm />
+        <SelfCheckinFormIsland />
       </Container>
     </section>
   );

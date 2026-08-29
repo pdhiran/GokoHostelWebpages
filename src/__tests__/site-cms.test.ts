@@ -241,8 +241,8 @@ describe("Pi migrator", () => {
 
 describe("Workers Free 10ms", () => {
   it("does not SSR CMS pages or keep paid-only Worker bindings", () => {
-    const events = readFileSync("src/app/events/page.tsx", "utf8");
-    const community = readFileSync("src/app/community-area/page.tsx", "utf8");
+    const events = readFileSync("src/app/(marketing)/events/page.tsx", "utf8");
+    const community = readFileSync("src/app/(marketing)/community-area/page.tsx", "utf8");
     const wrangler = readFileSync("wrangler.jsonc", "utf8");
     const openNext = readFileSync("open-next.config.ts", "utf8");
     expect(events).not.toMatch(/loadEventsPageData/);

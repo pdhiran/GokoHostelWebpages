@@ -1,5 +1,11 @@
 import { normalizePhone } from "@/lib/phoneUtils";
 
+export function parseFoodCheckoutGraceDays(setting: string | null | undefined): number {
+  if (setting == null || setting === "") return 10;
+  const parsed = Number(setting);
+  return Number.isFinite(parsed) ? parsed : 10;
+}
+
 export type FoodLookupGuest = {
   checkinId: number;
   name: string;

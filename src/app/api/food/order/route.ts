@@ -12,6 +12,7 @@ import {
   decrementStock,
   updateFoodOrderStatus,
 } from "@/db/queries";
+import { parseFoodCheckoutGraceDays } from "@/lib/foodLookup";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
 import { sendPushToAll } from "@/lib/pushNotify";
@@ -48,8 +49,7 @@ export async function POST(req: NextRequest) {
       const activeCheckins = await getActiveCheckins();
       let checkin = activeCheckins.find((c) => c.id === checkinId);
       if (!checkin || !phonesMatch(checkin.contact, guestPhone)) {
-        const graceDaysStr = await getSetting("food_checkout_grace_days");
-        const graceDays = Number(graceDaysStr) || 10;
+        const graceDays = parseFoodCheckoutGraceDays(await getSetting("food_checkout_grace_days"));
         if (graceDays > 0) {
           const checkedOut = await getRecentlyCheckedOutGuests(graceDays);
           checkin = checkedOut.find((c) => c.id === checkinId);

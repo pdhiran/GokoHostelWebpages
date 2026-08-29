@@ -14,6 +14,8 @@ import {
 } from "@/content/thingsToDo";
 import { buildMetadata } from "@/lib/seo";
 
+export const dynamic = "force-static";
+
 export const metadata = buildMetadata({
   title: "Things to Do",
   description: thingsToDoHero.subtitle,

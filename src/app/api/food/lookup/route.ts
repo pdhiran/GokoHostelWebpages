@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveCheckins, getAllBeds, getRecentlyCheckedOutGuests, getSetting } from "@/db/queries";
-import { buildFoodLookupGuests } from "@/lib/foodLookup";
+import { buildFoodLookupGuests, parseFoodCheckoutGraceDays } from "@/lib/foodLookup";
 import { normalizePhone } from "@/lib/phoneUtils";
 
 export async function GET(req: NextRequest) {
@@ -12,8 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const graceDaysStr = await getSetting("food_checkout_grace_days");
-    const graceDays = Number(graceDaysStr) || 10;
+    const graceDays = parseFoodCheckoutGraceDays(await getSetting("food_checkout_grace_days"));
 
     const [activeCheckins, allBeds, checkedOutGuests] = await Promise.all([
       getActiveCheckins(),

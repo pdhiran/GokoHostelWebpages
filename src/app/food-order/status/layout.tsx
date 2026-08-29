@@ -1,5 +1,7 @@
 import { buildMetadata } from "@/lib/seo";
 
+export const dynamic = "force-static";
+
 export const metadata = buildMetadata({
   title: "Order status",
   description: "Track your Goko Hostel food order.",

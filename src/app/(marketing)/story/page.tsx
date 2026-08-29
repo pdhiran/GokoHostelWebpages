@@ -15,6 +15,8 @@ import {
 } from "@/content/story";
 import { buildMetadata } from "@/lib/seo";
 
+export const dynamic = "force-static";
+
 export const metadata = buildMetadata({
   title: "Our Story",
   description: storyHero.subtitle,
