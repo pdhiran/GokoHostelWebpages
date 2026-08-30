@@ -56,6 +56,7 @@ import {
   upsertDailyRate,
 } from "@/db/queries";
 import { authenticateUser } from "@/lib/auth";
+import { triggerRatePush } from "@/lib/aiosellSync";
 import { pushInventory, pushRates, pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 import { POST as reservationsPOST } from "@/app/api/aiosell/reservations/route";
 import { POST as channelManagerPOST } from "@/app/api/admin/channel-manager/route";
@@ -581,6 +582,8 @@ describe("Restriction and rate adjustment workflows", () => {
     queryMocks.getDailyRates.mockReset();
     queryMocks.upsertDailyRate.mockReset();
     queryMocks.upsertDailyRate.mockResolvedValue(undefined);
+    vi.mocked(triggerRatePush).mockReset();
+    vi.mocked(triggerRatePush).mockResolvedValue(undefined);
   });
 
   function post(body: unknown) {
@@ -699,5 +702,118 @@ describe("Restriction and rate adjustment workflows", () => {
       closeOnArrival: 1,
       adult1Rate: 990,
     }));
+  });
+
+  it("bulkSetRates writes one rupee onto every selected plan", async () => {
+    const row = (ratePlanId: number, stopSell: number) => ({
+      id: ratePlanId,
+      ratePlanId,
+      date: "2026-09-01",
+      rate: 1000,
+      stopSell,
+      minimumStay: 1,
+      maximumStay: null,
+      closeOnArrival: 0,
+      closeOnDeparture: 0,
+      minimumAdvanceReservation: null,
+      maximumAdvanceReservation: null,
+      adult1Rate: 1000,
+      adult2Rate: 1200,
+      childRate: null,
+      infantRate: null,
+      extraPersonRate: null,
+    });
+    queryMocks.getDailyRates.mockImplementation(async (rpId: number) => [row(rpId, rpId === 10 ? 1 : 0)]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRates",
+      ratePlanIds: [10, 11],
+      dates: ["2026-09-01"],
+      rate: 800,
+      adult1Rate: 800,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.updated).toBe(2);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledTimes(2);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({
+      ratePlanId: 10, date: "2026-09-01", rate: 800, adult1Rate: 800, stopSell: 1, adult2Rate: 1200,
+    }));
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({
+      ratePlanId: 11, date: "2026-09-01", rate: 800, adult1Rate: 800, stopSell: 0,
+    }));
+    expect(triggerRatePush).toHaveBeenCalledWith(["2026-09-01"], [10, 11]);
+  });
+
+  it("bulkSetRates still accepts singular ratePlanId", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([{
+      id: 1, ratePlanId: 10, date: "2026-09-01", rate: 500,
+      stopSell: 0, minimumStay: 1, maximumStay: null,
+      closeOnArrival: 0, closeOnDeparture: 0,
+      minimumAdvanceReservation: null, maximumAdvanceReservation: null,
+      adult1Rate: 500, adult2Rate: null, childRate: null, infantRate: null, extraPersonRate: null,
+    }]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRates",
+      ratePlanId: 10,
+      dates: ["2026-09-01"],
+      rate: 900,
+      adult1Rate: 900,
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toBe(1);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({ ratePlanId: 10, rate: 900 }));
+    expect(triggerRatePush).toHaveBeenCalledWith(["2026-09-01"], [10]);
+  });
+
+  it("bulkSetRates rejects empty plan ids", async () => {
+    const res = await post({
+      password: "x",
+      action: "bulkSetRates",
+      ratePlanIds: [],
+      dates: ["2026-09-01"],
+      rate: 800,
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/ratePlanIds/);
+    expect(queryMocks.upsertDailyRate).not.toHaveBeenCalled();
+  });
+
+  it("bulkSetRates creates a row when the plan had no rate that night", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRates",
+      ratePlanIds: [10],
+      dates: ["2026-09-01"],
+      rate: 800,
+      adult1Rate: 800,
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toBe(1);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({
+      ratePlanId: 10, date: "2026-09-01", rate: 800, adult1Rate: 800, stopSell: 0, minimumStay: 1,
+    }));
+    expect(triggerRatePush).toHaveBeenCalledWith(["2026-09-01"], [10]);
+  });
+
+  it("bulkSetRates weekday filter upserts only matching nights then pushes those dates", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRates",
+      ratePlanIds: [10, 11],
+      dates: ["2026-09-01", "2026-09-05", "2026-09-06"],
+      dayFilter: [2],
+      rate: 700,
+      adult1Rate: 700,
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toBe(2);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledTimes(2);
+    expect(queryMocks.upsertDailyRate.mock.calls.every((c: unknown[]) => (c[0] as { date: string }).date === "2026-09-01")).toBe(true);
+    expect(triggerRatePush).toHaveBeenCalledWith(["2026-09-01"], [10, 11]);
   });
 });

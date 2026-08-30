@@ -592,6 +592,73 @@ function RateEditModal({ ratePlanId, date, data, password, username, onClose, on
   );
 }
 
+function RatePlanChipPicker({
+  plans,
+  mappings,
+  selectedIds,
+  onChange,
+}: {
+  plans: RatePlanData[];
+  mappings: RoomMappingData[];
+  selectedIds: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const groups: Array<{ mappingId: number; dormName: string; plans: RatePlanData[] }> = [];
+  const byMapping = new Map<number, (typeof groups)[0]>();
+  const mappingById = new Map(mappings.map((m) => [m.id, m]));
+  for (const rp of plans) {
+    let g = byMapping.get(rp.roomMappingId);
+    if (!g) {
+      g = { mappingId: rp.roomMappingId, dormName: mappingById.get(rp.roomMappingId)?.dormName ?? "Unknown", plans: [] };
+      byMapping.set(rp.roomMappingId, g);
+      groups.push(g);
+    }
+    g.plans.push(rp);
+  }
+  const allIds = plans.map((p) => p.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.includes(id));
+  const toggle = (id: number) => onChange(selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
+  const toggleGroup = (g: (typeof groups)[0]) => {
+    const gids = g.plans.map((p) => p.id);
+    const allOn = gids.every((id) => selectedIds.includes(id));
+    onChange(allOn ? selectedIds.filter((id) => !gids.includes(id)) : [...new Set([...selectedIds, ...gids])]);
+  };
+
+  if (plans.length === 0) return <p className="text-xs text-brand-green-dark/50">No rate plans mapped.</p>;
+
+  return (
+    <div className="space-y-2">
+      <button type="button" onClick={() => onChange(allSelected ? [] : allIds)}
+        className="px-2 py-1 rounded text-[10px] font-medium border border-brand-green text-brand-green">
+        {allSelected ? "Deselect All" : "Select All"}
+      </button>
+      {groups.map((g) => {
+        const gids = g.plans.map((p) => p.id);
+        const groupAll = gids.every((id) => selectedIds.includes(id));
+        return (
+          <div key={g.mappingId}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium text-brand-green-dark/80">{g.dormName}</span>
+              <button type="button" onClick={() => toggleGroup(g)}
+                className="text-[10px] text-brand-green hover:underline">
+                {groupAll ? "Deselect" : "Select all"}
+              </button>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {g.plans.map((rp) => (
+                <button key={rp.id} type="button" onClick={() => toggle(rp.id)}
+                  className={cn("px-2 py-1 rounded text-[10px] font-medium border", selectedIds.includes(rp.id) ? "bg-brand-green text-white border-brand-green" : "border-input")}>
+                  {rp.ratePlanName || rp.ratePlanCode}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // --- Bulk Update Modal ---
 function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   data: GridData | null; password: string; username?: string; onClose: () => void; onSaved: () => void;
@@ -599,11 +666,6 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   const [tab, setTab] = useState<"blockBeds" | "unblockBeds" | "setRates" | "adjustRates" | "restrictions">("blockBeds");
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<string>("");
-
-  const getRatePlanLabel = (rp: RatePlanData): string => {
-    const rm = data?.roomMappings.find((m) => m.id === rp.roomMappingId);
-    return `${rm?.dormName ?? "Unknown"} — ${rp.ratePlanName || rp.ratePlanCode}`;
-  };
 
   // Block beds state
   const [blockBedIds, setBlockBedIds] = useState<number[]>([]);
@@ -620,7 +682,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   const [loadingBlocks, setLoadingBlocks] = useState(false);
 
   // Set rates state
-  const [rateRpId, setRateRpId] = useState<number>(0);
+  const [rateRpIds, setRateRpIds] = useState<number[]>([]);
   const [rateStart, setRateStart] = useState("");
   const [rateEnd, setRateEnd] = useState("");
   const [rateValue, setRateValue] = useState("");
@@ -763,7 +825,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   };
 
   const handleSetRates = async () => {
-    if (!rateRpId || !rateStart || !rateEnd || !rateValue) return;
+    if (!rateRpIds.length || !rateStart || !rateEnd || !rateValue) return;
     setSaving(true);
     try {
       const dates: string[] = [];
@@ -773,7 +835,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
       const res = await fetch("/api/admin/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password, username, action: "bulkSetRates", ratePlanId: rateRpId, dates, dayFilter: rateDays, rate: parseInt(rateValue), adult1Rate: parseInt(rateValue) }),
+        body: JSON.stringify({ password, username, action: "bulkSetRates", ratePlanIds: rateRpIds, dates, dayFilter: rateDays, rate: parseInt(rateValue), adult1Rate: parseInt(rateValue) }),
       });
       const json = await res.json();
       setResult(json.success ? `Updated ${json.updated} rate(s)` : json.error);
@@ -912,11 +974,15 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
           {tab === "setRates" && (
             <>
               <div>
-                <label className="text-xs font-medium">Rate Plan</label>
-                <select className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateRpId} onChange={(e) => setRateRpId(Number(e.target.value))}>
-                  <option value={0}>Select rate plan</option>
-                  {data?.ratePlans.map((rp) => <option key={rp.id} value={rp.id}>{getRatePlanLabel(rp)}</option>)}
-                </select>
+                <label className="text-xs font-medium">Rooms / Rate Plans</label>
+                <div className="mt-1">
+                  <RatePlanChipPicker
+                    plans={data?.ratePlans ?? []}
+                    mappings={data?.roomMappings ?? []}
+                    selectedIds={rateRpIds}
+                    onChange={setRateRpIds}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><label className="text-xs font-medium">Start Date</label><input type="date" min={today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateStart} onChange={(e) => setStartAndNextEnd(e.target.value, setRateStart, setRateEnd)} /></div>
@@ -924,8 +990,11 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
               </div>
               <div><label className="text-xs font-medium">Days</label><div className="mt-1"><DaySelector days={rateDays} setDays={setRateDays} /></div></div>
               <div><label className="text-xs font-medium">Rate (₹)</label><input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateValue} onChange={(e) => setRateValue(e.target.value)} /></div>
-              <Button variant="cta" size="sm" className="w-full" onClick={handleSetRates} disabled={saving || !rateRpId || !rateStart || !rateEnd || !rateValue}>
-                {saving ? "Setting..." : "Set Rates"}
+              {rateRpIds.length > 0 && rateValue && (
+                <p className="text-[10px] text-brand-green-dark/60">Writes ₹{rateValue} onto {rateRpIds.length} rate plan{rateRpIds.length === 1 ? "" : "s"}.</p>
+              )}
+              <Button variant="cta" size="sm" className="w-full" onClick={handleSetRates} disabled={saving || !rateRpIds.length || !rateStart || !rateEnd || !rateValue}>
+                {saving ? "Setting..." : `Set ₹${rateValue || "…"} on ${rateRpIds.length} plan${rateRpIds.length === 1 ? "" : "s"}`}
               </Button>
             </>
           )}
@@ -933,14 +1002,14 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
           {tab === "adjustRates" && (
             <>
               <div>
-                <label className="text-xs font-medium">Rate Plans</label>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {data?.ratePlans.map((rp) => (
-                    <button key={rp.id} type="button" onClick={() => setAdjustRpIds(adjustRpIds.includes(rp.id) ? adjustRpIds.filter((x) => x !== rp.id) : [...adjustRpIds, rp.id])}
-                      className={cn("px-2 py-1 rounded text-[10px] font-medium border", adjustRpIds.includes(rp.id) ? "bg-brand-green text-white border-brand-green" : "border-input")}>
-                      {getRatePlanLabel(rp)}
-                    </button>
-                  ))}
+                <label className="text-xs font-medium">Rooms / Rate Plans</label>
+                <div className="mt-1">
+                  <RatePlanChipPicker
+                    plans={data?.ratePlans ?? []}
+                    mappings={data?.roomMappings ?? []}
+                    selectedIds={adjustRpIds}
+                    onChange={setAdjustRpIds}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -968,14 +1037,14 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
           {tab === "restrictions" && (
             <>
               <div>
-                <label className="text-xs font-medium">Rate Plans</label>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {data?.ratePlans.map((rp) => (
-                    <button key={rp.id} type="button" onClick={() => setRestrictRpIds(restrictRpIds.includes(rp.id) ? restrictRpIds.filter((x) => x !== rp.id) : [...restrictRpIds, rp.id])}
-                      className={cn("px-2 py-1 rounded text-[10px] font-medium border", restrictRpIds.includes(rp.id) ? "bg-brand-green text-white border-brand-green" : "border-input")}>
-                      {getRatePlanLabel(rp)}
-                    </button>
-                  ))}
+                <label className="text-xs font-medium">Rooms / Rate Plans</label>
+                <div className="mt-1">
+                  <RatePlanChipPicker
+                    plans={data?.ratePlans ?? []}
+                    mappings={data?.roomMappings ?? []}
+                    selectedIds={restrictRpIds}
+                    onChange={setRestrictRpIds}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">

@@ -323,6 +323,17 @@ describe("Inventory grid: edit and bulk workflows still wired", () => {
     expect(ui).toContain("setFetchedFreeBeds(null)");
     expect(route).toContain("stayNights(b.startDate, b.endDate)");
   });
+
+  it("Set Rates multi-selects rate plans grouped by room", () => {
+    expect(ui).toContain("setRateRpIds");
+    expect(ui).not.toMatch(/\bsetRateRpId\b/);
+    expect(ui).toContain("ratePlanIds: rateRpIds");
+    expect(ui).toContain("RatePlanChipPicker");
+    expect(ui).toContain("Select All");
+    expect(ui).toContain("Writes ₹");
+    expect(route).toContain("ratePlanIds?.length ? ratePlanIds");
+    expect(route).toContain("triggerRatePush(filteredDates, ids)");
+  });
 });
 
 describe("Check Rates scrape dates are exclusive", () => {

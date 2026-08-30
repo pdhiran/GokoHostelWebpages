@@ -197,38 +197,41 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "bulkSetRates") {
-      const { ratePlanId, dates, dayFilter, channelId, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, rate } = params;
-      if (!ratePlanId || !dates?.length) return NextResponse.json({ error: "ratePlanId and dates required" }, { status: 400 });
+      const { ratePlanId, ratePlanIds, dates, dayFilter, channelId, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, rate } = params;
+      const ids: number[] = ratePlanIds?.length ? ratePlanIds : (ratePlanId ? [ratePlanId] : []);
+      if (!ids.length || !dates?.length) return NextResponse.json({ error: "ratePlanIds and dates required" }, { status: 400 });
       const filteredDates = filterByDays(dates, dayFilter);
-      const existingRates = !channelId && filteredDates.length > 0 ? await getDailyRates(ratePlanId, filteredDates[0], filteredDates[filteredDates.length - 1]) : [];
-      const existingByDate = new Map(existingRates.map((r: any) => [r.date, r]));
       let count = 0;
-      for (const date of filteredDates) {
-        if (channelId) {
-          await upsertChannelRate({ ratePlanId, channelId, date, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, updatedBy: actingUser });
-        } else {
-          const existing = existingByDate.get(date);
-          await upsertDailyRate({
-            ratePlanId, date,
-            rate: rate ?? adult1Rate ?? 0,
-            adult1Rate: adult1Rate ?? existing?.adult1Rate ?? null,
-            adult2Rate: adult2Rate ?? existing?.adult2Rate ?? null,
-            childRate: childRate ?? existing?.childRate ?? null,
-            infantRate: infantRate ?? existing?.infantRate ?? null,
-            extraPersonRate: extraPersonRate ?? existing?.extraPersonRate ?? null,
-            stopSell: existing?.stopSell ?? 0,
-            minimumStay: existing?.minimumStay ?? 1,
-            maximumStay: existing?.maximumStay ?? null,
-            closeOnArrival: existing?.closeOnArrival ?? 0,
-            closeOnDeparture: existing?.closeOnDeparture ?? 0,
-            minimumAdvanceReservation: existing?.minimumAdvanceReservation ?? null,
-            maximumAdvanceReservation: existing?.maximumAdvanceReservation ?? null,
-            updatedBy: actingUser,
-          });
+      for (const rpId of ids) {
+        const existingRates = !channelId && filteredDates.length > 0 ? await getDailyRates(rpId, filteredDates[0], filteredDates[filteredDates.length - 1]) : [];
+        const existingByDate = new Map(existingRates.map((r: any) => [r.date, r]));
+        for (const date of filteredDates) {
+          if (channelId) {
+            await upsertChannelRate({ ratePlanId: rpId, channelId, date, adult1Rate, adult2Rate, childRate, infantRate, extraPersonRate, updatedBy: actingUser });
+          } else {
+            const existing = existingByDate.get(date);
+            await upsertDailyRate({
+              ratePlanId: rpId, date,
+              rate: rate ?? adult1Rate ?? 0,
+              adult1Rate: adult1Rate ?? existing?.adult1Rate ?? null,
+              adult2Rate: adult2Rate ?? existing?.adult2Rate ?? null,
+              childRate: childRate ?? existing?.childRate ?? null,
+              infantRate: infantRate ?? existing?.infantRate ?? null,
+              extraPersonRate: extraPersonRate ?? existing?.extraPersonRate ?? null,
+              stopSell: existing?.stopSell ?? 0,
+              minimumStay: existing?.minimumStay ?? 1,
+              maximumStay: existing?.maximumStay ?? null,
+              closeOnArrival: existing?.closeOnArrival ?? 0,
+              closeOnDeparture: existing?.closeOnDeparture ?? 0,
+              minimumAdvanceReservation: existing?.minimumAdvanceReservation ?? null,
+              maximumAdvanceReservation: existing?.maximumAdvanceReservation ?? null,
+              updatedBy: actingUser,
+            });
+          }
+          count++;
         }
-        count++;
       }
-      await triggerRatePush(filteredDates, [ratePlanId]).catch(() => {});
+      await triggerRatePush(filteredDates, ids).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
