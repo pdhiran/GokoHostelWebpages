@@ -59,6 +59,16 @@ const BOOKINGS_PERMISSIONS: Record<string, ActionPerm> = {
   createBooking: "canAddBooking",
 };
 
+const SPLITS_PERMISSIONS: Record<string, ActionPerm> = {
+  listMembers: "canViewSplits", listGroups: "canViewSplits", listActivity: "canViewSplits",
+  getBalances: "canViewSplits", listAccounts: "canViewSplits",
+  addMember: "canManageSplits", updateMember: "canManageSplits", deactivateMember: "canManageSplits",
+  addGroup: "canManageSplits", updateGroup: "canManageSplits", setGroupMembers: "canManageSplits",
+  deleteGroup: "canManageSplits", listLoginUsers: "canManageSplits",
+  addExpense: "canAddSplitExpense", updateExpense: "canEditSplitExpense", deleteExpense: "canDeleteSplitExpense",
+  addSettlement: "canSettleSplits", deleteSettlement: "canSettleSplits", payGokoReimbursement: "canSettleSplits",
+};
+
 function checkPermission(
   role: UserRole,
   permissions: Record<string, boolean>,
@@ -87,6 +97,12 @@ describe("RBAC: Admin always has access", () => {
   it("admin can access all expenses actions", () => {
     for (const action of Object.keys(EXPENSES_PERMISSIONS)) {
       expect(checkPermission(role, permissions, EXPENSES_PERMISSIONS, action)).toBe("allowed");
+    }
+  });
+
+  it("admin can access all splits actions", () => {
+    for (const action of Object.keys(SPLITS_PERMISSIONS)) {
+      expect(checkPermission(role, permissions, SPLITS_PERMISSIONS, action)).toBe("allowed");
     }
   });
 });
@@ -121,6 +137,11 @@ describe("RBAC: Staff with no permissions is blocked", () => {
 
   it("staff cannot manage accounts without canManageAccounts", () => {
     expect(checkPermission(role, permissions, EXPENSES_PERMISSIONS, "saveReconciliation")).toBe("forbidden");
+  });
+
+  it("staff without permissions cannot view splits", () => {
+    expect(checkPermission(role, permissions, SPLITS_PERMISSIONS, "listMembers")).toBe("forbidden");
+    expect(checkPermission(role, permissions, SPLITS_PERMISSIONS, "getBalances")).toBe("forbidden");
   });
 });
 
@@ -202,6 +223,50 @@ describe("RBAC: Manager with empty permissions (env password)", () => {
 
   it("manager is blocked from admin-only actions", () => {
     expect(checkPermission(role, permissions, CHECKINS_PERMISSIONS, "createUser")).toBe("admin_required");
+  });
+});
+
+describe("RBAC: Splits", () => {
+  const role: UserRole = "staff";
+
+  it("view-only can list but not add or settle", () => {
+    const permissions = { canViewSplits: true };
+    expect(checkPermission(role, permissions, SPLITS_PERMISSIONS, "listMembers")).toBe("allowed");
+    expect(checkPermission(role, permissions, SPLITS_PERMISSIONS, "getBalances")).toBe("allowed");
+    expect(checkPermission(role, permissions, SPLITS_PERMISSIONS, "addExpense")).toBe("forbidden");
+    expect(checkPermission(role, permissions, SPLITS_PERMISSIONS, "addSettlement")).toBe("forbidden");
+    expect(checkPermission(role, permissions, SPLITS_PERMISSIONS, "addMember")).toBe("forbidden");
+  });
+
+  it("settle without canAddExpense is allowed on the map; route still ANDs Accounts", () => {
+    expect(checkPermission(role, { canSettleSplits: true }, SPLITS_PERMISSIONS, "payGokoReimbursement")).toBe("allowed");
+    expect(checkPermission(role, { canSettleSplits: true }, SPLITS_PERMISSIONS, "addSettlement")).toBe("allowed");
+    const route = readFileSync("src/app/api/admin/splits/route.ts", "utf8");
+    expect(route).toContain("canUseAccounts");
+    expect(route).toContain("canAddExpense");
+    expect(route).not.toContain("paySalary");
+    expect(route).toContain('isHouse === 1');
+    expect(route).toContain("Pay via Accounts");
+    expect(route).toContain("deleteSettlement");
+    expect(route).toContain("Cannot delete an Accounts-linked settlement");
+    expect(route).toContain("Undo settlements in this group before hiding an expense");
+    expect(route).toContain("reuseOrPostHostelExpense");
+    const updateIdx = route.indexOf('case "updateExpense"');
+    const updateSlice = route.slice(updateIdx, route.indexOf('case "deleteExpense"'));
+    expect(updateSlice).toContain("canUseAccounts");
+    expect(updateSlice).toContain("hostelExpenseId");
+  });
+
+  it("env manager with empty permissions cannot open splits", () => {
+    expect(checkPermission("manager", {}, SPLITS_PERMISSIONS, "listMembers")).toBe("forbidden");
+    expect(checkPermission("manager", {}, SPLITS_PERMISSIONS, "payGokoReimbursement")).toBe("forbidden");
+  });
+
+  it("ManagementUsers Select All includes splits keys and nav view", () => {
+    const ui = readFileSync("src/components/admin/ManagementUsers.tsx", "utf8");
+    expect(ui).toContain("canViewSplits");
+    expect(ui).toContain("SPLITS_PERMISSION_OPTIONS");
+    expect(ui).toMatch(/ALL_PERMISSION_GROUPS = \[[\s\S]*SPLITS_PERMISSION_OPTIONS/);
   });
 });
 

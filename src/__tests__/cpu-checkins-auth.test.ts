@@ -139,4 +139,9 @@ describe("firstVisibleAdminSection", () => {
   it("returns null when a non-admin has no visible sections", () => {
     expect(firstVisibleAdminSection("manager", {}, "dashboard")).toBeNull();
   });
+
+  it("keeps Splits for staff with canViewSplits and does not use it as a Pi landing pad in ADMIN_NAV_PERMS", () => {
+    expect(firstVisibleAdminSection("staff", { canViewSplits: true }, "splits")).toBe("splits");
+    expect(firstVisibleAdminSection("admin", {}, "splits")).toBe("splits");
+  });
 });

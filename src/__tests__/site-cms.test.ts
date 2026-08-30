@@ -233,9 +233,10 @@ describe("migration 0035 seed", () => {
 });
 
 describe("Pi migrator", () => {
-  it("records Cloudflare-only 0035 without applying the SQL", () => {
+  it("records Cloudflare-only 0035 and 0041 without applying the SQL", () => {
     const src = readFileSync("scripts/migrate-pi.ts", "utf8");
     expect(src).toMatch(/0035_site_cms\.sql[\s\S]*Cloudflare-only/);
+    expect(src).toMatch(/0041_splits\.sql/);
   });
 });
 

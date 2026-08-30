@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Sync columns shared across synced tables
@@ -755,3 +756,83 @@ export const sitePageCopy = sqliteTable("site_page_copy", {
   content: text("content").notNull().default("{}"),
   updatedAt: text("updated_at").notNull().default(""),
 });
+
+// Staff/volunteer Splitwise (Cloudflare-only; not synced to Pi)
+export const splitMembers = sqliteTable("split_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  phone: text("phone").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  kind: text("kind").notNull().default("staff"),
+  userId: integer("user_id"),
+  employeeId: integer("employee_id"),
+  isHouse: integer("is_house").notNull().default(0),
+  isActive: integer("is_active").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_split_members_user").on(table.userId).where(sql`${table.userId} is not null`),
+  uniqueIndex("idx_split_members_house").on(table.isHouse).where(sql`${table.isHouse} = 1`),
+  index("idx_split_members_active").on(table.isActive),
+]);
+
+export const splitGroups = sqliteTable("split_groups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  createdBy: text("created_by").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+});
+
+export const splitGroupMembers = sqliteTable("split_group_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  groupId: integer("group_id").notNull(),
+  memberId: integer("member_id").notNull(),
+}, (table) => [
+  uniqueIndex("idx_split_group_members_unique").on(table.groupId, table.memberId),
+  index("idx_split_group_members_group").on(table.groupId),
+]);
+
+export const splitExpenses = sqliteTable("split_expenses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  groupId: integer("group_id").notNull(),
+  description: text("description").notNull(),
+  totalAmount: integer("total_amount").notNull(),
+  expenseDate: text("expense_date").notNull(),
+  splitMethod: text("split_method").notNull().default("equal"),
+  notes: text("notes").notNull().default(""),
+  createdBy: text("created_by").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+  hostelExpenseId: integer("hostel_expense_id"),
+  deletedAt: text("deleted_at"),
+}, (table) => [
+  index("idx_split_expenses_group_date").on(table.groupId, table.expenseDate),
+  uniqueIndex("idx_split_expenses_hostel").on(table.hostelExpenseId).where(sql`${table.hostelExpenseId} is not null`),
+]);
+
+export const splitExpenseShares = sqliteTable("split_expense_shares", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  expenseId: integer("expense_id").notNull(),
+  memberId: integer("member_id").notNull(),
+  paidAmount: integer("paid_amount").notNull().default(0),
+  owedAmount: integer("owed_amount").notNull().default(0),
+}, (table) => [
+  uniqueIndex("idx_split_expense_shares_unique").on(table.expenseId, table.memberId),
+  index("idx_split_expense_shares_expense").on(table.expenseId),
+]);
+
+export const splitSettlements = sqliteTable("split_settlements", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  groupId: integer("group_id").notNull(),
+  fromMemberId: integer("from_member_id").notNull(),
+  toMemberId: integer("to_member_id").notNull(),
+  amount: integer("amount").notNull(),
+  method: text("method").notNull().default("other"),
+  notes: text("notes").notNull().default(""),
+  createdBy: text("created_by").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+  hostelExpenseId: integer("hostel_expense_id"),
+  splitExpenseId: integer("split_expense_id"),
+  deletedAt: text("deleted_at"),
+}, (table) => [
+  index("idx_split_settlements_group").on(table.groupId),
+  uniqueIndex("idx_split_settlements_hostel").on(table.hostelExpenseId).where(sql`${table.hostelExpenseId} is not null`),
+]);

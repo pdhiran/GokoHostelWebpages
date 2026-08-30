@@ -997,8 +997,9 @@ export async function POST(req: NextRequest) {
         "canAccessKitchen", "canViewFoodOrders", "canPlaceOrders", "canManageMenu", "canManageCategories",
         "canManageInventory", "canViewTabs", "canMarkPaid", "canGenerateBills", "canChangeFoodSettings",
         "canViewExpenses", "canViewFoodBills", "canUseQRGenerator", "canManageAccounts", "canAddIncome", "canReconcile",
-        "canViewDashboard", "canViewBookings", "canViewBeds", "canViewTimeline", "canViewRecords", "canViewAccounts", "canViewManagement",
+        "canViewDashboard", "canViewBookings", "canViewBeds", "canViewTimeline", "canViewRecords", "canViewAccounts", "canViewSplits", "canViewManagement",
         "canAddBooking", "canSyncBookings", "canDeleteBooking", "canAddExpense", "canEditExpense", "canDeleteExpense",
+        "canAddSplitExpense", "canEditSplitExpense", "canDeleteSplitExpense", "canSettleSplits", "canManageSplits",
       ];
       let updated = 0;
       for (const mgr of managers) {

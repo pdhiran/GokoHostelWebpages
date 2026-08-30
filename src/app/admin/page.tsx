@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon, WarehouseIcon, UtensilsIcon } from "lucide-react";
+import { LockIcon, LogOutIcon, LayoutDashboardIcon, BedDoubleIcon, TableIcon, CalendarDaysIcon, WrenchIcon, BookOpenIcon, KeyIcon, XIcon, WalletIcon, MenuIcon, StarIcon, WarehouseIcon, UtensilsIcon, SplitIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 // import { DarkModeToggle } from "@/components/DarkModeToggle";
@@ -13,7 +13,7 @@ import { AdminToastProvider } from "@/components/admin/AdminToast";
 import type { Role, AdminSection, ManagementTab } from "@/components/admin/types";
 import { PwaInstallBanner } from "@/components/admin/PwaInstallBanner";
 import { SyncStatusBar } from "@/components/admin/SyncStatusBar";
-import { firstVisibleAdminSection } from "@/lib/adminNav";
+import { firstVisibleAdminSection, isSplitsSectionEnabled } from "@/lib/adminNav";
 
 const tabLoader = () => <div className="flex items-center justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-green-dark border-t-transparent" /></div>;
 
@@ -27,6 +27,7 @@ const AdminFoodOrders = dynamic(() => import("@/components/admin/AdminFoodOrders
 const AdminExpenditure = dynamic(() => import("@/components/admin/AdminExpenditure").then((m) => m.AdminExpenditure), { loading: tabLoader, ssr: false });
 const AdminReviews = dynamic(() => import("@/components/admin/AdminReviews").then((m) => m.AdminReviews), { loading: tabLoader, ssr: false });
 const InventoryRatePlan = dynamic(() => import("@/components/admin/InventoryRatePlan").then((m) => m.InventoryRatePlan), { loading: tabLoader, ssr: false });
+const AdminSplits = dynamic(() => import("@/components/admin/AdminSplits").then((m) => m.AdminSplits), { loading: tabLoader, ssr: false });
 
 export default function AdminPage() {
   return (
@@ -50,7 +51,7 @@ function AdminPageInner() {
   const [error, setError] = useState("");
   const [section, setSection] = useTabWithHistory<AdminSection>("section", "dashboard", {
     clearParams: ["tab"],
-    validValues: ["dashboard", "bookings", "beds", "timeline", "inventory", "records", "foodOrders", "expenditure", "reviews", "management"],
+    validValues: ["dashboard", "bookings", "beds", "timeline", "inventory", "records", "foodOrders", "expenditure", "splits", "reviews", "management"],
   });
   const [managementTab, setManagementTab] = useState<ManagementTab | undefined>();
   const [pendingAssignGuest, setPendingAssignGuest] = useState<string | null>(null);
@@ -284,6 +285,7 @@ function AdminPageInner() {
     { id: "records", label: "Records", icon: <TableIcon className="h-4 w-4" />, permission: "canViewRecords" },
     { id: "foodOrders", label: "Food Orders", icon: <UtensilsIcon className="h-4 w-4" />, permission: "canViewFoodOrders" },
     { id: "expenditure", label: "Accounts", icon: <WalletIcon className="h-4 w-4" />, permission: "canViewAccounts" },
+    ...(isSplitsSectionEnabled() ? [{ id: "splits" as const, label: "Splits", icon: <SplitIcon className="h-4 w-4" />, permission: "canViewSplits" }] : []),
     { id: "reviews", label: "Reviews", icon: <StarIcon className="h-4 w-4" />, permission: "canViewReviews" },
     { id: "management", label: "Management", icon: <WrenchIcon className="h-4 w-4" />, permission: "canViewManagement" },
   ];
@@ -418,6 +420,7 @@ function AdminPageInner() {
             {section === "records" && <AdminRecords password={password} username={username} role={role} permissions={permissions} />}
             {section === "foodOrders" && <AdminFoodOrders password={password} username={username} role={role} permissions={permissions} />}
             {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
+            {section === "splits" && isSplitsSectionEnabled() && <AdminSplits password={password} username={username} role={role} permissions={permissions} />}
             {section === "reviews" && <AdminReviews password={password} username={username} role={role} permissions={permissions} />}
             {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} initialTab={managementTab} onTabUsed={() => setManagementTab(undefined)} />}
         </div>

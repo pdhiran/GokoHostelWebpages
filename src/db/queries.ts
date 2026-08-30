@@ -245,6 +245,14 @@ export async function getUserByUsername(username: string) {
   });
 }
 
+export async function getUserById(id: number) {
+  return dbRead(async () => {
+    const db = getDb();
+    const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return rows[0] || null;
+  });
+}
+
 export async function createUser(data: {
   username: string; passwordHash: string; displayName: string;
   role: string; permissions: string; createdBy?: string;
@@ -973,7 +981,14 @@ export async function addExpense(data: {
 }) {
   const db = getDb();
   const now = new Date().toISOString();
-  return db.insert(expenses).values(syncInsert({ ...data, createdAt: now, updatedAt: now }));
+  const result = await db.insert(expenses).values(syncInsert({ ...data, createdAt: now, updatedAt: now })).returning({ id: expenses.id });
+  return result[0]?.id ?? null;
+}
+
+export async function getExpenseById(id: number) {
+  const db = getDb();
+  const rows = await db.select().from(expenses).where(eq(expenses.id, id)).limit(1);
+  return rows[0] || null;
 }
 
 export async function getExpensesByMonth(month: string) {

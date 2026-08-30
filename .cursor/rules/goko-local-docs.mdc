@@ -27,6 +27,7 @@ Skip only for pure comment/format/typo-in-code with zero behavior change.
 | Food / kitchen / stock | `docs/flows-food-kitchen.md` |
 | Beds / bookings / inventory / Aiosell | `docs/flows-pms.md` |
 | Expenses / ledger / salary | `docs/flows-accounts.md` |
+| Staff/volunteer splits | `docs/flows-splits.md` |
 | Website CMS / R2 | `docs/flows-cms.md` |
 | Sync / Pi | `docs/flows-sync.md` |
 | Reviews / Form C | `docs/flows-reviews-formc.md` |

@@ -26,6 +26,7 @@ description: Review and update the gitignored GokoWeb local handbook in docs/ (a
 | Food order / kitchen / stock / food settings keys | `flows-food-kitchen.md` |
 | Beds, calendar bookings, inventory math, Aiosell | `flows-pms.md` |
 | Expenses, ledger, salary | `flows-accounts.md` |
+| Staff/volunteer IOUs | `flows-splits.md` |
 | Events/Community CMS, R2, `/api/site` | `flows-cms.md` |
 | Pi sync, failover, `SYNC_SECRET` | `flows-sync.md` |
 | Review funnel, Form C, FRRO | `flows-reviews-formc.md` |

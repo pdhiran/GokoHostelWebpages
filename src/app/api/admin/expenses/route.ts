@@ -14,13 +14,28 @@ import { getDb } from "@/db";
 import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
-import { isOfflineMode } from "@/lib/runtime";
+import { isOfflineMode, isPiRuntime } from "@/lib/runtime";
 import { authenticateUser } from "@/lib/auth";
 import { actionAllowed } from "@/lib/actionPermissions";
+import { hostelExpenseIsLinked } from "@/db/splitQueries";
 
 function extractDriveFileId(link: string): string | null {
   const match = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
   return match ? match[1] : null;
+}
+
+async function rejectIfSplitLinked(id: number) {
+  if (isPiRuntime()) return null;
+  try {
+    if (await hostelExpenseIsLinked(id)) {
+      return NextResponse.json({ error: "This Accounts row is linked to Splits. Leave the books amount; undo from Splits if needed." }, { status: 400 });
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/no such table/i.test(msg)) return null;
+    throw err;
+  }
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -147,6 +162,10 @@ export async function POST(req: NextRequest) {
       case "updateExpense": {
         const { id, amount, category, customCategory, purpose, billImage: updateBillImage, billMimeType: updateBillMime } = rest;
         if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+        if (amount !== undefined) {
+          const blocked = await rejectIfSplitLinked(Number(id));
+          if (blocked) return blocked;
+        }
 
         const updateData: any = { updatedBy: actorName };
         if (amount !== undefined) updateData.amount = amount;
@@ -196,6 +215,8 @@ export async function POST(req: NextRequest) {
       case "deleteExpense": {
         const { id, billImageLink } = rest;
         if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+        const blocked = await rejectIfSplitLinked(Number(id));
+        if (blocked) return blocked;
 
         if (billImageLink) {
           const fileId = extractDriveFileId(billImageLink);

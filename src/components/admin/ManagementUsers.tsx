@@ -28,6 +28,7 @@ const NAV_PERMISSION_OPTIONS = [
   { key: "canViewRecords", label: "View Records" },
   { key: "canViewFoodOrders", label: "View Food Orders" },
   { key: "canViewAccounts", label: "View Accounts" },
+  { key: "canViewSplits", label: "View Splits" },
   { key: "canViewReviews", label: "View Reviews" },
   { key: "canViewManagement", label: "View Management" },
 ];
@@ -75,9 +76,17 @@ const TOOLS_PERMISSION_OPTIONS = [
   { key: "canUseQRGenerator", label: "Use QR code generator" },
 ];
 
+const SPLITS_PERMISSION_OPTIONS = [
+  { key: "canAddSplitExpense", label: "Add split expenses" },
+  { key: "canEditSplitExpense", label: "Edit split expenses" },
+  { key: "canDeleteSplitExpense", label: "Delete split expenses" },
+  { key: "canSettleSplits", label: "Settle splits / Goko pay" },
+  { key: "canManageSplits", label: "Manage people and groups" },
+];
+
 const ALL_PERMISSION_GROUPS = [
   NAV_PERMISSION_OPTIONS, CHECKIN_PERMISSION_OPTIONS, BOOKING_PERMISSION_OPTIONS,
-  FOOD_PERMISSION_OPTIONS, EXPENSE_PERMISSION_OPTIONS, TOOLS_PERMISSION_OPTIONS,
+  FOOD_PERMISSION_OPTIONS, EXPENSE_PERMISSION_OPTIONS, SPLITS_PERMISSION_OPTIONS, TOOLS_PERMISSION_OPTIONS,
 ];
 
 export function ManagementUsers({ password, username, role }: { password: string; username?: string; role: Role }) {
@@ -261,6 +270,7 @@ export function ManagementUsers({ password, username, role }: { password: string
               ["Bookings", BOOKING_PERMISSION_OPTIONS],
               ["Food & Kitchen", FOOD_PERMISSION_OPTIONS],
               ["Accounts & Finance", EXPENSE_PERMISSION_OPTIONS],
+              ["Splits", SPLITS_PERMISSION_OPTIONS],
               ["Tools", TOOLS_PERMISSION_OPTIONS],
             ] as [string, typeof NAV_PERMISSION_OPTIONS][]).map(([heading, options], idx) => (
               <div key={heading} className={idx > 0 ? "mt-4 border-t border-brand-mist pt-4" : ""}>
