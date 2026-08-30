@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { otaFingerprint, pushIfOtaChanged } from "@/lib/aiosellSync";
-import { occupiedNights, type InventoryPool } from "@/lib/inventoryAvailability";
+import { occupiedNights, exclusiveEndDate, type InventoryPool } from "@/lib/inventoryAvailability";
 import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 import {
   getBookingCalendarData, getBookingDetail, searchBookings, getUnassignedBookings,
@@ -16,6 +16,10 @@ import {
 
 function bookingDateRange(checkinDate: string, checkoutDate?: string | null): string[] {
   return occupiedNights(checkinDate, checkoutDate);
+}
+
+function stayCheckout(checkinDate: string, checkoutDate?: string | null): string | null {
+  return exclusiveEndDate(checkinDate, checkoutDate);
 }
 
 function activeAssignmentDormIds(assignments: { dormId: number; status?: string }[] | undefined): number[] {
@@ -136,7 +140,8 @@ export async function POST(req: NextRequest) {
       }));
 
       const enrichedBookings = calendarData.bookings.map((b) => {
-        const nights = diffDays(b.checkinDate, b.checkoutDate || b.checkinDate);
+        const checkout = stayCheckout(b.checkinDate, b.checkoutDate);
+        const nights = checkout ? diffDays(b.checkinDate, checkout) : 0;
         const balance = (b.amountTotal ?? 0) - (b.amountPaid ?? 0);
         return { ...b, nights, balance };
       });
@@ -313,7 +318,8 @@ export async function POST(req: NextRequest) {
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
       const checkinDate = detail.booking.checkinDate;
-      const checkoutDate = detail.booking.checkoutDate || checkinDate;
+      const checkoutDate = stayCheckout(checkinDate, detail.booking.checkoutDate);
+      if (!checkoutDate) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
       const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate);
       if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
 
@@ -574,7 +580,8 @@ export async function POST(req: NextRequest) {
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
       const oldCheckin = detail.booking.checkinDate;
-      const oldCheckout = detail.booking.checkoutDate || oldCheckin;
+      const oldCheckout = stayCheckout(oldCheckin, detail.booking.checkoutDate);
+      if (!oldCheckout) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
       const currentAssignments = detail.assignments.filter((a) => a.status === "assigned");
 
       if (newCheckinDate === oldCheckin) return NextResponse.json({ error: "New date same as current" }, { status: 400 });
@@ -619,7 +626,7 @@ export async function POST(req: NextRequest) {
             // Cancel old + re-assign with new dates
             await unassignBookingBeds(bookingId);
             for (const a of currentAssignments) {
-              await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: a.checkoutDate, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
+              await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
             }
           } else if (confirmed && selectedBedIds) {
             await unassignBookingBeds(bookingId);
@@ -636,7 +643,7 @@ export async function POST(req: NextRequest) {
         if (currentAssignments.length > 0) {
           await unassignBookingBeds(bookingId);
           for (const a of currentAssignments) {
-            await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: a.checkoutDate, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
+            await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
           }
         }
       }
@@ -650,6 +657,7 @@ export async function POST(req: NextRequest) {
 
       await updateBookingFull(bookingId, {
         checkinDate: newCheckinDate,
+        checkoutDate: oldCheckout,
         amountBeforeTax: totalBeforeTax,
         amountTax: tax,
         amountTotal: totalBeforeTax + tax,
@@ -676,7 +684,8 @@ export async function POST(req: NextRequest) {
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
       const oldCheckin = detail.booking.checkinDate;
-      const oldCheckout = detail.booking.checkoutDate || oldCheckin;
+      const oldCheckout = stayCheckout(oldCheckin, detail.booking.checkoutDate);
+      if (!oldCheckout) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
       const currentAssignments = detail.assignments.filter((a) => a.status === "assigned");
 
       if (newCheckoutDate === oldCheckout) return NextResponse.json({ error: "New date same as current" }, { status: 400 });
@@ -803,7 +812,8 @@ export async function POST(req: NextRequest) {
       }
 
       const checkinDate = detail.booking.checkinDate;
-      const checkoutDate = detail.booking.checkoutDate || checkinDate;
+      const checkoutDate = stayCheckout(checkinDate, detail.booking.checkoutDate);
+      if (!checkoutDate) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
       const dates = bookingDateRange(checkinDate, checkoutDate);
       const dormIds = [...activeAssignmentDormIds(detail.assignments)];
       if (addBedIds && Array.isArray(addBedIds)) {
@@ -850,7 +860,8 @@ export async function POST(req: NextRequest) {
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
       const checkinDate = detail.booking.checkinDate;
-      const checkoutDate = detail.booking.checkoutDate || checkinDate;
+      const checkoutDate = stayCheckout(checkinDate, detail.booking.checkoutDate);
+      if (!checkoutDate) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
       const dates = bookingDateRange(checkinDate, checkoutDate);
       const newBed = await getBedById(newBedId);
       if (!newBed) return NextResponse.json({ error: "Bed not found" }, { status: 404 });

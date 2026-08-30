@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn, todayIST } from "@/lib/utils";
+import { addCalendarDays } from "@/lib/inventoryAvailability";
 
 const schema = z.object({
   name: z.string().trim().min(2, "Please enter your name"),
@@ -128,13 +129,29 @@ export function BookingEnquiryForm() {
           <Label htmlFor="enq-in" className="text-brand-green">
             Check-in
           </Label>
-          <Input id="enq-in" type="date" className={fieldRing} {...form.register("checkIn")} />
+          <Input
+            id="enq-in"
+            type="date"
+            min={todayIST()}
+            className={fieldRing}
+            {...form.register("checkIn", {
+              onChange: (e) => {
+                if (e.target.value) form.setValue("checkOut", addCalendarDays(e.target.value, 1));
+              },
+            })}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="enq-out" className="text-brand-green">
             Check-out
           </Label>
-          <Input id="enq-out" type="date" className={fieldRing} {...form.register("checkOut")} />
+          <Input
+            id="enq-out"
+            type="date"
+            min={form.watch("checkIn") ? addCalendarDays(form.watch("checkIn")!, 1) : todayIST()}
+            className={fieldRing}
+            {...form.register("checkOut")}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="enq-guests" className="text-brand-green">

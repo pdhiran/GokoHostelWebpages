@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { cn } from "@/lib/utils";
+import { cn, todayIST } from "@/lib/utils";
+import { addCalendarDays } from "@/lib/inventoryAvailability";
 import { motion, AnimatePresence } from "framer-motion";
 import { overlayVariants, modalVariants } from "@/lib/animations";
 import { Button } from "@/components/ui/button";
@@ -36,11 +37,14 @@ export function CreateBookingModal({
   const [guestName, setGuestName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [checkinDate, setCheckinDate] = useState(dateRange.startDate);
+  const [checkinDate, setCheckinDate] = useState(() => {
+    const today = todayIST();
+    return dateRange.startDate > today ? dateRange.startDate : today;
+  });
   const [checkoutDate, setCheckoutDate] = useState(() => {
-    const d = new Date(dateRange.startDate + "T12:00:00Z");
-    d.setUTCDate(d.getUTCDate() + 1);
-    return d.toISOString().split("T")[0];
+    const today = todayIST();
+    const start = dateRange.startDate > today ? dateRange.startDate : today;
+    return addCalendarDays(start, 1);
   });
   const [platform, setPlatform] = useState<"walkin" | "booking_engine">("walkin");
   const [nightlyRate, setNightlyRate] = useState(500);
@@ -57,10 +61,16 @@ export function CreateBookingModal({
   }, [nightlyRate, nights, selectedBeds.length]);
 
   useEffect(() => {
-    if (!checkinDate || !checkoutDate || checkinDate >= checkoutDate) return;
+    if (!checkinDate || !checkoutDate || checkinDate >= checkoutDate) {
+      setAvailableBedsList([]);
+      setLoadingBeds(false);
+      return;
+    }
     setLoadingBeds(true);
     setSelectedBeds([]);
-    const fetchBeds = async () => {
+    setAvailableBedsList([]);
+    let cancelled = false;
+    (async () => {
       try {
         const payload: Record<string, unknown> = { password, action: "getAvailableBeds", checkinDate, checkoutDate };
         if (username) payload.username = username;
@@ -69,15 +79,21 @@ export function CreateBookingModal({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
           setAvailableBedsList(data.beds || []);
           setDormRates(data.dormRates || {});
+        } else {
+          setAvailableBedsList([]);
         }
-      } catch { /* ignore */ }
-      setLoadingBeds(false);
-    };
-    fetchBeds();
+      } catch {
+        if (!cancelled) setAvailableBedsList([]);
+      } finally {
+        if (!cancelled) setLoadingBeds(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [checkinDate, checkoutDate, password, username]);
 
   const availableBeds = useMemo(() => {
@@ -213,8 +229,13 @@ export function CreateBookingModal({
                 <Label className="text-xs">Check-in Date</Label>
                 <Input
                   type="date"
+                  min={todayIST()}
                   value={checkinDate}
-                  onChange={(e) => setCheckinDate(e.target.value)}
+                  onChange={(e) => {
+                    const start = e.target.value;
+                    setCheckinDate(start);
+                    if (start) setCheckoutDate(addCalendarDays(start, 1));
+                  }}
                   className="mt-1"
                 />
               </div>
@@ -222,6 +243,7 @@ export function CreateBookingModal({
                 <Label className="text-xs">Check-out Date</Label>
                 <Input
                   type="date"
+                  min={checkinDate ? addCalendarDays(checkinDate, 1) : todayIST()}
                   value={checkoutDate}
                   onChange={(e) => setCheckoutDate(e.target.value)}
                   className="mt-1"

@@ -4,10 +4,16 @@ import {
   applyBookingToNight,
   assignmentPool,
   bedsFitInventoryCap,
+  bedsFreeToBlock,
   computeNightAvailability,
+  exclusiveEndDate,
+  exclusiveEndFromInclusive,
+  addCalendarDays,
   occupiedNights,
   pickInventoryOverride,
   remainingSplit,
+  splitAvailable,
+  ceilingFromRemaining,
   shouldPushPms,
   stayNights,
   tagBedsForPicker,
@@ -16,6 +22,7 @@ import {
 const queries = readFileSync("src/db/queries.ts", "utf8");
 const route = readFileSync("src/app/api/admin/bookings/route.ts", "utf8");
 const sync = readFileSync("src/lib/aiosellSync.ts", "utf8");
+const reservations = readFileSync("src/app/api/aiosell/reservations/route.ts", "utf8");
 
 function executiveBeds() {
   return Array.from({ length: 12 }, (_, i) => ({
@@ -43,6 +50,86 @@ describe("occupiedNights", () => {
   it("treats a missing checkout as a single night", () => {
     expect(occupiedNights("2026-08-31")).toEqual(["2026-08-31"]);
     expect(occupiedNights("2026-08-31", "2026-08-31")).toEqual(["2026-08-31"]);
+  });
+});
+
+describe("exclusiveEndDate", () => {
+  it("fills a missing or equal end as start + 1 day", () => {
+    expect(exclusiveEndDate("2026-09-02")).toBe("2026-09-03");
+    expect(exclusiveEndDate("2026-09-02", "")).toBe("2026-09-03");
+    expect(exclusiveEndDate("2026-09-02", "2026-09-02")).toBe("2026-09-03");
+    expect(exclusiveEndDate("2026-09-02", "2026-09-04")).toBe("2026-09-04");
+    expect(exclusiveEndDate("2026-09-02", "2026-09-01")).toBeNull();
+    expect(exclusiveEndDate("")).toBeNull();
+  });
+});
+
+describe("exclusiveEndFromInclusive: bulk dates include both nights", () => {
+  it("1 Sep–2 Sep covers both nights (exclusive end 3 Sep)", () => {
+    expect(exclusiveEndFromInclusive("2026-09-01", "2026-09-02")).toBe("2026-09-03");
+    expect(stayNights("2026-09-01", "2026-09-03")).toEqual(["2026-09-01", "2026-09-02"]);
+    expect(addCalendarDays("2026-09-01", 1)).toBe("2026-09-02");
+  });
+
+  it("same start and end is one night", () => {
+    expect(exclusiveEndFromInclusive("2026-08-31", "2026-08-31")).toBe("2026-09-01");
+    expect(stayNights("2026-08-31", "2026-09-01")).toEqual(["2026-08-31"]);
+  });
+});
+
+describe("bedsFreeToBlock: hide booked and already-blocked", () => {
+  const beds = executiveBeds();
+
+  it("on 2 Sept with 2 EXECUTIVE beds booked, offers the other 10", () => {
+    const assignments = [
+      { bedId: 1, checkinDate: "2026-09-02", checkoutDate: "2026-09-03", status: "assigned" },
+      { bedId: 2, checkinDate: "2026-09-01", checkoutDate: "2026-09-04", status: "assigned" },
+    ];
+    const free = bedsFreeToBlock(beds, "2026-09-02", "2026-09-03", assignments, []);
+    expect(free.map((b) => b.bedId)).toEqual(beds.slice(2).map((b) => b.bedId));
+    expect(free).toHaveLength(10);
+  });
+
+  it("hides a bed that is already blocked for that night", () => {
+    const blocks = [{ bedId: 3, startDate: "2026-09-02", endDate: "2026-09-03" }];
+    const free = bedsFreeToBlock(beds, "2026-09-02", "2026-09-03", [], blocks);
+    expect(free.map((b) => b.id)).not.toContain(3);
+    expect(free).toHaveLength(11);
+  });
+
+  it("does not hide a bed that checks out the morning the block starts", () => {
+    const assignments = [
+      { bedId: 1, checkinDate: "2026-09-01", checkoutDate: "2026-09-02", status: "assigned" },
+    ];
+    const free = bedsFreeToBlock(beds, "2026-09-02", "2026-09-03", assignments, []);
+    expect(free.map((b) => b.id)).toContain(1);
+    expect(free).toHaveLength(12);
+  });
+
+  it("ignores cancelled assignments and returns none until dates are a real range", () => {
+    const assignments = [
+      { bedId: 1, checkinDate: "2026-09-02", checkoutDate: "2026-09-03", status: "cancelled" },
+    ];
+    expect(bedsFreeToBlock(beds, "2026-09-02", "2026-09-03", assignments, [])).toHaveLength(12);
+    expect(bedsFreeToBlock(beds, "2026-09-02", "2026-09-02", [], [])).toEqual([]);
+    expect(bedsFreeToBlock(beds, "", "2026-09-03", [], [])).toEqual([]);
+  });
+
+  it("31st–1st shows min leftover (8), 1st–2nd shows min leftover (10)", () => {
+    const assignments = [
+      { bedId: 1, checkinDate: "2026-08-31", checkoutDate: "2026-09-01", status: "assigned" },
+      { bedId: 2, checkinDate: "2026-08-31", checkoutDate: "2026-09-01", status: "assigned" },
+      { bedId: 5, checkinDate: "2026-09-02", checkoutDate: "2026-09-03", status: "assigned" },
+    ];
+    const blocks = [
+      { bedId: 11, startDate: "2026-08-31", endDate: "2026-09-01" },
+      { bedId: 12, startDate: "2026-08-31", endDate: "2026-09-01" },
+      { bedId: 12, startDate: "2026-09-02", endDate: "2026-09-03" },
+    ];
+    const end31to1 = exclusiveEndFromInclusive("2026-08-31", "2026-09-01")!;
+    expect(bedsFreeToBlock(beds, "2026-08-31", end31to1, assignments, blocks)).toHaveLength(8);
+    const end1to2 = exclusiveEndFromInclusive("2026-09-01", "2026-09-02")!;
+    expect(bedsFreeToBlock(beds, "2026-09-01", end1to2, assignments, blocks)).toHaveLength(10);
   });
 });
 
@@ -174,7 +261,8 @@ describe("Mock workflows", () => {
     ];
     const tagged = tagBedsForPicker(beds, [], beds, ["2026-08-31", "2026-09-01"], [], [], overrides);
     expect(tagged.filter((b) => b.pool === "online")).toHaveLength(2);
-    expect(tagged.filter((b) => b.pool === "offline")).toHaveLength(10);
+    expect(tagged.filter((b) => b.pool === "offline")).toHaveLength(7);
+    expect(tagged).toHaveLength(9);
   });
 
   it("walk-in that eats past OTA slack drops remaining OTA and should push", () => {
@@ -192,6 +280,28 @@ describe("Mock workflows", () => {
   it("remaining walk-in uses ceiling minus online-assigned, not ceiling minus available", () => {
     const split = remainingSplit(11, 5, 1);
     expect(split).toEqual({ online: 4, offline: 7 });
+  });
+
+  it("2 Sept EXECUTIVE: 2 booked, 10 available, type 9 online → 1 walk-in (do not subtract booked again)", () => {
+    expect(splitAvailable(10, 9)).toEqual({ online: 9, offline: 1 });
+    const ceiling = ceilingFromRemaining(9, 2);
+    expect(ceiling).toBe(11);
+    expect(remainingSplit(10, ceiling, 2)).toEqual({ online: 9, offline: 1 });
+    expect(2 + 0 + 9 + 1).toBe(12);
+  });
+
+  it("blocked beds are already out of available, so 10 left and 9 online is still 1 walk-in", () => {
+    const blocks = [
+      { bedId: 11, dormId: 2, startDate: "2026-09-02", endDate: "2026-09-03" },
+      { bedId: 12, dormId: 2, startDate: "2026-09-02", endDate: "2026-09-03" },
+    ];
+    const snap = computeNightAvailability(2, "2026-09-02", beds, blocks, [], [
+      { dormId: 2, date: "2026-09-02", onlineAvailable: 9, channelId: null },
+    ]);
+    expect(snap.blocked).toBe(2);
+    expect(snap.available).toBe(10);
+    expect(splitAvailable(snap.available, 9)).toEqual({ online: 9, offline: 1 });
+    expect(snap.assigned + snap.blocked + snap.online + snap.offline).toBe(snap.total);
   });
 });
 
@@ -212,6 +322,8 @@ describe("Wiring", () => {
     expect(queries).toContain("if (nights.length === 0) return []");
     expect(route).toContain("checkoutDate must be after checkinDate");
     expect(route).toContain("pool: b.pool");
+    expect(reservations).toContain("occupiedNights(existing.checkinDate, existing.checkoutDate)");
+    expect(reservations).not.toContain("function cancelDateRange");
   });
 
   it("clears a block only after the bed assignment succeeds", () => {

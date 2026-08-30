@@ -5,7 +5,8 @@ import { useAdminToast } from "@/components/admin/AdminToast";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, todayIST } from "@/lib/utils";
+import { addCalendarDays } from "@/lib/inventoryAvailability";
 import {
   RefreshCwIcon, SaveIcon, PlusIcon, Trash2Icon, PencilIcon,
   CheckCircleIcon, XCircleIcon, Loader2Icon, SendIcon,
@@ -559,6 +560,7 @@ function SyncTab({ password, username }: { password: string; username?: string }
   const [fetchStart, setFetchStart] = useState("");
   const [fetchEnd, setFetchEnd] = useState("");
   const [fetchResult, setFetchResult] = useState<any>(null);
+  const today = todayIST();
   const [fetching, setFetching] = useState(false);
 
   useEffect(() => { loadLogs(); }, []);
@@ -612,11 +614,15 @@ function SyncTab({ password, username }: { password: string; username?: string }
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] text-muted-foreground">Start Date</label>
-          <input type="date" className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={pushStartDate} onChange={(e) => setPushStartDate(e.target.value)} />
+          <input type="date" min={today} className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={pushStartDate} onChange={(e) => {
+            const start = e.target.value;
+            setPushStartDate(start);
+            if (start) setPushEndDate(addCalendarDays(start, 1));
+          }} />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">End Date</label>
-          <input type="date" className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={pushEndDate} onChange={(e) => setPushEndDate(e.target.value)} />
+          <input type="date" min={pushStartDate || today} className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={pushEndDate} onChange={(e) => setPushEndDate(e.target.value)} />
         </div>
       </div>
       <p className="text-[10px] text-muted-foreground">Leave empty for defaults (today + 30 days)</p>
@@ -685,8 +691,12 @@ function SyncTab({ password, username }: { password: string; username?: string }
             <option value="rates">Rates</option>
             <option value="reservation">Reservations</option>
           </select>
-          <input type="date" className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchStart} onChange={(e) => setFetchStart(e.target.value)} />
-          <input type="date" className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchEnd} onChange={(e) => setFetchEnd(e.target.value)} />
+          <input type="date" className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchStart} onChange={(e) => {
+            const start = e.target.value;
+            setFetchStart(start);
+            if (start) setFetchEnd(addCalendarDays(start, 1));
+          }} />
+          <input type="date" min={fetchStart || undefined} className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchEnd} onChange={(e) => setFetchEnd(e.target.value)} />
         </div>
         <Button size="sm" className="mt-2" onClick={handleFetch} disabled={fetching || !fetchStart || !fetchEnd}>
           {fetching ? <Loader2Icon className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCwIcon className="h-3.5 w-3.5 mr-1" />}

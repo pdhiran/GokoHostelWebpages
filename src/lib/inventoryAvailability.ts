@@ -45,10 +45,78 @@ export function occupiedNights(checkinDate: string, checkoutDate?: string | null
   return stayNights(checkinDate, localDateStr(d));
 }
 
+/** Exclusive end date for a stay/block. Missing or equal end → one night (start + 1). */
+export function exclusiveEndDate(startDate: string, endDate?: string | null): string | null {
+  if (!startDate) return null;
+  if (endDate && endDate < startDate) return null;
+  if (endDate && endDate > startDate) return endDate;
+  const d = new Date(startDate + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  return localDateStr(d);
+}
+
+export function rangesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
+  return startA < endB && endA > startB;
+}
+
+export function addCalendarDays(date: string, days: number): string {
+  const d = new Date(date + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return localDateStr(d);
+}
+
+/**
+ * Bulk inventory start/end are inclusive nights (same as Set Rates).
+ * Convert last included night → exclusive end used by blocks and stayNights.
+ * 1 Sep–2 Sep → exclusive end 3 Sep → nights [1 Sep, 2 Sep].
+ */
+export function exclusiveEndFromInclusive(startDate: string, inclusiveEnd?: string | null): string | null {
+  if (!startDate || !inclusiveEnd || inclusiveEnd < startDate) return null;
+  return addCalendarDays(inclusiveEnd, 1);
+}
+
+/**
+ * Beds that can take a new calendar block for [startDate, endDate).
+ * Occupied (assigned) and already-blocked beds are excluded — unlike New Booking,
+ * which also offers blocked beds so a guest can take one.
+ */
+export function bedsFreeToBlock<T extends { id: number }>(
+  beds: T[],
+  startDate: string,
+  endDate: string,
+  assignments: { bedId: number; checkinDate: string; checkoutDate: string; status?: string }[],
+  blocks: { bedId: number; startDate: string; endDate: string }[],
+): T[] {
+  if (!startDate || !endDate || startDate >= endDate) return [];
+  const occupied = new Set(
+    assignments
+      .filter((a) => (a.status ?? "assigned") === "assigned" && rangesOverlap(a.checkinDate, a.checkoutDate, startDate, endDate))
+      .map((a) => a.bedId),
+  );
+  const blocked = new Set(
+    blocks.filter((b) => rangesOverlap(b.startDate, b.endDate, startDate, endDate)).map((b) => b.bedId),
+  );
+  return beds.filter((b) => !occupied.has(b.id) && !blocked.has(b.id));
+}
+
 /** Remaining OTA vs walk-in given physical leftover, OTA ceiling, and beds already counted as online. */
 export function remainingSplit(available: number, ceiling: number, onlineAssigned: number): { online: number; offline: number } {
   const online = Math.min(available, Math.max(0, ceiling - onlineAssigned));
   return { online, offline: Math.max(0, available - online) };
+}
+
+/**
+ * Split currently available beds (booked + blocked already excluded).
+ * `onlineRemaining` is what staff type: how many of the leftover beds go to OTA.
+ */
+export function splitAvailable(available: number, onlineRemaining: number): { online: number; offline: number } {
+  const online = Math.min(available, Math.max(0, onlineRemaining));
+  return { online, offline: Math.max(0, available - online) };
+}
+
+/** Persist remaining-among-available as a ceiling so PMS still subtracts later OTA assignments. */
+export function ceilingFromRemaining(onlineRemaining: number, onlineAssigned: number): number {
+  return Math.max(0, onlineRemaining) + Math.max(0, onlineAssigned);
 }
 
 export function pickInventoryOverride<T extends { dormId: number; date: string; channelId?: number | null }>(
@@ -159,8 +227,10 @@ export function tagBedsForPicker<T extends { id: number; dormId: number; bedId: 
     const slots = minPoolForStay(dormId, nights, allBeds, blocks, assignments, overrides);
     const free = (freeByDorm.get(dormId) ?? []).slice().sort((a, b) => a.bedId.localeCompare(b.bedId, undefined, { numeric: true }));
     const blocked = (blockedByDorm.get(dormId) ?? []).slice().sort((a, b) => a.bedId.localeCompare(b.bedId, undefined, { numeric: true }));
+    // Tightest night: only min(online)+min(offline) chips; extra physical leftover would squeeze OTA.
     free.forEach((bed, i) => {
-      out.push({ ...bed, pool: i < slots.online ? "online" : "offline" });
+      if (i < slots.online) out.push({ ...bed, pool: "online" });
+      else if (i < slots.online + slots.offline) out.push({ ...bed, pool: "offline" });
     });
     for (const bed of blocked) {
       out.push({ ...bed, pool: "block" });

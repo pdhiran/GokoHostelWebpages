@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getChannelConfig, addBooking, updateBookingFull, getBookingByRef, unassignBookingBeds, addBookingHistoryEntry } from "@/db/queries";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell";
+import { occupiedNights } from "@/lib/inventoryAvailability";
 import { logPmsCall } from "@/lib/pmsLog";
 
 const WEBHOOK_URL = "/api/aiosell/reservations";
@@ -244,21 +245,8 @@ async function handleCancelBooking(payload: ReservationPayload) {
     details: `Cancelled via ${payload.channel || "aiosell"}`,
     performedBy: "channel_manager",
   });
-  const affectedDates = cancelDateRange(existing.checkinDate, existing.checkoutDate || "");
+  const affectedDates = occupiedNights(existing.checkinDate, existing.checkoutDate);
   await triggerInventoryPush(affectedDates).catch(() => {});
 
   return respondSuccess("Reservation Cancelled Successfully");
-}
-
-function cancelDateRange(checkinDate: string, checkoutDate: string): string[] {
-  if (!checkinDate) return [];
-  const dates: string[] = [];
-  const start = new Date(checkinDate + "T00:00:00");
-  const end = checkoutDate ? new Date(checkoutDate + "T00:00:00") : new Date(start);
-  end.setDate(end.getDate() + 1);
-  while (start < end) {
-    dates.push(start.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
-    start.setDate(start.getDate() + 1);
-  }
-  return dates;
 }

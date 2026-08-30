@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { cn, localDateStr } from "@/lib/utils";
+import { cn, localDateStr, todayIST } from "@/lib/utils";
 import {
   RefreshCwIcon, Loader2Icon, ChevronLeftIcon, ChevronRightIcon,
   PackageIcon, BanIcon, EditIcon,
 } from "lucide-react";
-import { computeNightAvailability, pickInventoryOverride, remainingSplit, type NightAvailability } from "@/lib/inventoryAvailability";
+import { computeNightAvailability, pickInventoryOverride, remainingSplit, splitAvailable, ceilingFromRemaining, exclusiveEndFromInclusive, addCalendarDays, type NightAvailability } from "@/lib/inventoryAvailability";
 import type { Role } from "./types";
 
 type Props = { password: string; username?: string; role: Role; permissions: Record<string, boolean> };
@@ -402,23 +402,33 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
   const stats = computeAvailability(dormId, date);
   const dorm = data.dorms.find((d) => d.id === dormId);
   const existingOverride = pickInventoryOverride(data.overrides ?? [], dormId, date);
+  const storedCeiling = existingOverride?.onlineAvailable;
+  const initialRemaining = storedCeiling != null
+    ? String(remainingSplit(stats.available, storedCeiling, stats.onlineAssigned).online)
+    : "";
   const [saving, setSaving] = useState(false);
-  const [onlineOverride, setOnlineOverride] = useState<string>(existingOverride?.onlineAvailable != null ? String(existingOverride.onlineAvailable) : "");
-  const [offlineOverride, setOfflineOverride] = useState<string>(existingOverride?.offlineAvailable != null ? String(existingOverride.offlineAvailable) : "");
-
+  const [onlineOverride, setOnlineOverride] = useState<string>(initialRemaining);
   const [error, setError] = useState("");
+
+  const typedRemaining = onlineOverride === "" ? NaN : parseInt(onlineOverride, 10);
+  const previewCap = Number.isFinite(typedRemaining) ? typedRemaining : remainingSplit(stats.available, stats.total, stats.onlineAssigned).online;
+  const preview = splitAvailable(stats.available, previewCap);
 
   const handleSave = async () => {
     setSaving(true);
     setError("");
     try {
+      const remaining = onlineOverride !== "" ? parseInt(onlineOverride, 10) : NaN;
+      const onlineAvailable = Number.isFinite(remaining)
+        ? ceilingFromRemaining(Math.min(stats.available, Math.max(0, remaining)), stats.onlineAssigned)
+        : null;
       const res = await fetch("/api/admin/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           password, username, action: "updateInventoryOverride",
           dormId, channelId: null, date,
-          onlineAvailable: onlineOverride !== "" ? parseInt(onlineOverride) : null,
+          onlineAvailable,
           offlineAvailable: null,
         }),
       });
@@ -443,24 +453,34 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
           <div className="flex justify-between"><span className="text-brand-green-dark/60">Booked</span><span className="font-medium">{stats.assigned}</span></div>
           <div className="flex justify-between"><span className="text-brand-green-dark/60">Blocked</span><span className="font-medium text-orange-600">{stats.blocked}</span></div>
           <div className="flex justify-between"><span className="text-brand-green-dark/60">Available</span><span className="font-bold text-brand-green">{stats.available}</span></div>
+          <p className="text-[10px] text-brand-green-dark/40">
+            {stats.total} total = {stats.assigned} booked + {stats.blocked} blocked + {preview.online} online + {preview.offline} walk-in
+          </p>
           <hr className="border-brand-mist" />
           <div>
             <label className="text-xs text-brand-green-dark/60">Online (OTA/PMS)</label>
-            <input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={onlineOverride} onChange={(e) => setOnlineOverride(e.target.value)} placeholder={String(stats.available)} min={0} max={stats.total} />
-            <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Pushed to Aiosell. Walk-in bookings and taking a blocked bed do not reduce this.</p>
+            <input
+              type="number"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+              value={onlineOverride}
+              onChange={(e) => setOnlineOverride(e.target.value)}
+              placeholder={String(stats.available)}
+              min={0}
+              max={stats.available}
+            />
+            <p className="mt-0.5 text-[10px] text-brand-green-dark/40">
+              Of the {stats.available} available beds. Booked and blocked are already excluded. Walk-in bookings do not reduce this after save.
+            </p>
+            {Number.isFinite(typedRemaining) && typedRemaining > stats.available && (
+              <p className="mt-0.5 text-[10px] text-amber-700">Capped at {stats.available} available. Extra cannot be sold.</p>
+            )}
           </div>
           <div>
             <label className="text-xs text-brand-green-dark/60">Offline (Walk-ins)</label>
-            {(() => {
-              const ceiling = onlineOverride !== "" ? parseInt(onlineOverride, 10) : stats.total;
-              const { online, offline } = remainingSplit(stats.available, Number.isFinite(ceiling) ? ceiling : stats.total, stats.onlineAssigned);
-              return (
-                <>
-                  <div className="mt-1 rounded-md border border-input bg-muted/50 px-3 py-1.5 text-sm font-medium">{offline}</div>
-                  <p className="mt-0.5 text-[10px] text-brand-green-dark/40">Auto: {stats.available} available − {online} OTA remaining = {offline} walk-in</p>
-                </>
-              );
-            })()}
+            <div className="mt-1 rounded-md border border-input bg-muted/50 px-3 py-1.5 text-sm font-medium">{preview.offline}</div>
+            <p className="mt-0.5 text-[10px] text-brand-green-dark/40">
+              Auto: {stats.available} available − {preview.online} online = {preview.offline} walk-in
+            </p>
           </div>
         </div>
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
@@ -591,9 +611,13 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   const [blockStart, setBlockStart] = useState("");
   const [blockEnd, setBlockEnd] = useState("");
   const [blockReason, setBlockReason] = useState("");
+  const [fetchedFreeBeds, setFetchedFreeBeds] = useState<BedData[] | null>(null);
+  const [loadingFreeBeds, setLoadingFreeBeds] = useState(false);
 
   // Unblock state
   const [unblockIds, setUnblockIds] = useState<number[]>([]);
+  const [activeBlocks, setActiveBlocks] = useState<BlockData[]>([]);
+  const [loadingBlocks, setLoadingBlocks] = useState(false);
 
   // Set rates state
   const [rateRpId, setRateRpId] = useState<number>(0);
@@ -619,15 +643,77 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   const [restrictType, setRestrictType] = useState<string>("stopSell");
   const [restrictValue, setRestrictValue] = useState<string | boolean>("");
 
-  const dormBeds = useMemo(() => {
-    if (!data || !blockDormId) return [];
-    return data.beds.filter((b) => b.dormId === blockDormId);
-  }, [data, blockDormId]);
+  const today = todayIST();
+  const blockExclusiveEnd = exclusiveEndFromInclusive(blockStart, blockEnd);
 
-  const activeBlocks = useMemo(() => {
-    if (!data) return [];
-    return data.blocks.filter((b) => b.startDate <= (blockEnd || "9999") && b.endDate > (blockStart || "0000"));
-  }, [data, blockStart, blockEnd]);
+  const setStartAndNextEnd = (start: string, setStart: (v: string) => void, setEnd: (v: string) => void) => {
+    setStart(start);
+    setEnd(start ? addCalendarDays(start, 1) : "");
+  };
+
+  useEffect(() => {
+    if (!blockDormId || !blockStart || !blockExclusiveEnd) {
+      setFetchedFreeBeds(null);
+      return;
+    }
+    let cancelled = false;
+    setFetchedFreeBeds(null);
+    setLoadingFreeBeds(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/inventory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password, username, action: "getBedsFreeToBlock",
+            dormId: blockDormId, startDate: blockStart, endDate: blockExclusiveEnd,
+          }),
+        });
+        const json = await res.json();
+        if (!cancelled && Array.isArray(json.beds)) setFetchedFreeBeds(json.beds);
+        else if (!cancelled) setFetchedFreeBeds(null);
+      } catch {
+        if (!cancelled) setFetchedFreeBeds(null);
+      } finally {
+        if (!cancelled) setLoadingFreeBeds(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [blockDormId, blockStart, blockExclusiveEnd, password, username]);
+
+  useEffect(() => {
+    if (tab !== "unblockBeds") return;
+    let cancelled = false;
+    setLoadingBlocks(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/inventory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password, username, action: "getActiveBlocks" }),
+        });
+        const json = await res.json();
+        if (!cancelled && Array.isArray(json.blocks)) setActiveBlocks(json.blocks);
+        else if (!cancelled) setActiveBlocks([]);
+      } catch {
+        if (!cancelled) setActiveBlocks([]);
+      } finally {
+        if (!cancelled) setLoadingBlocks(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tab, password, username]);
+
+  const dormBeds = fetchedFreeBeds ?? [];
+  const freeBedKey = dormBeds.map((b) => b.id).sort((a, b) => a - b).join(",");
+
+  useEffect(() => {
+    const ids = new Set(freeBedKey ? freeBedKey.split(",").map(Number) : []);
+    setBlockBedIds((prev) => {
+      const next = prev.filter((id) => ids.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [freeBedKey]);
 
   const toggleDay = (day: number, currentDays: number[], setter: (d: number[]) => void) => {
     setter(currentDays.includes(day) ? currentDays.filter((d) => d !== day) : [...currentDays, day]);
@@ -647,13 +733,13 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
   );
 
   const handleBlockBeds = async () => {
-    if (!blockBedIds.length || !blockStart || !blockEnd) return;
+    if (!blockBedIds.length || !blockStart || !blockExclusiveEnd) return;
     setSaving(true);
     try {
       const res = await fetch("/api/admin/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password, username, action: "blockBeds", bedIds: blockBedIds, dormId: blockDormId, startDate: blockStart, endDate: blockEnd, reason: blockReason }),
+        body: JSON.stringify({ password, username, action: "blockBeds", bedIds: blockBedIds, dormId: blockDormId, startDate: blockStart, endDate: blockExclusiveEnd, reason: blockReason }),
       });
       const json = await res.json();
       setResult(json.success ? `Blocked ${json.blocked} bed(s)` : json.error);
@@ -753,29 +839,42 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
                   {data?.dorms.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
-              {blockDormId > 0 && (
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-medium">Beds</label>
-                  <div className="mt-1 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                    <button type="button" onClick={() => setBlockBedIds(blockBedIds.length === dormBeds.length ? [] : dormBeds.map((b) => b.id))}
-                      className="px-2 py-1 rounded text-[10px] font-medium border border-brand-green text-brand-green">
-                      {blockBedIds.length === dormBeds.length ? "Deselect All" : "Select All"}
-                    </button>
-                    {dormBeds.map((b) => (
-                      <button key={b.id} type="button" onClick={() => setBlockBedIds(blockBedIds.includes(b.id) ? blockBedIds.filter((x) => x !== b.id) : [...blockBedIds, b.id])}
-                        className={cn("px-2 py-1 rounded text-[10px] font-medium border", blockBedIds.includes(b.id) ? "bg-brand-green text-white border-brand-green" : "border-input")}>
-                        {b.bedId}
+                  <label className="text-xs font-medium">Start Date</label>
+                  <input type="date" min={today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={blockStart} onChange={(e) => setStartAndNextEnd(e.target.value, setBlockStart, setBlockEnd)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">End Date</label>
+                  <input type="date" min={blockStart || today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} />
+                </div>
+              </div>
+              <p className="text-[10px] text-brand-green-dark/50">Both dates are nights included. 1 Sep–2 Sep covers both nights; only beds free on every night in the range are shown (the tightest night wins). Past dates are disabled.</p>
+              {blockDormId > 0 && blockExclusiveEnd && (
+                <div>
+                  <label className="text-xs font-medium">Beds free to block</label>
+                  {loadingFreeBeds ? (
+                    <p className="mt-1 text-xs text-brand-green-dark/50">Loading available beds...</p>
+                  ) : dormBeds.length === 0 ? (
+                    <p className="mt-1 text-xs text-brand-green-dark/50">No beds free to block for these dates (already booked or blocked).</p>
+                  ) : (
+                    <div className="mt-1 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                      <button type="button" onClick={() => setBlockBedIds(blockBedIds.length === dormBeds.length ? [] : dormBeds.map((b) => b.id))}
+                        className="px-2 py-1 rounded text-[10px] font-medium border border-brand-green text-brand-green">
+                        {blockBedIds.length === dormBeds.length && dormBeds.length > 0 ? "Deselect All" : "Select All"}
                       </button>
-                    ))}
-                  </div>
+                      {dormBeds.map((b) => (
+                        <button key={b.id} type="button" onClick={() => setBlockBedIds(blockBedIds.includes(b.id) ? blockBedIds.filter((x) => x !== b.id) : [...blockBedIds, b.id])}
+                          className={cn("px-2 py-1 rounded text-[10px] font-medium border", blockBedIds.includes(b.id) ? "bg-brand-green text-white border-brand-green" : "border-input")}>
+                          {b.bedId}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs font-medium">Start Date</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} /></div>
-                <div><label className="text-xs font-medium">End Date</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} /></div>
-              </div>
               <div><label className="text-xs font-medium">Reason</label><input className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="Maintenance, etc." /></div>
-              <Button variant="cta" size="sm" className="w-full" onClick={handleBlockBeds} disabled={saving || !blockBedIds.length || !blockStart || !blockEnd}>
+              <Button variant="cta" size="sm" className="w-full" onClick={handleBlockBeds} disabled={saving || !blockBedIds.length || !blockStart || !blockExclusiveEnd}>
                 {saving ? "Blocking..." : `Block ${blockBedIds.length} Bed(s)`}
               </Button>
             </>
@@ -784,21 +883,26 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
           {tab === "unblockBeds" && (
             <>
               <div className="text-xs text-brand-green-dark/60 mb-2">Active blocks:</div>
-              {data?.blocks.filter((b) => b.startDate <= "9999").length === 0 && <p className="text-sm text-brand-green-dark/50">No active blocks found.</p>}
+              {loadingBlocks ? (
+                <p className="text-sm text-brand-green-dark/50">Loading blocks...</p>
+              ) : activeBlocks.length === 0 ? (
+                <p className="text-sm text-brand-green-dark/50">No active blocks found.</p>
+              ) : (
               <div className="space-y-1 max-h-48 overflow-y-auto">
-                {data?.blocks.map((bl) => {
-                  const bed = data.beds.find((b) => b.id === bl.bedId);
-                  const dorm = data.dorms.find((d) => d.id === bl.dormId);
+                {activeBlocks.map((bl) => {
+                  const bed = data?.beds.find((b) => b.id === bl.bedId);
+                  const dorm = data?.dorms.find((d) => d.id === bl.dormId);
                   return (
                     <label key={bl.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-sand text-xs cursor-pointer">
                       <input type="checkbox" checked={unblockIds.includes(bl.id)} onChange={() => setUnblockIds(unblockIds.includes(bl.id) ? unblockIds.filter((x) => x !== bl.id) : [...unblockIds, bl.id])} />
                       <span className="font-medium">{dorm?.name} — {bed?.bedId}</span>
-                      <span className="text-brand-green-dark/50">{bl.startDate} to {bl.endDate}</span>
+                      <span className="text-brand-green-dark/50">{bl.startDate}{bl.endDate > bl.startDate ? ` to ${addCalendarDays(bl.endDate, -1)}` : ""}</span>
                       {bl.reason && <span className="text-brand-green-dark/40">({bl.reason})</span>}
                     </label>
                   );
                 })}
               </div>
+              )}
               <Button variant="cta" size="sm" className="w-full" onClick={handleUnblockBeds} disabled={saving || !unblockIds.length}>
                 {saving ? "Unblocking..." : `Unblock ${unblockIds.length} Block(s)`}
               </Button>
@@ -815,8 +919,8 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs font-medium">Start Date</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateStart} onChange={(e) => setRateStart(e.target.value)} /></div>
-                <div><label className="text-xs font-medium">End Date</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateEnd} onChange={(e) => setRateEnd(e.target.value)} /></div>
+                <div><label className="text-xs font-medium">Start Date</label><input type="date" min={today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateStart} onChange={(e) => setStartAndNextEnd(e.target.value, setRateStart, setRateEnd)} /></div>
+                <div><label className="text-xs font-medium">End Date</label><input type="date" min={rateStart || today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateEnd} onChange={(e) => setRateEnd(e.target.value)} /></div>
               </div>
               <div><label className="text-xs font-medium">Days</label><div className="mt-1"><DaySelector days={rateDays} setDays={setRateDays} /></div></div>
               <div><label className="text-xs font-medium">Rate (₹)</label><input type="number" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={rateValue} onChange={(e) => setRateValue(e.target.value)} /></div>
@@ -840,8 +944,8 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs font-medium">Start</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={adjustStart} onChange={(e) => setAdjustStart(e.target.value)} /></div>
-                <div><label className="text-xs font-medium">End</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={adjustEnd} onChange={(e) => setAdjustEnd(e.target.value)} /></div>
+                <div><label className="text-xs font-medium">Start</label><input type="date" min={today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={adjustStart} onChange={(e) => setStartAndNextEnd(e.target.value, setAdjustStart, setAdjustEnd)} /></div>
+                <div><label className="text-xs font-medium">End</label><input type="date" min={adjustStart || today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={adjustEnd} onChange={(e) => setAdjustEnd(e.target.value)} /></div>
               </div>
               <div><label className="text-xs font-medium">Days</label><div className="mt-1"><DaySelector days={adjustDays} setDays={setAdjustDays} /></div></div>
               <div className="flex gap-2">
@@ -875,8 +979,8 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs font-medium">Start</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={restrictStart} onChange={(e) => setRestrictStart(e.target.value)} /></div>
-                <div><label className="text-xs font-medium">End</label><input type="date" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={restrictEnd} onChange={(e) => setRestrictEnd(e.target.value)} /></div>
+                <div><label className="text-xs font-medium">Start</label><input type="date" min={today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={restrictStart} onChange={(e) => setStartAndNextEnd(e.target.value, setRestrictStart, setRestrictEnd)} /></div>
+                <div><label className="text-xs font-medium">End</label><input type="date" min={restrictStart || today} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" value={restrictEnd} onChange={(e) => setRestrictEnd(e.target.value)} /></div>
               </div>
               <div><label className="text-xs font-medium">Days</label><div className="mt-1"><DaySelector days={restrictDays} setDays={setRestrictDays} /></div></div>
               <div>

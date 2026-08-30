@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { cn, localDateStr } from "@/lib/utils";
-import { computeNightAvailability } from "@/lib/inventoryAvailability";
+import { computeNightAvailability, bedsFreeToBlock } from "@/lib/inventoryAvailability";
 
 const ui = readFileSync("src/components/admin/InventoryRatePlan.tsx", "utf8");
 const adminPage = readFileSync("src/app/admin/page.tsx", "utf8");
@@ -157,6 +157,8 @@ describe("Inventory grid: sticky + colour structure", () => {
     expect(ui).toContain("bg-sky-50");
     expect(ui).toContain("bg-brand-sand");
     expect(ui).toContain("remainingSplit");
+    expect(ui).toContain("splitAvailable");
+    expect(ui).toContain("ceilingFromRemaining");
   });
 });
 
@@ -245,6 +247,19 @@ describe("Inventory grid: availability and occupancy workflows", () => {
     expect(stats29.occupancy).toBe(4);
   });
 
+  it("bulk-block picker count matches leftover available (not total beds)", () => {
+    const data = fixture();
+    const d1 = data.beds.filter((b) => b.dormId === 1);
+    const free29 = bedsFreeToBlock(d1, "2026-08-29", "2026-08-30", data.assignments, data.blocks);
+    expect(free29).toHaveLength(10);
+    expect(free29.map((b) => b.id)).not.toContain(1);
+    expect(free29.map((b) => b.id)).not.toContain(2);
+
+    const free30 = bedsFreeToBlock(d1, "2026-08-30", "2026-08-31", data.assignments, data.blocks);
+    expect(free30).toHaveLength(9);
+    expect(free30.map((b) => b.id)).not.toContain(3);
+  });
+
   it("maps rate-plan rows under the dorm's room mapping and prefers adult1Rate", () => {
     const data = fixture();
     const mapping = data.roomMappings.find((rm) => rm.dormId === 1);
@@ -290,5 +305,32 @@ describe("Inventory grid: edit and bulk workflows still wired", () => {
     expect(ui).toContain("{[7, 14, 30].map");
     expect(ui).toContain('action: "getInventoryGrid"');
     expect(queries).toContain("export async function getInventoryGridData");
+  });
+
+  it("only offers beds free to block (not booked or already blocked)", () => {
+    expect(ui).toContain("exclusiveEndFromInclusive");
+    expect(ui).toContain("addCalendarDays");
+    expect(ui).toContain("min={today}");
+    expect(ui).toContain("setStartAndNextEnd");
+    expect(ui).toContain('action: "getBedsFreeToBlock"');
+    expect(ui).toContain("Beds free to block");
+    expect(ui).not.toContain("localFreeBeds");
+    expect(ui).toContain("fetchedFreeBeds ?? []");
+    expect(ui).toContain('action: "getActiveBlocks"');
+    expect(route).toContain("getBedsFreeToBlock: \"canManageInventory\"");
+    expect(route).toContain("One or more beds are booked or already blocked for these dates");
+    expect(queries).toContain("export async function getBedsFreeToBlock");
+    expect(ui).toContain("setFetchedFreeBeds(null)");
+    expect(route).toContain("stayNights(b.startDate, b.endDate)");
+  });
+});
+
+describe("Check Rates scrape dates are exclusive", () => {
+  const checkRates = readFileSync("src/components/admin/AdminCheckRates.tsx", "utf8");
+
+  it("greys past From dates and requires To after From (loop is current < end)", () => {
+    expect(checkRates).toContain("min={todayIST()}");
+    expect(checkRates).toContain("min={startDate ? addCalendarDays(startDate, 1) : todayIST()}");
+    expect(checkRates).toContain("while (current < endDate)");
   });
 });

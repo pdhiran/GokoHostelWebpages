@@ -7,7 +7,8 @@ import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2Icon, RefreshCwIcon } from "lucide-react";
-import { cn, localDateStr } from "@/lib/utils";
+import { cn, localDateStr, todayIST } from "@/lib/utils";
+import { addCalendarDays } from "@/lib/inventoryAvailability";
 import type { Role } from "./types";
 
 type RateResult = {
@@ -111,11 +112,15 @@ export function AdminCheckRates({ password, username, role }: { password: string
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-brand-green-dark/60">From Date</label>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <Input type="date" min={todayIST()} value={startDate} onChange={(e) => {
+              const start = e.target.value;
+              setStartDate(start);
+              if (start) setEndDate(addCalendarDays(start, 1));
+            }} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-brand-green-dark/60">To Date</label>
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <Input type="date" min={startDate ? addCalendarDays(startDate, 1) : todayIST()} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-brand-green-dark/60">Property Type</label>

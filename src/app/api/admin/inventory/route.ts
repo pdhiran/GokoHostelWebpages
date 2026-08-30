@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { triggerInventoryPush, triggerRatePush, triggerRestrictionPush } from "@/lib/aiosellSync";
+import { stayNights } from "@/lib/inventoryAvailability";
 import {
   getInventoryGridData, getChannels, upsertChannel, deleteChannel,
   getBedTypeConfigs, upsertBedTypeConfig,
   getActiveBedBlocks, createBedBlock, deactivateBedBlock, deactivateBedBlocksByBedIds,
-  upsertInventoryOverride,
+  upsertInventoryOverride, getBedsFreeToBlock,
   getChannelRatesForRange, upsertChannelRate,
   getDailyRates, upsertDailyRate,
 } from "@/db/queries";
@@ -18,6 +19,7 @@ const ACTION_PERMISSIONS: Record<string, string> = {
   getBedTypeConfigs: "canManageInventory",
   upsertBedTypeConfig: "canManageInventory",
   getActiveBlocks: "canManageInventory",
+  getBedsFreeToBlock: "canManageInventory",
   blockBeds: "canManageInventory",
   unblockBeds: "canManageInventory",
   updateInventoryOverride: "canManageInventory",
@@ -94,15 +96,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ blocks: data });
     }
 
+    if (action === "getBedsFreeToBlock") {
+      const { dormId, startDate, endDate } = params;
+      if (!dormId || !startDate || !endDate) return NextResponse.json({ error: "dormId, startDate, endDate required" }, { status: 400 });
+      if (startDate >= endDate) return NextResponse.json({ error: "startDate must be before endDate" }, { status: 400 });
+      const free = await getBedsFreeToBlock(startDate, endDate, dormId);
+      return NextResponse.json({ beds: free.map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId })) });
+    }
+
     if (action === "blockBeds") {
       const { bedIds, dormId, startDate, endDate, reason } = params;
       if (!bedIds?.length || !dormId || !startDate || !endDate) return NextResponse.json({ error: "bedIds, dormId, startDate, endDate required" }, { status: 400 });
       if (startDate >= endDate) return NextResponse.json({ error: "startDate must be before endDate" }, { status: 400 });
+      const free = await getBedsFreeToBlock(startDate, endDate, dormId);
+      const freeIds = new Set(free.map((b) => b.id));
+      if (bedIds.some((id: number) => !freeIds.has(id))) {
+        return NextResponse.json({ error: "One or more beds are booked or already blocked for these dates" }, { status: 400 });
+      }
       for (const bedId of bedIds) {
         await createBedBlock({ bedId, dormId, startDate, endDate, reason: reason || "", blockedBy: actingUser });
       }
-      const dates = generateDateRange(startDate, endDate);
-      await triggerInventoryPush(dates, dormId).catch(() => {});
+      const dates = stayNights(startDate, endDate);
+      if (dates.length > 0) await triggerInventoryPush(dates, dormId).catch(() => {});
       return NextResponse.json({ success: true, blocked: bedIds.length });
     }
 
@@ -117,7 +132,7 @@ export async function POST(req: NextRequest) {
           const allDates = new Set<string>();
           const dormIds = new Set<number>();
           for (const b of targeted) {
-            generateDateRange(b.startDate, b.endDate).forEach((d) => allDates.add(d));
+            stayNights(b.startDate, b.endDate).forEach((d) => allDates.add(d));
             dormIds.add(b.dormId);
           }
           pushDates = [...allDates];
@@ -128,7 +143,7 @@ export async function POST(req: NextRequest) {
         }
       } else if (bedIds?.length && startDate && endDate) {
         await deactivateBedBlocksByBedIds(bedIds, startDate, endDate, actingUser);
-        pushDates = generateDateRange(startDate, endDate);
+        pushDates = stayNights(startDate, endDate);
       } else {
         return NextResponse.json({ error: "blockIds or (bedIds + dates) required" }, { status: 400 });
       }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
-import { isWeekend } from "@/components/admin/booking-dashboard/utils";
+import { isWeekend, getNights } from "@/components/admin/booking-dashboard/utils";
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -108,7 +108,7 @@ describe("Booking Dashboard: modifyCheckin Scenarios", () => {
     expect(section).toContain("isEarlier = newCheckinDate < oldCheckin");
     expect(section).toContain("Late check-in");
     expect(section).toContain("await unassignBookingBeds(bookingId)");
-    expect(section).toContain("checkinDate: newCheckinDate, checkoutDate: a.checkoutDate");
+    expect(section).toContain("checkinDate: newCheckinDate, checkoutDate: oldCheckout");
   });
 
   it("handles CI-2: late check-in where new >= checkout — returns 400 error", () => {
@@ -157,6 +157,7 @@ describe("Booking Dashboard: modifyCheckin Scenarios", () => {
     expect(section).toContain("amountBeforeTax: totalBeforeTax");
     expect(section).toContain("amountTax: tax");
     expect(section).toContain("amountTotal: totalBeforeTax + tax");
+    expect(section).toContain("checkoutDate: oldCheckout");
   });
 });
 
@@ -360,5 +361,45 @@ describe("Booking API: calendar enrich and rates batch", () => {
     expect(section).toContain("adult1Rate ?? rate.rate");
     expect(section).toContain("pool: b.pool");
     expect(section).toMatch(/if \(rate\) \{\s*dormRates\[mapping\.dormId\] = rate\.adult1Rate \?\? rate\.rate;/);
+  });
+});
+
+describe("Unassigned bookings: same availability as New Booking", () => {
+  const unassigned = readFile("src/components/admin/booking-dashboard/UnassignedBookings.tsx");
+  const create = readFile("src/components/admin/booking-dashboard/CreateBookingModal.tsx");
+  const route = readFile("src/app/api/admin/bookings/route.ts");
+
+  it("loads beds for the booking stay via getAvailableBeds, not calendar occupancy", () => {
+    expect(unassigned).toContain('action: "getAvailableBeds"');
+    expect(unassigned).toContain("exclusiveEndDate");
+    expect(unassigned).not.toContain("!bed.isBlocked");
+    expect(unassigned.split("setLoadingBeds(false)").length).toBeGreaterThan(3);
+    expect(create).toContain('action: "getAvailableBeds"');
+    expect(create).toContain("addCalendarDays(start, 1)");
+    expect(create).toContain("addCalendarDays(checkinDate, 1)");
+    expect(create).toContain("cancelled = true");
+    expect(create).toContain("setAvailableBedsList([])");
+  });
+
+  it("assignBeds / date mutations coerce missing checkout via stayCheckout", () => {
+    expect(route).toContain("function stayCheckout");
+    const assign = route.match(/action === "assignBeds"[\s\S]*?action === "checkIn"/)![0];
+    expect(assign).toContain("stayCheckout(checkinDate, detail.booking.checkoutDate)");
+    expect(assign).not.toContain("checkoutDate || checkinDate");
+    expect(route).toContain('action === "modifyCheckin"');
+    expect(route).toContain('action === "modifyCheckout"');
+    expect(route).toContain('action === "editReservation"');
+    expect(route).toContain('action === "moveRoom"');
+    expect(route.split("stayCheckout(").length).toBeGreaterThan(5);
+    expect(route).not.toContain("checkoutDate || checkinDate");
+    expect(route).not.toContain("checkoutDate || oldCheckin");
+  });
+
+  it("detail nights treat missing checkout as one night, not NaN", () => {
+    expect(getNights("2026-09-01", "2026-09-02")).toBe(1);
+    expect(getNights("2026-09-01", "2026-09-03")).toBe(2);
+    expect(getNights("2026-09-01", "")).toBe(1);
+    expect(getNights("2026-09-01")).toBe(1);
+    expect(Number.isNaN(getNights("2026-09-01", ""))).toBe(false);
   });
 });

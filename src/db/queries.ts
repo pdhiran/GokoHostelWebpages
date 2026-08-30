@@ -1626,6 +1626,13 @@ export async function getAvailableBedsForRange(checkinDate: string, checkoutDate
   return tagBedsForPicker(physical, blockedOnly, allBeds, nights, blocks, assignments, overrides);
 }
 
+/** Physical beds with no assignment and no block overlapping [startDate, endDate). */
+export async function getBedsFreeToBlock(startDate: string, endDate: string, dormId?: number) {
+  if (!startDate || !endDate || startDate >= endDate) return [];
+  const { physical } = await loadBedsAvailabilityForRange(startDate, endDate, dormId);
+  return physical;
+}
+
 export async function validateBedsForRange(bedIds: number[], checkinDate: string, checkoutDate: string): Promise<string | null> {
   if (bedIds.length === 0) return null;
   const tagged = await getAvailableBedsForRange(checkinDate, checkoutDate);

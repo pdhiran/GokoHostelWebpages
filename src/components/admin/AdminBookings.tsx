@@ -7,7 +7,8 @@ import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlusIcon, Trash2Icon, CalendarIcon, RefreshCwIcon, XIcon } from "lucide-react";
-import { cn, localDateStr } from "@/lib/utils";
+import { cn, localDateStr, todayIST } from "@/lib/utils";
+import { addCalendarDays } from "@/lib/inventoryAvailability";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
 import type { Role } from "./types";
@@ -367,11 +368,14 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-brand-green-dark/60">Check-in Date *</label>
-                <Input type="date" value={form.checkinDate} onChange={(e) => setForm({ ...form, checkinDate: e.target.value })} />
+                <Input type="date" min={todayIST()} value={form.checkinDate} onChange={(e) => {
+                  const start = e.target.value;
+                  setForm({ ...form, checkinDate: start, checkoutDate: start ? addCalendarDays(start, 1) : "" });
+                }} />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-brand-green-dark/60">Check-out Date</label>
-                <Input type="date" value={form.checkoutDate} onChange={(e) => setForm({ ...form, checkoutDate: e.target.value })} />
+                <Input type="date" min={form.checkinDate ? addCalendarDays(form.checkinDate, 1) : todayIST()} value={form.checkoutDate} onChange={(e) => setForm({ ...form, checkoutDate: e.target.value })} />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-brand-green-dark/60">Room Type</label>

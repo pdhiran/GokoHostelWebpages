@@ -1,3 +1,5 @@
+import { exclusiveEndDate } from "@/lib/inventoryAvailability";
+
 export const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   received: { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-700 dark:text-orange-300", border: "border-orange-300 dark:border-orange-700" },
   checked_in: { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-700 dark:text-green-300", border: "border-green-300 dark:border-green-700" },
@@ -60,9 +62,11 @@ export function getDatesArray(start: string, end: string): string[] {
   return dates;
 }
 
-export function getNights(checkin: string, checkout: string): number {
+export function getNights(checkin: string, checkout?: string | null): number {
+  const end = exclusiveEndDate(checkin, checkout);
+  if (!checkin || !end) return 1;
   const ci = new Date(checkin + "T12:00:00Z");
-  const co = new Date(checkout + "T12:00:00Z");
+  const co = new Date(end + "T12:00:00Z");
   return Math.max(1, Math.round((co.getTime() - ci.getTime()) / 86400000));
 }
 
