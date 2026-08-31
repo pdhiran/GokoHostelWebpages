@@ -207,7 +207,7 @@ async function handleModifyBooking(payload: ReservationPayload) {
   const newCheckin = payload.checkin || existing.checkinDate;
   const newCheckout = exclusiveEndDate(newCheckin, payload.checkout || existing.checkoutDate);
   let moveDates = !closed && !!newCheckin && !!newCheckout;
-  if (moveDates) {
+  if (moveDates && newCheckin && newCheckout) {
     const aligned = await realignAssignments(existing.id, newCheckin, newCheckout);
     if (!aligned) moveDates = false;
   }

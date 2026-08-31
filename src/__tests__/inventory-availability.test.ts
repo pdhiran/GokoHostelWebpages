@@ -333,6 +333,7 @@ describe("Wiring", () => {
     expect(route).toContain("checkoutDate must be after checkinDate");
     expect(route).toContain("pool: b.pool");
     expect(reservations).toContain("occupiedNights(existing.checkinDate, existing.checkoutDate)");
+    expect(reservations).toContain("if (moveDates && newCheckin && newCheckout)");
     expect(reservations).not.toContain("function cancelDateRange");
   });
 
@@ -341,6 +342,7 @@ describe("Wiring", () => {
     expect(push).toContain("unmappedIds");
     expect(push).toContain("mappedDirty");
     expect(push).toContain("if (mappedDirty.length === 0)");
+    expect(push).toMatch(/let mode: \"incremental\" \| \"full\" = \"full\"/);
   });
 
   it("skips inventory push when unblock matches no active blocks", () => {

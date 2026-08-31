@@ -40,7 +40,7 @@ export function BookingDetailPanel({
   booking: DashboardBooking;
   assignments: BedAssignment[];
   onClose: () => void;
-  onAction: (action: string, bookingId: number, extra?: Record<string, unknown>) => Promise<void>;
+  onAction: (action: string, bookingId: number, extra?: Record<string, unknown>) => Promise<boolean | void>;
   role: Role;
   permissions: Record<string, boolean>;
   password: string;

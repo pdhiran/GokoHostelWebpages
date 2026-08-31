@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     let useDirty = !fullSync && !startDate && !endDate && dirtyEntries.length > 0;
 
     let updates: InventoryUpdate[] = [];
-    let mode: string;
+    let mode: "incremental" | "full" = "full";
 
     if (useDirty) {
       const unmappedIds = dirtyEntries.filter((d) => !mappedDormIds.has(d.dormId)).map((d) => d.id);

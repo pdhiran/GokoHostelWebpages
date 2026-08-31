@@ -384,6 +384,7 @@ describe("Booking calendar UI permissions match the API keys", () => {
     expect(dashboard).not.toContain("canCreateBooking");
     expect(dashboard).toContain("canAssign={hasPermission(role, permissions, \"canAddBooking\")}");
     expect(panel).toContain("canAddBooking");
+    expect(panel).toContain("Promise<boolean | void>");
     expect(panel).toContain("canDeleteBooking");
     expect(panel).not.toContain("canCancelBooking");
     expect(panel).not.toContain("canMarkNoShow");
