@@ -255,6 +255,7 @@ describe("RBAC: Splits", () => {
     const updateSlice = route.slice(updateIdx, route.indexOf('case "deleteExpense"'));
     expect(updateSlice).toContain("canUseAccounts");
     expect(updateSlice).toContain("hostelExpenseId");
+    expect(updateSlice).toContain("Undo settlements in this group before changing money");
   });
 
   it("env manager with empty permissions cannot open splits", () => {

@@ -111,6 +111,22 @@ export function allocateShares(
   );
 }
 
+/** If house paid anything, it must be sole payer and owed === total. */
+export function assertGokoPayerRules(
+  houseId: number | null | undefined,
+  shares: ShareInput[],
+  total: number,
+): string | null {
+  if (!houseId) return null;
+  const house = shares.find((s) => s.memberId === houseId);
+  if (!house || house.paidAmount <= 0) return null;
+  const othersPaid = shares.filter((s) => s.memberId !== houseId).reduce((n, s) => n + s.paidAmount, 0);
+  if (othersPaid > 0 || house.paidAmount !== total || house.owedAmount !== total) {
+    return "When Goko pays, Goko must be the sole payer and Goko's share must equal the total";
+  }
+  return null;
+}
+
 export function assertBalanced(total: number, shares: ShareInput[]): string | null {
   if (!Number.isInteger(total) || total <= 0) return "total must be a positive integer";
   const seen = new Set<number>();

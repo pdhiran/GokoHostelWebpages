@@ -54,6 +54,26 @@ function memberLabel(m: Member, all: Member[]) {
   return tail ? `${m.name} · ${tail}` : `${m.name} #${m.id}`;
 }
 
+function gcdPaise(a: number, b: number) {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return x || 1;
+}
+
+function shareWeightFields(shares: ShareInput[]): Record<number, string> {
+  const oweds = shares.filter((s) => s.owedAmount > 0).map((s) => s.owedAmount);
+  let g = oweds[0] || 1;
+  for (const n of oweds) g = gcdPaise(g, n);
+  const o: Record<number, string> = {};
+  for (const s of shares) o[s.memberId] = String(Math.round(s.owedAmount / g) || 0);
+  return o;
+}
+
 export function AdminSplits({
   password, username, role, permissions = {},
 }: {
@@ -217,7 +237,7 @@ export function AdminSplits({
         <BalancesView
           members={members} group={selected} nets={nets} simplify={simplify} overall={overall}
           gokoPays={gokoPays} selfMemberId={selfMemberId} houseId={house?.id ?? null}
-          canSettle={canSettle} canAccounts={canAccounts} busy={busy}
+          canSettle={canSettle} canAccounts={canAccounts} canManage={canManage} busy={busy}
           onCopy={async (text) => { await navigator.clipboard.writeText(text); showSuccess("Copied"); }}
           onSettle={async (edge, amount, confirmOverpay) => {
             setBusy(`settle-${edge.from}-${edge.to}`);
@@ -276,12 +296,32 @@ export function AdminSplits({
       )}
 
       {tab === "people" && <PeopleView members={members} canManage={canManage} api={api} onChange={() => refresh().catch((e) => showError(e.message))} />}
-      {tab === "groups" && <GroupsView members={members} groups={groups} canManage={canManage} api={api} onChange={() => refresh().catch((e) => showError(e.message))} />}
+      {tab === "groups" && <GroupsView members={members} groups={groups} canManage={canManage} api={api} onChange={() => refresh().catch((e) => showError(e.message))} onCreated={async (id) => {
+        localStorage.setItem(LAST_GROUP_KEY, String(id));
+        setGroupId(id);
+        setTab("balances");
+        await refresh(id);
+      }} onDeleted={async (id) => {
+        if (groupId === id) {
+          localStorage.removeItem(LAST_GROUP_KEY);
+          setGroupId(null);
+        }
+        const core = await loadCore();
+        if (groupId === id) {
+          const first = core.groups.find((g) => g.humanCount >= 1) || null;
+          setGroupId(first?.id ?? null);
+          if (first) {
+            localStorage.setItem(LAST_GROUP_KEY, String(first.id));
+            await loadGroup(first.id);
+          }
+        } else if (groupId) await loadGroup(groupId);
+      }} />}
 
       {sheetOpen && selected && (
         <ExpenseSheet
           members={members} group={selected} house={house} selfMemberId={selfMemberId}
           editing={editing} canAccounts={canAccounts} canManage={canManage} api={api}
+          settleLocked={activity.some((item) => item.kind === "settlement" && item.settlement && !item.settlement.hostelExpenseId)}
           onClose={() => { setSheetOpen(false); setEditing(null); }}
           onSaved={async (gid) => {
             localStorage.setItem(LAST_GROUP_KEY, String(gid));
@@ -315,12 +355,12 @@ function BalancesView(props: {
   members: Member[]; group: Group; nets: { memberId: number; net: number }[];
   simplify: SimplifyEdge[]; overall: { memberId: number; net: number }[];
   gokoPays: GokoPay[]; selfMemberId: number | null; houseId: number | null;
-  canSettle: boolean; canAccounts: boolean; busy: string;
+  canSettle: boolean; canAccounts: boolean; canManage: boolean; busy: string;
   onCopy: (text: string) => void;
   onSettle: (edge: SimplifyEdge, amount: number, confirmOverpay: boolean) => void;
   onPay: (p: GokoPay) => void;
 }) {
-  const { members, group, nets, simplify, overall, gokoPays, selfMemberId, houseId, canSettle, canAccounts, busy, onCopy, onSettle, onPay } = props;
+  const { members, group, nets, simplify, overall, gokoPays, selfMemberId, houseId, canSettle, canAccounts, canManage, busy, onCopy, onSettle, onPay } = props;
   const you = selfMemberId != null ? overall.find((n) => n.memberId === selfMemberId) : null;
   return (
     <div className="space-y-4">
@@ -329,6 +369,9 @@ function BalancesView(props: {
           <span className="font-semibold">You {you.net > 0 ? "are owed" : "owe"} ₹{paiseToRupees(Math.abs(you.net))}</span>
           <span className="text-brand-green-dark/50"> overall (all groups)</span>
         </div>
+      )}
+      {canManage && selfMemberId == null && (
+        <p className="text-xs text-brand-green-dark/50">Link your login on a person in Manage → People to see You owe here.</p>
       )}
       <div className="rounded-2xl border border-brand-mist bg-white dark:bg-card overflow-hidden">
         <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-brand-green-dark/50">In {group.name} #{group.id}</div>
@@ -353,7 +396,7 @@ function BalancesView(props: {
         const summary = `Pay ${memberLabel(to, members)} #${to.id} ₹${paiseToRupees(edge.amount)} for ${group.name} #${group.id} — ${memberLabel(from, members)}. Phone: ${to.phone || "ask them"}.`;
         return (
           <SettleCard
-            key={`${edge.from}-${edge.to}`}
+            key={`${edge.from}-${edge.to}-${edge.amount}`}
             from={from} to={to} members={members} group={group} edge={edge}
             canSettle={canSettle} busy={busy} onCopy={onCopy} onSettle={onSettle}
             summary={summary}
@@ -367,6 +410,7 @@ function BalancesView(props: {
           <div key={`${p.expenseId}-${p.payeeId}`} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
             <p className="text-sm font-medium">Goko pays {memberLabel(payee, members)} ₹{paiseToRupees(p.amount)}</p>
             <p className="text-xs text-brand-green-dark/60">{p.description} · books today in Accounts</p>
+            {gokoPays.length > 1 && <p className="text-xs text-brand-green-dark/50">Hostel share goes to who paid, by member order — not split by how much each paid.</p>}
             {canSettle && canAccounts && <Button type="button" size="sm" variant="cta" disabled={busy !== ""} onClick={() => onPay(p)}>Pay via Accounts</Button>}
             {canSettle && !canAccounts && <p className="text-xs text-brand-green-dark/50">Needs Accounts add-expense permission.</p>}
           </div>
@@ -430,7 +474,7 @@ function ActivityView({ items, members, canEdit, canDelete, canSettle, busy, onE
             <div key={`e-${e.id}`} className="rounded-xl border border-brand-mist bg-white dark:bg-card px-4 py-3">
               <div className="flex items-start justify-between gap-2">
                 <button type="button" className="text-left flex-1" onClick={() => canEdit && onEdit(e)} disabled={!canEdit}>
-                  <p className="font-medium text-sm">{e.description}</p>
+                  <p className="font-medium text-sm">{e.description}{e.reimbursed ? " · Accounts booked" : e.hostelExpenseId ? " · hostel paid" : ""}</p>
                   <p className="text-xs text-brand-green-dark/50">{e.expenseDate} · {payerName} paid ₹{paiseToRupees(e.totalAmount)}</p>
                 </button>
                 <div className="flex gap-1">
@@ -558,13 +602,15 @@ function PeopleView({ members, canManage, api, onChange }: {
   );
 }
 
-function GroupsView({ members, groups, canManage, api, onChange }: {
+function GroupsView({ members, groups, canManage, api, onChange, onCreated, onDeleted }: {
   members: Member[]; groups: Group[]; canManage: boolean;
   api: (action: string, extra?: Record<string, unknown>) => Promise<any>;
   onChange: () => void;
+  onCreated: (id: number) => void | Promise<void>;
+  onDeleted: (id: number) => void | Promise<void>;
 }) {
   const { showError, showSuccess } = useAdminToast();
-  const [name, setName] = useState("");
+  const [name, setName] = useState("Kitchen");
   const humans = members.filter((m) => m.isHouse !== 1 && m.isActive === 1);
   const [picked, setPicked] = useState<number[]>([]);
   return (
@@ -573,10 +619,11 @@ function GroupsView({ members, groups, canManage, api, onChange }: {
         <form className="rounded-2xl border border-brand-mist bg-white dark:bg-card p-4 space-y-3" onSubmit={async (e) => {
           e.preventDefault();
           try {
-            await api("addGroup", { name: name.trim(), memberIds: picked });
-            setName(""); setPicked([]);
+            const data = await api("addGroup", { name: name.trim(), memberIds: picked });
+            setName("Kitchen"); setPicked([]);
             showSuccess("Group created");
-            onChange();
+            if (typeof data.id === "number") await onCreated(data.id);
+            else onChange();
           } catch (err) { showError(err instanceof Error ? err.message : "Failed"); }
         }}>
           <div><Label className="text-xs">Group name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Kitchen" required className="mt-1" /></div>
@@ -588,7 +635,7 @@ function GroupsView({ members, groups, canManage, api, onChange }: {
               </label>
             ))}
           </div>
-          <Button type="submit" disabled={!name.trim()}>Create group</Button>
+          <Button type="submit" disabled={!name.trim() || picked.length < 1}>{picked.length < 1 ? "Pick people first" : "Create group"}</Button>
         </form>
       )}
       {groups.map((g) => (
@@ -597,7 +644,8 @@ function GroupsView({ members, groups, canManage, api, onChange }: {
             <p className="font-medium text-sm">{g.name} #{g.id}</p>
             {canManage && (
               <Button type="button" size="sm" variant="ghost" onClick={async () => {
-                try { await api("deleteGroup", { id: g.id }); showSuccess("Group deleted"); onChange(); }
+                if (!confirm(`Delete group ${g.name}?`)) return;
+                try { await api("deleteGroup", { id: g.id }); showSuccess("Group deleted"); await onDeleted(g.id); }
                 catch (err) { showError(err instanceof Error ? err.message : "Failed"); }
               }}>Delete</Button>
             )}
@@ -626,9 +674,10 @@ function GroupsView({ members, groups, canManage, api, onChange }: {
   );
 }
 
-function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccounts, canManage, api, onClose, onSaved, onError }: {
+function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccounts, canManage, api, settleLocked, onClose, onSaved, onError }: {
   members: Member[]; group: Group; house: Member | null; selfMemberId: number | null; editing: any | null;
-  canAccounts: boolean; canManage: boolean; api: (action: string, extra?: Record<string, unknown>) => Promise<any>;
+  canAccounts: boolean; canManage: boolean; settleLocked?: boolean;
+  api: (action: string, extra?: Record<string, unknown>) => Promise<any>;
   onClose: () => void; onSaved: (groupId: number) => void; onError: (msg: string) => void;
 }) {
   const initialHumans = members.filter((m) => m.isHouse !== 1 && m.isActive === 1 && (group.memberIds.includes(m.id) || editing?.shares?.some((s: ShareInput) => s.memberId === m.id)));
@@ -668,11 +717,7 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
     }
     return o;
   });
-  const [weights, setWeights] = useState<Record<number, string>>(() => {
-    const o: Record<number, string> = {};
-    for (const s of (editing?.shares as ShareInput[] | undefined) || []) o[s.memberId] = String(s.owedAmount);
-    return o;
-  });
+  const [weights, setWeights] = useState<Record<number, string>>(() => shareWeightFields((editing?.shares as ShareInput[] | undefined) || []));
   const [multiPay, setMultiPay] = useState(() => ((editing?.shares as ShareInput[] | undefined)?.filter((s) => s.paidAmount > 0).length || 0) > 1);
   const [paidExtra, setPaidExtra] = useState<Record<number, string>>(() => {
     const o: Record<number, string> = {};
@@ -682,13 +727,13 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
     return o;
   });
   const [reuseHostelId, setReuseHostelId] = useState<number | null>(null);
-  const moneyLocked = Boolean(editing?.hostelExpenseId || editing?.reimbursed);
+  const moneyLocked = Boolean(editing?.hostelExpenseId || editing?.reimbursed || (editing && settleLocked));
   const [saving, setSaving] = useState(false);
   const [inlineName, setInlineName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [accountId, setAccountId] = useState("");
-  const [subCategory, setSubCategory] = useState("Supplies");
-  const [mainCategory, setMainCategory] = useState("stay_expense");
+  const [subCategory, setSubCategory] = useState("Groceries");
+  const [mainCategory, setMainCategory] = useState("food_expense");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [vendorId, setVendorId] = useState("");
@@ -729,6 +774,9 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
     } else {
       if (!payerId) return "Pick who paid";
       paidMap = new Map([[payerId, total]]);
+    }
+    if (!gokoIsPayer && gokoMode !== "covers_all") {
+      if (!checked.some((id) => id !== house?.id)) return "Select people to split with";
     }
     let owed: Map<number, number>;
     try {
@@ -772,11 +820,17 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40" />
       <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white dark:bg-card p-5 space-y-3">
         <h3 className="font-display text-lg font-bold">{editing ? "Edit expense" : "Add expense"}</h3>
         <p className="text-xs text-brand-green-dark/50">{group.name} #{group.id}</p>
-        {moneyLocked && <p className="text-xs text-amber-800">Money is locked after an Accounts booking — description, notes, and date only.</p>}
+        {moneyLocked && (
+          <p className="text-xs text-amber-800">
+            {editing && settleLocked && !editing.hostelExpenseId && !editing.reimbursed
+              ? "Undo settlements in this group before changing money — description, notes, and date only."
+              : "Money is locked after an Accounts booking — description, notes, and date only."}
+          </p>
+        )}
         <div><Label className="text-xs">Description</Label><Input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1" /></div>
         <div><Label className="text-xs">Amount (₹)</Label><Input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={moneyLocked} className="mt-1" /></div>
         <div>
@@ -788,7 +842,7 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
         </div>
         {!gokoIsPayer && gokoMode !== "covers_all" && (
           <div>
-            <Label className="text-xs">Split equally among</Label>
+            <Label className="text-xs">{method === "equal" ? "Split equally among" : "Split among"}</Label>
             <div className="mt-1 flex flex-wrap gap-2">
               {inGroup.map((m) => (
                 <label key={m.id} className="flex items-center gap-1.5 text-xs border border-brand-mist rounded-lg px-2 py-1">
@@ -814,14 +868,36 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
                     if (next === "equal") setMethod("equal");
                   }} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                     <option value="none">No — personal split only</option>
-                    <option value="covers_all">Hostel covers all</option>
+                    <option value="covers_all">Staff paid — hostel owes the whole bill</option>
                     <option value="equal">Equal with the group</option>
                     <option value="grid">Use the grid</option>
                   </select>
                 </div>
                 <div>
                   <Label className="text-xs">Method</Label>
-                  <select value={method} disabled={moneyLocked} onChange={(e) => setMethod(e.target.value as typeof method)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <select value={method} disabled={moneyLocked || gokoMode === "equal"} onChange={(e) => {
+                    const next = e.target.value as typeof method;
+                    setMethod(next);
+                    if (gokoMode === "equal" && next !== "equal") setGokoMode("grid");
+                    if (next === "percent") {
+                      const ids = owedIdsWithGoko(checked, gokoMode, house?.id ?? null);
+                      if (ids.length) {
+                        const pts = allocateEqual(10000, ids);
+                        const o: Record<number, string> = {};
+                        for (const id of ids) o[id] = ((pts.get(id) ?? 0) / 100).toFixed(2);
+                        setPct(o);
+                      }
+                    }
+                    if (next === "shares") {
+                      setWeights((prev) => {
+                        const filled = Object.values(prev).some((v) => Number(v) > 0);
+                        if (filled) return prev;
+                        const o: Record<number, string> = {};
+                        for (const id of owedIdsWithGoko(checked, gokoMode, house?.id ?? null)) o[id] = "1";
+                        return o;
+                      });
+                    }
+                  }} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                     <option value="equal">Equally</option>
                     <option value="exact">Exact amounts</option>
                     <option value="percent">Percent</option>
@@ -848,19 +924,19 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
             )}
             {!gokoIsPayer && (
               <label className="flex items-center gap-2 text-xs">
-                <input type="checkbox" checked={multiPay} disabled={moneyLocked} onChange={(e) => { setMultiPay(e.target.checked); if (e.target.checked) setMore(true); }} />
+                <input type="checkbox" checked={multiPay} disabled={moneyLocked} onChange={(e) => {
+                  const on = e.target.checked;
+                  setMultiPay(on);
+                  if (on) {
+                    setMore(true);
+                    setPaidExtra((p) => {
+                      if (Object.values(p).some((v) => rupeesToPaise(v) > 0)) return p;
+                      return payerId && amount ? { [payerId]: amount } : p;
+                    });
+                  }
+                }} />
                 More than one person paid
               </label>
-            )}
-            {multiPay && !gokoIsPayer && (
-              <div className="space-y-1">
-                {inGroup.map((m) => (
-                  <div key={m.id} className="flex items-center gap-2">
-                    <span className="text-xs w-28 truncate">{memberLabel(m, allMembers)}</span>
-                    <Input type="number" step="0.01" value={paidExtra[m.id] || ""} disabled={moneyLocked} onChange={(e) => setPaidExtra((p) => ({ ...p, [m.id]: e.target.value }))} />
-                  </div>
-                ))}
-              </div>
             )}
             <div>
               <Label className="text-xs">Add someone to this group</Label>
@@ -894,6 +970,17 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
             </div>
           </div>
         )}
+        {multiPay && !gokoIsPayer && (
+          <div className="space-y-1 border-t border-brand-mist pt-3">
+            <p className="text-xs text-brand-green-dark/50">Who paid how much</p>
+            {inGroup.map((m) => (
+              <div key={m.id} className="flex items-center gap-2">
+                <span className="text-xs w-28 truncate">{memberLabel(m, allMembers)}</span>
+                <Input type="number" step="0.01" value={paidExtra[m.id] || ""} disabled={moneyLocked} onChange={(e) => setPaidExtra((p) => ({ ...p, [m.id]: e.target.value }))} />
+              </div>
+            ))}
+          </div>
+        )}
         {gokoIsPayer && !moneyLocked && (
           <div className="space-y-2 border-t border-brand-mist pt-3">
             <p className="text-xs text-brand-green-dark/60">Hostel is paying — this books in Accounts now.</p>
@@ -922,8 +1009,16 @@ function ExpenseSheet({ members, group, house, selfMemberId, editing, canAccount
           </div>
         )}
         {typeof preview === "string" && <p className="text-xs text-red-500">{preview}</p>}
+        {Array.isArray(preview) && (
+          <p className="text-xs text-brand-green-dark/70">
+            {preview.filter((s) => s.owedAmount > 0).map((s) => {
+              const m = allMembers.find((x) => x.id === s.memberId) || (house && house.id === s.memberId ? house : null);
+              return `${m ? memberLabel(m, allMembers) : `#${s.memberId}`} ₹${paiseToRupees(s.owedAmount)}`;
+            }).join(" · ")}
+          </p>
+        )}
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="cta" disabled={saving || (!moneyLocked && typeof preview === "string") || !description.trim() || (gokoIsPayer && paymentMethod === "online" && !accountId)} onClick={async () => {
+          <Button type="button" variant="cta" disabled={saving || !amount.trim() || (!moneyLocked && typeof preview === "string") || !description.trim() || (gokoIsPayer && paymentMethod === "online" && !accountId)} onClick={async () => {
             setSaving(true);
             try {
               if (moneyLocked && editing) {
@@ -975,8 +1070,8 @@ function GokoPayModal({ target, payee, members, canAccounts, api, onClose, onPai
 }) {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [accountId, setAccountId] = useState("");
-  const [subCategory, setSubCategory] = useState("Supplies");
-  const [mainCategory, setMainCategory] = useState("stay_expense");
+  const [subCategory, setSubCategory] = useState("Groceries");
+  const [mainCategory, setMainCategory] = useState("food_expense");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [saving, setSaving] = useState(false);
   const [amount, setAmount] = useState(paiseToRupees(target.amount));
@@ -993,11 +1088,11 @@ function GokoPayModal({ target, payee, members, canAccounts, api, onClose, onPai
   const onlineBlocked = paymentMethod === "online" && !accountId;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40" />
       <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white dark:bg-card p-5 space-y-3">
         <h3 className="font-display font-bold">Pay via Accounts</h3>
         <p className="text-sm">Goko pays {memberLabel(payee, members)}</p>
-        <p className="text-xs text-brand-green-dark/50">{target.description} · remaining ₹{paiseToRupees(target.amount)} · books today (UTC month)</p>
+        <p className="text-xs text-brand-green-dark/50">{target.description} · remaining ₹{paiseToRupees(target.amount)} · books today in Accounts</p>
         <div>
           <Label className="text-xs">Amount (₹)</Label>
           <Input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1" />

@@ -43,7 +43,17 @@ describe("Splits wiring", () => {
     expect(route).toContain("countLiveHumanSettlements");
     expect(route).toContain("countLiveSettlements");
     expect(route).toContain("createdBy !== actorName");
+    expect(route).toContain("assertGokoPayerRules");
+    expect(route).toContain("Undo settlements in this group before changing money");
+    expect(route).toContain("split expense cleanup failed");
+    expect(route).toContain("if (!settlementId)");
     const expenses = readFileSync("src/app/api/admin/expenses/route.ts", "utf8");
     expect(expenses).toContain("rejectIfSplitLinked");
+    expect(expenses).not.toContain("isPiRuntime");
+    expect(ui).toContain("settleLocked");
+    expect(ui).toContain("onDeleted");
+    expect(route).toContain("split expense post-save bookkeeping failed");
+    expect(ui).toContain("Who paid how much");
+    expect(ui).toContain("Link your login");
   });
 });

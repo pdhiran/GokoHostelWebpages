@@ -225,7 +225,11 @@ export async function replaceShares(expenseId: number, shares: ShareInput[]) {
   try {
     await insertShares(expenseId, shares);
   } catch (err) {
-    await insertShares(expenseId, previous);
+    try {
+      await insertShares(expenseId, previous);
+    } catch (restoreErr) {
+      console.error("split shares restore failed", restoreErr);
+    }
     throw err;
   }
 }

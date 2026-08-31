@@ -8,6 +8,7 @@ import { accounts, vendors } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import {
   assertBalanced,
+  assertGokoPayerRules,
   gokoAttributableRemaining,
   gokoPayButtons,
   netsFromEvents,
@@ -299,7 +300,9 @@ export async function POST(req: NextRequest) {
         if (isHouse(member)) return NextResponse.json({ error: "Cannot deactivate the house member" }, { status: 400 });
         const nonzero = await memberNetsByGroup(id);
         if (nonzero.length) {
-          return NextResponse.json({ error: "Settle this person's balances before deactivating", nets: nonzero }, { status: 400 });
+          const groups = await getSplitGroups();
+          const names = nonzero.map((n) => groups.find((g) => g.id === n.groupId)?.name || `group #${n.groupId}`).join(", ");
+          return NextResponse.json({ error: `Settle this person's balances in ${names} before deactivating`, nets: nonzero }, { status: 400 });
         }
         await updateSplitMember(id, { isActive: 0 });
         await addAuditEntry({ username: actorName, action: "split_member_deactivated", target: member.name, details: `id=${id}` });
@@ -493,6 +496,8 @@ export async function POST(req: NextRequest) {
         if (balanced) return NextResponse.json({ error: balanced }, { status: 400 });
 
         const house = await getHouseMember();
+        const gokoRule = assertGokoPayerRules(house?.id, shares, totalAmount);
+        if (gokoRule) return NextResponse.json({ error: gokoRule }, { status: 400 });
         const members = await getSplitMembers();
         const byId = new Map(members.map((m) => [m.id, m]));
         for (const s of shares) {
@@ -503,14 +508,9 @@ export async function POST(req: NextRequest) {
 
         const gokoShare = house ? shares.find((s) => s.memberId === house.id) : undefined;
         const gokoPaid = gokoShare?.paidAmount ?? 0;
-        const gokoOwed = gokoShare?.owedAmount ?? 0;
-        const otherPaid = shares.filter((s) => !house || s.memberId !== house.id).reduce((n, s) => n + s.paidAmount, 0);
         const gokoIsPayer = gokoPaid > 0;
 
         if (gokoIsPayer) {
-          if (otherPaid > 0 || gokoPaid !== totalAmount || gokoOwed !== totalAmount) {
-            return NextResponse.json({ error: "When Goko pays, Goko must be the sole payer and Goko's share must equal the total" }, { status: 400 });
-          }
           if (!canUseAccounts(role, permissions)) {
             return NextResponse.json({ error: "Adding a hostel-paid expense also needs Accounts permission" }, { status: 403 });
           }
@@ -556,28 +556,37 @@ export async function POST(req: NextRequest) {
         try {
           await insertShares(expenseId, shares);
         } catch (err) {
-          await hardDeleteSplitExpense(expenseId);
+          try {
+            await hardDeleteSplitExpense(expenseId);
+          } catch (cleanupErr) {
+            console.error("split expense cleanup failed", cleanupErr);
+            try { await updateSplitExpense(expenseId, { hostelExpenseId: null }); } catch { /* reuse can still attach Accounts */ }
+          }
           const extra = hostelExpenseId ? ` Accounts entry #${hostelExpenseId} was saved; Splits row is missing.` : "";
           console.error("split shares insert failed", err);
-          return NextResponse.json({ error: "Failed to save shares." + extra, hostelExpenseId }, { status: 500 });
+          return NextResponse.json({ error: "Failed to save shares." + extra, ...(hostelExpenseId ? { hostelExpenseId } : {}) }, { status: 500 });
         }
-        if (Array.isArray(params.addMemberIds)) {
-          for (const raw of params.addMemberIds) {
-            const mid = Number(raw);
-            if (!Number.isInteger(mid) || (house && mid === house.id)) continue;
-            await addMemberToGroup(groupId, mid);
+        try {
+          if (Array.isArray(params.addMemberIds)) {
+            for (const raw of params.addMemberIds) {
+              const mid = Number(raw);
+              if (!Number.isInteger(mid) || (house && mid === house.id)) continue;
+              await addMemberToGroup(groupId, mid);
+            }
           }
+          for (const s of shares) {
+            if (house && s.memberId === house.id) continue;
+            await addMemberToGroup(groupId, s.memberId);
+          }
+          await addAuditEntry({
+            username: actorName,
+            action: "split_expense_added",
+            target: description,
+            details: `id=${expenseId} ₹${paiseToRupees(totalAmount)}${hostelExpenseId ? ` hostelExpenseId=${hostelExpenseId}` : ""}`,
+          });
+        } catch (err) {
+          console.error("split expense post-save bookkeeping failed", err);
         }
-        for (const s of shares) {
-          if (house && s.memberId === house.id) continue;
-          await addMemberToGroup(groupId, s.memberId);
-        }
-        await addAuditEntry({
-          username: actorName,
-          action: "split_expense_added",
-          target: description,
-          details: `id=${expenseId} ₹${paiseToRupees(totalAmount)}${hostelExpenseId ? ` hostelExpenseId=${hostelExpenseId}` : ""}`,
-        });
         return NextResponse.json({ ok: true, id: expenseId, hostelExpenseId });
       }
 
@@ -602,6 +611,9 @@ export async function POST(req: NextRequest) {
         if (moneyTouched && (reimbursements.length || existing.hostelExpenseId)) {
           return NextResponse.json({ error: "Money fields are locked after a Goko / Accounts booking — description, notes, and date only" }, { status: 400 });
         }
+        if (moneyTouched && await countLiveHumanSettlements(existing.groupId)) {
+          return NextResponse.json({ error: "Undo settlements in this group before changing money" }, { status: 400 });
+        }
 
         if (!moneyTouched) {
           await updateSplitExpense(id, { description, expenseDate, notes });
@@ -620,6 +632,8 @@ export async function POST(req: NextRequest) {
         if (balanced) return NextResponse.json({ error: balanced }, { status: 400 });
 
         const house = await getHouseMember();
+        const gokoRule = assertGokoPayerRules(house?.id, shares, totalAmount);
+        if (gokoRule) return NextResponse.json({ error: gokoRule }, { status: 400 });
         const members = await getSplitMembers();
         const byId = new Map(members.map((m) => [m.id, m]));
         for (const s of shares) {
@@ -633,10 +647,6 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Goko's share cannot drop below already booked reimbursements" }, { status: 400 });
         }
         const gokoPaid = gokoShare?.paidAmount ?? 0;
-        const otherPaid = shares.filter((s) => !house || s.memberId !== house.id).reduce((n, s) => n + s.paidAmount, 0);
-        if (gokoPaid > 0 && (otherPaid > 0 || gokoPaid !== totalAmount || (gokoShare?.owedAmount ?? 0) !== totalAmount)) {
-          return NextResponse.json({ error: "When Goko pays, Goko must be the sole payer and Goko's share must equal the total" }, { status: 400 });
-        }
         if (gokoPaid > 0) {
           if (!canUseAccounts(role, permissions)) {
             return NextResponse.json({ error: "Adding a hostel-paid expense also needs Accounts permission" }, { status: 403 });
@@ -666,7 +676,11 @@ export async function POST(req: NextRequest) {
           await updateSplitExpense(id, { description, totalAmount, expenseDate, splitMethod, notes, hostelExpenseId });
           await replaceShares(id, shares);
         } catch (err) {
-          await updateSplitExpense(id, prevMoney);
+          try {
+            await updateSplitExpense(id, prevMoney);
+          } catch (restoreErr) {
+            console.error("split expense header restore failed", restoreErr);
+          }
           const extra = newlyPosted ? ` Accounts entry #${hostelExpenseId} was saved; Splits update is missing.` : "";
           console.error("split shares replace failed", err);
           return NextResponse.json({ error: "Failed to save shares." + extra, ...(newlyPosted ? { hostelExpenseId } : {}) }, { status: 500 });
@@ -746,12 +760,17 @@ export async function POST(req: NextRequest) {
           notes: String(params.notes || ""),
           createdBy: actorName,
         });
-        await addAuditEntry({
-          username: actorName,
-          action: "split_settlement_added",
-          target: `${from.name} → ${to.name}`,
-          details: `id=${settlementId} ₹${paiseToRupees(amount)} in ${group.name}`,
-        });
+        if (!settlementId) return NextResponse.json({ error: "Failed to save settlement" }, { status: 500 });
+        try {
+          await addAuditEntry({
+            username: actorName,
+            action: "split_settlement_added",
+            target: `${from.name} → ${to.name}`,
+            details: `id=${settlementId} ₹${paiseToRupees(amount)} in ${group.name}`,
+          });
+        } catch (err) {
+          console.error("split settlement audit failed", err);
+        }
         return NextResponse.json({ ok: true, id: settlementId });
       }
 
@@ -818,12 +837,22 @@ export async function POST(req: NextRequest) {
             hostelExpenseId: posted.id,
             splitExpenseId,
           });
-          await addAuditEntry({
-            username: actorName,
-            action: "split_goko_reimbursed",
-            target: payee.name,
-            details: `settlement=${settlementId} expense=${splitExpenseId} hostelExpenseId=${posted.id} ₹${paiseToRupees(amount)}`,
-          });
+          if (!settlementId) {
+            return NextResponse.json({
+              error: `Accounts entry #${posted.id} was saved; Splits settlement is missing.`,
+              hostelExpenseId: posted.id,
+            }, { status: 500 });
+          }
+          try {
+            await addAuditEntry({
+              username: actorName,
+              action: "split_goko_reimbursed",
+              target: payee.name,
+              details: `settlement=${settlementId} expense=${splitExpenseId} hostelExpenseId=${posted.id} ₹${paiseToRupees(amount)}`,
+            });
+          } catch (err) {
+            console.error("split reimbursement audit failed", err);
+          }
           return NextResponse.json({ ok: true, id: settlementId, hostelExpenseId: posted.id });
         } catch (err) {
           console.error("split reimbursement settlement failed", err);

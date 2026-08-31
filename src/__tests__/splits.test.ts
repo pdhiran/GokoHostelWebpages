@@ -4,6 +4,7 @@ import {
   allocatePercent,
   allocateShares,
   assertBalanced,
+  assertGokoPayerRules,
   netsFromEvents,
   overallNets,
   simplifyDebts,
@@ -375,6 +376,76 @@ describe("Goko attribution FIFO", () => {
       exp(1, [{ memberId: GOKO, paidAmount: 200000, owedAmount: 200000 }]),
     ];
     expect(gokoPayButtons(GOKO, expenses, []).length).toBe(0);
+  });
+
+  it("deleted settlement is ignored in nets", () => {
+    const expenses = [exp(1, [
+      { memberId: ARUN, paidAmount: 90000, owedAmount: 30000 },
+      { memberId: BINA, paidAmount: 0, owedAmount: 30000 },
+      { memberId: CHET, paidAmount: 0, owedAmount: 30000 },
+    ])];
+    const live = netsFromEvents(expenses, [st(1, BINA, ARUN, 30000)]);
+    const gone = netsFromEvents(expenses, [st(1, BINA, ARUN, 30000, { deleted: true })]);
+    expect(live.get(BINA)).toBe(0);
+    expect(gone.get(BINA)).toBe(-30000);
+  });
+
+  it("partial reimburse leaves remainder on the same slice", () => {
+    const expenses = [exp(1, [
+      { memberId: PRIYA, paidAmount: 90000, owedAmount: 0 },
+      { memberId: GOKO, paidAmount: 0, owedAmount: 22500 },
+      { memberId: ARUN, paidAmount: 0, owedAmount: 33750 },
+      { memberId: BINA, paidAmount: 0, owedAmount: 33750 },
+    ])];
+    expect(gokoAttributableRemaining(GOKO, expenses, [], PRIYA, 1)).toBe(22500);
+    const after = [st(1, GOKO, PRIYA, 10000, { hostelExpenseId: 7, splitExpenseId: 1 })];
+    expect(gokoAttributableRemaining(GOKO, expenses, after, PRIYA, 1)).toBe(12500);
+  });
+
+  it("two dinners: reimburse E1 leaves E2", () => {
+    const expenses = [
+      exp(1, [
+        { memberId: PRIYA, paidAmount: 90000, owedAmount: 67500 },
+        { memberId: GOKO, paidAmount: 0, owedAmount: 22500 },
+      ]),
+      exp(2, [
+        { memberId: PRIYA, paidAmount: 90000, owedAmount: 67500 },
+        { memberId: GOKO, paidAmount: 0, owedAmount: 22500 },
+      ]),
+    ];
+    expect(gokoPayButtons(GOKO, expenses, []).map((b) => b.expenseId)).toEqual([1, 2]);
+    const after = [st(1, GOKO, PRIYA, 22500, { hostelExpenseId: 8, splitExpenseId: 1 })];
+    expect(gokoPayButtons(GOKO, expenses, after).map((b) => b.expenseId)).toEqual([2]);
+  });
+
+  it("infer none and grid", () => {
+    expect(inferGokoIncludeMode(GOKO, 100, [{ memberId: ARUN, paidAmount: 100, owedAmount: 100 }], "equal")).toBe("none");
+    expect(inferGokoIncludeMode(GOKO, 10000, [
+      { memberId: ARUN, paidAmount: 10000, owedAmount: 7000 },
+      { memberId: GOKO, paidAmount: 0, owedAmount: 3000 },
+    ], "equal")).toBe("grid");
+  });
+
+  it("₹100.01 / 3 remainder waterfills lowest ids", () => {
+    const m = allocateEqual(10001, [CHET, ARUN, BINA]);
+    expect(m.get(ARUN)).toBe(3334);
+    expect(m.get(BINA)).toBe(3334);
+    expect(m.get(CHET)).toBe(3333);
+  });
+});
+
+describe("assertGokoPayerRules", () => {
+  it("rejects shared Goko-as-payer", () => {
+    expect(assertGokoPayerRules(GOKO, [
+      { memberId: GOKO, paidAmount: 40000, owedAmount: 40000 },
+      { memberId: PRIYA, paidAmount: 60000, owedAmount: 60000 },
+    ], 100000)).toMatch(/sole payer/);
+  });
+
+  it("accepts Goko sole payer owed=total", () => {
+    expect(assertGokoPayerRules(GOKO, [
+      { memberId: GOKO, paidAmount: 50000, owedAmount: 50000 },
+    ], 50000)).toBeNull();
   });
 });
 
