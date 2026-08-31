@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronUpIcon, ChevronDownIcon } from "lucide-react";
-import { STATUS_COLORS, PLATFORM_LOGOS, STATUS_LABELS, formatCurrency } from "./utils";
+import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency } from "./utils";
 import type { DashboardBooking, BedAssignment } from "./types";
 
 type SortKey = "guestName" | "platform" | "bookingRef" | "checkinDate" | "checkoutDate" | "status" | "amountTotal" | "createdAt";
@@ -98,7 +98,7 @@ export function BookingTableView({
           <tbody className="divide-y divide-border">
             {sorted.map((booking) => {
               const statusColor = STATUS_COLORS[booking.status] ?? STATUS_COLORS.received;
-              const platform = PLATFORM_LOGOS[booking.platform];
+              const platform = platformLogo(booking.platform);
               const beds = bedCounts.get(booking.id) || 0;
               return (
                 <tr

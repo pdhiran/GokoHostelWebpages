@@ -5,6 +5,7 @@ import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser, hashPassword, verifyPassword, type UserRole } from "@/lib/auth";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
+import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { todayIST } from "@/lib/utils";
 import {
   getCheckinsByMonth, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
@@ -665,7 +666,7 @@ export async function POST(req: NextRequest) {
         .set({ status: "checked_out", checkedOutAt: new Date().toISOString() })
         .where(and(eq(checkins.id, checkinId), eq(checkins.status, "active")));
 
-      const changed = (result as any)?.rowsAffected ?? (result as any)?.changes ?? 1;
+      const changed = sqliteWriteCount(result);
       if (changed === 0) {
         return NextResponse.json({ error: "Guest not found or already checked out" }, { status: 400 });
       }

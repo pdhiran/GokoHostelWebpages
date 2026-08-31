@@ -118,14 +118,21 @@ export async function POST(req: NextRequest) {
   }
 }
 
+function channelPersons(rooms: ReservationPayload["rooms"] | undefined, fallback = 1): number {
+  const n = rooms?.reduce((sum, r) => sum + (r.occupancy?.adults ?? 0) + (r.occupancy?.children ?? 0), 0) ?? 0;
+  return n || fallback;
+}
+
+function channelNightlyRate(rooms: ReservationPayload["rooms"] | undefined, fallback = 0): number {
+  if (!rooms?.length) return fallback;
+  return rooms.reduce((sum, r) => sum + (r.prices?.[0]?.sellRate || 0), 0);
+}
+
 function extractBookingFields(payload: ReservationPayload) {
   const guest = payload.guest;
   const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : "Unknown Guest";
   const contact = guest?.phone || guest?.email || "";
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || "";
-  const persons = payload.rooms?.reduce((sum, r) => sum + (r.occupancy?.adults ?? 0) + (r.occupancy?.children ?? 0), 0) || 1;
-  const ratePlan = payload.rooms?.[0]?.rateplanCode || "";
-  const nightlyRate = payload.rooms?.[0]?.prices?.[0]?.sellRate || 0;
 
   return {
     guestName,
@@ -135,7 +142,7 @@ function extractBookingFields(payload: ReservationPayload) {
     checkinDate: payload.checkin || "",
     checkoutDate: payload.checkout || "",
     roomType: roomInfo,
-    persons,
+    persons: channelPersons(payload.rooms),
     paymentStatus: payload.pah ? "pay_at_hotel" : "prepaid",
     specialRequests: payload.specialRequests || "",
     status: "received" as const,
@@ -147,8 +154,8 @@ function extractBookingFields(payload: ReservationPayload) {
     currency: payload.amount?.currency || "INR",
     email: guest?.email || "",
     cmBookingId: payload.cmBookingId || "",
-    ratePlan,
-    nightlyRate,
+    ratePlan: payload.rooms?.[0]?.rateplanCode || "",
+    nightlyRate: channelNightlyRate(payload.rooms),
   };
 }
 
@@ -173,8 +180,7 @@ async function handleNewBooking(payload: ReservationPayload) {
     return respondSuccess("Reservation already exists (duplicate)");
   }
 
-  const result = await addBooking(extractBookingFields(payload));
-  const bookingId = (result as any)?.meta?.last_row_id || (result as any)?.lastInsertRowid;
+  const bookingId = await addBooking(extractBookingFields(payload));
 
   if (bookingId) {
     await addBookingHistoryEntry({
@@ -199,9 +205,9 @@ async function handleModifyBooking(payload: ReservationPayload) {
   const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : existing.guestName;
   const contact = guest?.phone || guest?.email || existing.contact;
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || existing.roomType;
-  const persons = payload.rooms?.reduce((sum, r) => sum + (r.occupancy?.adults ?? 0) + (r.occupancy?.children ?? 0), 0) || existing.persons;
+  const persons = channelPersons(payload.rooms, existing.persons);
   const ratePlan = payload.rooms?.[0]?.rateplanCode || existing.ratePlan || "";
-  const nightlyRate = payload.rooms?.[0]?.prices?.[0]?.sellRate || existing.nightlyRate || 0;
+  const nightlyRate = channelNightlyRate(payload.rooms, existing.nightlyRate || 0);
 
   const closed = existing.status === "checked_out" || existing.status === "no_show" || existing.status === "cancelled";
   const newCheckin = payload.checkin || existing.checkinDate;
@@ -307,7 +313,7 @@ async function realignAssignments(bookingId: number, newCheckin: string, newChec
       checkinDate: newCheckin,
       checkoutDate: newCheckout,
       assignedBy: "channel_manager",
-      inventoryPool: a.inventoryPool || "online",
+      inventoryPool: "online",
     });
   }
   return true;

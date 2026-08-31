@@ -1,7 +1,9 @@
-import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
+import { eq, desc, and, sql, inArray, gte, lte, or } from "drizzle-orm";
 import { getDb } from "./index";
 import { todayIST } from "@/lib/utils";
 import { bedsFitInventoryCap, pickInventoryOverride, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
+import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
+import { sqliteLikePrefix } from "@/lib/pmsLog";
 import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides, inventoryDirty } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
@@ -375,7 +377,7 @@ export async function addBooking(data: {
   ratePlan?: string;
 }) {
   const db = getDb();
-  return db.insert(bookings).values(syncInsert({
+  const rows = await db.insert(bookings).values(syncInsert({
     guestName: data.guestName,
     contact: data.contact || "",
     platform: data.platform,
@@ -402,7 +404,8 @@ export async function addBooking(data: {
     cmBookingId: data.cmBookingId || "",
     gokoBookingId: data.gokoBookingId || "",
     ratePlan: data.ratePlan || "",
-  }));
+  })).returning({ id: bookings.id });
+  return rows[0]?.id ?? null;
 }
 
 export async function updateBookingStatus(id: number, status: string) {
@@ -1059,7 +1062,7 @@ export async function deleteOrderItemsByOrderIds(orderIds: number[]) {
   if (orderIds.length === 0) return 0;
   const db = getDb();
   const result = await db.delete(foodOrderItems).where(inArray(foodOrderItems.orderId, orderIds));
-  return (result as any).rowsAffected ?? (result as any).changes ?? orderIds.length;
+  return sqliteWriteCount(result);
 }
 
 export async function deleteOrdersByIds(orderIds: number[]) {
@@ -1068,7 +1071,7 @@ export async function deleteOrdersByIds(orderIds: number[]) {
   await db.delete(orderModifications).where(inArray(orderModifications.orderId, orderIds));
   await db.delete(foodOrderItems).where(inArray(foodOrderItems.orderId, orderIds));
   const result = await db.delete(foodOrders).where(inArray(foodOrders.id, orderIds));
-  return (result as any).rowsAffected ?? (result as any).changes ?? orderIds.length;
+  return sqliteWriteCount(result);
 }
 
 // --- Review Funnel ---
@@ -1496,7 +1499,14 @@ export async function getChannelSyncLogs(
   const db = getDb();
   const conditions = [];
   if (filters?.direction) conditions.push(eq(channelSyncLog.direction, filters.direction));
-  if (filters?.type) conditions.push(eq(channelSyncLog.type, filters.type));
+  if (filters?.type) {
+    // "inventory" also matches "inventory (auto)"; "fetch" matches "fetch (rates)"
+    const prefix = sqliteLikePrefix(filters.type);
+    conditions.push(or(
+      eq(channelSyncLog.type, filters.type),
+      sql`${channelSyncLog.type} LIKE ${prefix} ESCAPE '\\'`,
+    )!);
+  }
   if (filters?.status) conditions.push(eq(channelSyncLog.status, filters.status));
   if (filters?.since) conditions.push(gte(channelSyncLog.createdAt, filters.since));
   const q = db.select().from(channelSyncLog);
@@ -1568,17 +1578,14 @@ export async function searchBookings(query: string) {
 
 export async function getUnassignedBookings() {
   const db = getDb();
-  const allActive = await db.select().from(bookings).where(
-    sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')`
+  return db.select().from(bookings).where(
+    sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')
+      AND NOT EXISTS (
+        SELECT 1 FROM ${bookingBedAssignments}
+        WHERE ${bookingBedAssignments.bookingId} = ${bookings.id}
+          AND ${bookingBedAssignments.status} = 'assigned'
+      )`
   ).orderBy(desc(bookings.id));
-
-  const assignedBookingIds = new Set(
-    (await db.select({ bookingId: bookingBedAssignments.bookingId }).from(bookingBedAssignments)
-      .where(eq(bookingBedAssignments.status, "assigned"))
-    ).map(r => r.bookingId)
-  );
-
-  return allActive.filter(b => !assignedBookingIds.has(b.id));
 }
 
 export async function checkBedAvailability(bedId: number, checkinDate: string, checkoutDate: string, excludeBookingId?: number): Promise<boolean> {
@@ -1695,7 +1702,7 @@ export async function assignBedToBooking(data: {
     )
   `);
 
-  return (result.rowsWritten ?? result.changes ?? 0) > 0;
+  return sqliteWriteCount(result) > 0;
 }
 
 export async function unassignBookingBeds(bookingId: number) {

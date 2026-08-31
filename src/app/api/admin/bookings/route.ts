@@ -37,46 +37,83 @@ function activeAssignmentDormIds(assignments: { dormId: number; status?: string 
     .map((a) => a.dormId);
 }
 
+function channelSource(source?: string | null): boolean {
+  return source === "channel_manager";
+}
+
+function assignmentPool(source?: string | null, existing?: string | null): InventoryPool {
+  if (channelSource(source)) return "online";
+  if (existing === "offline" || existing === "block" || existing === "online") return existing;
+  return "online";
+}
+
+async function pushIfGokoOccupancy(
+  source: string | null | undefined,
+  before: string,
+  dormIds: number[],
+  dates: string[],
+) {
+  if (channelSource(source) || !before) return;
+  await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+}
+
 async function assignTaggedBeds(
   bookingId: number,
   bedIds: number[],
   checkinDate: string,
   checkoutDate: string,
   actingUser: string,
+  source?: string | null,
 ): Promise<{ labels: string[]; pools: InventoryPool[]; dormIds: number[] }> {
   const tagged = await getAvailableBedsForRange(checkinDate, checkoutDate);
   const byId = new Map(tagged.map((b) => [b.id, b]));
-  const labels: string[] = [];
-  const pools: InventoryPool[] = [];
-  const dormIds: number[] = [];
+  const prepared: { bedId: number; dormId: number; dormName: string; bedLabel: string; pool: InventoryPool; tagPool: InventoryPool }[] = [];
   for (const bedId of bedIds) {
     const tag = byId.get(bedId);
     const bed = await getBedById(bedId);
-    if (!bed || !tag) continue;
-    const ok = await assignBedToBooking({
-      bookingId,
+    if (!bed || !tag) return { labels: [], pools: [], dormIds: [] };
+    prepared.push({
       bedId,
       dormId: bed.dormId,
+      dormName: bed.dormName,
+      bedLabel: bed.bedId,
+      pool: channelSource(source) ? "online" : tag.pool,
+      tagPool: tag.pool,
+    });
+  }
+  const labels: string[] = [];
+  const pools: InventoryPool[] = [];
+  const dormIds: number[] = [];
+  for (const p of prepared) {
+    const ok = await assignBedToBooking({
+      bookingId,
+      bedId: p.bedId,
+      dormId: p.dormId,
       checkinDate,
       checkoutDate,
       assignedBy: actingUser,
-      inventoryPool: tag.pool,
+      inventoryPool: p.pool,
     });
-    if (!ok) continue;
-    if (tag.pool === "block") {
-      await deactivateBedBlocksByBedIds([bedId], checkinDate, checkoutDate, actingUser);
+    if (!ok) break;
+    if (p.tagPool === "block") {
+      await deactivateBedBlocksByBedIds([p.bedId], checkinDate, checkoutDate, actingUser);
     }
-    labels.push(`${bed.dormName}/${bed.bedId}`);
-    pools.push(tag.pool);
-    dormIds.push(bed.dormId);
+    labels.push(`${p.dormName}/${p.bedLabel}`);
+    pools.push(p.pool);
+    dormIds.push(p.dormId);
   }
   return { labels, pools, dormIds };
 }
 
+function assignFailed(requested: number[], labels: string[]): string | null {
+  if (labels.length === requested.length) return null;
+  return labels.length === 0
+    ? "No beds could be assigned (conflicts exist)"
+    : "Could not assign all selected beds";
+}
+
 function diffDays(start: string, end: string): number {
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  return Math.round((e.getTime() - s.getTime()) / 86400000);
+  return occupiedNights(start, end).length;
 }
 
 const ACTION_PERMISSIONS: Record<string, ActionPerm> = {
@@ -264,7 +301,7 @@ export async function POST(req: NextRequest) {
       const tax = Math.round(totalBeforeTax * 0.12);
       const total = totalBeforeTax + tax;
 
-      const result = await addBooking({
+      const newBookingId = await addBooking({
         guestName,
         contact: contact || "",
         email: email || "",
@@ -281,9 +318,11 @@ export async function POST(req: NextRequest) {
         status: "received",
       });
 
-      const newBookingId = (result as any).meta?.last_row_id ?? (result as any).lastInsertRowid;
+      if (!newBookingId) {
+        return NextResponse.json({ error: "Failed to create booking" }, { status: 500 });
+      }
 
-      if (bedIds && Array.isArray(bedIds) && bedIds.length > 0 && newBookingId) {
+      if (bedIds && Array.isArray(bedIds) && bedIds.length > 0) {
         const dates = bookingDateRange(checkinDate, checkoutDate);
         const dormIds: number[] = [];
         for (const bedId of bedIds) {
@@ -291,14 +330,16 @@ export async function POST(req: NextRequest) {
           if (bed) dormIds.push(bed.dormId);
         }
         const before = await otaFingerprint(dormIds, dates);
-        const { pools } = await assignTaggedBeds(newBookingId, bedIds, checkinDate, checkoutDate, actingUser);
-        if (pools.length === 0) {
+        const { labels } = await assignTaggedBeds(newBookingId, bedIds, checkinDate, checkoutDate, actingUser);
+        const failed = assignFailed(bedIds, labels);
+        if (failed) {
+          await unassignBookingBeds(newBookingId);
           await updateBookingFull(newBookingId, {
             status: "cancelled",
             cancelledAt: new Date().toISOString(),
             cancelledBy: actingUser,
           });
-          return NextResponse.json({ error: "No beds could be assigned (conflicts exist)", bookingId: newBookingId }, { status: 409 });
+          return NextResponse.json({ error: failed, bookingId: newBookingId }, { status: 409 });
         }
         await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
       }
@@ -335,17 +376,21 @@ export async function POST(req: NextRequest) {
       const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate);
       if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
 
+      const fromChannel = channelSource(detail.booking.source);
       const dates = bookingDateRange(checkinDate, checkoutDate);
       const dormIds: number[] = [];
       for (const bedId of bedIds) {
         const bed = await getBedById(bedId);
         if (bed) dormIds.push(bed.dormId);
       }
-      const before = await otaFingerprint(dormIds, dates);
-      const { labels } = await assignTaggedBeds(bookingId, bedIds, checkinDate, checkoutDate, actingUser);
+      const before = fromChannel ? "" : await otaFingerprint(dormIds, dates);
+      const { labels } = await assignTaggedBeds(
+        bookingId, bedIds, checkinDate, checkoutDate, actingUser, detail.booking.source,
+      );
 
-      if (labels.length === 0) {
-        return NextResponse.json({ error: "No beds could be assigned (conflicts exist)" }, { status: 409 });
+      const failed = assignFailed(bedIds, labels);
+      if (failed) {
+        return NextResponse.json({ error: failed, assigned: labels }, { status: 409 });
       }
 
       await addBookingHistoryEntry({
@@ -355,7 +400,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+      await pushIfGokoOccupancy(detail.booking.source, before, dormIds, dates);
       return NextResponse.json({ success: true, assigned: labels });
     }
 
@@ -428,7 +473,7 @@ export async function POST(req: NextRequest) {
         details: `Checked out by ${actingUser}`,
         performedBy: actingUser,
       });
-      if (before) await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+      await pushIfGokoOccupancy(detail.booking.source, before, dormIds, dates);
 
       return NextResponse.json({ success: true });
     }
@@ -490,7 +535,7 @@ export async function POST(req: NextRequest) {
         details: `Rolled back by ${actingUser}`,
         performedBy: actingUser,
       });
-      if (before) await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+      await pushIfGokoOccupancy(detail.booking.source, before, dormIds, dates);
 
       return NextResponse.json({ success: true });
     }
@@ -558,7 +603,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      await pushIfOtaChanged(before, dormIds, cancelDates).catch(() => {});
+      await pushIfGokoOccupancy(detail?.booking.source, before, dormIds, cancelDates);
       return NextResponse.json({ success: true });
     }
 
@@ -625,7 +670,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+      await pushIfGokoOccupancy(detail?.booking.source, before, dormIds, dates);
       return NextResponse.json({ success: true });
     }
 
@@ -669,7 +714,9 @@ export async function POST(req: NextRequest) {
           }
           // Confirmed with selected beds
           if (selectedBedIds && selectedBedIds.length > 0) {
-            await assignTaggedBeds(bookingId, selectedBedIds, newCheckinDate, oldCheckout, actingUser);
+            const { labels } = await assignTaggedBeds(bookingId, selectedBedIds, newCheckinDate, oldCheckout, actingUser, detail.booking.source);
+            const failed = assignFailed(selectedBedIds, labels);
+            if (failed) return NextResponse.json({ error: failed }, { status: 409 });
           }
         } else {
           // Check if current beds are available for the extended range
@@ -688,11 +735,14 @@ export async function POST(req: NextRequest) {
             // Cancel old + re-assign with new dates
             await unassignBookingBeds(bookingId);
             for (const a of currentAssignments) {
-              await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
+              const ok = await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser, inventoryPool: assignmentPool(detail.booking.source, a.inventoryPool) });
+              if (!ok) return NextResponse.json({ error: "Could not re-assign beds for the new dates" }, { status: 409 });
             }
           } else if (confirmed && selectedBedIds?.length > 0) {
             await unassignBookingBeds(bookingId);
-            await assignTaggedBeds(bookingId, selectedBedIds, newCheckinDate, oldCheckout, actingUser);
+            const { labels } = await assignTaggedBeds(bookingId, selectedBedIds, newCheckinDate, oldCheckout, actingUser, detail.booking.source);
+            const failed = assignFailed(selectedBedIds, labels);
+            if (failed) return NextResponse.json({ error: failed }, { status: 409 });
           } else if (confirmed) {
             return NextResponse.json({ error: "Select at least one bed" }, { status: 400 });
           }
@@ -707,7 +757,8 @@ export async function POST(req: NextRequest) {
         if (currentAssignments.length > 0) {
           await unassignBookingBeds(bookingId);
           for (const a of currentAssignments) {
-            await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
+            const ok = await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser, inventoryPool: assignmentPool(detail.booking.source, a.inventoryPool) });
+            if (!ok) return NextResponse.json({ error: "Could not re-assign beds for the new dates" }, { status: 409 });
           }
         }
       }
@@ -734,7 +785,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+      await pushIfGokoOccupancy(detail.booking.source, before, dormIds, dates);
       return NextResponse.json({ success: true });
     }
 
@@ -786,11 +837,14 @@ export async function POST(req: NextRequest) {
           if (allAvailable) {
             await unassignBookingBeds(bookingId);
             for (const a of currentAssignments) {
-              await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: a.checkinDate, checkoutDate: newCheckoutDate, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
+              const ok = await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: a.checkinDate, checkoutDate: newCheckoutDate, assignedBy: actingUser, inventoryPool: assignmentPool(detail.booking.source, a.inventoryPool) });
+              if (!ok) return NextResponse.json({ error: "Could not re-assign beds for the new dates" }, { status: 409 });
             }
           } else if (confirmed && selectedBedIds?.length > 0) {
             await unassignBookingBeds(bookingId);
-            await assignTaggedBeds(bookingId, selectedBedIds, oldCheckin, newCheckoutDate, actingUser);
+            const { labels } = await assignTaggedBeds(bookingId, selectedBedIds, oldCheckin, newCheckoutDate, actingUser, detail.booking.source);
+            const failed = assignFailed(selectedBedIds, labels);
+            if (failed) return NextResponse.json({ error: failed }, { status: 409 });
           } else if (confirmed) {
             return NextResponse.json({ error: "Select at least one bed" }, { status: 400 });
           }
@@ -798,7 +852,9 @@ export async function POST(req: NextRequest) {
           const available = await getAvailableBedsForRange(oldCheckin, newCheckoutDate);
           return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CO-1-no-beds" });
         } else if (confirmed && selectedBedIds?.length > 0) {
-          await assignTaggedBeds(bookingId, selectedBedIds, oldCheckin, newCheckoutDate, actingUser);
+          const { labels } = await assignTaggedBeds(bookingId, selectedBedIds, oldCheckin, newCheckoutDate, actingUser, detail.booking.source);
+          const failed = assignFailed(selectedBedIds, labels);
+          if (failed) return NextResponse.json({ error: failed }, { status: 409 });
         } else if (confirmed) {
           return NextResponse.json({ error: "Select at least one bed" }, { status: 400 });
         }
@@ -807,7 +863,8 @@ export async function POST(req: NextRequest) {
         if (currentAssignments.length > 0) {
           await unassignBookingBeds(bookingId);
           for (const a of currentAssignments) {
-            await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: a.checkinDate, checkoutDate: newCheckoutDate, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
+            const ok = await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: a.checkinDate, checkoutDate: newCheckoutDate, assignedBy: actingUser, inventoryPool: assignmentPool(detail.booking.source, a.inventoryPool) });
+            if (!ok) return NextResponse.json({ error: "Could not re-assign beds for the new dates" }, { status: 409 });
           }
         }
       }
@@ -833,7 +890,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+      await pushIfGokoOccupancy(detail.booking.source, before, dormIds, dates);
       return NextResponse.json({ success: true });
     }
 
@@ -897,9 +954,10 @@ export async function POST(req: NextRequest) {
 
       // Add beds first so a conflict cannot drop the existing assignment.
       if (addBedIds && Array.isArray(addBedIds) && addBedIds.length > 0) {
-        const { labels } = await assignTaggedBeds(bookingId, addBedIds, checkinDate, checkoutDate, actingUser);
-        if (labels.length === 0) {
-          return NextResponse.json({ error: "No beds could be assigned (conflicts exist)" }, { status: 409 });
+        const { labels } = await assignTaggedBeds(bookingId, addBedIds, checkinDate, checkoutDate, actingUser, detail.booking.source);
+        const failed = assignFailed(addBedIds, labels);
+        if (failed) {
+          return NextResponse.json({ error: failed }, { status: 409 });
         }
         for (const label of labels) changes.push(`Added bed ${label}`);
       }
@@ -927,7 +985,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      if (bedsChanged) await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+      if (bedsChanged) await pushIfGokoOccupancy(detail.booking.source, before, dormIds, dates);
       return NextResponse.json({ success: true });
     }
 
@@ -961,9 +1019,10 @@ export async function POST(req: NextRequest) {
         if (!own) return NextResponse.json({ error: "Assignment not found on this booking" }, { status: 400 });
       }
 
-      const { labels } = await assignTaggedBeds(bookingId, [newBedId], checkinDate, checkoutDate, actingUser);
-      if (labels.length === 0) {
-        return NextResponse.json({ error: "Cannot assign bed — conflict exists" }, { status: 409 });
+      const { labels } = await assignTaggedBeds(bookingId, [newBedId], checkinDate, checkoutDate, actingUser, detail.booking.source);
+      const failed = assignFailed([newBedId], labels);
+      if (failed) {
+        return NextResponse.json({ error: failed === "No beds could be assigned (conflicts exist)" ? "Cannot assign bed — conflict exists" : failed }, { status: 409 });
       }
 
       if (oldAssignmentId) {
@@ -977,7 +1036,7 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
+      await pushIfGokoOccupancy(detail.booking.source, before, dormIds, dates);
       return NextResponse.json({ success: true });
     }
 

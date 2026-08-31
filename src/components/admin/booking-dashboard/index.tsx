@@ -58,6 +58,7 @@ export function BookingDashboard({
   const [bookings, setBookings] = useState<DashboardBooking[]>([]);
   const [assignments, setAssignments] = useState<BedAssignment[]>([]);
   const [dorms, setDorms] = useState<CalendarDorm[]>([]);
+  const [unassignedBookings, setUnassignedBookings] = useState<DashboardBooking[]>([]);
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
@@ -69,37 +70,45 @@ export function BookingDashboard({
     [bookings, selectedBookingId],
   );
 
-  const unassignedBookings = useMemo(
-    () => {
-      const assignedIds = new Set(assignments.filter((a) => a.status === "assigned").map((a) => a.bookingId));
-      return bookings.filter(
-        (b) => !assignedIds.has(b.id) && b.status !== "cancelled" && b.status !== "no_show" && b.status !== "checked_out",
-      );
-    },
-    [bookings, assignments],
-  );
-
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const res = await apiCall({
-        action: "getCalendarData",
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setBookings(data.bookings || []);
-        setAssignments(data.assignments || []);
-        setDorms(
-          (data.dorms || []).map((d: CalendarDorm) => ({
-            ...d,
-            collapsed: dorms.find((existing) => existing.id === d.id)?.collapsed ?? false,
-          })),
-        );
+      const [calSettled, unSettled] = await Promise.allSettled([
+        apiCall({
+          action: "getCalendarData",
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+        }),
+        apiCall({ action: "getUnassigned" }),
+      ]);
+      if (calSettled.status === "fulfilled") {
+        const calRes = calSettled.value;
+        if (calRes.ok) {
+          const data = await calRes.json();
+          setBookings(data.bookings || []);
+          setAssignments(data.assignments || []);
+          setDorms(
+            (data.dorms || []).map((d: CalendarDorm) => ({
+              ...d,
+              collapsed: dorms.find((existing) => existing.id === d.id)?.collapsed ?? false,
+            })),
+          );
+        } else {
+          const data = await calRes.json().catch(() => ({ error: "Failed to load data" }));
+          showError(data.error || "Failed to load booking data");
+        }
       } else {
-        const data = await res.json().catch(() => ({ error: "Failed to load data" }));
-        showError(data.error || "Failed to load booking data");
+        showError("Network error loading booking data");
+      }
+      if (unSettled.status === "fulfilled") {
+        const unRes = unSettled.value;
+        if (unRes.ok) {
+          const data = await unRes.json();
+          setUnassignedBookings(data.bookings || []);
+        } else {
+          const data = await unRes.json().catch(() => ({ error: "Failed to load unassigned bookings" }));
+          showError(data.error || "Failed to load unassigned bookings");
+        }
       }
     } catch {
       showError("Network error loading booking data");
@@ -133,6 +142,7 @@ export function BookingDashboard({
         }
         const data = await res.json().catch(() => ({ error: "Action failed" }));
         showError(data.error || "Action failed");
+        await loadData(true);
         return false;
       } catch {
         showError("Network error");

@@ -40,6 +40,11 @@ export function occupiedNights(checkinDate: string, checkoutDate?: string | null
   return stayNights(checkinDate, addCalendarDays(checkinDate, 1));
 }
 
+/** Night count for a stay. Timezone-independent. */
+export function stayNightCount(checkinDate: string, checkoutDate?: string | null): number {
+  return occupiedNights(checkinDate, checkoutDate).length;
+}
+
 /** Exclusive end date for a stay/block. Missing or equal end → one night (start + 1). */
 export function exclusiveEndDate(startDate: string, endDate?: string | null): string | null {
   if (!startDate) return null;

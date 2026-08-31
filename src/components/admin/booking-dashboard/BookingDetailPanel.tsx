@@ -20,7 +20,7 @@ import {
   BanIcon,
   EditIcon,
 } from "lucide-react";
-import { STATUS_COLORS, PLATFORM_LOGOS, STATUS_LABELS, formatCurrency, getNights } from "./utils";
+import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getNights } from "./utils";
 import { CheckInPopup } from "./CheckInPopup";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useAdminToast } from "@/components/admin/AdminToast";
@@ -59,7 +59,7 @@ export function BookingDetailPanel({
   } | null>(null);
 
   const statusColor = STATUS_COLORS[booking.status] ?? STATUS_COLORS.received;
-  const platform = PLATFORM_LOGOS[booking.platform];
+  const platform = platformLogo(booking.platform);
 
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true);

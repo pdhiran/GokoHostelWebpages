@@ -301,7 +301,7 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
       </div>
 
       <p className="text-[11px] text-brand-green-dark/50">
-        Every Aiosell API call (inventory, rates, restrictions, no-show) and inbound reservation webhook. Newest 200 shown; older rows are pruned after 500.
+        Every call to and from Aiosell: inbound reservation webhooks (pull), Channel Manager fetch (pull), and outbound inventory / rates / restrictions / no-show (push). Newest 200 shown; older rows are pruned after 500.
       </p>
 
       <div className="flex flex-wrap gap-3">
@@ -315,7 +315,8 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
           <option value="inventory">Inventory</option>
           <option value="rate">Rate</option>
           <option value="restriction">Restriction</option>
-          <option value="reservation">Reservation</option>
+          <option value="reservation">Reservation (webhook)</option>
+          <option value="fetch">Fetch from Aiosell</option>
           <option value="noshow">No-show</option>
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">

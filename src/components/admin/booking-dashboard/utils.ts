@@ -1,4 +1,4 @@
-import { exclusiveEndDate } from "@/lib/inventoryAvailability";
+import { stayNightCount } from "@/lib/inventoryAvailability";
 
 export const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   received: { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-700 dark:text-orange-300", border: "border-orange-300 dark:border-orange-700" },
@@ -19,7 +19,15 @@ export const PLATFORM_LOGOS: Record<string, { label: string; abbr: string; color
   walkin: { label: "Walk-in", abbr: "WI", color: "bg-gray-500" },
   direct: { label: "Direct", abbr: "D", color: "bg-teal-500" },
   channel_manager: { label: "Channel Manager", abbr: "CM", color: "bg-indigo-500" },
+  aiosell: { label: "Aiosell", abbr: "A", color: "bg-indigo-500" },
 };
+
+export function platformLogo(platform?: string | null) {
+  const raw = (platform || "").trim();
+  if (!raw) return undefined;
+  const key = raw.toLowerCase().replace(/[.\s-]+/g, "_");
+  return PLATFORM_LOGOS[key];
+}
 
 export const STATUS_LABELS: Record<string, string> = {
   received: "Received",
@@ -63,11 +71,8 @@ export function getDatesArray(start: string, end: string): string[] {
 }
 
 export function getNights(checkin: string, checkout?: string | null): number {
-  const end = exclusiveEndDate(checkin, checkout);
-  if (!checkin || !end) return 1;
-  const ci = new Date(checkin + "T12:00:00Z");
-  const co = new Date(end + "T12:00:00Z");
-  return Math.max(1, Math.round((co.getTime() - ci.getTime()) / 86400000));
+  if (!checkin) return 1;
+  return Math.max(1, stayNightCount(checkin, checkout));
 }
 
 export function calculateTax(amount: number, taxRate: number = 0.12): { beforeTax: number; tax: number; total: number } {

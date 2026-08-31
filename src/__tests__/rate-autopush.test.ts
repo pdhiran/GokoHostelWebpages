@@ -35,6 +35,7 @@ vi.mock("@/lib/pmsLog", () => ({
 
 import { triggerRatePush, triggerRestrictionPush } from "@/lib/aiosellSync";
 import { restrictionPatch } from "@/lib/aiosell";
+import { logPmsCall } from "@/lib/pmsLog";
 
 const CONFIG = {
   isActive: 1,
@@ -90,6 +91,7 @@ describe("triggerRatePush after bulk Set Rates", () => {
     }]);
     expect(JSON.stringify(updates)).not.toContain("dorm-6");
     expect(queryMocks.updateChannelSyncTime).toHaveBeenCalled();
+    expect(pushRates.mock.calls[0][2]).toBe("auto");
   });
 
   it("one update per night when two rooms are set across two nights", async () => {
@@ -139,6 +141,16 @@ describe("triggerRatePush after bulk Set Rates", () => {
     await triggerRatePush(["2026-09-01"], [10]);
     expect(pushRates).not.toHaveBeenCalled();
   });
+
+  it("logs a failed auto rate catch as rate (auto)", async () => {
+    queryMocks.getChannelConfig.mockRejectedValue(new Error("boom"));
+    await triggerRatePush(["2026-09-01"], [10]);
+    expect(pushRates).not.toHaveBeenCalled();
+    expect(logPmsCall).toHaveBeenCalledWith(expect.objectContaining({
+      type: "rate (auto)",
+      status: "failed",
+    }));
+  });
 });
 
 describe("restrictionPatch", () => {
@@ -183,6 +195,7 @@ describe("triggerRestrictionPush after bulk Restrictions", () => {
       },
     ]);
     expect(JSON.stringify(updates)).not.toContain("stopSell");
+    expect(pushRateRestrictions.mock.calls[0][3]).toBe("auto");
   });
 
   it("full snapshot still includes per-night stopSell when no patch is given", async () => {
@@ -203,5 +216,15 @@ describe("triggerRestrictionPush after bulk Restrictions", () => {
     queryMocks.getChannelConfig.mockResolvedValue({ ...CONFIG, autoPushRateRestrictions: 0 });
     await triggerRestrictionPush(["2026-08-30"], [10], { minimumStay: 2 });
     expect(pushRateRestrictions).not.toHaveBeenCalled();
+  });
+
+  it("logs a failed auto restriction catch as restriction (auto)", async () => {
+    queryMocks.getChannelConfig.mockRejectedValue(new Error("boom"));
+    await triggerRestrictionPush(["2026-08-30"], [10], { minimumStay: 2 });
+    expect(pushRateRestrictions).not.toHaveBeenCalled();
+    expect(logPmsCall).toHaveBeenCalledWith(expect.objectContaining({
+      type: "restriction (auto)",
+      status: "failed",
+    }));
   });
 });

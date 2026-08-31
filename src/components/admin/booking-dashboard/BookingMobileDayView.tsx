@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { STATUS_COLORS, PLATFORM_LOGOS, STATUS_LABELS, formatDateShort, getHostelToday, isToday } from "./utils";
+import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatDateShort, getHostelToday, isToday } from "./utils";
 import type { DashboardBooking, BedAssignment, CalendarDorm, DateRange } from "./types";
 
 export function BookingMobileDayView({
@@ -134,7 +134,7 @@ export function BookingMobileDayView({
               <div className="divide-y divide-border">
                 {bs.map((booking) => {
                   const statusColor = STATUS_COLORS[booking.status] ?? STATUS_COLORS.received;
-                  const platform = PLATFORM_LOGOS[booking.platform];
+                  const platform = platformLogo(booking.platform);
                   return (
                     <button
                       key={booking.id}

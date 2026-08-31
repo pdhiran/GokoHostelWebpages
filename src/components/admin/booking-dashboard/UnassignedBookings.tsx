@@ -8,7 +8,7 @@ import { XIcon, CheckIcon, Loader2Icon, AlertCircleIcon } from "lucide-react";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { fetchWithRetry } from "@/components/admin/useAdminApi";
 import { exclusiveEndDate } from "@/lib/inventoryAvailability";
-import { PLATFORM_LOGOS } from "./utils";
+import { platformLogo } from "./utils";
 import type { DashboardBooking, CalendarDorm, DateRange } from "./types";
 
 type AvailableBed = { id: number; bedId: string; dormId: number; dormName: string; pool?: "online" | "offline" | "block" };
@@ -35,18 +35,21 @@ export function UnassignedBookings({
   const [busy, setBusy] = useState(false);
   const [rangeBeds, setRangeBeds] = useState<AvailableBed[]>([]);
   const [loadingBeds, setLoadingBeds] = useState(false);
+  const [bedsError, setBedsError] = useState("");
   const { showError } = useAdminToast();
 
   useEffect(() => {
     if (!assigningId) {
       setRangeBeds([]);
       setLoadingBeds(false);
+      setBedsError("");
       return;
     }
     const booking = bookings.find((b) => b.id === assigningId);
     if (!booking?.checkinDate) {
       setRangeBeds([]);
       setLoadingBeds(false);
+      setBedsError("This booking has no check-in date.");
       return;
     }
     const checkinDate = booking.checkinDate;
@@ -54,10 +57,12 @@ export function UnassignedBookings({
     if (!checkoutDate) {
       setRangeBeds([]);
       setLoadingBeds(false);
+      setBedsError("Invalid stay dates on this booking.");
       return;
     }
     setLoadingBeds(true);
     setSelectedBeds([]);
+    setBedsError("");
     const payload: Record<string, unknown> = { password, action: "getAvailableBeds", checkinDate, checkoutDate };
     if (username) payload.username = username;
     let cancelled = false;
@@ -68,14 +73,20 @@ export function UnassignedBookings({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (!cancelled) setRangeBeds(data.beds || []);
-        } else if (!cancelled) {
-          setRangeBeds([]);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!cancelled) {
+            setRangeBeds([]);
+            setBedsError(typeof data.error === "string" ? data.error : `Failed to load beds (${res.status})`);
+          }
+          return;
         }
+        if (!cancelled) setRangeBeds(data.beds || []);
       } catch {
-        if (!cancelled) setRangeBeds([]);
+        if (!cancelled) {
+          setRangeBeds([]);
+          setBedsError("Network error loading beds");
+        }
       } finally {
         if (!cancelled) setLoadingBeds(false);
       }
@@ -138,8 +149,12 @@ export function UnassignedBookings({
       </div>
 
       <div className="divide-y divide-orange-200 dark:divide-orange-800">
-        {bookings.map((booking) => {
-          const platform = PLATFORM_LOGOS[booking.platform];
+        {bookings.length === 0 ? (
+          <p className="px-4 py-3 text-xs text-muted-foreground">
+            No unassigned bookings. Assigned stays appear as bars on the calendar.
+          </p>
+        ) : bookings.map((booking) => {
+          const platform = platformLogo(booking.platform);
           const isAssigning = assigningId === booking.id;
           return (
             <div key={booking.id} className="p-3">
@@ -155,6 +170,7 @@ export function UnassignedBookings({
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     {booking.checkinDate} - {booking.checkoutDate} | {booking.persons} person{booking.persons !== 1 ? "s" : ""}
+                    {booking.bookingRef ? ` | ${booking.bookingRef}` : ""}
                   </div>
                 </div>
                 {canAssign && (
@@ -185,6 +201,8 @@ export function UnassignedBookings({
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Loader2Icon className="size-3.5 animate-spin" /> Loading available beds...
                     </div>
+                  ) : bedsError ? (
+                    <p className="text-xs text-red-600 dark:text-red-400">{bedsError}</p>
                   ) : availableBeds.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No beds available for this stay.</p>
                   ) : (

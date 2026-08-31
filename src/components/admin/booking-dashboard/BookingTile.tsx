@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { UsersIcon } from "lucide-react";
-import { STATUS_COLORS, PLATFORM_LOGOS } from "./utils";
+import { STATUS_COLORS, platformLogo } from "./utils";
 import type { DashboardBooking } from "./types";
 
 export function BookingTile({
@@ -17,7 +17,7 @@ export function BookingTile({
   onClick: () => void;
 }) {
   const statusColor = STATUS_COLORS[booking.status] ?? STATUS_COLORS.received;
-  const platform = PLATFORM_LOGOS[booking.platform];
+  const platform = platformLogo(booking.platform);
 
   return (
     <button

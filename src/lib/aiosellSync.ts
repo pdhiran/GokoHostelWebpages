@@ -111,10 +111,10 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
     console.error("Auto inventory push failed:", error?.message);
     await logPmsCall({
       direction: "push",
-      type: "inventory",
+      type: "inventory (auto)",
       status: "failed",
       errorMessage: `Auto-push error: ${error?.message || "Unknown"}`,
-    }).catch(() => {});
+    });
   }
 }
 
@@ -160,11 +160,11 @@ export async function triggerRatePush(affectedDates: string[], affectedRatePlanI
     }
 
     if (updates.length === 0) return;
-    const result = await pushRates(buildAiosellConfig(config), updates);
+    const result = await pushRates(buildAiosellConfig(config), updates, "auto");
     if (result.success) await updateChannelSyncTime();
   } catch (error: any) {
     console.error("Auto rate push failed:", error?.message);
-    await logPmsCall({ direction: "push", type: "rate", status: "failed", errorMessage: `Auto-push error: ${error?.message || "Unknown"}` }).catch(() => {});
+    await logPmsCall({ direction: "push", type: "rate (auto)", status: "failed", errorMessage: `Auto-push error: ${error?.message || "Unknown"}` });
   }
 }
 
@@ -228,10 +228,10 @@ export async function triggerRestrictionPush(affectedDates: string[], affectedRa
     }
 
     if (updates.length === 0) return;
-    const result = await pushRateRestrictions(buildAiosellConfig(config), updates);
+    const result = await pushRateRestrictions(buildAiosellConfig(config), updates, undefined, "auto");
     if (result.success) await updateChannelSyncTime();
   } catch (error: any) {
     console.error("Auto restriction push failed:", error?.message);
-    await logPmsCall({ direction: "push", type: "restriction", status: "failed", errorMessage: `Auto-push error: ${error?.message || "Unknown"}` }).catch(() => {});
+    await logPmsCall({ direction: "push", type: "restriction (auto)", status: "failed", errorMessage: `Auto-push error: ${error?.message || "Unknown"}` });
   }
 }

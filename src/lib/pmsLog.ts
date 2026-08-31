@@ -5,34 +5,11 @@
 
 export const PMS_LOG_MAX_BYTES = 32_000;
 
-const REDACT_KEY = /password|secret|authorization|api[_-]?key|email|phone|firstName|lastName|guestName|address|contact/i;
-
-function redact(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redact);
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = REDACT_KEY.test(k) ? "[redacted]" : redact(v);
-    }
-    return out;
-  }
-  return value;
-}
-
 export function serializePmsPayload(value: unknown): string {
   if (value == null || value === "") return "";
   let cleaned: string;
   try {
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-        cleaned = JSON.stringify(redact(JSON.parse(trimmed)));
-      } else {
-        cleaned = value;
-      }
-    } else {
-      cleaned = JSON.stringify(redact(value));
-    }
+    cleaned = typeof value === "string" ? value : JSON.stringify(value);
   } catch {
     cleaned = typeof value === "string" ? value : "";
   }
@@ -73,4 +50,9 @@ export async function logPmsCall(data: PmsLogEntry): Promise<void> {
   } catch (err) {
     console.error("PMS log failed:", err instanceof Error ? err.message : err);
   }
+}
+
+/** Escape `%` `_` `\` so an admin type filter cannot become a LIKE wildcard. */
+export function sqliteLikePrefix(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_") + " (%";
 }

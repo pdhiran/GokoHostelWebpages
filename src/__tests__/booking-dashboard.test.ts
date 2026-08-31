@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
-import { isWeekend, getNights } from "@/components/admin/booking-dashboard/utils";
+import { isWeekend, getNights, platformLogo } from "@/components/admin/booking-dashboard/utils";
+import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -58,7 +59,7 @@ describe("Booking Dashboard: Query Logic Verification", () => {
 
     it("uses INSERT ... WHERE NOT EXISTS pattern for atomic conflict check", () => {
       const fnMatch = queriesCode.match(
-        /export async function assignBedToBooking[\s\S]*?return \(result/
+        /export async function assignBedToBooking[\s\S]*?return sqliteWriteCount/
       );
       expect(fnMatch).not.toBeNull();
       const fn = fnMatch![0];
@@ -70,7 +71,7 @@ describe("Booking Dashboard: Query Logic Verification", () => {
 
     it("conflict check uses same overlap logic (checkin_date < checkoutDate AND checkout_date > checkinDate)", () => {
       const fnMatch = queriesCode.match(
-        /export async function assignBedToBooking[\s\S]*?return \(result/
+        /export async function assignBedToBooking[\s\S]*?return sqliteWriteCount/
       );
       const fn = fnMatch![0];
       expect(fn).toContain("checkin_date < ${data.checkoutDate}");
@@ -80,17 +81,17 @@ describe("Booking Dashboard: Query Logic Verification", () => {
 
     it("returns false (not assigned) when no rows written", () => {
       const fnMatch = queriesCode.match(
-        /export async function assignBedToBooking[\s\S]*?return \(result[\s\S]*?\n\}/
+        /export async function assignBedToBooking[\s\S]*?return sqliteWriteCount[\s\S]*?\n\}/
       );
       expect(fnMatch).not.toBeNull();
       const fn = fnMatch![0];
-      expect(fn).toContain("rowsWritten");
+      expect(fn).toContain("sqliteWriteCount");
       expect(fn).toContain("> 0");
     });
 
     it("only blocks against 'assigned' status conflicts", () => {
       const fnMatch = queriesCode.match(
-        /export async function assignBedToBooking[\s\S]*?return \(result/
+        /export async function assignBedToBooking[\s\S]*?return sqliteWriteCount/
       );
       const fn = fnMatch![0];
       expect(fn).toContain("status = 'assigned'");
@@ -203,7 +204,7 @@ describe("Booking Dashboard: cancelBooking Logic", () => {
       );
       const section = cancelSection![0];
 
-      expect(section).toContain("pushIfOtaChanged(before, dormIds, cancelDates)");
+      expect(section).toContain("pushIfGokoOccupancy(detail?.booking.source, before, dormIds, cancelDates)");
     });
   });
 
@@ -389,6 +390,17 @@ describe("Booking calendar UI permissions match the API keys", () => {
     expect(panel).not.toContain("canCancelBooking");
     expect(panel).not.toContain("canMarkNoShow");
   });
+
+  it("loads Unassigned from getUnassigned, not the visible calendar range", () => {
+    expect(dashboard).toContain('action: "getUnassigned"');
+    expect(dashboard).toContain("setUnassignedBookings");
+    expect(dashboard).toContain("Promise.allSettled");
+    expect(dashboard).not.toContain("assignedIds.has(b.id)");
+    const queries = readFile("src/db/queries.ts");
+    const fn = queries.match(/export async function getUnassignedBookings\(\)[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(fn).toContain("NOT EXISTS");
+    expect(fn).toContain("status} = 'assigned'");
+  });
 });
 
 describe("Unassigned bookings: same availability as New Booking", () => {
@@ -400,7 +412,8 @@ describe("Unassigned bookings: same availability as New Booking", () => {
     expect(unassigned).toContain('action: "getAvailableBeds"');
     expect(unassigned).toContain("exclusiveEndDate");
     expect(unassigned).not.toContain("!bed.isBlocked");
-    expect(unassigned.split("setLoadingBeds(false)").length).toBeGreaterThan(3);
+    expect(unassigned).toContain("bedsError");
+    expect(unassigned).toContain("Failed to load beds");
     expect(create).toContain('action: "getAvailableBeds"');
     expect(create).toContain("addCalendarDays(start, 1)");
     expect(create).toContain("addCalendarDays(checkinDate, 1)");
@@ -412,7 +425,10 @@ describe("Unassigned bookings: same availability as New Booking", () => {
     expect(route).toContain("function stayCheckout");
     const assign = route.match(/action === "assignBeds"[\s\S]*?action === "checkIn"/)![0];
     expect(assign).toContain("stayCheckout(checkinDate, detail.booking.checkoutDate)");
+    expect(assign).toContain("channelSource(detail.booking.source)");
+    expect(assign).toContain("pushIfGokoOccupancy");
     expect(assign).not.toContain("checkoutDate || checkinDate");
+    expect(route).toContain('source === "channel_manager"');
     expect(route).toContain('action === "modifyCheckin"');
     expect(route).toContain('action === "modifyCheckout"');
     expect(route).toContain('action === "editReservation"');
@@ -428,5 +444,28 @@ describe("Unassigned bookings: same availability as New Booking", () => {
     expect(getNights("2026-09-01", "")).toBe(1);
     expect(getNights("2026-09-01")).toBe(1);
     expect(Number.isNaN(getNights("2026-09-01", ""))).toBe(false);
+  });
+});
+
+describe("sqliteWriteCount (D1 vs better-sqlite3)", () => {
+  it("counts a D1 insert from meta.changes, not a missing top-level rowsWritten", () => {
+    expect(sqliteWriteCount({ success: true, meta: { changes: 1, rows_written: 1 } })).toBe(1);
+    expect(sqliteWriteCount({ success: true, meta: { changes: 0, rows_written: 0 } })).toBe(0);
+    expect(sqliteWriteCount({ success: true, meta: { duration: 2 } })).toBe(0);
+    expect(sqliteWriteCount({ rowsWritten: undefined, changes: undefined })).toBe(0);
+    expect(sqliteWriteCount({ rowsAffected: 3 })).toBe(3);
+    expect(sqliteWriteCount({ meta: { rowsAffected: 2 } })).toBe(2);
+  });
+
+  it("counts better-sqlite3 changes", () => {
+    expect(sqliteWriteCount({ changes: 1 })).toBe(1);
+  });
+});
+
+describe("platformLogo", () => {
+  it("maps Aiosell channel names like Direct and booking.com", () => {
+    expect(platformLogo("Direct")?.label).toBe("Direct");
+    expect(platformLogo("booking.com")?.label).toBe("Booking.com");
+    expect(platformLogo("booking_com")?.abbr).toBe("B");
   });
 });

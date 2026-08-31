@@ -131,13 +131,13 @@ function buildAuthHeader(config: AiosellConfig): string {
   return `Basic ${encoded}`;
 }
 
-type AiosellCallType = "inventory" | "rate" | "restriction" | "noshow" | "reservation";
+type AiosellCallType = "inventory" | "rate" | "restriction" | "noshow" | "reservation" | "fetch";
 
 async function aiosellFetch(
   url: string,
   config: AiosellConfig,
   body: Record<string, unknown>,
-  meta: { type: AiosellCallType; recordsAffected?: number; source?: string }
+  meta: { type: AiosellCallType; recordsAffected?: number; source?: string; direction?: "push" | "pull" }
 ): Promise<AiosellResponse> {
   const started = Date.now();
   const log = (entry: {
@@ -147,7 +147,7 @@ async function aiosellFetch(
     errorMessage?: string;
   }) =>
     logPmsCall({
-      direction: "push",
+      direction: meta.direction ?? "push",
       type: meta.source ? `${meta.type} (${meta.source})` : meta.type,
       status: entry.status,
       request: body,
@@ -236,20 +236,22 @@ export async function pushInventoryRestrictions(
 
 export async function pushRates(
   config: AiosellConfig,
-  updates: RateUpdate[]
+  updates: RateUpdate[],
+  source?: string
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/update-rates/${config.pmsId}`;
   const recordsAffected = updates.reduce((sum, u) => sum + u.rates.length, 0);
   return aiosellFetch(url, config, {
     hotelCode: config.hotelCode,
     updates,
-  }, { type: "rate", recordsAffected });
+  }, { type: "rate", recordsAffected, source });
 }
 
 export async function pushRateRestrictions(
   config: AiosellConfig,
   updates: RateRestrictionUpdate[],
-  toChannels?: string[]
+  toChannels?: string[],
+  source?: string
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/update-rates/${config.pmsId}`;
   const body: Record<string, unknown> = {
@@ -258,7 +260,7 @@ export async function pushRateRestrictions(
   };
   if (toChannels?.length) body.toChannels = toChannels;
   const recordsAffected = updates.reduce((sum, u) => sum + u.rates.length, 0);
-  return aiosellFetch(url, config, body, { type: "restriction", recordsAffected });
+  return aiosellFetch(url, config, body, { type: "restriction", recordsAffected, source });
 }
 
 export async function pushNoShow(
@@ -281,13 +283,12 @@ export async function fetchFromAiosell(
   endDate: string
 ): Promise<AiosellResponse & { data?: unknown }> {
   const url = `${config.apiBaseUrl}/api/v2/cm/data/${config.pmsId}`;
-  const callType: AiosellCallType = type === "rates" ? "rate" : type === "reservation" ? "reservation" : "inventory";
   const result = await aiosellFetch(url, config, {
     type,
     hotelCode: config.hotelCode,
     startDate,
     endDate,
-  }, { type: callType });
+  }, { type: "fetch", source: type, direction: "pull" });
   return result as AiosellResponse & { data?: unknown };
 }
 

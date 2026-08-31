@@ -60,7 +60,7 @@ import {
 } from "@/db/queries";
 import { authenticateUser } from "@/lib/auth";
 import { triggerRatePush, triggerRestrictionPush, triggerInventoryPush } from "@/lib/aiosellSync";
-import { pushInventory, pushRates, pushNoShow, type AiosellConfig } from "@/lib/aiosell";
+import { pushInventory, pushRates, pushNoShow, fetchFromAiosell, type AiosellConfig } from "@/lib/aiosell";
 import { POST as reservationsPOST } from "@/app/api/aiosell/reservations/route";
 import { POST as channelManagerPOST } from "@/app/api/admin/channel-manager/route";
 import { POST as inventoryPOST } from "@/app/api/admin/inventory/route";
@@ -205,6 +205,42 @@ describe("PMS outbound workflows (mocked Aiosell HTTP)", () => {
     expect(log.httpStatus).toBe(0);
     expect(log.errorMessage).toBe("fetch failed");
   });
+
+  it("auto inventory source is tagged in the log type", async () => {
+    fetchMock.mockResolvedValue(jsonRes({ success: true }));
+    await pushInventory(CFG, [{
+      startDate: "2026-08-28", endDate: "2026-08-28",
+      rooms: [{ roomCode: "DORM-6", available: 1 }],
+    }], undefined, "auto");
+    expect(lastLog().type).toBe("inventory (auto)");
+    expect(lastLog().direction).toBe("push");
+  });
+
+  it("auto rate source is tagged in the log type", async () => {
+    fetchMock.mockResolvedValue(jsonRes({ success: true }));
+    await pushRates(CFG, [{
+      startDate: "2026-08-28", endDate: "2026-08-28",
+      rates: [{ roomCode: "DORM-6", rateplanCode: "STD", rate: 900 }],
+    }], "auto");
+    expect(lastLog().type).toBe("rate (auto)");
+  });
+
+  it("Channel Manager fetch is a pull log, not a push", async () => {
+    fetchMock.mockResolvedValue(jsonRes({ success: true, data: [{ roomCode: "executive", available: 2 }] }));
+    const result = await fetchFromAiosell(CFG, "inventory", "2026-08-28", "2026-08-30");
+    expect(result.success).toBe(true);
+    const log = lastLog();
+    expect(log.direction).toBe("pull");
+    expect(log.type).toBe("fetch (inventory)");
+    expect(log.url).toBe("https://live.aiosell.com/api/v2/cm/data/goko-pms");
+    const req = JSON.parse(log.requestPayload as string);
+    expect(req).toEqual({
+      type: "inventory",
+      hotelCode: "GOKO-001",
+      startDate: "2026-08-28",
+      endDate: "2026-08-30",
+    });
+  });
 });
 
 describe("PMS inbound webhook workflows", () => {
@@ -313,6 +349,7 @@ describe("PMS inbound webhook workflows", () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(addBooking).toHaveBeenCalledOnce();
+    expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
     expect(captured).toHaveLength(1);
     const log = lastLog();
     expect(log.status).toBe("success");
@@ -320,11 +357,93 @@ describe("PMS inbound webhook workflows", () => {
     expect(log.recordsAffected).toBe(1);
     const reqBody = JSON.parse(log.requestPayload as string);
     expect(reqBody.bookingId).toBe("BK-100");
-    expect(reqBody.guest.email).toBe("[redacted]");
-    expect(reqBody.guest.firstName).toBe("[redacted]");
-    expect(JSON.stringify(reqBody)).not.toContain("ada@example.com");
+    expect(reqBody.guest.email).toBe("ada@example.com");
+    expect(reqBody.guest.firstName).toBe("Ada");
     const respBody = JSON.parse(log.responsePayload as string);
     expect(respBody.message).toMatch(/Created Successfully/i);
+  });
+
+  it("Direct / executive webhook book is stored unassigned (no bed) as channel_manager", async () => {
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "Direct",
+      bookingId: "San73aeea140336",
+      checkin: "2026-09-05",
+      checkout: "2026-09-06",
+      pah: true,
+      guest: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com", phone: "+91000" },
+      rooms: [{
+        roomCode: "executive",
+        rateplanCode: "executive-s-ep",
+        guestName: "Ada Lovelace",
+        occupancy: { adults: 1, children: 0 },
+        prices: [{ date: "2026-09-05", sellRate: 3700 }],
+      }],
+      amount: { amountAfterTax: 3700, amountBeforeTax: 3700, tax: 0, currency: "INR" },
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingRef: "San73aeea140336",
+      platform: "Direct",
+      source: "channel_manager",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-06",
+      roomType: "executive",
+      status: "received",
+    }));
+    expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("multi-room multi-night book stores summed persons and first-night rates, still unassigned", async () => {
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-GROUP-3",
+      checkin: "2026-09-05",
+      checkout: "2026-09-08",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [
+        {
+          roomCode: "executive",
+          rateplanCode: "executive-s-ep",
+          occupancy: { adults: 2, children: 0 },
+          prices: [
+            { date: "2026-09-05", sellRate: 3700 },
+            { date: "2026-09-06", sellRate: 3700 },
+            { date: "2026-09-07", sellRate: 3700 },
+          ],
+        },
+        {
+          roomCode: "DORM-6",
+          rateplanCode: "STD",
+          occupancy: { adults: 1, children: 1 },
+          prices: [
+            { date: "2026-09-05", sellRate: 1200 },
+            { date: "2026-09-06", sellRate: 1100 },
+            { date: "2026-09-07", sellRate: 1100 },
+          ],
+        },
+      ],
+      amount: { amountAfterTax: 14700, amountBeforeTax: 13125, tax: 1575, currency: "INR" },
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingRef: "BK-GROUP-3",
+      persons: 4,
+      nightlyRate: 4900,
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-08",
+      roomType: "executive, DORM-6",
+      amountTotal: 14700,
+      source: "channel_manager",
+    }));
+    expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
   });
 
   it("duplicate book is still a single success log (idempotent)", async () => {
@@ -650,7 +769,7 @@ describe("PMS inbound webhook workflows", () => {
   });
 
   it("book logs history entry on successful insert", async () => {
-    vi.mocked(addBooking).mockResolvedValue({ meta: { last_row_id: 42 } } as never);
+    vi.mocked(addBooking).mockResolvedValue(42 as never);
     const res = await reservationsPOST(req(bookPayload, { authorization: "whsec-test" }));
     expect(res.status).toBe(200);
     expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({

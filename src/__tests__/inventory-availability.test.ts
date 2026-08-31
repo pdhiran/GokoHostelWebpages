@@ -18,6 +18,7 @@ import {
   ceilingFromRemaining,
   shouldPushPms,
   stayNights,
+  stayNightCount,
   tagBedsForPicker,
 } from "@/lib/inventoryAvailability";
 
@@ -40,6 +41,16 @@ describe("stayNights", () => {
   it("uses exclusive checkout so 31 Aug–1 Sep is one night", () => {
     expect(stayNights("2026-08-31", "2026-09-01")).toEqual(["2026-08-31"]);
     expect(stayNights("2026-08-31", "2026-09-02")).toEqual(["2026-08-31", "2026-09-01"]);
+  });
+});
+
+describe("stayNightCount", () => {
+  it("covers 1-night, multi-night, month wrap, and year wrap", () => {
+    expect(stayNightCount("2026-09-05", "2026-09-06")).toBe(1);
+    expect(stayNightCount("2026-09-05", "2026-09-08")).toBe(3);
+    expect(stayNightCount("2026-08-31", "2026-09-02")).toBe(2);
+    expect(stayNightCount("2026-12-30", "2027-01-02")).toBe(3);
+    expect(stayNightCount("2026-09-05")).toBe(1);
   });
 });
 

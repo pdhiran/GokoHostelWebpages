@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { SearchIcon, XIcon } from "lucide-react";
-import { STATUS_COLORS, PLATFORM_LOGOS, STATUS_LABELS } from "./utils";
+import { STATUS_COLORS, platformLogo, STATUS_LABELS } from "./utils";
 import type { DashboardBooking } from "./types";
 
 export function BookingSearchBar({
@@ -79,7 +79,7 @@ export function BookingSearchBar({
           <div className="max-h-72 overflow-y-auto p-1">
             {results.map((booking) => {
               const statusColor = STATUS_COLORS[booking.status] ?? STATUS_COLORS.received;
-              const platform = PLATFORM_LOGOS[booking.platform];
+              const platform = platformLogo(booking.platform);
               return (
                 <button
                   key={booking.id}
