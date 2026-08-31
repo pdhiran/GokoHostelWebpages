@@ -77,4 +77,4 @@ Aiosell **production** hotel/password/webhook sit in D1 `channel_config`, not en
 
 ## Settings keys (D1 `settings` table)
 
-Not env. Synced subset and Kannada drift: [data-model.md](data-model.md). Food keys: [flows-food-kitchen.md](flows-food-kitchen.md). Failover: `failover_enabled`, `pi_local_url`. Reviews: `review_google_url`. Booking tax: `booking_tax_rate`.
+Not env. Synced subset and Kannada drift: [data-model.md](data-model.md). Food keys: [flows-food-kitchen.md](flows-food-kitchen.md). Failover: `failover_enabled`, `pi_local_url`. Reviews: `review_google_url`. Booking tax: `booking_tax_rate` (default 5; **`0` is 0%** — `bookingTaxPercent`, never `Number(x) || 5`). Same rule for `food_tax_rate` (`foodTaxPercent`).

@@ -117,6 +117,7 @@ Top-level sections (`src/lib/adminNav.ts`), lazy-loaded with `next/dynamic`:
 | Records | `AdminRecords` | `canViewRecords` |
 | Food Orders | `AdminFoodOrders` | `canViewFoodOrders` |
 | Accounts | `AdminExpenditure` | `canViewAccounts` |
+| Splits | `AdminSplits` | `canViewSplits` (hidden on Pi) |
 | Reviews | `AdminReviews` | `canViewReviews` |
 | Management | `AdminManagement` | `canViewManagement` |
 
@@ -124,7 +125,7 @@ Management sub-tabs (`AdminManagement.tsx`): Dorms, Users, Backup, Audit, Logs, 
 
 Website tab is **hidden on Pi builds** (`NEXT_PUBLIC_GOKO_RUNTIME === "pi"`).
 
-Accounts sub-tabs: Add Expense, Daily Ledger, Records, Food Revenue, Reconcile.
+Accounts sub-tabs: Add Expense, Daily Ledger, Records, Food Revenue, **Room Revenue**, Reconcile. Room Revenue is rupees (`getRoomRevenue`); Food Revenue is paise.
 
 ---
 
@@ -170,5 +171,7 @@ flowchart TB
   INV --> AIO[Aiosell push]
   CI --> FO[food_orders on tab]
   FO --> KIT[kitchen]
+  BK --> PAY[stay collect / refund rupees]
+  PAY --> RR[Room Revenue]
   EXP[expenses / ledger] --> ACC[accounts]
 ```

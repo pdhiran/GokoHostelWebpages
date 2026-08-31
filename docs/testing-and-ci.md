@@ -35,7 +35,7 @@ CI (`.github/workflows/ci.yml`): push/PR to `main` → `npm ci` → test → lin
 | `sync-fk-remap.test.ts` | Sync FKs |
 | `pms-log.test.ts` | Channel HTTP log; `summarizePmsLog` inventory 10→9 vs previous payload; pull book is not an inventory delta; ManagementLogs imports `pmsLogSummary` not `pmsLog`; 30-day prune not `LIMIT 500`; Download menu PDF/JSON; `formatPmsLogsForPdf` includes request/response |
 | `log-retention.test.ts` | 30-day floor, pageSize clamp, pager `1 2 3 … last` |
-| `booking-pricing.test.ts` | Walk-in tax default 5%, percent vs amount discount, `gokoWalkin` JSON (not Aiosell payload) |
+| `booking-pricing.test.ts` | Walk-in tax default 5%, **`0` is 0%**, percent vs amount discount, `gokoWalkin` JSON (not Aiosell payload) |
 | `cpu-*.test.ts` | Hot-path / CPU-ish workflows (auth, food, kitchen, bookings, chrome). `cpu-food-guest-workflows`: food-order cart FAB/toast `inset-x-4` not `left-1/2`. `cpu-bookings-rates`: same-day `checkOut` does not unassign; rollback availability is `[assignment.checkoutDate, planned checkout)`; `channel_manager` assign/unassign/cancel/move/check-out skip Aiosell occupancy push; `assignBeds` 400s unless one bed per person in mapped dorms; walk-in `createBooking` writes `gokoBookingId` `GOKO{date}{6}`; stay collect/refund: Later then `collectStayPayment`, prepaid check-in records online stay revenue, refund cap is `amountPaid`, split cash clamp |
 | `worker-cpu.test.ts` | Auth hashing order vs env compare |
 

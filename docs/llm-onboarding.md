@@ -13,8 +13,8 @@ Trust order: **running system → secrets files → `MAINTAINER.local.md` (live 
 - Product map, two runtimes (Cloudflare Worker + Pi SQLite), storage split (Drive PII vs R2 CMS).
 - Decision records (action-POST, paise, no JWT, no D1 transactions around `getDb()`).
 - Table *catalog* (52 tables) and FK graph — not every column default.
-- Route list + exact `action` names + RBAC maps we verified 29 Aug 2026.
-- End-to-end stories: check-in, food, PMS occupancy, accounts, **splits**, CMS, sync, reviews/Form C.
+- Route list + exact `action` names + RBAC maps we verified **31 Aug 2026**.
+- End-to-end stories: check-in, food, PMS occupancy, stay collect/refund, Room Revenue, accounts, **splits**, CMS, sync, reviews/Form C.
 - Logins, Google, Cloudflare, Pi SSH (gitignored secrets file on this machine).
 - Stale-doc list so you do not follow `goko-web-overview.mdc` auto-deploy.
 
@@ -29,6 +29,8 @@ Trust order: **running system → secrets files → `MAINTAINER.local.md` (live 
 | Permission UI vs API mismatch | `ManagementUsers.tsx` **and** the route map |
 | Vision scoring | `src/lib/validateIdDocument.ts` |
 | Inventory math | `src/lib/inventoryAvailability.ts` |
+| Stay collect / refund (rupees) | `src/lib/stayPayment.ts` |
+| Food tab (client vs DB) | `src/lib/foodTab.ts` vs `src/lib/foodTabDb.ts` |
 | Sync apply/conflict | `src/lib/syncEngine.ts` |
 
 There is **no OpenAPI**. There is **no middleware.ts**.
@@ -166,7 +168,7 @@ IOUs live in `split_*` (Cloudflare-only). Hostel cash hits `expenses` only when 
 | Inventory | `InventoryRatePlan` | `/api/admin/inventory` |
 | Records | `AdminRecords` | checkins list/add/update… |
 | Food Orders | `AdminFoodOrders` | `/api/admin/food-orders` + kitchen |
-| Accounts | `AdminExpenditure` | `/api/admin/expenses` |
+| Accounts | `AdminExpenditure` | `/api/admin/expenses` (Food + Room Revenue) |
 | Splits | `AdminSplits` | `/api/admin/splits` (not `useAdminApi`) |
 | Reviews | `AdminReviews` | `/api/admin/reviews` |
 | Management | `AdminManagement` | mixed (see overview) |

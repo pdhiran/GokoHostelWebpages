@@ -103,6 +103,7 @@ Most `adminOnly: true`. Website hidden when `NEXT_PUBLIC_GOKO_RUNTIME === "pi"`.
 | `UnassignedBookings.tsx` | OTA leftover chips, Reject |
 | `BookingSearchBar.tsx` / `DateRangeSelector.tsx` / `BookingMobileDayView.tsx` / `BookingTableView.tsx` / `BookingTile.tsx` | chrome |
 | `CheckInPopup.tsx` | Collected → `RecordPaymentModal`; Later = check-in unpaid |
+| `ConfirmDialog.tsx` | Overlay is `flex items-center justify-center` — **not** `left-1/2 -translate-x-1/2` (that combination with `modalVariants` `y` slides the dialog off a phone) |
 | `utils.ts` / `types.ts` | date math, types |
 
 Calendar POSTs use `fetchWithRetry("/api/admin/bookings", …)` — not `useAdminApi`.
@@ -119,7 +120,7 @@ Calendar POSTs use `fetchWithRetry("/api/admin/bookings", …)` — not `useAdmi
 | `SyncStatusBar.tsx` | Pi/CF badge |
 | `FoodBillGenerator.tsx` | jsPDF dynamic import |
 | `DailyLedger.tsx` / `DailyReconcile.tsx` / `AdminAddExpense.tsx` / `AdminFoodBill.tsx` / `AdminRoomRevenue.tsx` | Accounts tabs |
-| `RecordPaymentModal.tsx` | Shared Cash/Online/Split collect + refund; food + stay |
+| `RecordPaymentModal.tsx` | Shared Cash/Online/Split collect + refund; stay must pass `amountUnit="rupees"` (food default is paise) |
 
 ---
 
@@ -133,8 +134,10 @@ Calendar POSTs use `fetchWithRetry("/api/admin/bookings", …)` — not `useAdmi
 | PMS / Aiosell | `inventoryAvailability.ts`, `aiosell.ts`, `aiosellSync.ts`, `channelMapping.ts`, `channelAutoAssign.ts`, `bookingPricing.ts`, `stayPayment.ts`, `pmsLog.ts`, `pmsLogSummary.ts`, `logRetention.ts`, `logExport.ts` |
 | Sync | `syncEngine.ts` |
 | CMS | `siteContent.ts`, `siteCopy.ts`, `mediaR2.ts`, `mediaKeys.ts`, `processSiteImage.ts`, `cropRect.ts` |
-| Food | `kitchenHours.ts`, `foodLookup.ts`, `orderStatus.ts`, `thermalPrint.ts` |
+| Food | `kitchenHours.ts`, `foodLookup.ts`, `foodTab.ts` (client), `foodTabDb.ts` (**server only**), `orderStatus.ts`, `thermalPrint.ts` |
 | Splits | `splits.ts` |
 | Other | `otaEmailParser.ts`, `pushNotify.ts`, `site.ts`, `seo.ts`, `format.ts`, `utils.ts`, `stayGallery.ts`, `animations.ts` |
 
-Do not import `pmsLog.ts` from client components (it loads `queries.ts`).
+Do not import `pmsLog.ts` or `foodTabDb.ts` from client components (`getDb` / `better-sqlite3` in the Worker bundle).
+
+Phone-safe overlays: parent `flex items-center justify-center` + `modalVariants` (scale/y only). Never `left-1/2 -translate-x-1/2` on a node that also animates `y` (`src/lib/animations.ts`).

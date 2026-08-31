@@ -169,6 +169,66 @@ Walk-in desk path: `createBooking` → Unassigned chips → `assignBeds` (offlin
 
 ---
 
+## Stay collect, prepaid, refund (rupees)
+
+Kernel: `src/lib/stayPayment.ts`. Shared modal: `RecordPaymentModal` with `amountUnit="rupees"` (food stays paise).
+
+```mermaid
+sequenceDiagram
+  actor Desk
+  participant UI as CheckInPopup / Dashboard / Detail
+  participant B as POST /api/admin/bookings
+  participant DB as D1 bookings
+  Desk->>UI: Check In
+  alt OTA prepaid
+    UI->>B: checkIn
+    B->>B: prepaidCheckInWrite amountPaid=total online
+    Note over DB: paymentStatus stays prepaid, hotel due 0
+  else Later
+    UI->>B: checkIn no collect
+    Note over DB: stayDueAtHotel = total − paid
+  else Collected
+    UI->>B: checkIn collectPayment mergeStayCollect
+    Note over DB: paymentStatus paid + paymentMethod
+  end
+  Desk->>UI: Mark Paid / Collect remaining
+  UI->>B: collectStayPayment
+  Desk->>UI: Cancel after check-in
+  UI->>B: cancelBooking refundAmount refundMethod
+  Note over DB: amount_refunded set; amount_paid unchanged
+```
+
+Room Revenue (`getRoomRevenue`) is occupied-for-revenue stays in the check-in date range — rupees, not ledger paise.
+
+---
+
+## Food tab on checkout (self-check-in, not booking id)
+
+Hostel tabs are `food_orders.checkin_id` → `checkins.id`, matched by **normalized phone**. Calendar booking id is not the tab key.
+
+```mermaid
+sequenceDiagram
+  actor Desk
+  participant UI as Calendar / Beds / Timeline / Dashboard
+  participant Tab as getPendingFoodTab
+  participant DB as food_orders + checkins
+  Desk->>UI: Check Out
+  UI->>Tab: contact and/or checkinId
+  Tab->>DB: active checkins by phone
+  Tab-->>UI: pendingTab orderIds
+  alt unpaid hostel tab
+    UI->>Desk: warn; Check out anyway
+  else empty / bad phone / lookup fail
+    UI->>Desk: could not check; proceed anyway
+  end
+  Note over UI: APIs do not 409 on unpaid food
+  Note over Tab: cafe walk-in (no checkin_id) is not matched
+```
+
+Admin UI imports `@/lib/foodTab` only. Routes import `@/lib/foodTabDb` (never from a client component).
+
+---
+
 ## Accounts + Splits cash bridge
 
 ```mermaid

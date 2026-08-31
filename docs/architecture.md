@@ -168,7 +168,7 @@ Wrangler `migrations` tags v1/v2 create then **delete** OpenNext ISR Durable Obj
 | `npm run deploy:cf` | OpenNext build + deploy |
 | `npm run build:pi` | Standalone with `GOKO_RUNTIME=pi` |
 
-GitHub `ci.yml` runs test → lint → `next build` → audit. **It does not deploy.** There is no `deploy-cloudflare.yml`. Production deploy is local Wrangler; details and worktree recipe are in `MAINTAINER.local.md`.
+GitHub `ci.yml` runs test → lint → `next build` → audit. **It does not deploy.** There is no `deploy-cloudflare.yml`. Dashboard **Workers Builds** on `goko-hostel-latest-webpage` **does** ship on push to `main` (`npm run cf:build` then `wrangler deploy`). Local Wrangler (`npm run deploy:cf` from a worktree) is the fallback; stamps live in `MAINTAINER.local.md`.
 
 Never run `next build` / `deploy:cf` in the same checkout as a live `npm run dev` (shared `.next`).
 

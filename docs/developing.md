@@ -76,7 +76,8 @@ Admin login values: [secrets-and-access.md](secrets-and-access.md). Plain `next 
 | Food stock | `stock-operations.test.ts` |
 | Splits | `splits.test.ts`, `splits-wiring.test.ts` |
 | CMS | `site-cms.test.ts`, `website-cms-api.test.ts` |
-| Aiosell / calendar PMS | `aiosell-*.ts`, `booking-*.ts`, `pms-*.ts`, `channel-wf-*.ts`, `inventory-*.ts`, `cpu-bookings-rates.test.ts` |
+| Aiosell / calendar PMS | `aiosell-*.ts`, `booking-*.ts`, `pms-*.ts`, `channel-wf-*.ts`, `inventory-*.ts`, `cpu-bookings-rates.test.ts`, `stay-payment.test.ts` |
+| Food tab at checkout | `food-tab*.test.ts` |
 | Sync FKs | `sync-fk-remap.test.ts` |
 | Worker CPU / chrome | `worker-cpu.test.ts`, `cpu-*.test.ts` |
 
