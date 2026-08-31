@@ -69,11 +69,13 @@ These are the load-bearing choices. Changing one without the others usually crea
 
 ## ADR-6 — Amounts in paise (integers)
 
-**Choice:** ₹500.50 → `50050`. Display divides by 100.
+**Choice:** food / expenses / ledger / salary store ₹500.50 as `50050`. Display divides by 100.
 
-**Why:** IEEE 754. Same as Stripe/Razorpay.
+**Exception:** `bookings` amounts are **rupees** (walk-in nightly rate 500, Aiosell `amountAfterTax` as-is). Stay UI must pass `amountUnit="rupees"` into the shared food `RecordPaymentModal`.
 
-**Cost:** Every form must `Math.round(parseFloat(x) * 100)`. Forget once and reports are 100× wrong.
+**Why:** IEEE 754. Same as Stripe/Razorpay for the paise tables.
+
+**Cost:** Every food/ledger form must `Math.round(parseFloat(x) * 100)`. Mixing stay rupees with food paise without `amountUnit` makes reports 100× wrong.
 
 ---
 

@@ -16,7 +16,7 @@ GokoWeb/
 ├── src/lib/                      # see table below
 ├── src/hooks/                    # useTabWithHistory, usePanelHistory, useDarkMode
 ├── src/__tests__/                # Vitest
-├── migrations/                   # Wrangler D1 production SQL (0001–0041)
+├── migrations/                   # Wrangler D1 production SQL (0001–0042)
 ├── drizzle/                      # stale kit output — not prod
 ├── scripts/                      # Pi, FRRO, Drive token, scrape, backup-pi.sh
 ├── public/                       # images, videos/hero, icons, manifest
@@ -33,10 +33,10 @@ Live marketing routes are `src/app/(marketing)/` (`force-static`). Do not add SS
 | `auth.ts` / `actionPermissions.ts` / `adminNav.ts` | Login + RBAC + admin tabs |
 | `runtime.ts` | Pi vs Cloudflare |
 | `googleApiFetch.ts` / `validateIdDocument.ts` / `parsePassportData.ts` / `parseDob.ts` | Google + OCR |
-| `aiosell.ts` / `aiosellSync.ts` / `channelMapping.ts` / `channelAutoAssign.ts` / `inventoryAvailability.ts` / `bookingPricing.ts` / `pmsLog.ts` / `pmsLogSummary.ts` / `logRetention.ts` / `logExport.ts` / `sqliteWriteCount.ts` | Channel manager + walk-in tax/discount. Log **cards** import `pmsLogSummary` only (client). `pmsLog` writes D1. `logRetention` is 30-day prune + pager math (client-safe). `logExport` is JSON/PDF download text (client; dynamic `jspdf`). |
+| `aiosell.ts` / `aiosellSync.ts` / `channelMapping.ts` / `channelAutoAssign.ts` / `inventoryAvailability.ts` / `bookingPricing.ts` / `stayPayment.ts` / `pmsLog.ts` / `pmsLogSummary.ts` / `logRetention.ts` / `logExport.ts` / `sqliteWriteCount.ts` | Channel manager + walk-in tax/discount + stay collect/refund math. Log **cards** import `pmsLogSummary` only (client). `pmsLog` writes D1. `logRetention` is 30-day prune + pager math (client-safe). `logExport` is JSON/PDF download text (client; dynamic `jspdf`). |
 | `syncEngine.ts` | Pi ↔ CF |
 | `siteContent.ts` / `siteCopy.ts` / `mediaR2.ts` / `mediaKeys.ts` / `processSiteImage.ts` / `cropRect.ts` | CMS |
-| `kitchenHours.ts` / `foodLookup.ts` / `orderStatus.ts` / `thermalPrint.ts` | Food |
+| `kitchenHours.ts` / `foodLookup.ts` / `foodTab.ts` / `orderStatus.ts` / `thermalPrint.ts` | Food |
 | `splits.ts` | Splitwise kernel (paise, FIFO Goko attribution) |
 | `checkinSchema.ts` / `checkinLookup.ts` / `phoneUtils.ts` | Check-in |
 | `otaEmailParser.ts` | Gmail bookings |

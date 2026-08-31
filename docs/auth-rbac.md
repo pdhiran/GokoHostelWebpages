@@ -75,7 +75,7 @@ From `ManagementUsers.tsx`. Admin bypasses all. Putting a key in the UI **does n
 **Check-in:** `canAddCheckin`, `canAssignBed`, `canCheckout`, `canMarkClean`, `canEditRecords`, `canDeleteRecords`
 
 **Booking (UI):** `canAddBooking`, `canSyncBookings`, `canDeleteBooking`  
-**Booking API extra (not in Users checkboxes):** `canCheckIn`, `canCheckOut`
+**Booking API extra (not in Users checkboxes):** `canCheckIn`, `canCheckOut` — `checkIn` / `collectStayPayment` are OR of `canCheckIn` + `canAddBooking`.
 
 **Food (UI):** `canAccessKitchen`, `canViewFoodOrders`, `canPlaceOrders`, `canManageMenu`, `canManageCategories`, `canManageInventory`, `canViewTabs`, `canMarkPaid`, `canGenerateBills`, `canChangeFoodSettings`
 
@@ -121,7 +121,7 @@ Management tabs: most `adminOnly: true`. Exceptions: History, Rates (visible), Q
 | update | `canEditRecords` |
 | delete | `canDeleteRecords` |
 | getDashboard, markVibeMatched | `canViewDashboard` |
-| checkoutBed, checkoutGuest, undoCheckout | `canCheckout` **or** `canViewDashboard` |
+| checkoutBed, checkoutGuest, undoCheckout, getPendingFoodTab | `canCheckout` **or** `canViewDashboard` |
 | getBeds, getBedHistory | `canViewBeds` |
 | assignBed, unassignBed, changeBed | `canAssignBed` **or** `canViewBeds` |
 | markClean | `canMarkClean` |
@@ -132,7 +132,7 @@ Management tabs: most `adminOnly: true`. Exceptions: History, Rates (visible), Q
 
 ### `/api/admin/bookings`
 
-Calendar PMS. View keys `canViewBookings`. Mutating `canAddBooking` / `canDeleteBooking` / `canCheckIn` / `canCheckOut`. Rollback check-in/out = admin_only. Unassigned **Reject** is admin/manager (`role`), not `canDeleteBooking` — staff 403 on full-cancel of a stay with no assigned beds. Env manager can Reject without that key; assigned cancel still needs `canDeleteBooking`.
+Calendar PMS. View keys `canViewBookings`. Mutating `canAddBooking` / `canDeleteBooking` / `canCheckIn` / `canCheckOut`. `getPendingFoodTab` is the same OR as `checkOut`. Rollback check-in/out = admin_only. Unassigned **Reject** is admin/manager (`role`), not `canDeleteBooking` — staff 403 on full-cancel of a stay with no assigned beds. Env manager can Reject without that key; assigned cancel still needs `canDeleteBooking`.
 
 ### `/api/admin/inventory`
 
@@ -144,7 +144,7 @@ View list/tabs: `canViewFoodOrders`. Place/void/qty: `canPlaceOrders` or view. P
 
 ### `/api/admin/expenses`
 
-list/getMy: `canViewExpenses`. add: `canAddExpense`. update/delete: edit/delete expense keys. food revenue: `canViewFoodBills`. ledger: `canViewAccounts`. income: `canAddIncome`. reconcile/opening: `canManageAccounts`.
+list/getMy: `canViewExpenses`. add: `canAddExpense`. update/delete: edit/delete expense keys. food revenue **and** room revenue (`getRoomRevenue`): `canViewFoodBills`. ledger: `canViewAccounts`. income: `canAddIncome`. reconcile/opening: `canManageAccounts`.
 
 Accounts UI also uses `canReconcile` on the Reconcile tab.
 

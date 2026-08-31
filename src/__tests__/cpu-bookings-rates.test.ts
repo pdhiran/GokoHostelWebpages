@@ -856,16 +856,20 @@ describe("Bookings calendar and rates workflows", () => {
       },
       assignments: [{ status: "assigned", dormId: 3, bedId: 7 }],
     });
-    const res = await POST(req({ password: "x", action: "checkIn", bookingId: 5, collectPayment: true }));
+    const res = await POST(req({
+      password: "x", action: "checkIn", bookingId: 5, collectPayment: true,
+      paymentMethod: "cash", cashReceived: 31500, changeGiven: 0,
+    }));
     expect(res.status).toBe(200);
     expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
       status: "checked_in",
       amountPaid: 31500,
       paymentStatus: "paid",
+      paymentMethod: "cash",
     }));
   });
 
-  it("checkIn without collectPayment leaves prepaid amountPaid and paymentStatus alone", async () => {
+  it("checkIn without collectPayment records prepaid as online stay revenue", async () => {
     q.getBookingDetail.mockResolvedValue({
       booking: {
         checkinDate: "2026-09-05",
@@ -881,8 +885,12 @@ describe("Bookings calendar and rates workflows", () => {
     expect(res.status).toBe(200);
     const patch = q.updateBookingFull.mock.calls[0][1];
     expect(patch.status).toBe("checked_in");
-    expect(patch.amountPaid).toBeUndefined();
+    expect(patch.amountPaid).toBe(31500);
+    expect(patch.paymentMethod).toBe("online");
     expect(patch.paymentStatus).toBeUndefined();
+    expect(q.addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      details: expect.stringContaining("OTA prepaid ₹31500"),
+    }));
   });
 
   it("checkIn on a channel_manager booking does not push occupancy back to Aiosell", async () => {
@@ -960,5 +968,225 @@ describe("Bookings calendar and rates workflows", () => {
     expect(res.status).toBe(200);
     expect(q.cancelBedAssignments).toHaveBeenCalledWith([11], 42);
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
+  function stay(over: Record<string, unknown> = {}) {
+    return {
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-10",
+        status: "checked_in",
+        amountTotal: 94500,
+        amountPaid: 0,
+        paymentStatus: "pay_at_hotel",
+        paymentMethod: "",
+        cashReceived: 0,
+        ...over,
+      },
+      assignments: [{ id: 11, status: "assigned", dormId: 3, bedId: 7 }],
+    };
+  }
+
+  it("workflow: Later check-in then Dashboard collectStayPayment cash", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({ status: "received" }));
+    const later = await POST(req({ password: "x", action: "checkIn", bookingId: 5, collectPayment: false }));
+    expect(later.status).toBe(200);
+    expect(q.updateBookingFull.mock.calls[0][1].amountPaid).toBeUndefined();
+
+    q.getBookingDetail.mockResolvedValue(stay({ status: "checked_in" }));
+    const collect = await POST(req({
+      password: "x", action: "collectStayPayment", bookingId: 5,
+      paymentMethod: "cash", cashReceived: 94500, changeGiven: 0,
+    }));
+    expect(collect.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenLastCalledWith(5, expect.objectContaining({
+      amountPaid: 94500, paymentStatus: "paid", paymentMethod: "cash",
+    }));
+  });
+
+  it("workflow: collect remaining after price-up becomes split when remainder is online", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({
+      amountTotal: 120000, amountPaid: 100000, paymentStatus: "paid",
+      paymentMethod: "cash", cashReceived: 100000,
+    }));
+    const res = await POST(req({
+      password: "x", action: "collectStayPayment", bookingId: 5,
+      paymentMethod: "online", cashReceived: 0, changeGiven: 0,
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      amountPaid: 120000, paymentMethod: "split", cashReceived: 100000,
+    }));
+  });
+
+  it("workflow: collectStayPayment refuses prepaid and received", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({
+      paymentStatus: "prepaid", amountTotal: 31500, amountPaid: 0, status: "checked_in",
+    }));
+    expect((await POST(req({
+      password: "x", action: "collectStayPayment", bookingId: 5, paymentMethod: "cash", cashReceived: 31500,
+    }))).status).toBe(400);
+
+    q.getBookingDetail.mockResolvedValue(stay({ status: "received" }));
+    expect((await POST(req({
+      password: "x", action: "collectStayPayment", bookingId: 5, paymentMethod: "cash", cashReceived: 94500,
+    }))).status).toBe(409);
+  });
+
+  it("workflow: checkIn prepaid records online stay revenue and ignores a cash collect payload", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({
+      status: "received", paymentStatus: "prepaid", amountTotal: 31500, amountPaid: 0,
+    }));
+    const res = await POST(req({
+      password: "x", action: "checkIn", bookingId: 5, collectPayment: true,
+      paymentMethod: "cash", cashReceived: 31500,
+    }));
+    expect(res.status).toBe(200);
+    const patch = q.updateBookingFull.mock.calls[0][1];
+    expect(patch.status).toBe("checked_in");
+    expect(patch.amountPaid).toBe(31500);
+    expect(patch.paymentMethod).toBe("online");
+    expect(patch.paymentStatus).toBeUndefined();
+  });
+
+  it("workflow: checkIn collectPayment without method is 400 when due", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({ status: "received" }));
+    const res = await POST(req({ password: "x", action: "checkIn", bookingId: 5, collectPayment: true }));
+    expect(res.status).toBe(400);
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
+  it("workflow: split collect with cash above the bill stores cash not inflated split", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({ status: "checked_in" }));
+    const res = await POST(req({
+      password: "x", action: "collectStayPayment", bookingId: 5,
+      paymentMethod: "split", cashReceived: 999999,
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      paymentMethod: "cash", cashReceived: 94500, amountPaid: 94500,
+    }));
+  });
+
+  it("workflow: cancel checked-in refund 0 does not write refund fields", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({ amountPaid: 94500, paymentStatus: "paid", paymentMethod: "cash" }));
+    const res = await POST(req({ password: "x", action: "cancelBooking", bookingId: 5, refundAmount: 0 }));
+    expect(res.status).toBe(200);
+    const patch = q.updateBookingFull.mock.calls[0][1];
+    expect(patch.status).toBe("cancelled");
+    expect(patch.amountRefunded).toBeUndefined();
+    expect(patch.amountPaid).toBeUndefined();
+  });
+
+  it("workflow: cancel checked-in cash refund writes refund and leaves amountPaid", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({
+      amountPaid: 94500, paymentStatus: "paid", paymentMethod: "online",
+    }));
+    const res = await POST(req({
+      password: "x", action: "cancelBooking", bookingId: 5,
+      refundAmount: 50000, refundMethod: "cash",
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      status: "cancelled",
+      amountRefunded: 50000,
+      refundMethod: "cash",
+      refundCash: 50000,
+    }));
+    expect(q.updateBookingFull.mock.calls[0][1].amountPaid).toBeUndefined();
+  });
+
+  it("workflow: cancel refund cannot exceed Goko amountPaid (OTA total is not the cap)", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({
+      amountTotal: 12600000, amountPaid: 0, paymentStatus: "prepaid",
+    }));
+    const res = await POST(req({
+      password: "x", action: "cancelBooking", bookingId: 5,
+      refundAmount: 12600000, refundMethod: "cash",
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull.mock.calls[0][1].amountRefunded).toBeUndefined();
+  });
+
+  it("workflow: cancel refund missing method when amount is due from till is 400", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({ amountPaid: 94500, paymentStatus: "paid" }));
+    const res = await POST(req({
+      password: "x", action: "cancelBooking", bookingId: 5, refundAmount: 94500,
+    }));
+    expect(res.status).toBe(400);
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
+  it("workflow: refund on received stay ignores refundAmount", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({ status: "received", amountPaid: 0 }));
+    const res = await POST(req({
+      password: "x", action: "cancelBooking", bookingId: 5,
+      refundAmount: 94500, refundMethod: "cash",
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull.mock.calls[0][1].amountRefunded).toBeUndefined();
+  });
+
+  it("workflow: staff with canCheckIn can collectStayPayment; view-only cannot", async () => {
+    q.authenticateUser.mockResolvedValue({
+      role: "staff", displayName: "Staff", permissions: { canCheckIn: true },
+    });
+    q.getBookingDetail.mockResolvedValue(stay());
+    expect((await POST(req({
+      password: "x", action: "collectStayPayment", bookingId: 5, paymentMethod: "online",
+    }))).status).toBe(200);
+
+    q.authenticateUser.mockResolvedValue({
+      role: "staff", displayName: "Staff", permissions: { canViewDashboard: true },
+    });
+    expect((await POST(req({
+      password: "x", action: "collectStayPayment", bookingId: 5, paymentMethod: "online",
+    }))).status).toBe(403);
+  });
+
+  it("workflow: cancel split refund clamps cash to the refund amount", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({ amountPaid: 94500, paymentStatus: "paid" }));
+    const res = await POST(req({
+      password: "x", action: "cancelBooking", bookingId: 5,
+      refundAmount: 40000, refundMethod: "split", refundCash: 99999,
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      amountRefunded: 40000, refundMethod: "cash", refundCash: 40000,
+    }));
+  });
+
+  it("workflow: cancel after prepaid check-in can refund the recorded amount", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({
+      amountTotal: 31500, amountPaid: 31500, paymentStatus: "prepaid", paymentMethod: "online",
+    }));
+    const res = await POST(req({
+      password: "x", action: "cancelBooking", bookingId: 5,
+      refundAmount: 31500, refundMethod: "online",
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      status: "cancelled",
+      amountRefunded: 31500,
+      refundMethod: "online",
+      refundCash: 0,
+    }));
+    expect(q.updateBookingFull.mock.calls[0][1].amountPaid).toBeUndefined();
+    expect(q.addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      details: expect.stringContaining("refund ₹31500 online"),
+    }));
+  });
+
+  it("workflow: rollbackCheckIn reverses prepaid check-in recording", async () => {
+    q.getBookingDetail.mockResolvedValue(stay({
+      amountTotal: 31500, amountPaid: 31500, paymentStatus: "prepaid", paymentMethod: "online",
+    }));
+    const res = await POST(req({ password: "x", action: "rollbackCheckIn", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      status: "received",
+      amountPaid: 0,
+      paymentMethod: "",
+    }));
   });
 });

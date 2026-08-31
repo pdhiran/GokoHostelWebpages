@@ -7,8 +7,11 @@ import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { logListQuery, logSafePage } from "@/lib/logRetention";
 import { todayIST } from "@/lib/utils";
+import { addCalendarDays } from "@/lib/inventoryAvailability";
+import { stayDueAtHotel } from "@/lib/stayPayment";
+import { activeCheckinIdsForContact, checkinIdsMatchingContact, getPendingFoodTab } from "@/lib/foodTab";
 import {
-  getCheckinsByMonth, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
+  getCheckinsByMonth, getActiveCheckins, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
   getAllBeds, getBedById, updateBedStatus, getAllDorms, getDormByName, addDorm, addBed, deleteBed, deleteDormAndBeds,
   logBedHistoryEntry, getBedHistoryAll, deleteBedHistoryEntry,
   getSetting, setSetting,
@@ -20,8 +23,8 @@ import {
   addSystemLog, getSystemLogs,
   createReviewRequest, getReviewRequestByCheckinId,
 } from "@/db/queries";
-import { beds, checkins, foodOrders } from "@/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { beds, checkins, foodOrders, bookings } from "@/db/schema";
+import { eq, and, sql, inArray, or } from "drizzle-orm";
 
 async function triggerGithubScrape(scrapeId: number, city: string, startDate: string, endDate: string, propertyType: string, proxyUrl: string = "") {
   const token = process.env.GITHUB_TOKEN;
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest) {
       reExtractFormC: "admin_only", updateFormCData: "admin_only",
       getDashboard: "canViewDashboard", markVibeMatched: "canViewDashboard",
       checkoutBed: ["canCheckout", "canViewDashboard"], checkoutGuest: ["canCheckout", "canViewDashboard"], undoCheckout: ["canCheckout", "canViewDashboard"],
+      getPendingFoodTab: ["canCheckout", "canViewDashboard"],
       getBeds: "canViewBeds", assignBed: ["canAssignBed", "canViewBeds"], unassignBed: ["canAssignBed", "canViewBeds"],
       changeBed: ["canAssignBed", "canViewBeds"], markClean: "canMarkClean",
       getBedHistory: "canViewBeds", deleteBedHistory: "admin_only",
@@ -486,16 +490,9 @@ export async function POST(req: NextRequest) {
 
       const checkoutBeds = allBeds.filter((b) => b.status === "occupied" && b.expectedCheckout && b.expectedCheckout <= today);
 
-      const activeCheckins = allCheckins.filter((r) => r.status === "active");
-      const contactToCheckinId = new Map<string, number>();
-      for (const c of activeCheckins) {
-        if (c.contact) contactToCheckinId.set(c.contact, c.id);
-      }
-
+      const activeCheckins = await getActiveCheckins();
       const uniqueCheckinIds = [...new Set(
-        checkoutBeds
-          .map((b) => (b.guestContact ? contactToCheckinId.get(b.guestContact) : undefined))
-          .filter((id): id is number => id != null)
+        checkoutBeds.flatMap((b) => checkinIdsMatchingContact(activeCheckins, b.guestContact || ""))
       )];
       const tabByCheckin = new Map<number, { pendingTab: number; paidTotal: number; totalOrders: number; pendingOrders: number }>();
       if (uniqueCheckinIds.length > 0) {
@@ -506,25 +503,37 @@ export async function POST(req: NextRequest) {
           total: sql<number>`COALESCE(SUM(${foodOrders.total}), 0)`,
           count: sql<number>`COUNT(*)`,
         }).from(foodOrders)
-          .where(inArray(foodOrders.checkinId, uniqueCheckinIds))
+          .where(and(
+            inArray(foodOrders.checkinId, uniqueCheckinIds),
+            sql`${foodOrders.status} != 'cancelled'`,
+          ))
           .groupBy(foodOrders.checkinId, foodOrders.paymentStatus);
         for (const row of tabRows) {
           if (row.checkinId == null) continue;
           const acc = tabByCheckin.get(row.checkinId) || { pendingTab: 0, paidTotal: 0, totalOrders: 0, pendingOrders: 0 };
-          acc.totalOrders += row.count;
+          acc.totalOrders += Number(row.count) || 0;
           if (row.paymentStatus === "on_tab" || row.paymentStatus === "pending") {
-            acc.pendingTab += row.total;
-            acc.pendingOrders += row.count;
+            acc.pendingTab += Number(row.total) || 0;
+            acc.pendingOrders += Number(row.count) || 0;
           } else if (row.paymentStatus === "paid") {
-            acc.paidTotal += row.total;
+            acc.paidTotal += Number(row.total) || 0;
           }
           tabByCheckin.set(row.checkinId, acc);
         }
       }
 
       const todayCheckoutBeds = checkoutBeds.map((b) => {
-        const checkinId = b.guestContact ? contactToCheckinId.get(b.guestContact) : undefined;
-        const tab = (checkinId && tabByCheckin.get(checkinId)) || { pendingTab: 0, paidTotal: 0, totalOrders: 0, pendingOrders: 0 };
+        const matchedIds = checkinIdsMatchingContact(activeCheckins, b.guestContact || "");
+        const tab = { pendingTab: 0, paidTotal: 0, totalOrders: 0, pendingOrders: 0 };
+        for (const id of matchedIds) {
+          const part = tabByCheckin.get(id);
+          if (!part) continue;
+          tab.pendingTab += part.pendingTab;
+          tab.paidTotal += part.paidTotal;
+          tab.totalOrders += part.totalOrders;
+          tab.pendingOrders += part.pendingOrders;
+        }
+        const checkinId = matchedIds[matchedIds.length - 1];
         return {
           name: b.guestName || "",
           contact: b.guestContact || "",
@@ -557,9 +566,32 @@ export async function POST(req: NextRequest) {
       const guestMinAge = Number(await getSetting("guest_min_age")) || 18;
       const guestMaxAge = Number(await getSetting("guest_max_age")) || 40;
 
+      const db = getDb();
+      const unpaidCheckoutFrom = addCalendarDays(todayIST(), -14);
+      const inHouse = await db.select({
+        id: bookings.id,
+        guestName: bookings.guestName,
+        contact: bookings.contact,
+        checkinDate: bookings.checkinDate,
+        checkoutDate: bookings.checkoutDate,
+        amountTotal: bookings.amountTotal,
+        amountPaid: bookings.amountPaid,
+        paymentStatus: bookings.paymentStatus,
+      }).from(bookings).where(or(
+        eq(bookings.status, "checked_in"),
+        and(eq(bookings.status, "checked_out"), sql`${bookings.checkoutDate} >= ${unpaidCheckoutFrom}`),
+      ));
+      const unpaidStays = inHouse
+        .map((b) => {
+          const due = stayDueAtHotel(b.paymentStatus, b.amountTotal, b.amountPaid);
+          return { ...b, due };
+        })
+        .filter((b) => b.due > 0);
+
       return NextResponse.json({
         todayCheckins: todayCheckinsWithBed,
         todayCheckouts: todayCheckoutBeds,
+        unpaidStays,
         stats: { total, occupied, available, cleanup },
         validationEnabled,
         guestMinAge,
@@ -628,21 +660,23 @@ export async function POST(req: NextRequest) {
       if (bed.guestContact) {
         try {
           const db = getDb();
-          await db.update(checkins).set({ status: "checked_out", checkedOutAt: new Date().toISOString() }).where(
-            and(eq(checkins.contact, bed.guestContact), eq(checkins.status, "active"))
-          );
-          // Auto-create review request for checked-out guest
-          const guestRows = await db.select().from(checkins).where(and(eq(checkins.contact, bed.guestContact), eq(checkins.status, "checked_out"))).limit(1);
-          if (guestRows.length > 0) {
-            const guest = guestRows[0];
-            const existing = await getReviewRequestByCheckinId(guest.id);
-            if (!existing) {
-              const bytes = new Uint8Array(18);
-              crypto.getRandomValues(bytes);
-              const token = Array.from(bytes).map((b) => b.toString(36).padStart(2, "0")).join("").slice(0, 24);
-              createReviewRequest({ token, checkinId: guest.id, guestName: guest.name, guestContact: guest.contact, bookingId: guest.bookingId || "" }).catch((e) => {
-                addSystemLog({ level: "warn", source: "review-funnel", message: `Failed to create review request for checkin ${guest.id}: ${e?.message || "unknown"}` }).catch(() => {});
-              });
+          const ids = await activeCheckinIdsForContact(bed.guestContact);
+          if (ids.length > 0) {
+            await db.update(checkins).set({ status: "checked_out", checkedOutAt: new Date().toISOString() }).where(
+              and(inArray(checkins.id, ids), eq(checkins.status, "active"))
+            );
+            const guestRows = await db.select().from(checkins).where(inArray(checkins.id, ids)).limit(1);
+            if (guestRows.length > 0) {
+              const guest = guestRows[0];
+              const existing = await getReviewRequestByCheckinId(guest.id);
+              if (!existing) {
+                const bytes = new Uint8Array(18);
+                crypto.getRandomValues(bytes);
+                const token = Array.from(bytes).map((b) => b.toString(36).padStart(2, "0")).join("").slice(0, 24);
+                createReviewRequest({ token, checkinId: guest.id, guestName: guest.name, guestContact: guest.contact, bookingId: guest.bookingId || "" }).catch((e) => {
+                  addSystemLog({ level: "warn", source: "review-funnel", message: `Failed to create review request for checkin ${guest.id}: ${e?.message || "unknown"}` }).catch(() => {});
+                });
+              }
             }
           }
         } catch (e: any) {
@@ -653,6 +687,15 @@ export async function POST(req: NextRequest) {
       await addAuditEntry({ username: actingUser, action: "bed_checkout", target: `${bed.bedId} ${bed.guestName || ""}` });
       addSystemLog({ level: "info", source: "admin-api", message: `Checkout: ${bed.bedId} (${bed.guestName || "unknown"}) by ${actingUser}` }).catch(() => {});
       return NextResponse.json({ success: true });
+    }
+
+    if (action === "getPendingFoodTab") {
+      const { checkinId, contact } = rest;
+      const tab = await getPendingFoodTab({
+        checkinId: typeof checkinId === "number" ? checkinId : parseInt(checkinId, 10) || undefined,
+        contact: typeof contact === "string" ? contact : "",
+      });
+      return NextResponse.json(tab);
     }
 
     if (action === "checkoutGuest") {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   XIcon,
@@ -19,11 +19,17 @@ import {
   LogOutIcon,
   BanIcon,
   EditIcon,
+  BanknoteIcon,
 } from "lucide-react";
 import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getNights, collectionCopy, displayedStayPayment } from "./utils";
 import { parseGokoWalkin, walkinDiscountOnGross } from "@/lib/bookingPricing";
+import { stayDueAtHotel, stayRefundCap } from "@/lib/stayPayment";
 import { CheckInPopup } from "./CheckInPopup";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { RecordPaymentModal, PaymentDetailLabel } from "@/components/admin/RecordPaymentModal";
+import { overlayVariants, modalVariants } from "@/lib/animations";
+import { fetchWithRetry } from "@/components/admin/useAdminApi";
+import { foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { hasPermission, type Role } from "../types";
 import type { DashboardBooking, BedAssignment, BookingHistoryEntry } from "./types";
@@ -52,11 +58,16 @@ export function BookingDetailPanel({
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showCheckinPopup, setShowCheckinPopup] = useState(false);
+  const [showCollect, setShowCollect] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundRupees, setRefundRupees] = useState("0");
+  const [refundPay, setRefundPay] = useState<{ amount: number } | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     action: string;
     title: string;
     description: string;
     variant: "default" | "destructive";
+    confirmLabel?: string;
   } | null>(null);
 
   const statusColor = STATUS_COLORS[booking.status] ?? STATUS_COLORS.received;
@@ -96,20 +107,77 @@ export function BookingDetailPanel({
     }
   };
 
+  const promptCheckOut = async () => {
+    setBusy(true);
+    let pendingTab = 0;
+    let pendingOrders = 0;
+    let lookupOk = false;
+    try {
+      const payload: Record<string, unknown> = { password, action: "getPendingFoodTab", bookingId: booking.id };
+      if (username) payload.username = username;
+      const res = await fetchWithRetry("/api/admin/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }, { retries: 2, retryServerError: true });
+      if (res.ok) {
+        const data = await res.json();
+        pendingTab = Number(data.pendingTab) || 0;
+        pendingOrders = Number(data.pendingOrders) || 0;
+        lookupOk = true;
+      }
+    } catch {
+      lookupOk = false;
+    } finally {
+      setBusy(false);
+    }
+    if (!lookupOk) {
+      setConfirmAction({
+        action: "checkOut",
+        title: "Check Out Guest",
+        description: foodTabUncheckedMessage("lookup-failed"),
+        variant: "destructive",
+        confirmLabel: "Check out anyway",
+      });
+      return;
+    }
+    if (pendingTab > 0) {
+      setConfirmAction({
+        action: "checkOut",
+        title: "Unpaid food bill",
+        description: unpaidFoodCheckoutMessage(booking.guestName, pendingTab, pendingOrders),
+        variant: "destructive",
+        confirmLabel: "Check out anyway",
+      });
+      return;
+    }
+    setConfirmAction({
+      action: "checkOut",
+      title: "Check Out Guest",
+      description: `Check out ${booking.guestName}?`,
+      variant: "default",
+    });
+  };
+
   const nights = getNights(booking.checkinDate, booking.checkoutDate);
   const walkin = parseGokoWalkin(booking.rawData);
   const gross = booking.nightlyRate * nights * Math.max(1, booking.persons);
   const discount = walkin
     ? walkinDiscountOnGross(gross, walkin)
     : (booking.source === "manual" ? Math.max(0, gross - booking.amountBeforeTax) : 0);
-  const collection = collectionCopy(booking.paymentStatus, booking.balance);
-  const dueAtHotel = collection ? collection.due : booking.balance > 0;
-  // Prepaid: Paid = total / Balance = ₹0. Ledger amountPaid stays 0. Red Balance uses dueAtHotel, not shownPay.
+  const due = stayDueAtHotel(booking.paymentStatus, booking.amountTotal, booking.amountPaid);
+  const collection = collectionCopy(booking.paymentStatus, due);
+  const dueAtHotel = due > 0;
+  // Prepaid: Paid = total / Balance = ₹0. Check-in copies amountPaid as online; status stays prepaid.
   const shownPay = displayedStayPayment(booking.paymentStatus, booking.amountTotal, booking.amountPaid);
   const hasAssignedBed = assignments.some((a) => a.status === "assigned");
   const canCancelStay = hasAssignedBed
     ? hasPermission(role, permissions, "canDeleteBooking")
     : (role === "admin" || role === "manager");
+  const canCollectStay = due > 0
+    && (booking.status === "checked_in" || booking.status === "checked_out")
+    && (hasPermission(role, permissions, "canAddBooking") || hasPermission(role, permissions, "canCheckIn"));
+  const collectedHint = formatCurrency(booking.amountPaid || 0);
 
   return (
     <>
@@ -224,6 +292,24 @@ export function BookingDetailPanel({
                 highlight={dueAtHotel}
                 className={dueAtHotel ? "text-red-600 dark:text-red-400" : ""}
               />
+              {booking.paymentMethod && (booking.amountPaid || 0) > 0 && (
+                <div className="text-xs">
+                  <PaymentDetailLabel
+                    method={booking.paymentMethod}
+                    total={booking.amountPaid || 0}
+                    cashReceived={booking.cashReceived || 0}
+                    changeGiven={booking.changeGiven || 0}
+                    amountUnit="rupees"
+                  />
+                </div>
+              )}
+              {(booking.amountRefunded || 0) > 0 && (
+                <InfoRow
+                  label="Refunded"
+                  value={`${formatCurrency(booking.amountRefunded || 0)}${booking.refundMethod ? ` (${booking.refundMethod})` : ""}`}
+                  className="text-orange-700 dark:text-orange-400"
+                />
+              )}
               <InfoRow label="Nightly Rate" value={formatCurrency(booking.nightlyRate)} />
               <InfoRow label="Currency" value={booking.currency} />
             </Section>
@@ -306,16 +392,21 @@ export function BookingDetailPanel({
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => setConfirmAction({
-                  action: "checkOut",
-                  title: "Check Out Guest",
-                  description: `Check out ${booking.guestName}?`,
-                  variant: "default",
-                })}
+                onClick={() => { void promptCheckOut(); }}
                 disabled={busy}
               >
                 <LogOutIcon className="size-3.5" />
                 Check Out
+              </Button>
+            )}
+            {canCollectStay && (
+              <Button
+                size="sm"
+                onClick={() => setShowCollect(true)}
+                disabled={busy}
+              >
+                <BanknoteIcon className="size-3.5" />
+                Collect
               </Button>
             )}
             {(booking.status === "received" || booking.status === "hold") &&
@@ -335,6 +426,17 @@ export function BookingDetailPanel({
                   Cancel
                 </Button>
               )}
+            {booking.status === "checked_in" && canCancelStay && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => { setRefundRupees("0"); setRefundOpen(true); }}
+                disabled={busy}
+              >
+                <BanIcon className="size-3.5" />
+                Cancel
+              </Button>
+            )}
             {booking.status === "received" && hasPermission(role, permissions, "canDeleteBooking") && (
               <Button
                 size="sm"
@@ -358,11 +460,108 @@ export function BookingDetailPanel({
       {showCheckinPopup && (
         <CheckInPopup
           booking={booking}
-          onConfirm={async (collectPayment) => {
+          onConfirm={async (collectPayment, extra) => {
             setShowCheckinPopup(false);
-            await handleAction("checkIn", { collectPayment });
+            await handleAction("checkIn", { collectPayment, ...extra });
           }}
           onCancel={() => setShowCheckinPopup(false)}
+        />
+      )}
+
+      {showCollect && (
+        <RecordPaymentModal
+          totalAmount={due}
+          guestName={booking.guestName}
+          amountUnit="rupees"
+          zClass="z-[70]"
+          onConfirm={async (method, cashReceived, changeGiven) => {
+            setShowCollect(false);
+            await handleAction("collectStayPayment", { paymentMethod: method, cashReceived, changeGiven });
+          }}
+          onClose={() => setShowCollect(false)}
+        />
+      )}
+
+      {refundOpen && (
+        <AnimatePresence>
+          <motion.div
+            key="refund-overlay"
+            variants={overlayVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/30 p-4 backdrop-blur-sm"
+            onClick={() => setRefundOpen(false)}
+          >
+            <motion.div
+              key="refund-modal"
+              variants={modalVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="w-full min-w-0 max-w-sm rounded-2xl border border-border bg-popover p-5 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="font-heading text-base font-medium break-words text-foreground">Cancel Stay</h3>
+              <p className="mt-2 break-words text-sm text-muted-foreground">
+                Cancel booking for {booking.guestName}? Beds will be freed. Collected at Goko: {collectedHint}.
+              </p>
+              <label className="mt-3 block text-xs font-medium text-muted-foreground">Refund amount (₹), max {collectedHint}</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={stayRefundCap(booking.amountPaid)}
+                className="mt-1 w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                value={refundRupees}
+                onChange={(e) => setRefundRupees(e.target.value)}
+              />
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <Button variant="outline" size="sm" className="min-w-0" onClick={() => setRefundOpen(false)}>
+                  Back
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="min-w-0"
+                  onClick={() => {
+                    const rupees = Math.max(0, Number(refundRupees) || 0);
+                    const cap = stayRefundCap(booking.amountPaid);
+                    const clamped = Math.min(rupees, cap);
+                    const amount = Math.round(clamped);
+                    setRefundOpen(false);
+                    if (amount <= 0) {
+                      void handleAction("cancelBooking", { refundAmount: 0 });
+                      return;
+                    }
+                    setRefundPay({ amount });
+                  }}
+                >
+                  Continue
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+      )}
+
+      {refundPay && (
+        <RecordPaymentModal
+          totalAmount={refundPay.amount}
+          guestName={booking.guestName}
+          mode="refund"
+          amountUnit="rupees"
+          zClass="z-[70]"
+          onConfirm={async (method, cashReceived) => {
+            const amount = refundPay.amount;
+            setRefundPay(null);
+            await handleAction("cancelBooking", {
+              refundAmount: amount,
+              refundMethod: method,
+              refundCash: method === "cash" ? amount : cashReceived,
+            });
+          }}
+          onClose={() => setRefundPay(null)}
         />
       )}
 
@@ -373,6 +572,7 @@ export function BookingDetailPanel({
           title={confirmAction.title}
           description={confirmAction.description}
           variant={confirmAction.variant}
+          confirmLabel={confirmAction.confirmLabel}
           onConfirm={async () => {
             const action = confirmAction.action;
             setConfirmAction(null);

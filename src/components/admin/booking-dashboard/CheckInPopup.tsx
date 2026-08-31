@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { overlayVariants, modalVariants } from "@/lib/animations";
 import { Button } from "@/components/ui/button";
 import { CreditCardIcon, ClockIcon } from "lucide-react";
 import { formatCurrency, collectionCopy } from "./utils";
+import { stayDueAtHotel } from "@/lib/stayPayment";
+import { RecordPaymentModal } from "@/components/admin/RecordPaymentModal";
 import type { DashboardBooking } from "./types";
 
 export function CheckInPopup({
@@ -13,12 +16,13 @@ export function CheckInPopup({
   onCancel,
 }: {
   booking: DashboardBooking;
-  onConfirm: (collectPayment: boolean) => Promise<void>;
+  onConfirm: (collectPayment: boolean, extra?: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
 }) {
-  const balance = booking.balance;
-  const collection = collectionCopy(booking.paymentStatus, balance);
-  const offerCollect = collection ? collection.due : balance > 0;
+  const [showPay, setShowPay] = useState(false);
+  const due = stayDueAtHotel(booking.paymentStatus, booking.amountTotal, booking.amountPaid);
+  const collection = collectionCopy(booking.paymentStatus, due);
+  const offerCollect = due > 0;
   const paymentDone = !!collection && !collection.due;
 
   return (
@@ -50,12 +54,15 @@ export function CheckInPopup({
             <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-center dark:border-green-800 dark:bg-green-900/20">
               <p className="text-xs text-green-600 dark:text-green-400">{collection.label}</p>
               <p className="mt-1 break-words text-lg font-semibold text-green-700 dark:text-green-300">{collection.value}</p>
+              {collection.value === "Prepaid" && (
+                <p className="mt-1 text-[11px] text-green-600 dark:text-green-400">Adds to stay revenue on check-in</p>
+              )}
             </div>
           ) : offerCollect ? (
             <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-4 text-center dark:border-orange-800 dark:bg-orange-900/20">
               <p className="text-xs text-orange-600 dark:text-orange-400">{collection?.label || "Balance Due"}</p>
               <p className="mt-1 break-words text-2xl font-bold tabular-nums text-orange-700 dark:text-orange-300">
-                {formatCurrency(balance)}
+                {formatCurrency(due)}
               </p>
             </div>
           ) : (
@@ -69,7 +76,7 @@ export function CheckInPopup({
               <Button
                 className="min-w-0 flex-1"
                 size="sm"
-                onClick={() => onConfirm(true)}
+                onClick={() => setShowPay(true)}
               >
                 <CreditCardIcon className="size-3.5" />
                 Collected
@@ -101,6 +108,20 @@ export function CheckInPopup({
           </button>
         </motion.div>
       </motion.div>
+
+      {showPay && (
+        <RecordPaymentModal
+          totalAmount={due}
+          guestName={booking.guestName}
+          amountUnit="rupees"
+          zClass="z-[70]"
+          onConfirm={(method, cashReceived, changeGiven) => {
+            setShowPay(false);
+            void onConfirm(true, { paymentMethod: method, cashReceived, changeGiven });
+          }}
+          onClose={() => setShowPay(false)}
+        />
+      )}
     </AnimatePresence>
   );
 }

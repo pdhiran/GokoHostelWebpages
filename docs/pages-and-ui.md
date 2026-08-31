@@ -47,7 +47,7 @@ Lazy-loaded in `src/app/admin/page.tsx`. Query `?section=` / `?tab=` via `useTab
 
 | `section` | Component | API | Perm (non-admin) |
 |-----------|-----------|-----|------------------|
-| `dashboard` | `AdminDashboard` | checkins `getDashboard` | `canViewDashboard` |
+| `dashboard` | `AdminDashboard` | checkins `getDashboard`; today-checkout live `getPendingFoodTab` | `canViewDashboard` |
 | `bookings` | `booking-dashboard/` | `/api/admin/bookings` | `canViewBookings` |
 | `beds` | `AdminBeds` | checkins beds | `canViewBeds` |
 | `timeline` | `AdminTimeline` | checkins `getBeds` | `canViewTimeline` |
@@ -98,11 +98,11 @@ Most `adminOnly: true`. Website hidden when `NEXT_PUBLIC_GOKO_RUNTIME === "pi"`.
 |------|------|
 | `index.tsx` | Calendar shell |
 | `BookingCalendarGrid.tsx` | Bars by dorm/night |
-| `BookingDetailPanel.tsx` | Check-in/out, pay, cancel |
+| `BookingDetailPanel.tsx` | Check-in/out (food-tab warn), Collect, cancel-with-refund |
 | `CreateBookingModal.tsx` | Walk-in / engine |
 | `UnassignedBookings.tsx` | OTA leftover chips, Reject |
 | `BookingSearchBar.tsx` / `DateRangeSelector.tsx` / `BookingMobileDayView.tsx` / `BookingTableView.tsx` / `BookingTile.tsx` | chrome |
-| `CheckInPopup.tsx` | Collect payment vs prepaid |
+| `CheckInPopup.tsx` | Collected → `RecordPaymentModal`; Later = check-in unpaid |
 | `utils.ts` / `types.ts` | date math, types |
 
 Calendar POSTs use `fetchWithRetry("/api/admin/bookings", …)` — not `useAdminApi`.
@@ -118,7 +118,8 @@ Calendar POSTs use `fetchWithRetry("/api/admin/bookings", …)` — not `useAdmi
 | `PwaInstallBanner.tsx` | registers `/sw.js` scope `/` |
 | `SyncStatusBar.tsx` | Pi/CF badge |
 | `FoodBillGenerator.tsx` | jsPDF dynamic import |
-| `DailyLedger.tsx` / `DailyReconcile.tsx` / `AdminAddExpense.tsx` | Accounts tabs |
+| `DailyLedger.tsx` / `DailyReconcile.tsx` / `AdminAddExpense.tsx` / `AdminFoodBill.tsx` / `AdminRoomRevenue.tsx` | Accounts tabs |
+| `RecordPaymentModal.tsx` | Shared Cash/Online/Split collect + refund; food + stay |
 
 ---
 
@@ -129,7 +130,7 @@ Calendar POSTs use `fetchWithRetry("/api/admin/bookings", …)` — not `useAdmi
 | Auth / nav | `auth.ts`, `actionPermissions.ts`, `adminNav.ts` |
 | Runtime | `runtime.ts`, `dbRetry.ts`, `sqliteWriteCount.ts` |
 | Google / ID | `googleApiFetch.ts`, `validateIdDocument.ts`, `parsePassportData.ts`, `parseDob.ts`, `checkinSchema.ts`, `checkinLookup.ts`, `phoneUtils.ts` |
-| PMS / Aiosell | `inventoryAvailability.ts`, `aiosell.ts`, `aiosellSync.ts`, `channelMapping.ts`, `channelAutoAssign.ts`, `bookingPricing.ts`, `pmsLog.ts`, `pmsLogSummary.ts`, `logRetention.ts`, `logExport.ts` |
+| PMS / Aiosell | `inventoryAvailability.ts`, `aiosell.ts`, `aiosellSync.ts`, `channelMapping.ts`, `channelAutoAssign.ts`, `bookingPricing.ts`, `stayPayment.ts`, `pmsLog.ts`, `pmsLogSummary.ts`, `logRetention.ts`, `logExport.ts` |
 | Sync | `syncEngine.ts` |
 | CMS | `siteContent.ts`, `siteCopy.ts`, `mediaR2.ts`, `mediaKeys.ts`, `processSiteImage.ts`, `cropRect.ts` |
 | Food | `kitchenHours.ts`, `foodLookup.ts`, `orderStatus.ts`, `thermalPrint.ts` |

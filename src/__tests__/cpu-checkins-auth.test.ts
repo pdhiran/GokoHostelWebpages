@@ -20,6 +20,7 @@ vi.mock("@/lib/aiosellSync", () => ({ triggerInventoryPush: vi.fn() }));
 vi.mock("@/db", () => ({ getDb: vi.fn() }));
 vi.mock("@/db/queries", () => ({
   getCheckinsByMonth,
+  getActiveCheckins: vi.fn(),
   addCheckin: vi.fn(),
   updateCheckin: vi.fn(),
   deleteCheckin: vi.fn(),

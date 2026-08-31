@@ -641,6 +641,11 @@ describe("collectionCopy / check-in payment labels", () => {
     expect(collectionCopy("prepaid", 31500)).toEqual({ label: "Payment done", value: "Prepaid", due: false });
     expect(collectionCopy("paid", 0)).toEqual({ label: "Payment done", value: "Collected", due: false });
     expect(collectionCopy("pay_at_hotel", 0)).toEqual({ label: "Payment done", value: "Collected", due: false });
+    expect(collectionCopy("paid", 2000)).toEqual({
+      label: "Collect remaining",
+      value: formatCurrency(2000),
+      due: true,
+    });
   });
 
   it("prepaid card shows OTA total as Paid and ₹0 Balance without writing amountPaid", () => {
@@ -658,8 +663,7 @@ describe("collectionCopy / check-in payment labels", () => {
 
   it("detail panel paints Balance red for hotel-due or unknown unpaid, not prepaid", () => {
     const panel = readFile("src/components/admin/booking-dashboard/BookingDetailPanel.tsx");
-    expect(panel).toContain("collectionCopy(booking.paymentStatus, booking.balance)");
-    expect(panel).toContain("collection ? collection.due : booking.balance > 0");
+    expect(panel).toContain("stayDueAtHotel(booking.paymentStatus, booking.amountTotal, booking.amountPaid)");
     expect(panel).toContain("displayedStayPayment(booking.paymentStatus, booking.amountTotal, booking.amountPaid)");
     expect(panel).toContain("formatCurrency(shownPay.paid)");
     expect(panel).toContain("formatCurrency(shownPay.balance)");
@@ -675,20 +679,34 @@ describe("collectionCopy / check-in payment labels", () => {
     expect(due("unknown", 5000)).toBe(true);
     expect(due("unknown", 0)).toBe(false);
     expect(due("paid", 0)).toBe(false);
+    expect(due("paid", 2000)).toBe(true);
   });
 
   it("CheckInPopup skips Collected for prepaid and still offers it when due at hotel or unknown with balance", () => {
     const popup = readFile("src/components/admin/booking-dashboard/CheckInPopup.tsx");
-    expect(popup).toContain("collectionCopy(booking.paymentStatus, balance)");
-    expect(popup).toContain("const offerCollect = collection ? collection.due : balance > 0");
+    expect(popup).toContain("stayDueAtHotel(booking.paymentStatus, booking.amountTotal, booking.amountPaid)");
+    expect(popup).toContain("const offerCollect = due > 0");
     expect(popup).toContain("{offerCollect && (");
     expect(popup).toContain("Collected");
     expect(popup).toContain("onConfirm(false)");
+    expect(popup).toContain("Adds to stay revenue on check-in");
+    expect(popup).toContain('amountUnit="rupees"');
     expect(popup).toContain("flex items-center justify-center");
     expect(popup).toContain("p-4");
     expect(popup).toContain("overflow-y-auto");
     expect(popup).not.toContain("left-1/2");
     expect(popup).not.toContain("-translate-x-1/2");
+  });
+
+  it("checked-in detail has Collect and Cancel with refund amount", () => {
+    const panel = readFile("src/components/admin/booking-dashboard/BookingDetailPanel.tsx");
+    expect(panel).toContain("canCollectStay");
+    expect(panel).toContain("collectStayPayment");
+    expect(panel).toContain("stayRefundCap(booking.amountPaid)");
+    expect(panel).toContain('amountUnit="rupees"');
+    expect(panel).toContain('mode="refund"');
+    expect(panel).toContain("flex items-center justify-center");
+    expect(panel).not.toContain("left-1/2");
   });
 
   it("ConfirmDialog and CheckInPopup center in a padded overlay so Framer scale/y cannot un-center them on mobile", () => {
@@ -710,8 +728,11 @@ describe("collectionCopy / check-in payment labels", () => {
     const checkIn = route.match(/action === "checkIn"[\s\S]*?action === "checkOut"/);
     expect(checkIn).not.toBeNull();
     const section = checkIn![0];
-    expect(section).toContain("if (collectPayment)");
-    expect(section).toContain("updateData.amountPaid = detail.booking.amountTotal ?? 0");
-    expect(section).toContain('updateData.paymentStatus = "paid"');
+    expect(section).toContain("if (collectPayment && dueAtCheckIn > 0)");
+    expect(section).toContain("mergeStayCollect");
+    expect(section).toContain("isStayPayMethod(paymentMethod)");
+    expect(section).toContain("Object.assign(updateData, merged)");
+    expect(section).toContain("prepaidCheckInWrite");
+    expect(section).toContain("collectStayPayment");
   });
 });

@@ -12,6 +12,7 @@ import { hasPermission } from "./types";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { usePanelHistory } from "@/hooks/usePanelHistory";
+import { RecordPaymentModal, PaymentDetailLabel } from "@/components/admin/RecordPaymentModal";
 
 type FoodTab = "summary" | "place" | "combined" | "payment" | "active";
 
@@ -1557,7 +1558,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
 
       {/* Payment Modal */}
       {paymentModalGroup && (
-        <PaymentModal
+        <RecordPaymentModal
           totalAmount={actualGroupTotal}
           guestName={paymentModalGroup.guestName}
           initialMethod={paymentModalMethod}
@@ -2485,7 +2486,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
 
       {/* Payment Modal for marking paid */}
       {paymentEditOrder && (
-        <PaymentModal
+        <RecordPaymentModal
           totalAmount={paymentEditOrder.total}
           guestName={selectedGroup?.guestName || ""}
           initialMethod={paymentEditOrder.paymentStatus === "paid" ? (paymentEditOrder.paymentMethod || "online") : "online"}
@@ -3130,219 +3131,6 @@ export function formatAdminModification(mod: OrderModification): string {
   }
 }
 
-// ─── Payment Modal ───────────────────────────────────────────────────────────
-
-type PaymentTab = "cash" | "online" | "split";
-
-function PaymentModal({
-  totalAmount,
-  guestName,
-  initialMethod,
-  initialCash,
-  onConfirm,
-  onClose,
-}: {
-  totalAmount: number;
-  guestName: string;
-  initialMethod?: string;
-  initialCash?: number;
-  onConfirm: (method: string, cashReceived: number, changeGiven: number) => void;
-  onClose: () => void;
-}) {
-  const defaultTab: PaymentTab = initialMethod === "cash" ? "cash" : initialMethod === "split" ? "split" : "online";
-  const [activeTab, setActiveTab] = useState<PaymentTab>(defaultTab);
-  const defaultCash = initialCash && initialCash > 0 ? (initialCash / 100).toString() : (totalAmount / 100).toString();
-  const [cashInput, setCashInput] = useState(defaultCash);
-  const [splitCash, setSplitCash] = useState("");
-  const [splitOnline, setSplitOnline] = useState((totalAmount / 100).toString());
-  const [saving, setSaving] = useState(false);
-
-  const totalRupees = totalAmount / 100;
-
-  const cashValue = Number(cashInput) || 0;
-  const changeDue = cashValue - totalRupees;
-
-  const splitCashVal = Number(splitCash) || 0;
-  const splitOnlineVal = Number(splitOnline) || 0;
-  const splitTotal = splitCashVal + splitOnlineVal;
-
-  useEffect(() => {
-    const online = totalRupees - splitCashVal;
-    setSplitOnline(online > 0 ? online.toString() : "0");
-  }, [splitCash, totalRupees]);
-
-  const handleSave = () => {
-    setSaving(true);
-    if (activeTab === "cash") {
-      const received = Math.round(cashValue * 100);
-      const change = changeDue > 0 ? Math.round(changeDue * 100) : 0;
-      onConfirm("cash", received, change);
-    } else if (activeTab === "online") {
-      onConfirm("online", 0, 0);
-    } else {
-      const cashPaise = Math.round(splitCashVal * 100);
-      const onlinePaise = Math.round(splitOnlineVal * 100);
-      onConfirm("split", cashPaise, 0);
-    }
-  };
-
-  const canSave = (() => {
-    if (saving) return false;
-    if (activeTab === "cash") return cashValue >= totalRupees;
-    if (activeTab === "online") return true;
-    if (activeTab === "split") return splitCashVal > 0 && splitOnlineVal > 0 && splitTotal >= totalRupees;
-    return false;
-  })();
-
-  const tabs: { id: PaymentTab; label: string; icon: React.ReactNode }[] = [
-    { id: "cash", label: "Cash", icon: <BanknoteIcon className="h-4 w-4" /> },
-    { id: "online", label: "Online", icon: <SmartphoneIcon className="h-4 w-4" /> },
-    { id: "split", label: "Split", icon: <><BanknoteIcon className="h-3.5 w-3.5" /><span className="text-[10px]">+</span><SmartphoneIcon className="h-3.5 w-3.5" /></> },
-  ];
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-card shadow-2xl dark:shadow-none animate-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
-          <div>
-            <h3 className="text-base font-bold text-brand-green-dark">Record Payment</h3>
-            <p className="text-xs text-brand-green-dark/50">{guestName}</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-brand-sand">
-            <XIcon className="h-5 w-5 text-brand-green-dark/60" />
-          </button>
-        </div>
-
-        {/* Bill Total */}
-        <div className="bg-brand-sand/40 px-5 py-3 text-center">
-          <p className="text-xs text-brand-green-dark/60">Bill Total</p>
-          <p className="text-2xl font-bold text-brand-green">₹{totalRupees.toFixed(0)}</p>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-brand-mist px-5 pt-3 pb-0">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-t-lg px-4 py-2 text-sm font-medium transition-colors",
-                activeTab === t.id
-                  ? "border-b-2 border-brand-green bg-brand-green/[0.06] text-brand-green"
-                  : "text-brand-green-dark/50 hover:text-brand-green-dark/70"
-              )}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab Content */}
-        <div className="px-5 py-4">
-          {activeTab === "cash" && (
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Cash Received (₹)</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  className="w-full rounded-lg border border-brand-mist px-3 py-2.5 text-lg font-semibold text-brand-green-dark focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                  value={cashInput}
-                  onChange={(e) => setCashInput(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              {cashValue > 0 && changeDue > 0 && (
-                <div className="rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 px-3 py-2">
-                  <p className="text-sm font-semibold text-green-700 dark:text-green-400">Change Due: ₹{changeDue.toFixed(0)}</p>
-                </div>
-              )}
-              {cashValue > 0 && changeDue < 0 && (
-                <div className="rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 px-3 py-2 space-y-1">
-                  <p className="text-sm font-semibold text-red-600 dark:text-red-400">Remaining: ₹{Math.abs(changeDue).toFixed(0)}</p>
-                  <button
-                    type="button"
-                    onClick={() => { setActiveTab("split"); setSplitCash(cashInput); }}
-                    className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
-                  >
-                    Record remaining as Online
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === "online" && (
-            <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-4 text-center">
-              <SmartphoneIcon className="mx-auto mb-2 h-8 w-8 text-blue-500" />
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                Mark <span className="font-bold">₹{totalRupees.toFixed(0)}</span> as paid online?
-              </p>
-            </div>
-          )}
-
-          {activeTab === "split" && (
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Cash Amount (₹)</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  className="w-full rounded-lg border border-brand-mist px-3 py-2.5 text-base font-semibold text-brand-green-dark focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                  value={splitCash}
-                  onChange={(e) => setSplitCash(e.target.value)}
-                  placeholder="0"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-brand-green-dark/70">Online Amount (₹)</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  className="w-full rounded-lg border border-brand-mist px-3 py-2.5 text-base font-semibold text-brand-green-dark focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                  value={splitOnline}
-                  onChange={(e) => setSplitOnline(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-              <div className={cn(
-                "rounded-lg px-3 py-2 text-sm font-medium",
-                splitTotal >= totalRupees ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
-              )}>
-                Total: ₹{splitTotal.toFixed(0)} / ₹{totalRupees.toFixed(0)}
-                {splitTotal < totalRupees && <span className="ml-1 text-xs">(₹{(totalRupees - splitTotal).toFixed(0)} short)</span>}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex gap-2 border-t border-brand-mist px-5 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-lg border border-brand-mist px-4 py-2.5 text-sm font-medium text-brand-green-dark/70 hover:bg-brand-sand"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className="flex-1 rounded-lg bg-brand-green px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-green/90 disabled:opacity-40"
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Discount Modal ──────────────────────────────────────────────────────────
 
 const DISCOUNT_REASONS = ["Complimentary", "Staff Meal", "Loyalty Guest", "Service Issue", "Manager Discount", "Other"];
@@ -3600,28 +3388,6 @@ function formatTimeSince(isoDate: string): string {
 }
 
 // ─── Shared Components ───────────────────────────────────────────────────────
-
-export function PaymentDetailLabel({ method, total, cashReceived, changeGiven }: { method: string; total: number; cashReceived: number; changeGiven: number }) {
-  const fmt = (paise: number) => `₹${(paise / 100).toFixed(0)}`;
-  if (method === "cash") {
-    if (cashReceived > 0) {
-      return <span className="text-green-700 dark:text-green-400">Cash — Received {fmt(cashReceived)}{changeGiven > 0 ? `, Change ${fmt(changeGiven)}` : ""}</span>;
-    }
-    return <span className="text-green-700 dark:text-green-400">Cash — {fmt(total)}</span>;
-  }
-  if (method === "online") {
-    return <span className="text-blue-700 dark:text-blue-400">Online — {fmt(total)}</span>;
-  }
-  if (method === "split") {
-    const cashAfterChange = cashReceived - (changeGiven || 0);
-    const onlinePart = total - cashAfterChange;
-    if (onlinePart <= 0) {
-      return <span className="text-green-700 dark:text-green-400">Cash — Received {fmt(cashReceived)}{changeGiven > 0 ? `, Change ${fmt(changeGiven)}` : ""}</span>;
-    }
-    return <span className="text-purple-700 dark:text-purple-400">Split — Cash {fmt(cashAfterChange)} + Online {fmt(onlinePart)}</span>;
-  }
-  return <span>{method}</span>;
-}
 
 export function LoadingState() {
   return (

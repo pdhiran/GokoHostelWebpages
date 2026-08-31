@@ -22,7 +22,7 @@ Uploads: multipart, not JSON. Admin password in FormData too.
 
 ## Money / dates
 
-Paise integers. `Math.round(parseFloat(rupees) * 100)`. Display `/ 100`. Dates ISO or `YYYY-MM-DD`. Months `JUNE-2026`.
+Paise integers for food, expenses, ledger, salary. `Math.round(parseFloat(rupees) * 100)`. Display `/ 100`. **Bookings / Room Revenue are rupees** — pass `amountUnit="rupees"` into `RecordPaymentModal`; do not divide by 100. Dates ISO or `YYYY-MM-DD`. Months `JUNE-2026`.
 
 ## Auth
 

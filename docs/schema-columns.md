@@ -1,6 +1,6 @@
 # Schema columns
 
-**Git-safe.** Generated from `src/db/schema.ts` (52 tables). Money columns are integer **paise**. Sync extras (`sync_id`, `sync_updated_at`, `sync_source`, often `deleted_at`) are listed when the table spreads `syncColumns` / `syncColumnsWithDelete`.
+**Git-safe.** Generated from `src/db/schema.ts` (52 tables). Money columns are integer **paise**, except `bookings` amounts which are **rupees**. Sync extras (`sync_id`, `sync_updated_at`, `sync_source`, often `deleted_at`) are listed when the table spreads `syncColumns` / `syncColumnsWithDelete`.
 
 Source of truth if this file lags: `src/db/schema.ts`. Role of each table: [data-model.md](data-model.md). FKs: [relationships.md](relationships.md).
 
@@ -16,7 +16,7 @@ Source of truth if this file lags: `src/db/schema.ts`. Role of each table: [data
 | `audit_log` | 8 |
 | `system_logs` | 7 |
 | `rate_scrapes` | 9 |
-| `bookings` | 38 |
+| `bookings` | 46 |
 | `menu_categories` | 13 |
 | `menu_items` | 19 |
 | `food_orders` | 31 |
@@ -243,7 +243,15 @@ Source of truth if this file lags: `src/db/schema.ts`. Role of each table: [data
 | `amount_before_tax` | integer | default 0 |
 | `amount_tax` | integer | default 0 |
 | `amount_total` | integer | default 0 |
-| `amount_paid` | integer | default 0 |
+| `amount_paid` | integer | default 0 — rupees; prepaid ingest 0, calendar check-in copies total as online |
+| `payment_method` | text | NOT NULL default "" — cash / online / split |
+| `cash_received` | integer | NOT NULL default 0 — split cash rupees, or cash-tab tender |
+| `change_given` | integer | NOT NULL default 0 |
+| `amount_refunded` | integer | NOT NULL default 0 — cancel-after-check-in; does not reduce `amount_paid` |
+| `refund_method` | text | NOT NULL default "" |
+| `refund_cash` | integer | NOT NULL default 0 |
+| `refunded_at` | text | NOT NULL default "" |
+| `refunded_by` | text | NOT NULL default "" |
 | `nightly_rate` | integer | default 0 |
 | `currency` | text | default "INR" |
 | `email` | text | default "" |

@@ -15,6 +15,7 @@ const CHECKINS_PERMISSIONS: Record<string, ActionPerm> = {
   reExtractFormC: "admin_only", updateFormCData: "admin_only",
   getDashboard: "canViewDashboard", markVibeMatched: "canViewDashboard",
   checkoutBed: ["canCheckout", "canViewDashboard"], checkoutGuest: ["canCheckout", "canViewDashboard"], undoCheckout: ["canCheckout", "canViewDashboard"],
+  getPendingFoodTab: ["canCheckout", "canViewDashboard"],
   getBeds: "canViewBeds", assignBed: ["canAssignBed", "canViewBeds"], unassignBed: ["canAssignBed", "canViewBeds"],
   changeBed: ["canAssignBed", "canViewBeds"], markClean: "canMarkClean",
   getBedHistory: "canViewBeds", deleteBedHistory: "admin_only",
@@ -47,6 +48,7 @@ const EXPENSES_PERMISSIONS: Record<string, ActionPerm> = {
   listExpenses: "canViewExpenses", getMyExpenses: "canViewExpenses",
   addExpense: "canAddExpense", updateExpense: "canEditExpense", deleteExpense: "canDeleteExpense",
   getFoodRevenue: "canViewFoodBills",
+  getRoomRevenue: "canViewFoodBills",
   getDailyLedger: "canViewAccounts", getReconciliation: "canViewAccounts",
   addDailyIncome: "canAddIncome", deleteDailyIncome: "canAddIncome",
   saveReconciliation: "canManageAccounts", undoReconciliation: "canManageAccounts",
@@ -55,7 +57,9 @@ const EXPENSES_PERMISSIONS: Record<string, ActionPerm> = {
 
 const BOOKINGS_PERMISSIONS: Record<string, ActionPerm> = {
   checkIn: ["canCheckIn", "canAddBooking"],
+  collectStayPayment: ["canCheckIn", "canAddBooking"],
   checkOut: ["canCheckOut", "canAddBooking"],
+  getPendingFoodTab: ["canCheckOut", "canAddBooking"],
   createBooking: "canAddBooking",
 };
 
@@ -159,6 +163,7 @@ describe("RBAC: Staff with specific permissions", () => {
     const permissions = { canViewDashboard: true };
     expect(checkPermission(role, permissions, CHECKINS_PERMISSIONS, "getDashboard")).toBe("allowed");
     expect(checkPermission(role, permissions, CHECKINS_PERMISSIONS, "checkoutBed")).toBe("allowed");
+    expect(checkPermission(role, permissions, CHECKINS_PERMISSIONS, "getPendingFoodTab")).toBe("allowed");
     expect(checkPermission(role, permissions, CHECKINS_PERMISSIONS, "markVibeMatched")).toBe("allowed");
   });
 
@@ -207,8 +212,11 @@ describe("RBAC: Dual-key OR (fine-grained or today's coarse key)", () => {
   it("bookings checkIn/checkOut allowed with canAddBooking or dedicated keys", () => {
     expect(checkPermission(role, { canAddBooking: true }, BOOKINGS_PERMISSIONS, "checkIn")).toBe("allowed");
     expect(checkPermission(role, { canCheckIn: true }, BOOKINGS_PERMISSIONS, "checkIn")).toBe("allowed");
+    expect(checkPermission(role, { canCheckIn: true }, BOOKINGS_PERMISSIONS, "collectStayPayment")).toBe("allowed");
     expect(checkPermission(role, { canCheckOut: true }, BOOKINGS_PERMISSIONS, "checkOut")).toBe("allowed");
+    expect(checkPermission(role, { canCheckOut: true }, BOOKINGS_PERMISSIONS, "getPendingFoodTab")).toBe("allowed");
     expect(checkPermission(role, { canCheckIn: true }, BOOKINGS_PERMISSIONS, "checkOut")).toBe("forbidden");
+    expect(checkPermission(role, { canCheckIn: true }, BOOKINGS_PERMISSIONS, "getPendingFoodTab")).toBe("forbidden");
   });
 });
 

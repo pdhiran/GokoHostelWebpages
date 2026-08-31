@@ -8,7 +8,10 @@ import { cn, localDateStr } from "@/lib/utils";
 import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
 import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon, CheckCircleIcon, UtensilsIcon } from "lucide-react";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
-import type { Role, AdminSection } from "./types";
+import { RecordPaymentModal } from "@/components/admin/RecordPaymentModal";
+import { useAdminToast } from "@/components/admin/AdminToast";
+import { hasPermission, type Role, type AdminSection } from "./types";
+import { foodTabUncheckedMessage } from "@/lib/foodTab";
 
 export function AdminDashboard({
   password,
@@ -24,6 +27,7 @@ export function AdminDashboard({
   permissions?: Record<string, boolean>;
 }) {
   const { apiCall } = useAdminApi(password, username);
+  const { showError } = useAdminToast();
   const [todayCheckins, setTodayCheckins] = useState<{ row: string[]; assignedBed: string | null; dob: string; dobFromId: string; vibeMatched: number }[]>([]);
   const [todayCheckouts, setTodayCheckouts] = useState<{
     name: string; contact: string; bedId: string; dorm: string; bedIdx: number; expectedCheckout: string;
@@ -35,6 +39,11 @@ export function AdminDashboard({
   const [loading, setLoading] = useState(true);
   const [busyIdx, setBusyIdx] = useState<number | null>(null);
   const [ageRange, setAgeRange] = useState({ min: 18, max: 40 });
+  const [unpaidStays, setUnpaidStays] = useState<{
+    id: number; guestName: string; contact: string; checkinDate: string; checkoutDate: string; due: number; amountTotal: number;
+  }[]>([]);
+  const [stayPay, setStayPay] = useState<{ id: number; name: string; due: number } | null>(null);
+  const [stayPayBusy, setStayPayBusy] = useState(false);
   const [vibeMatchingId, setVibeMatchingId] = useState<number | null>(null);
 
   useEffect(() => { loadDashboard(); }, []);
@@ -47,6 +56,7 @@ export function AdminDashboard({
         const data = await res.json();
         setTodayCheckins(data.todayCheckins || []);
         setTodayCheckouts(data.todayCheckouts || []);
+        setUnpaidStays(data.unpaidStays || []);
         setStats(data.stats || { total: 0, occupied: 0, available: 0, cleanup: 0 });
         setValidationOn(data.validationEnabled !== false);
         if (data.guestMinAge || data.guestMaxAge) {
@@ -66,23 +76,23 @@ export function AdminDashboard({
   };
 
   const [checkoutModal, setCheckoutModal] = useState<{
-    bedIdx: number; name: string; pendingTab: number; pendingOrders: number; checkinId: number | null; contact: string;
+    bedIdx: number; name: string; pendingTab: number; pendingOrders: number; checkinId: number | null; contact: string; orderIds: number[];
   } | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
+
+  const bookingsApiCall = useCallback(async (body: Record<string, any>) => {
+    const payload: Record<string, any> = { password, ...body };
+    if (username) payload.username = username;
+    return fetch("/api/admin/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  }, [password, username]);
+
+  const canCollectStay = hasPermission(role, permissions || {}, "canCheckIn") || hasPermission(role, permissions || {}, "canAddBooking");
 
   const foodApiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
     if (username) payload.username = username;
     return fetch("/api/admin/food-orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   }, [password, username]);
-
-  const handleCheckoutClick = (co: typeof todayCheckouts[0]) => {
-    if (co.pendingTab > 0) {
-      setCheckoutModal({ bedIdx: co.bedIdx, name: co.name, pendingTab: co.pendingTab, pendingOrders: co.pendingOrders, checkinId: co.checkinId, contact: co.contact });
-    } else {
-      doCheckout(co.bedIdx);
-    }
-  };
 
   const doCheckout = async (bedIdx: number) => {
     setBusyIdx(bedIdx);
@@ -93,17 +103,58 @@ export function AdminDashboard({
     } finally { setBusyIdx(null); setCheckoutBusy(false); }
   };
 
+  const handleCheckoutClick = async (co: typeof todayCheckouts[0]) => {
+    setBusyIdx(co.bedIdx);
+    try {
+      if (!co.contact && !co.checkinId) {
+        if (!confirm(foodTabUncheckedMessage("no-phone"))) return;
+        await doCheckout(co.bedIdx);
+        return;
+      }
+      const res = await apiCall({
+        action: "getPendingFoodTab",
+        checkinId: co.checkinId || undefined,
+        contact: co.contact || "",
+      });
+      if (!res.ok) {
+        if (!confirm(foodTabUncheckedMessage("lookup-failed"))) return;
+        await doCheckout(co.bedIdx);
+        return;
+      }
+      const tab = await res.json();
+      const pendingTab = Number(tab.pendingTab) || 0;
+      if (pendingTab > 0) {
+        setCheckoutModal({
+          bedIdx: co.bedIdx,
+          name: co.name,
+          pendingTab,
+          pendingOrders: Number(tab.pendingOrders) || 0,
+          checkinId: tab.checkinId || co.checkinId,
+          contact: co.contact,
+          orderIds: Array.isArray(tab.orderIds) ? tab.orderIds : [],
+        });
+        return;
+      }
+      await doCheckout(co.bedIdx);
+    } finally {
+      setBusyIdx(null);
+    }
+  };
+
   const handleCheckoutWithPayment = async (method: string) => {
-    if (!checkoutModal || !checkoutModal.checkinId) return;
+    if (!checkoutModal) return;
     setCheckoutBusy(true);
     try {
-      const tabRes = await foodApiCall({ action: "getGuestTab", checkinId: checkoutModal.checkinId });
-      if (tabRes.ok) {
-        const tabData = await tabRes.json();
-        const orderIds = (tabData.orders || []).map((o: any) => o.id);
-        if (orderIds.length > 0) {
-          await foodApiCall({ action: "markOrderPaid", orderIds, paymentMethod: method });
+      let orderIds = [...checkoutModal.orderIds];
+      if (orderIds.length === 0 && checkoutModal.checkinId) {
+        const tabRes = await foodApiCall({ action: "getGuestTab", checkinId: checkoutModal.checkinId });
+        if (tabRes.ok) {
+          const tabData = await tabRes.json();
+          orderIds = (tabData.orders || []).map((o: { id: number }) => o.id);
         }
+      }
+      if (orderIds.length > 0) {
+        await foodApiCall({ action: "markOrderPaid", orderIds, paymentMethod: method });
       }
       await doCheckout(checkoutModal.bedIdx);
     } catch {
@@ -200,6 +251,42 @@ export function AdminDashboard({
             {stats.cleanup > 0 && <div className="bg-orange-400" style={{ width: `${(stats.cleanup / stats.total) * 100}%` }} />}
             {stats.available > 0 && <div className="bg-green-400" style={{ width: `${(stats.available / stats.total) * 100}%` }} />}
           </div>
+        </div>
+      )}
+
+      {/* Unpaid stay */}
+      {unpaidStays.length > 0 && (
+        <div className="mt-4 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-3 sm:p-4">
+          <div className="flex items-center gap-2 px-1">
+            <BanknoteIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
+            <span className="font-medium text-red-800 dark:text-red-200">{unpaidStays.length} unpaid stay{unpaidStays.length !== 1 ? "s" : ""}</span>
+          </div>
+          <motion.div className="mt-3 space-y-2.5" variants={staggerContainer} initial="hidden" animate="visible">
+            {unpaidStays.map((s) => (
+              <motion.div key={s.id} variants={staggerItem} className="rounded-xl border border-gray-100 dark:border-zinc-700/50 bg-white dark:bg-zinc-900 p-3 shadow-sm dark:shadow-none">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold text-brand-green-dark dark:text-zinc-100">{s.guestName}</p>
+                    <p className="mt-0.5 text-xs text-brand-green-dark/50 dark:text-zinc-500">{s.checkinDate} → {s.checkoutDate}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-red-50 dark:bg-red-950 px-2 py-1 text-xs font-semibold text-red-700 dark:text-red-400">
+                      ₹{s.due.toLocaleString("en-IN")}
+                    </span>
+                    {canCollectStay && (
+                      <button
+                        type="button"
+                        onClick={() => setStayPay({ id: s.id, name: s.guestName, due: s.due })}
+                        className="rounded-lg border border-green-500 bg-green-50 dark:bg-green-950 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-400"
+                      >
+                        Mark Paid
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
         </div>
       )}
 
@@ -422,6 +509,39 @@ export function AdminDashboard({
         </motion.div>
       )}
       </AnimatePresence>
+
+      {stayPay && (
+        <RecordPaymentModal
+          totalAmount={stayPay.due}
+          guestName={stayPay.name}
+          amountUnit="rupees"
+          zClass="z-[70]"
+          onConfirm={async (method, cashReceived, changeGiven) => {
+            setStayPayBusy(true);
+            try {
+              const res = await bookingsApiCall({
+                action: "collectStayPayment",
+                bookingId: stayPay.id,
+                paymentMethod: method,
+                cashReceived,
+                changeGiven,
+              });
+              if (res.ok) {
+                setStayPay(null);
+                await loadDashboard();
+              } else {
+                const data = await res.json().catch(() => ({ error: "Could not record payment" }));
+                showError(data.error || "Could not record payment");
+              }
+            } catch {
+              showError("Network error");
+            } finally {
+              setStayPayBusy(false);
+            }
+          }}
+          onClose={() => !stayPayBusy && setStayPay(null)}
+        />
+      )}
     </div>
   );
 }

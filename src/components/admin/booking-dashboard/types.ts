@@ -24,6 +24,12 @@ export type DashboardBooking = {
   amountTotal: number;
   amountPaid: number;
   paymentStatus: string;
+  paymentMethod?: string;
+  cashReceived?: number;
+  changeGiven?: number;
+  amountRefunded?: number;
+  refundMethod?: string;
+  refundCash?: number;
   nightlyRate: number;
   currency: string;
   holdExpiresAt: string;

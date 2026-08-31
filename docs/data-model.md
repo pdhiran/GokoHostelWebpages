@@ -1,8 +1,8 @@
 # Data model
 
-**Git-safe.** Schema: `src/db/schema.ts` — **52** `sqliteTable`s. Applied SQL: `migrations/0001_initial.sql` … `0041_splits.sql`. What production D1 has *applied* is in `MAINTAINER.local.md`. D1 id is in committed `wrangler.jsonc`.
+**Git-safe.** Schema: `src/db/schema.ts` — **52** `sqliteTable`s. Applied SQL: `migrations/0001_initial.sql` … `0042_booking_stay_payments.sql`. What production D1 has *applied* is in `MAINTAINER.local.md`. D1 id is in committed `wrangler.jsonc`. Pi migrator applies `0042` (it skips only `0035` CMS and `0041` splits).
 
-Money = **paise** integers. Dates = ISO or `YYYY-MM-DD`. Month keys = `JUNE-2026`.
+Money = **paise** integers except `bookings` amounts, which are **rupees**. Dates = ISO or `YYYY-MM-DD`. Month keys = `JUNE-2026`.
 
 Sync columns on operational tables: `sync_id`, `sync_updated_at`, `sync_source`, often `deleted_at`. CMS tables have **no** sync columns.
 
@@ -12,7 +12,8 @@ Sync columns on operational tables: `sync_id`, `sync_updated_at`, `sync_source`,
 
 | Kind | Storage |
 |------|---------|
-| ₹500.50 | `50050` |
+| ₹500.50 food/ledger | `50050` paise |
+| ₹500 stay (bookings) | `500` rupees |
 | Instant | `new Date().toISOString()` |
 | Calendar day | `"2026-08-29"` |
 | Occupied nights | `[checkin, checkout)` — `stayNights()` |
@@ -31,7 +32,7 @@ Sync columns on operational tables: `sync_id`, `sync_updated_at`, `sync_source`,
 | `dorms` | Named rooms. Unique `name`. |
 | `beds` | Physical bed. `status` available / occupied / cleanup. Denormalized guest fields when occupied. `is_blocked`. |
 | `bed_history` | Append-only assign/checkout/clean/swap. |
-| `bookings` | OTA + manual + Aiosell. Amounts in paise. `goko_booking_id`, `cm_booking_id`. |
+| `bookings` | OTA + manual + Aiosell. Amounts in **rupees** (food is paise). `goko_booking_id`, `cm_booking_id`. Desk collect: `payment_method` cash/online/split, `cash_received`, `change_given`. Prepaid check-in copies `amount_paid` = total as online. Cancel-after-check-in refund: `amount_refunded` (does **not** reduce `amount_paid`), `refund_method`, `refund_cash`. |
 | `booking_bed_assignments` | Date-range bed hold. `inventory_pool` online/offline/block. |
 | `booking_history` | Booking audit. |
 

@@ -173,7 +173,7 @@ DB users are independent (hashed). Env admin is the break-glass account.
 | Query | `src/db/queries.ts` |
 | Table | `schema.ts` + `migrations/` |
 | CMS | Cloudflare only; never add to `syncEngine` table lists |
-| Money | paise integers |
+| Money | paise integers except bookings (rupees) |
 
 Conventions: [conventions.md](conventions.md).
 

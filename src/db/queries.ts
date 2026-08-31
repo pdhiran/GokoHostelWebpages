@@ -430,7 +430,7 @@ export async function addBooking(data: {
     amountBeforeTax: data.amountBeforeTax ?? 0,
     amountTax: data.amountTax ?? 0,
     amountTotal: data.amountTotal ?? 0,
-    amountPaid: data.amountPaid ?? 0, // Goko cash only. Channel prepaid omits this; stays 0.
+    amountPaid: data.amountPaid ?? 0, // Channel prepaid omits this; calendar check-in copies total as online.
     nightlyRate: data.nightlyRate ?? 0,
     currency: data.currency || "INR",
     email: data.email || "",

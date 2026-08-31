@@ -23,6 +23,8 @@ import {
   deactivateBedBlocksByBedIds, shortenAssignedCheckout,
 } from "@/db/queries";
 import { todayIST } from "@/lib/utils";
+import { isStayPayMethod, stayDueAtHotel, mergeStayCollect, stayRefundCap, stayRefundWrite, prepaidCheckInWrite, prepaidCheckInRollback } from "@/lib/stayPayment";
+import { getPendingFoodTab } from "@/lib/foodTab";
 import {
   BOOKING_TAX_SETTING,
   bookingDiscountRupees,
@@ -198,7 +200,9 @@ const ACTION_PERMISSIONS: Record<string, ActionPerm> = {
   createBooking: "canAddBooking",
   assignBeds: "canAddBooking",
   checkIn: ["canCheckIn", "canAddBooking"],
+  collectStayPayment: ["canCheckIn", "canAddBooking"],
   checkOut: ["canCheckOut", "canAddBooking"],
+  getPendingFoodTab: ["canCheckOut", "canAddBooking"],
   modifyCheckin: "canAddBooking",
   modifyCheckout: "canAddBooking",
   editReservation: "canAddBooking",
@@ -263,7 +267,7 @@ export async function POST(req: NextRequest) {
       const enrichedBookings = calendarData.bookings.map((b) => {
         const checkout = stayCheckout(b.checkinDate, b.checkoutDate);
         const nights = checkout ? diffDays(b.checkinDate, checkout) : 0;
-        // Ledger, not the detail card. Prepaid stays amountPaid 0 so this is the OTA total until desk collect.
+        // Ledger, not the detail card. Prepaid check-in copies amountPaid; until then this is the OTA total.
         const balance = (b.amountTotal ?? 0) - (b.amountPaid ?? 0);
         return { ...b, nights, balance };
       });
@@ -293,6 +297,21 @@ export async function POST(req: NextRequest) {
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
       return NextResponse.json(detail);
+    }
+
+    if (action === "getPendingFoodTab") {
+      const { bookingId, checkinId, contact: rawContact } = body;
+      let contact = typeof rawContact === "string" ? rawContact : "";
+      if (bookingId) {
+        const detail = await getBookingDetail(bookingId);
+        if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+        contact = detail.booking.contact || contact;
+      }
+      const tab = await getPendingFoodTab({
+        checkinId: typeof checkinId === "number" ? checkinId : parseInt(checkinId, 10) || undefined,
+        contact,
+      });
+      return NextResponse.json(tab);
     }
 
     if (action === "search") {
@@ -563,20 +582,93 @@ export async function POST(req: NextRequest) {
         checkedInBy: actingUser,
       };
 
-      // Desk till only. Prepaid CheckInPopup does not offer Collected, so this path is hotel-collect / unknown.
-      if (collectPayment) {
-        updateData.amountPaid = detail.booking.amountTotal ?? 0;
-        updateData.paymentStatus = "paid";
+      // Desk collect when due. Prepaid is never due; check-in records it as online stay revenue below.
+      const dueAtCheckIn = stayDueAtHotel(detail.booking.paymentStatus, detail.booking.amountTotal, detail.booking.amountPaid);
+      let collectedAtCheckIn = false;
+      let collectedMethod = "";
+      let prepaidRecorded = 0;
+      if (collectPayment && dueAtCheckIn > 0) {
+        const { paymentMethod, cashReceived, changeGiven } = body;
+        if (!isStayPayMethod(paymentMethod)) {
+          return NextResponse.json({ error: "paymentMethod required (cash, online, or split)" }, { status: 400 });
+        }
+        const merged = mergeStayCollect({
+          existingMethod: detail.booking.paymentMethod,
+          existingCashReceived: detail.booking.cashReceived,
+          existingPaid: detail.booking.amountPaid,
+          existingChangeGiven: detail.booking.changeGiven,
+          amountTotal: detail.booking.amountTotal ?? 0,
+          newMethod: paymentMethod,
+          newCashReceived: Number(cashReceived) || 0,
+          newChangeGiven: Number(changeGiven) || 0,
+        });
+        Object.assign(updateData, merged);
+        collectedAtCheckIn = true;
+        collectedMethod = merged.paymentMethod;
+      } else {
+        const prepaid = prepaidCheckInWrite(
+          detail.booking.paymentStatus,
+          detail.booking.amountTotal,
+          detail.booking.amountPaid,
+        );
+        if (prepaid) {
+          Object.assign(updateData, prepaid);
+          prepaidRecorded = prepaid.amountPaid;
+        }
       }
 
       await updateBookingFull(bookingId, updateData);
       await addBookingHistoryEntry({
         bookingId,
         action: "Checked In",
-        details: collectPayment ? `Payment collected at check-in by ${actingUser}` : `Checked in by ${actingUser}`,
+        details: collectedAtCheckIn
+          ? `Payment collected at check-in (${collectedMethod}) by ${actingUser}`
+          : prepaidRecorded > 0
+            ? `Checked in — OTA prepaid ₹${prepaidRecorded} recorded as stay revenue by ${actingUser}`
+            : `Checked in by ${actingUser}`,
         performedBy: actingUser,
       });
 
+      return NextResponse.json({ success: true });
+    }
+
+    // --- Collect stay payment (after Later, or remaining due) ---
+
+    if (action === "collectStayPayment") {
+      const { bookingId, paymentMethod, cashReceived, changeGiven } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+      if (!isStayPayMethod(paymentMethod)) {
+        return NextResponse.json({ error: "paymentMethod required (cash, online, or split)" }, { status: 400 });
+      }
+
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      const st = detail.booking.status;
+      if (st !== "checked_in" && st !== "checked_out") {
+        return NextResponse.json({ error: "Collect is only for checked-in or checked-out stays" }, { status: 409 });
+      }
+      const due = stayDueAtHotel(detail.booking.paymentStatus, detail.booking.amountTotal, detail.booking.amountPaid);
+      if (due <= 0) {
+        return NextResponse.json({ error: "Nothing due" }, { status: 400 });
+      }
+
+      const merged = mergeStayCollect({
+        existingMethod: detail.booking.paymentMethod,
+        existingCashReceived: detail.booking.cashReceived,
+        existingPaid: detail.booking.amountPaid,
+        existingChangeGiven: detail.booking.changeGiven,
+        amountTotal: detail.booking.amountTotal ?? 0,
+        newMethod: paymentMethod,
+        newCashReceived: Number(cashReceived) || 0,
+        newChangeGiven: Number(changeGiven) || 0,
+      });
+      await updateBookingFull(bookingId, merged);
+      await addBookingHistoryEntry({
+        bookingId,
+        action: "Payment Collected",
+        details: `Stay payment collected (${merged.paymentMethod}) by ${actingUser}`,
+        performedBy: actingUser,
+      });
       return NextResponse.json({ success: true });
     }
 
@@ -626,11 +718,15 @@ export async function POST(req: NextRequest) {
       const { bookingId } = body;
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
 
-      await updateBookingFull(bookingId, {
+      const detail = await getBookingDetail(bookingId);
+      const updateData: Record<string, any> = {
         status: "received",
         checkedInAt: "",
         checkedInBy: "",
-      });
+      };
+      const reversePrepaid = prepaidCheckInRollback(detail?.booking);
+      if (reversePrepaid) Object.assign(updateData, reversePrepaid);
+      await updateBookingFull(bookingId, updateData);
       await addBookingHistoryEntry({
         bookingId,
         action: "Check-in Rolled Back",
@@ -705,7 +801,7 @@ export async function POST(req: NextRequest) {
     // --- Cancel Booking ---
 
     if (action === "cancelBooking") {
-      const { bookingId, assignmentIds } = body;
+      const { bookingId, assignmentIds, refundAmount, refundMethod, refundCash } = body;
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
 
       const detail = await getBookingDetail(bookingId);
@@ -741,16 +837,34 @@ export async function POST(req: NextRequest) {
           performedBy: actingUser,
         });
       } else {
-        await updateBookingFull(bookingId, {
+        const cancelUpdate: Record<string, any> = {
           status: "cancelled",
           cancelledAt: now,
           cancelledBy: actingUser,
-        });
+        };
+        let refundNote = "";
+        if (detail?.booking.status === "checked_in") {
+          const cap = stayRefundCap(detail.booking.amountPaid);
+          const refundAmt = Math.max(0, Math.min(Number(refundAmount) || 0, cap));
+          if (refundAmt > 0) {
+            if (!isStayPayMethod(refundMethod)) {
+              return NextResponse.json({ error: "refundMethod required (cash, online, or split)" }, { status: 400 });
+            }
+            const written = stayRefundWrite(refundMethod, refundAmt, Number(refundCash) || 0);
+            cancelUpdate.amountRefunded = refundAmt;
+            cancelUpdate.refundMethod = written.refundMethod;
+            cancelUpdate.refundCash = written.refundCash;
+            cancelUpdate.refundedAt = now;
+            cancelUpdate.refundedBy = actingUser;
+            refundNote = `, refund ₹${refundAmt} ${written.refundMethod}`;
+          }
+        }
+        await updateBookingFull(bookingId, cancelUpdate);
         await unassignBookingBeds(bookingId);
         await addBookingHistoryEntry({
           bookingId,
           action: "Cancelled",
-          details: `Full cancellation by ${actingUser}`,
+          details: `Full cancellation by ${actingUser}${refundNote}`,
           performedBy: actingUser,
         });
       }

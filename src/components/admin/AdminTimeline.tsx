@@ -11,6 +11,7 @@ import { staggerContainer, staggerItem } from "@/lib/animations";
 import { ChevronDownIcon, ChevronRightIcon, LogOutIcon, SparklesIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 import { parseBedRow, type Role, type BedRow } from "./types";
 import { AdminLoading } from "./AdminLoading";
+import { foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
 
 function fmtDate(d: Date): string { return localDateStr(d); }
 function fmtShort(d: Date): string {
@@ -59,6 +60,28 @@ export function AdminTimeline({ password, username, role, permissions }: { passw
   };
 
   const act = async (action: string, bedIdx: number, extra?: Record<string, any>) => {
+    if (action === "checkoutBed") {
+      const bed = beds.find((b) => b.id === bedIdx);
+      let msg = "Checkout this guest?";
+      if (!bed?.guestContact) {
+        msg = foodTabUncheckedMessage("no-phone");
+      } else {
+        try {
+          const r = await apiCall({ action: "getPendingFoodTab", contact: bed.guestContact });
+          if (!r.ok) {
+            msg = foodTabUncheckedMessage("lookup-failed");
+          } else {
+            const d = await r.json();
+            if (d.pendingTab > 0) {
+              msg = unpaidFoodCheckoutMessage(bed.guestName || "This guest", d.pendingTab, d.pendingOrders);
+            }
+          }
+        } catch {
+          msg = foodTabUncheckedMessage("lookup-failed");
+        }
+      }
+      if (!confirm(msg)) return;
+    }
     setBusyIdx(bedIdx); setPopup(null);
     try { const r = await apiCall({ action, bedId: bedIdx, ...extra }); if (r.ok) await load(); else { const d = await r.json(); showError("Failed", d.error); } }
     finally { setBusyIdx(null); }

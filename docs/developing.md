@@ -38,7 +38,7 @@ One Next.js 15.5 App Router monolith: marketing site, guest check-in/food, kitch
 | Query | `queries.ts` (CMS `siteQueries.ts`, splits `splitQueries.ts`) |
 | Synced table | also `syncEngine.ts` lists + FK remap |
 | CMS / splits | Cloudflare only — **not** `syncEngine`; Pi migrator skips `0035` / `0041` |
-| Money | integer paise |
+| Money | integer paise (food/ledger) or rupees (`bookings`) |
 | Permission | `ManagementUsers.tsx` **and** the route map (they diverge — see onboarding §4) |
 | Handbook | matching `docs/*.md` same turn. Secrets → `secrets-and-access.md` only |
 

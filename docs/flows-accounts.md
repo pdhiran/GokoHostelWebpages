@@ -12,6 +12,7 @@
 | Daily Ledger | `canAddIncome` | `getDailyLedger`, `addDailyIncome` |
 | Records | `canViewExpenses` | `listExpenses` |
 | Food Revenue | `canViewFoodBills` | `getFoodRevenue` |
+| Room Revenue | `canViewFoodBills` | `getRoomRevenue` |
 | Reconcile | `canReconcile` | `getReconciliation`, `saveReconciliation`, `undoReconciliation` |
 
 Account Settings (Management): accounts/vendors/employees/salary — `canManageAccounts`. Bulk XLSX: `/api/admin/bulk-import-accounts`.
@@ -20,7 +21,9 @@ Account Settings (Management): accounts/vendors/employees/salary — `canManageA
 
 ## Money
 
-All integers **paise**. UI: rupees × 100 on the way in.
+Ledger / expenses / food / salary integers are **paise**. UI: rupees × 100 on the way in.
+
+**Room Revenue** (`getRoomRevenue`) uses booking amounts, which are **rupees** — do not divide by 100. Prepaid check-in records `amountPaid` as online; the OTA prepaid card is only stays not yet recorded.
 
 ---
 
@@ -47,6 +50,14 @@ flowchart TD
 Unique `(date, account_id)`. Mismatch highlight if |diff| > ₹0.50. `adjustOpeningBalance` without reconciling (manage accounts). `undoReconciliation` clears the lock.
 
 Food revenue on the ledger is **paid non-cancelled food orders** for that date (not the same as `daily_income` unless auto-posted).
+
+---
+
+## Room Revenue
+
+Accounts tab cloned from Food Revenue. `getRoomRevenue` (`canViewFoodBills`): stays whose **check-in date** is in `[fromDate, toDate]` and `occupiedForRoomRevenue` — `checked_in`, `checked_out`, or `cancelled` with `checkedInAt` set. No-shows and cancel-before-check-in are out.
+
+Goko till = `amountPaid` (never invent OTA prepaid as collected). Cash/online split via `payment_method` + `cash_received` (`cashCollected` / `onlineCollected` in `src/lib/stayPayment.ts`). Cash method uses `amountPaid`, not tender. Paid rows with empty method → summary **Collected (no method)**. Refunds (`amount_refunded`) reduce net Room Revenue and do **not** reduce `amountPaid`. Room Revenue does **not** auto-post `daily_income`.
 
 ---
 

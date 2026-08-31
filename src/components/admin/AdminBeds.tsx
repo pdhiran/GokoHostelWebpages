@@ -11,6 +11,7 @@ import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@
 import { UserPlusIcon, SparklesIcon, ClockIcon, Loader2Icon } from "lucide-react";
 import { parseBedRow, type Role, type BedRow, hasPermission } from "./types";
 import { AdminLoading } from "./AdminLoading";
+import { foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
 
 function getDaysRemaining(expectedCheckout: string): number {
   if (!expectedCheckout) return 0;
@@ -153,7 +154,12 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
   const [selectedDorm, setSelectedDorm] = useState<string | null>(null);
   const [assigningGuest, setAssigningGuest] = useState<string[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [checkoutConfirm, setCheckoutConfirm] = useState<string[] | null>(null);
+  const [checkoutConfirm, setCheckoutConfirm] = useState<{
+    guest: string[];
+    pendingTab: number;
+    pendingOrders: number;
+    tabUnchecked?: "lookup-failed";
+  } | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
 
   useEffect(() => { loadBeds(); }, []);
@@ -196,6 +202,26 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
     } finally { setCheckingOut(false); }
   };
 
+  const openGuestCheckout = async (guest: string[]) => {
+    const checkinId = parseInt(guest[15] || "0", 10);
+    let pendingTab = 0;
+    let pendingOrders = 0;
+    let tabUnchecked: "lookup-failed" | undefined;
+    try {
+      const res = await apiCall({ action: "getPendingFoodTab", checkinId, contact: guest[5] || "" });
+      if (res.ok) {
+        const d = await res.json();
+        pendingTab = Number(d.pendingTab) || 0;
+        pendingOrders = Number(d.pendingOrders) || 0;
+      } else {
+        tabUnchecked = "lookup-failed";
+      }
+    } catch {
+      tabUnchecked = "lookup-failed";
+    }
+    setCheckoutConfirm({ guest, pendingTab, pendingOrders, tabUnchecked });
+  };
+
   const assignBed = async (bedIdx: number, guest: string[]) => {
     setLoadingBedIdx(bedIdx);
     try {
@@ -212,7 +238,26 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
   };
 
   const checkoutBed = async (bedIdx: number) => {
-    if (!confirm("Checkout this guest?")) return;
+    const bed = beds.find((b) => b.id === bedIdx);
+    let msg = "Checkout this guest?";
+    if (!bed?.guestContact) {
+      msg = foodTabUncheckedMessage("no-phone");
+    } else {
+      try {
+        const res = await apiCall({ action: "getPendingFoodTab", contact: bed.guestContact });
+        if (!res.ok) {
+          msg = foodTabUncheckedMessage("lookup-failed");
+        } else {
+          const d = await res.json();
+          if (d.pendingTab > 0) {
+            msg = unpaidFoodCheckoutMessage(bed.guestName || "This guest", d.pendingTab, d.pendingOrders);
+          }
+        }
+      } catch {
+        msg = foodTabUncheckedMessage("lookup-failed");
+      }
+    }
+    if (!confirm(msg)) return;
     setLoadingBedIdx(bedIdx);
     try {
       const res = await apiCall({ action: "checkoutBed", bedId: bedIdx });
@@ -322,7 +367,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
                   <span className="ml-2 text-xs text-brand-green-dark/50">{guest[6]} days · {guest[7]}</span>
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setCheckoutConfirm(guest)}
+                  <button type="button" onClick={() => void openGuestCheckout(guest)}
                     className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/50">
                     Checkout
                   </button>
@@ -343,20 +388,32 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
         <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
           <motion.div className="w-full min-w-0 max-w-sm rounded-2xl bg-white dark:bg-card p-6 shadow-xl dark:shadow-none" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <h3 className="font-display text-lg font-bold text-brand-green-dark">Confirm Checkout</h3>
-            <p className="mt-2 text-sm text-brand-green-dark/80">
-              Are you sure you want to mark <strong>{checkoutConfirm[3]}</strong> as checked out?
-            </p>
-            <p className="mt-1 text-xs text-brand-green-dark/50">
-              This guest will be removed from the unassigned list. No bed assignment needed.
-            </p>
+            {checkoutConfirm.pendingTab > 0 ? (
+              <p className="mt-2 text-sm font-medium text-red-700 dark:text-red-400">
+                {unpaidFoodCheckoutMessage(checkoutConfirm.guest[3] || "This guest", checkoutConfirm.pendingTab, checkoutConfirm.pendingOrders)}
+              </p>
+            ) : checkoutConfirm.tabUnchecked ? (
+              <p className="mt-2 text-sm font-medium text-amber-800 dark:text-amber-400">
+                {foodTabUncheckedMessage("lookup-failed")}
+              </p>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-brand-green-dark/80">
+                  Are you sure you want to mark <strong>{checkoutConfirm.guest[3]}</strong> as checked out?
+                </p>
+                <p className="mt-1 text-xs text-brand-green-dark/50">
+                  This guest will be removed from the unassigned list. No bed assignment needed.
+                </p>
+              </>
+            )}
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setCheckoutConfirm(null)} disabled={checkingOut}
                 className="rounded-lg border border-brand-mist px-4 py-2 text-sm font-medium text-brand-green-dark transition-colors hover:bg-brand-sand/50">
                 No
               </button>
-              <button type="button" onClick={() => checkoutGuestDirect(checkoutConfirm)} disabled={checkingOut}
+              <button type="button" onClick={() => checkoutGuestDirect(checkoutConfirm.guest)} disabled={checkingOut}
                 className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600 disabled:opacity-50">
-                {checkingOut ? "Processing..." : "Yes, Checkout"}
+                {checkingOut ? "Processing..." : (checkoutConfirm.pendingTab > 0 || checkoutConfirm.tabUnchecked) ? "Checkout anyway" : "Yes, Checkout"}
               </button>
             </div>
           </motion.div>

@@ -25,6 +25,8 @@ Server order of checks (`src/app/api/food/order/route.ts`):
 
 Hostel + `checkinId`: payment `on_tab`. Else `pending`. Guest-created + `food_confirm_with_guest === "true"` → status `pending_approval`. Admin `placeOrderForGuest` starts `placed`.
 
+Checkout warning: `getPendingFoodTab` in `src/lib/foodTab.ts` sums unpaid hostel orders (`on_tab`/`pending`, not `cancelled`) for matching `checkins` (phone-normalized) and returns `orderIds`. Calendar Check Out Guest, Beds checkout, Timeline, and Dashboard today-checkout **live-call** it before confirming. Empty phone / lookup failure: `foodTabUncheckedMessage` (staff can still proceed). Cafe walk-in tabs (`guestType=walkin`, no `checkin_id`) are not attached to a stay. Unassign is not checkout. Checkout APIs do not hard-block.
+
 `/food-order/status`: poll ~10s until `served` or `cancelled` (`shouldPollOrderStatus` in `orderStatus.ts`).
 
 `/my-bills`: `GET /api/food/bills?phone=`.

@@ -106,7 +106,7 @@ Full list: [api-map.md](api-map.md).
 
 - **ORM:** Drizzle, SQLite dialect (`src/db/schema.ts`).
 - **SQL applied in production:** `migrations/*.sql` via Wrangler D1. **Not** `drizzle/migrations` from `drizzle-kit generate`.
-- **Money:** integers in **paise** (₹1 = 100).
+- **Money:** food / expenses / ledger / salary are integers in **paise** (₹1 = 100). **Bookings** calendar amounts are **rupees**.
 - **Timestamps:** ISO strings. Date-only: `YYYY-MM-DD`. Month partitions: `JUNE-2026` (`getMonthKey()`).
 - **Sync columns** on operational tables: `sync_id`, `sync_updated_at`, `sync_source`, often `deleted_at`.
 

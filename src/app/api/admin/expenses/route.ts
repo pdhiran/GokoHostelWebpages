@@ -11,13 +11,14 @@ import {
   addSystemLog,
 } from "@/db/queries";
 import { getDb } from "@/db";
-import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors } from "@/db/schema";
+import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors, bookings } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
 import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser } from "@/lib/auth";
 import { actionAllowed } from "@/lib/actionPermissions";
 import { hostelExpenseIsLinked } from "@/db/splitQueries";
+import { stayDueAtHotel, cashCollected, onlineCollected, cashRefunded, onlineRefunded, occupiedForRoomRevenue, isPrepaidStatus } from "@/lib/stayPayment";
 
 function extractDriveFileId(link: string): string | null {
   const match = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
       listExpenses: "canViewExpenses", getMyExpenses: "canViewExpenses",
       addExpense: "canAddExpense", updateExpense: "canEditExpense", deleteExpense: "canDeleteExpense",
       getFoodRevenue: "canViewFoodBills",
+      getRoomRevenue: "canViewFoodBills",
       getDailyLedger: "canViewAccounts", getReconciliation: "canViewAccounts",
       addDailyIncome: "canAddIncome", deleteDailyIncome: "canAddIncome",
       saveReconciliation: "canManageAccounts", undoReconciliation: "canManageAccounts",
@@ -340,6 +342,93 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           role,
           summary: { totalRevenue, totalDiscount, cashPayments, onlinePayments, unpaidTabs, orderCount, cashOrders, onlineOrders, unpaidOrders },
+          guestBreakdown,
+        });
+      }
+
+      case "getRoomRevenue": {
+        const { fromDate, toDate } = rest;
+        if (!fromDate || !toDate) {
+          return NextResponse.json({ error: "fromDate and toDate required" }, { status: 400 });
+        }
+
+        const db = getDb();
+        const rows = await db.select().from(bookings)
+          .where(and(
+            sql`${bookings.checkinDate} >= ${fromDate}`,
+            sql`${bookings.checkinDate} <= ${toDate}`,
+          ))
+          .orderBy(desc(bookings.checkinDate));
+
+        const stays = rows.filter((b) => occupiedForRoomRevenue(b.status, b.checkedInAt));
+
+        let billed = 0;
+        let gokoCollected = 0;
+        let cashIn = 0;
+        let onlineIn = 0;
+        let unspecifiedCollected = 0;
+        let unpaid = 0;
+        let prepaid = 0;
+        let cashOut = 0;
+        let onlineOut = 0;
+        let refunded = 0;
+
+        const guestBreakdown = stays.map((b) => {
+          billed += b.amountTotal || 0;
+          gokoCollected += b.amountPaid || 0;
+          refunded += b.amountRefunded || 0;
+          const due = stayDueAtHotel(b.paymentStatus, b.amountTotal, b.amountPaid);
+          unpaid += due;
+          if (isPrepaidStatus((b.paymentStatus || "")) && (b.amountPaid || 0) <= 0) prepaid += b.amountTotal || 0;
+
+          const method = b.paymentMethod || "";
+          const cIn = cashCollected(method, b.amountPaid, b.cashReceived);
+          const oIn = onlineCollected(method, b.amountPaid, b.cashReceived);
+          cashIn += cIn;
+          onlineIn += oIn;
+          if ((b.amountPaid || 0) > 0 && !method) unspecifiedCollected += b.amountPaid || 0;
+
+          const cOut = cashRefunded(b.refundMethod, b.amountRefunded, b.refundCash);
+          const oOut = onlineRefunded(b.refundMethod, b.amountRefunded, b.refundCash);
+          cashOut += cOut;
+          onlineOut += oOut;
+
+          return {
+            id: b.id,
+            guestName: b.guestName,
+            contact: b.contact,
+            checkinDate: b.checkinDate,
+            checkoutDate: b.checkoutDate,
+            status: b.status,
+            paymentMethod: method || "—",
+            billed: b.amountTotal || 0,
+            cashIn: cIn,
+            onlineIn: oIn,
+            unpaid: due,
+            refundMethod: b.refundMethod || "—",
+            cashOut: cOut,
+            onlineOut: oOut,
+            prepaid: (b.paymentStatus || "").toLowerCase() === "prepaid",
+          };
+        });
+
+        return NextResponse.json({
+          role,
+          summary: {
+            billed,
+            stayCount: stays.length,
+            cashCollected: cashIn,
+            onlineCollected: onlineIn,
+            unspecifiedCollected,
+            unpaid,
+            prepaid,
+            cashRefunded: cashOut,
+            onlineRefunded: onlineOut,
+            refunded,
+            netCash: cashIn - cashOut,
+            netOnline: onlineIn - onlineOut,
+            netGoko: gokoCollected - refunded,
+          },
           guestBreakdown,
         });
       }
