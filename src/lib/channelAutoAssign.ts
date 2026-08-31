@@ -272,17 +272,19 @@ export function assignedBedsMatchNeeds(
   needs: Array<{ roomCode: string; count: number }>,
   mappings: ChannelRoomMapping[],
 ): boolean {
-  const active = assigned.filter((a) => (a.status ?? "assigned") === "assigned");
+  // getBedById uses beds.status (`available`); assignment rows use `unassigned`.
+  const active = assigned.filter((a) => a.status !== "unassigned");
   const byCode = activeMappingsByCode(mappings);
   const needByDorm = new Map<number, number>();
   for (const n of needs) {
     const mapped = byCode.get(normalizeChannelRoomCode(n.roomCode));
     if (!mapped) return false;
-    needByDorm.set(mapped.dormId, (needByDorm.get(mapped.dormId) || 0) + Math.max(1, n.count));
+    needByDorm.set(Number(mapped.dormId), (needByDorm.get(Number(mapped.dormId)) || 0) + Math.max(1, n.count));
   }
   const haveByDorm = new Map<number, number>();
   for (const a of active) {
-    haveByDorm.set(a.dormId, (haveByDorm.get(a.dormId) || 0) + 1);
+    const dormId = Number(a.dormId);
+    haveByDorm.set(dormId, (haveByDorm.get(dormId) || 0) + 1);
   }
   if (needByDorm.size !== haveByDorm.size) return false;
   for (const [dormId, count] of needByDorm) {

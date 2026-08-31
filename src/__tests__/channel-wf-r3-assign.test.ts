@@ -23,6 +23,7 @@ const q = vi.hoisted(() => ({
   getAllBeds: vi.fn(),
   getBedById: vi.fn(),
   getChannelConfig: vi.fn(),
+  getSetting: vi.fn(),
   getActiveBedBlocks: vi.fn(),
   getRoomTypeMappings: vi.fn(),
   getRatePlanMappings: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock("@/db/queries", () => ({
   getAllBeds: q.getAllBeds,
   getBedById: q.getBedById,
   getChannelConfig: q.getChannelConfig,
+  getSetting: q.getSetting,
   getActiveBedBlocks: q.getActiveBedBlocks,
   getRoomTypeMappings: q.getRoomTypeMappings,
   getRatePlanMappings: q.getRatePlanMappings,
@@ -91,7 +93,7 @@ const mappedRoomTypes = [
 ];
 
 function bedRow(id: number, dormId: number, dormName: string) {
-  return { id, bedId: `B${id}`, dormId, dormName };
+  return { id, bedId: `B${id}`, dormId, dormName, status: "available" };
 }
 
 function tagged(id: number, dormId: number, dormName: string, pool: "online" | "offline") {

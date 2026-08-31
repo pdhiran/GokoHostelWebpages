@@ -23,6 +23,7 @@ const q = vi.hoisted(() => ({
   getAllBeds: vi.fn(),
   getBedById: vi.fn(),
   getChannelConfig: vi.fn(),
+  getSetting: vi.fn(),
   getActiveBedBlocks: vi.fn(),
   getRoomTypeMappings: vi.fn(),
   getRatePlanMappings: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock("@/db/queries", () => ({
   getAllBeds: q.getAllBeds,
   getBedById: q.getBedById,
   getChannelConfig: q.getChannelConfig,
+  getSetting: q.getSetting,
   getActiveBedBlocks: q.getActiveBedBlocks,
   getRoomTypeMappings: q.getRoomTypeMappings,
   getRatePlanMappings: q.getRatePlanMappings,
@@ -91,7 +93,7 @@ const mappedRoomTypes = [
 ];
 
 function bedRow(id: number, dormId: number, dormName: string) {
-  return { id, bedId: `B${id}`, dormId, dormName };
+  return { id, bedId: `B${id}`, dormId, dormName, status: "available" };
 }
 
 function tagged(id: number, dormId: number, dormName: string, pool: "online" | "offline") {
@@ -240,6 +242,30 @@ describe("assignBeds: already-assigned cap (complete 1-of-2 vs overflow add)", (
       dormId: MIXED_DORM,
       inventoryPool: "offline",
     }));
+  });
+
+  it("currentAssigned 0, 2-person executive, 2 available EXE beds → 200", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: execBooking({
+        rawData: JSON.stringify({
+          rooms: [{ roomCode: "executive", occupancy: { adults: 2, children: 0 } }],
+        }),
+      }),
+      assignments: [],
+    });
+    q.getBedById.mockImplementation(async (id: number) => bedRow(id, EXEC_DORM, "Executive"));
+    q.getAvailableBedsForRange.mockResolvedValue([
+      tagged(78, EXEC_DORM, "Executive", "online"),
+      tagged(79, EXEC_DORM, "Executive", "online"),
+    ]);
+
+    const res = await POST(req({ password: "x", action: "assignBeds", bookingId: 139, bedIds: [78, 79] }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      success: true,
+      assigned: ["Executive/B78", "Executive/B79"],
+    });
+    expect(q.assignBedToBooking).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -339,6 +339,22 @@ describe("assignedBedsMatchNeeds", () => {
       mappings,
     )).toBe(false);
   });
+
+  it("counts getBedById rows whose status is available (not assignment status)", () => {
+    expect(assignedBedsMatchNeeds(
+      [{ dormId: 8, status: "available" }, { dormId: 8, status: "occupied" }],
+      [{ roomCode: "executive", count: 2 }],
+      mappings,
+    )).toBe(true);
+  });
+
+  it("still skips unassigned assignment rows", () => {
+    expect(assignedBedsMatchNeeds(
+      [{ dormId: 8, status: "assigned" }, { dormId: 8, status: "unassigned" }],
+      [{ roomCode: "executive", count: 1 }],
+      mappings,
+    )).toBe(true);
+  });
 });
 
 describe("channelAssignmentNeedsReseat", () => {
