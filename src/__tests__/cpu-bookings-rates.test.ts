@@ -672,6 +672,86 @@ describe("Bookings calendar and rates workflows", () => {
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });
 
+  it("staff cannot Reject an unassigned stay even with canDeleteBooking", async () => {
+    q.authenticateUser.mockResolvedValue({
+      role: "staff",
+      displayName: "Staff",
+      permissions: { canDeleteBooking: true, canViewBookings: true },
+    });
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "channel_manager",
+      },
+      assignments: [],
+    });
+    const res = await POST(req({ password: "x", action: "cancelBooking", bookingId: 9 }));
+    expect(res.status).toBe(403);
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
+  it("manager can Reject an unassigned stay without canDeleteBooking", async () => {
+    q.authenticateUser.mockResolvedValue({
+      role: "manager",
+      displayName: "Manager",
+      permissions: {},
+    });
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "channel_manager",
+      },
+      assignments: [],
+    });
+    const res = await POST(req({ password: "x", action: "cancelBooking", bookingId: 9 }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(9, expect.objectContaining({ status: "cancelled" }));
+  });
+
+  it("staff with canDeleteBooking can still cancel an assigned stay", async () => {
+    q.authenticateUser.mockResolvedValue({
+      role: "staff",
+      displayName: "Staff",
+      permissions: { canDeleteBooking: true },
+    });
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "manual",
+      },
+      assignments: [{ id: 11, status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    const res = await POST(req({ password: "x", action: "cancelBooking", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({ status: "cancelled" }));
+  });
+
+  it("manager without canDeleteBooking cannot cancel an assigned stay", async () => {
+    q.authenticateUser.mockResolvedValue({
+      role: "manager",
+      displayName: "Manager",
+      permissions: {},
+    });
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "manual",
+      },
+      assignments: [{ id: 11, status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    const res = await POST(req({ password: "x", action: "cancelBooking", bookingId: 5 }));
+    expect(res.status).toBe(403);
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
   it("unassign on a walk-in booking still pushes when OTA availability changes", async () => {
     q.getBookingDetail.mockResolvedValue({
       booking: {

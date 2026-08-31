@@ -382,6 +382,7 @@ describe("Booking calendar UI permissions match the API keys", () => {
     expect(panel).toContain("canAddBooking");
     expect(panel).toContain("Promise<boolean | void>");
     expect(panel).toContain("canDeleteBooking");
+    expect(panel).toContain("canCancelStay");
     expect(panel).not.toContain("canCancelBooking");
     expect(panel).not.toContain("canMarkNoShow");
   });
@@ -432,7 +433,7 @@ describe("Booking calendar UI permissions match the API keys", () => {
     expect(unassigned).toContain("Reject removes this stay from Goko only");
     expect(unassigned).toContain("requestedNeedLabels");
     expect(unassigned).toContain("requestedDormIds");
-    expect(dashboard).toContain("canReject={hasPermission(role, permissions, \"canDeleteBooking\")}");
+    expect(dashboard).toContain('canReject={role === "admin" || role === "manager"}');
     expect(dashboard).toContain("handleBookingAction(\"cancelBooking\", bookingId)");
     expect(unassigned).toContain('action: "getAvailableBeds", checkinDate, checkoutDate }');
     expect(unassigned).not.toContain("bookingId: booking.id");

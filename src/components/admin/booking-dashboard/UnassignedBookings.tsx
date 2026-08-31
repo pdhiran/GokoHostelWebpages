@@ -267,7 +267,7 @@ export function UnassignedBookings({
             )}
           </div>
           <p className="mt-0.5 text-[11px] text-orange-800/80 dark:text-orange-300/80">
-            Online beds in the requested room type were full. Assign offline beds (one per person) or reject.
+            Online beds in the requested room type were full. Assign offline beds (one per person){canReject ? " or reject." : "."}
           </p>
         </div>
         <Button variant="ghost" size="icon-sm" onClick={onClose}>
@@ -363,7 +363,7 @@ export function UnassignedBookings({
               {isAssigning && (
                 <div className="mt-3 space-y-2">
                   <p className="text-[11px] text-muted-foreground">
-                    Pick {need} bed{need !== 1 ? "s" : ""}{booking.requestedNeedLabels ? ` (${booking.requestedNeedLabels})` : ""} — one per person for the whole stay. Green chips are offline (walk-in) beds. Reject is Goko-only; cancel the OTA separately.
+                    Pick {need} bed{need !== 1 ? "s" : ""}{booking.requestedNeedLabels ? ` (${booking.requestedNeedLabels})` : ""} — one per person for the whole stay. Green chips are offline (walk-in) beds.{canReject ? " Reject is Goko-only; cancel the OTA separately." : ""}
                   </p>
                   {loadingBeds ? (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">

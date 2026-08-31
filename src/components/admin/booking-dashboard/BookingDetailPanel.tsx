@@ -104,6 +104,10 @@ export function BookingDetailPanel({
     : (booking.source === "manual" ? Math.max(0, gross - booking.amountBeforeTax) : 0);
   const collection = collectionCopy(booking.paymentStatus, booking.balance);
   const dueAtHotel = collection ? collection.due : booking.balance > 0;
+  const hasAssignedBed = assignments.some((a) => a.status === "assigned");
+  const canCancelStay = hasAssignedBed
+    ? hasPermission(role, permissions, "canDeleteBooking")
+    : (role === "admin" || role === "manager");
 
   return (
     <>
@@ -313,7 +317,7 @@ export function BookingDetailPanel({
               </Button>
             )}
             {(booking.status === "received" || booking.status === "hold") &&
-              hasPermission(role, permissions, "canDeleteBooking") && (
+              canCancelStay && (
                 <Button
                   size="sm"
                   variant="destructive"

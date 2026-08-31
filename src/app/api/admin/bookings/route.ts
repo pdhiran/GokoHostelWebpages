@@ -228,7 +228,11 @@ export async function POST(req: NextRequest) {
     if (!requiredPerm) {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
-    const gate = actionAllowed(role, permissions, requiredPerm);
+    let gate = actionAllowed(role, permissions, requiredPerm);
+    // Env manager has no permission keys; still allow Unassigned Reject (handler blocks assigned cancel).
+    if (gate === "forbidden" && action === "cancelBooking" && role === "manager") {
+      gate = "allowed";
+    }
     if (gate === "admin_required") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
@@ -703,6 +707,16 @@ export async function POST(req: NextRequest) {
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
 
       const detail = await getBookingDetail(bookingId);
+      const fullCancel = !(Array.isArray(assignmentIds) && assignmentIds.length > 0);
+      const assigned = (detail?.assignments ?? []).filter((a) => a.status === "assigned");
+      const lead = role === "admin" || role === "manager";
+      if (fullCancel && assigned.length === 0) {
+        if (!lead) {
+          return NextResponse.json({ error: "Admin or manager access required" }, { status: 403 });
+        }
+      } else if (role !== "admin" && !permissions.canDeleteBooking) {
+        return NextResponse.json({ error: "You don't have permission to perform this action" }, { status: 403 });
+      }
       const now = new Date().toISOString();
       const cancelDates = detail ? bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate) : [];
       const dormIds = assignmentIds && Array.isArray(assignmentIds) && assignmentIds.length > 0

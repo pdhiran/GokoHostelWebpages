@@ -10,6 +10,7 @@ function readFile(relativePath: string): string {
 
 const unassigned = readFile("src/components/admin/booking-dashboard/UnassignedBookings.tsx");
 const dashboard = readFile("src/components/admin/booking-dashboard/index.tsx");
+const panel = readFile("src/components/admin/booking-dashboard/BookingDetailPanel.tsx");
 const types = readFile("src/components/admin/booking-dashboard/types.ts");
 
 describe("Round 2 Unassigned UI: reject copy, labels, assign leftover, calendar jump", () => {
@@ -44,15 +45,15 @@ describe("Round 2 Unassigned UI: reject copy, labels, assign leftover, calendar 
     expect(unassigned).toContain("one per person");
     expect(unassigned).toContain("Select ${need} bed${need !== 1 ? \"s\" : \"\"} (one per person)");
     expect(unassigned).toContain("one per person for the whole stay");
-    expect(unassigned).toContain("Assign offline beds (one per person) or reject.");
+    expect(unassigned).toContain("Assign offline beds (one per person)");
+    expect(unassigned).toContain('canReject ? " or reject." : "."');
     expect(unassigned).toContain("selectedBeds.length !== need");
     expect(unassigned).toContain("disabled={selectedBeds.length !== need || busy || loadingBeds}");
   });
 
-  it("Reject is gated by canDeleteBooking and calls cancelBooking", () => {
-    expect(dashboard).toContain(
-      'canReject={hasPermission(role, permissions, "canDeleteBooking")}',
-    );
+  it("Reject is shown for admin/manager only and calls cancelBooking", () => {
+    expect(dashboard).toContain('canReject={role === "admin" || role === "manager"}');
+    expect(dashboard).not.toContain('canReject={hasPermission(role, permissions, "canDeleteBooking")}');
     expect(dashboard).toContain('handleBookingAction("cancelBooking", bookingId)');
     expect(unassigned).toContain("canReject = false");
     expect(unassigned).toContain("{canReject && onReject && (");
@@ -61,6 +62,10 @@ describe("Round 2 Unassigned UI: reject copy, labels, assign leftover, calendar 
     expect(dashboard).not.toContain("canCancelBooking");
     const route = readFile("src/app/api/admin/bookings/route.ts");
     expect(route).toContain('cancelBooking: "canDeleteBooking"');
+    expect(route).toContain("Admin or manager access required");
+    expect(route).toContain("const lead = role === \"admin\" || role === \"manager\"");
+    expect(panel).toContain("canCancelStay");
+    expect(panel).toContain("role === \"admin\" || role === \"manager\"");
   });
 
   it("getAvailableBeds payload has no bookingId", () => {
