@@ -5,6 +5,7 @@
  */
 
 import { logPmsCall } from "@/lib/pmsLog";
+import { addCalendarDays, inclusiveNights } from "@/lib/inventoryAvailability";
 
 export type AiosellConfig = {
   hotelCode: string;
@@ -84,6 +85,50 @@ function asStayNumber(value: unknown): number | null {
   if (value == null || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function updatePayloadKey<T extends { startDate: string; endDate: string }>(u: T): string {
+  const { startDate: _s, endDate: _e, ...rest } = u;
+  return JSON.stringify(rest);
+}
+
+/**
+ * Aiosell expands startDate–endDate into nights server-side.
+ * Merge consecutive calendar days that share the same rooms/rates payload.
+ * Gaps (weekday filter) and payload changes (Adjust / mixed leftover) stay split.
+ */
+export function coalesceAiosellUpdates<T extends { startDate: string; endDate: string }>(updates: T[]): T[] {
+  if (updates.length <= 1) return updates.map((u) => ({ ...u }));
+  const sorted = [...updates].sort((a, b) =>
+    a.startDate.localeCompare(b.startDate)
+    || a.endDate.localeCompare(b.endDate)
+    || updatePayloadKey(a).localeCompare(updatePayloadKey(b)),
+  );
+  const out: T[] = [{ ...sorted[0] }];
+  for (let i = 1; i < sorted.length; i++) {
+    const u = sorted[i];
+    const prev = out[out.length - 1];
+    if (addCalendarDays(prev.endDate, 1) === u.startDate && updatePayloadKey(prev) === updatePayloadKey(u)) {
+      prev.endDate = u.endDate;
+      continue;
+    }
+    out.push({ ...u });
+  }
+  return out;
+}
+
+function coalescedPush<T extends { startDate: string; endDate: string }>(
+  updates: T[],
+  items: (u: T) => number,
+): { updates: T[]; recordsAffected: number } {
+  const coalesced = coalesceAiosellUpdates(updates);
+  return {
+    updates: coalesced,
+    recordsAffected: coalesced.reduce(
+      (sum, u) => sum + inclusiveNights(u.startDate, u.endDate || u.startDate).length * items(u),
+      0,
+    ),
+  };
 }
 
 export type ReservationPayload = {
@@ -229,12 +274,12 @@ export async function pushInventory(
   source?: string
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/update/${config.pmsId}`;
+  const { updates: coalesced, recordsAffected } = coalescedPush(updates, (u) => u.rooms.length);
   const body: Record<string, unknown> = {
     hotelCode: config.hotelCode,
-    updates,
+    updates: coalesced,
   };
   if (toChannels?.length) body.toChannels = toChannels;
-  const recordsAffected = updates.reduce((sum, u) => sum + u.rooms.length, 0);
   return aiosellFetch(url, config, body, { type: "inventory", recordsAffected, source });
 }
 
@@ -244,12 +289,12 @@ export async function pushInventoryRestrictions(
   toChannels?: string[]
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/update/${config.pmsId}`;
+  const { updates: coalesced, recordsAffected } = coalescedPush(updates, (u) => u.rooms.length);
   const body: Record<string, unknown> = {
     hotelCode: config.hotelCode,
-    updates,
+    updates: coalesced,
   };
   if (toChannels?.length) body.toChannels = toChannels;
-  const recordsAffected = updates.reduce((sum, u) => sum + u.rooms.length, 0);
   return aiosellFetch(url, config, body, { type: "restriction", recordsAffected });
 }
 
@@ -259,10 +304,10 @@ export async function pushRates(
   source?: string
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/update-rates/${config.pmsId}`;
-  const recordsAffected = updates.reduce((sum, u) => sum + u.rates.length, 0);
+  const { updates: coalesced, recordsAffected } = coalescedPush(updates, (u) => u.rates.length);
   return aiosellFetch(url, config, {
     hotelCode: config.hotelCode,
-    updates,
+    updates: coalesced,
   }, { type: "rate", recordsAffected, source });
 }
 
@@ -273,12 +318,12 @@ export async function pushRateRestrictions(
   source?: string
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/update-rates/${config.pmsId}`;
+  const { updates: coalesced, recordsAffected } = coalescedPush(updates, (u) => u.rates.length);
   const body: Record<string, unknown> = {
     hotelCode: config.hotelCode,
-    updates,
+    updates: coalesced,
   };
   if (toChannels?.length) body.toChannels = toChannels;
-  const recordsAffected = updates.reduce((sum, u) => sum + u.rates.length, 0);
   return aiosellFetch(url, config, body, { type: "restriction", recordsAffected, source });
 }
 

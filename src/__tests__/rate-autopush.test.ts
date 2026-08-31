@@ -34,7 +34,7 @@ vi.mock("@/lib/pmsLog", () => ({
 }));
 
 import { triggerRatePush, triggerRestrictionPush } from "@/lib/aiosellSync";
-import { restrictionPatch } from "@/lib/aiosell";
+import { restrictionPatch, coalesceAiosellUpdates } from "@/lib/aiosell";
 import { logPmsCall } from "@/lib/pmsLog";
 
 const CONFIG = {
@@ -226,5 +226,57 @@ describe("triggerRestrictionPush after bulk Restrictions", () => {
       type: "restriction (auto)",
       status: "failed",
     }));
+  });
+});
+
+describe("coalesceAiosellUpdates", () => {
+  const suite555 = { roomCode: "suite", rateplanCode: "suite-s-ep", rate: 555 };
+
+  it("merges consecutive identical rate nights into one inclusive range", () => {
+    expect(coalesceAiosellUpdates([
+      { startDate: "2026-08-31", endDate: "2026-08-31", rates: [suite555] },
+      { startDate: "2026-09-01", endDate: "2026-09-01", rates: [suite555] },
+      { startDate: "2026-09-02", endDate: "2026-09-02", rates: [suite555] },
+    ])).toEqual([
+      { startDate: "2026-08-31", endDate: "2026-09-02", rates: [suite555] },
+    ]);
+  });
+
+  it("does not fill weekday gaps", () => {
+    expect(coalesceAiosellUpdates([
+      { startDate: "2026-09-04", endDate: "2026-09-04", rates: [suite555] },
+      { startDate: "2026-09-11", endDate: "2026-09-11", rates: [suite555] },
+    ])).toEqual([
+      { startDate: "2026-09-04", endDate: "2026-09-04", rates: [suite555] },
+      { startDate: "2026-09-11", endDate: "2026-09-11", rates: [suite555] },
+    ]);
+  });
+
+  it("splits when the rate changes", () => {
+    expect(coalesceAiosellUpdates([
+      { startDate: "2026-09-01", endDate: "2026-09-01", rates: [suite555] },
+      { startDate: "2026-09-02", endDate: "2026-09-02", rates: [{ ...suite555, rate: 600 }] },
+      { startDate: "2026-09-03", endDate: "2026-09-03", rates: [{ ...suite555, rate: 600 }] },
+    ])).toEqual([
+      { startDate: "2026-09-01", endDate: "2026-09-01", rates: [suite555] },
+      { startDate: "2026-09-02", endDate: "2026-09-03", rates: [{ ...suite555, rate: 600 }] },
+    ]);
+  });
+
+  it("merges consecutive inventory nights with the same leftover", () => {
+    const rooms = [{ roomCode: "executive", available: 4 }, { roomCode: "suite", available: 6 }];
+    expect(coalesceAiosellUpdates([
+      { startDate: "2026-09-05", endDate: "2026-09-05", rooms },
+      { startDate: "2026-09-06", endDate: "2026-09-06", rooms },
+    ])).toEqual([
+      { startDate: "2026-09-05", endDate: "2026-09-06", rooms },
+    ]);
+  });
+
+  it("does not merge inventory when leftover differs", () => {
+    expect(coalesceAiosellUpdates([
+      { startDate: "2026-09-05", endDate: "2026-09-05", rooms: [{ roomCode: "suite", available: 6 }] },
+      { startDate: "2026-09-06", endDate: "2026-09-06", rooms: [{ roomCode: "suite", available: 5 }] },
+    ])).toHaveLength(2);
   });
 });
