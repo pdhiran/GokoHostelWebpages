@@ -249,6 +249,33 @@ describe("Webhook reservation combinations", () => {
     q.addBooking.mockClear();
     await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({ pah: false, bookingId: "BK-PRE" }), { authorization: "whsec-test" }));
     expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({ paymentStatus: "prepaid" }));
+    q.addBooking.mockClear();
+    await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({ bookingId: "BK-NOPAH" }), { authorization: "whsec-test" }));
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({ paymentStatus: "unknown" }));
+  });
+
+  it("modify without pah keeps existing prepaid; pah true overwrites to pay_at_hotel", async () => {
+    q.getBookingByRef.mockResolvedValue({
+      id: 12,
+      status: "received",
+      guestName: "Ada",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-08",
+      persons: 1,
+      paymentStatus: "prepaid",
+    });
+    q.getBookingDetail.mockResolvedValue({
+      booking: { status: "received", persons: 1, roomType: "executive" },
+      assignments: [{
+        status: "assigned", bedId: 7, dormId: 8,
+        checkinDate: "2026-09-05", checkoutDate: "2026-09-08",
+      }],
+    });
+    await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({ action: "modify" }), { authorization: "whsec-test" }));
+    expect(q.updateBookingFull).toHaveBeenCalledWith(12, expect.objectContaining({ paymentStatus: "prepaid" }));
+    q.updateBookingFull.mockClear();
+    await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({ action: "modify", pah: true }), { authorization: "whsec-test" }));
+    expect(q.updateBookingFull).toHaveBeenCalledWith(12, expect.objectContaining({ paymentStatus: "pay_at_hotel" }));
   });
 
   it("counts children-only occupancy and missing guest as Unknown", async () => {

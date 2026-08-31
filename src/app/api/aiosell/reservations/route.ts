@@ -184,6 +184,12 @@ export async function ingestFetchedReservations(raw: unknown): Promise<{ importe
   return { imported, skipped, refs };
 }
 
+function channelPaymentStatus(pah?: boolean): "pay_at_hotel" | "prepaid" | "unknown" {
+  if (pah === true) return "pay_at_hotel";
+  if (pah === false) return "prepaid";
+  return "unknown";
+}
+
 function extractBookingFields(payload: ReservationPayload) {
   const guest = payload.guest;
   const guestName = channelGuestName(guest);
@@ -199,7 +205,7 @@ function extractBookingFields(payload: ReservationPayload) {
     checkoutDate: payload.checkout || "",
     roomType: roomInfo,
     persons: channelPersonCount({ rooms: payload.rooms }),
-    paymentStatus: payload.pah ? "pay_at_hotel" : "prepaid",
+    paymentStatus: channelPaymentStatus(payload.pah),
     specialRequests: payload.specialRequests || "",
     status: "received" as const,
     source: "channel_manager" as const,
@@ -355,7 +361,7 @@ async function handleModifyBooking(payload: ReservationPayload) {
     } : {}),
     roomType: roomInfo || "",
     persons,
-    paymentStatus: payload.pah !== undefined ? (payload.pah ? "pay_at_hotel" : "prepaid") : (existing.paymentStatus || "unknown"),
+    paymentStatus: payload.pah !== undefined ? channelPaymentStatus(payload.pah) : (existing.paymentStatus || "unknown"),
     specialRequests: payload.specialRequests || existing.specialRequests || "",
     status: existing.status,
     rawData: JSON.stringify(payload),

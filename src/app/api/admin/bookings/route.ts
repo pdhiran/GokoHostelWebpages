@@ -560,6 +560,7 @@ export async function POST(req: NextRequest) {
 
       if (collectPayment) {
         updateData.amountPaid = detail.booking.amountTotal ?? 0;
+        updateData.paymentStatus = "paid";
       }
 
       await updateBookingFull(bookingId, updateData);

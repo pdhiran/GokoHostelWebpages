@@ -765,6 +765,46 @@ describe("Bookings calendar and rates workflows", () => {
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });
 
+  it("checkIn collectPayment writes amountPaid and paymentStatus paid", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-10",
+        status: "received",
+        amountTotal: 31500,
+        paymentStatus: "pay_at_hotel",
+      },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    const res = await POST(req({ password: "x", action: "checkIn", bookingId: 5, collectPayment: true }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      status: "checked_in",
+      amountPaid: 31500,
+      paymentStatus: "paid",
+    }));
+  });
+
+  it("checkIn without collectPayment leaves prepaid amountPaid and paymentStatus alone", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-10",
+        status: "received",
+        amountTotal: 31500,
+        amountPaid: 0,
+        paymentStatus: "prepaid",
+      },
+      assignments: [],
+    });
+    const res = await POST(req({ password: "x", action: "checkIn", bookingId: 5, collectPayment: false }));
+    expect(res.status).toBe(200);
+    const patch = q.updateBookingFull.mock.calls[0][1];
+    expect(patch.status).toBe("checked_in");
+    expect(patch.amountPaid).toBeUndefined();
+    expect(patch.paymentStatus).toBeUndefined();
+  });
+
   it("checkIn on a channel_manager booking does not push occupancy back to Aiosell", async () => {
     q.getBookingDetail.mockResolvedValue({
       booking: {

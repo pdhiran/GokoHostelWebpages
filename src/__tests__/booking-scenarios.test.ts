@@ -206,6 +206,7 @@ describe("createBooking permutations", () => {
       amountTax: 70,
       amountTotal: 1470,
     }));
+    expect(q.addBooking.mock.calls[0][0].paymentStatus).toBeUndefined();
     expect(q.assignBedToBooking).not.toHaveBeenCalled();
   });
 

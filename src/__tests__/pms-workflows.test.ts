@@ -130,6 +130,21 @@ describe("PMS outbound workflows (mocked Aiosell HTTP)", () => {
     expect(calledInit.headers.Authorization).toMatch(/^Basic /);
   });
 
+  it("rate push coalesces consecutive identical nights into one Aiosell range", async () => {
+    fetchMock.mockResolvedValue(jsonRes({ success: true }));
+    const rate = { roomCode: "suite", rateplanCode: "suite-s-ep", rate: 555 };
+    await pushRates(CFG, [
+      { startDate: "2026-08-31", endDate: "2026-08-31", rates: [rate] },
+      { startDate: "2026-09-01", endDate: "2026-09-01", rates: [rate] },
+      { startDate: "2026-09-02", endDate: "2026-09-02", rates: [rate] },
+    ]);
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(sent.updates).toEqual([
+      { startDate: "2026-08-31", endDate: "2026-09-02", rates: [rate] },
+    ]);
+    expect(lastLog().recordsAffected).toBe(3);
+  });
+
   it("rate push stores the actual rate rows, not a count summary", async () => {
     fetchMock.mockResolvedValue(jsonRes({ success: true }));
     await pushRates(CFG, [{
@@ -431,6 +446,7 @@ describe("PMS inbound webhook workflows", () => {
       checkoutDate: "2026-09-06",
       roomType: "executive",
       status: "received",
+      paymentStatus: "pay_at_hotel",
     }));
     expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
     expect(triggerInventoryPush).not.toHaveBeenCalled();

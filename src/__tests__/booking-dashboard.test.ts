@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
-import { isWeekend, getNights, platformLogo, stayOverlapsVisible, rangeCoveringStay, computeTilePlacements, getDatesArray } from "@/components/admin/booking-dashboard/utils";
+import { isWeekend, getNights, platformLogo, stayOverlapsVisible, rangeCoveringStay, computeTilePlacements, getDatesArray, collectionCopy, formatCurrency } from "@/components/admin/booking-dashboard/utils";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { isRetryableAdminResponse } from "@/components/admin/useAdminApi";
 import { isTransientError } from "@/lib/dbRetry";
@@ -623,5 +623,64 @@ describe("Mock workflows: assign + admin retry", () => {
     expect(isTransientError("SQLITE_BUSY")).toBe(true);
     expect(isTransientError("Unique constraint failed")).toBe(false);
     expect(isTransientError("syntax error near INSERT")).toBe(false);
+  });
+});
+
+describe("collectionCopy / check-in payment labels", () => {
+  it("shows Collect payment for pay-at-hotel with a remaining balance", () => {
+    expect(collectionCopy("pay_at_hotel", 31500)).toEqual({
+      label: "Collect payment",
+      value: formatCurrency(31500),
+      due: true,
+    });
+    expect(collectionCopy("pay_at_property", 100)).toMatchObject({ label: "Collect payment", due: true });
+  });
+
+  it("shows Payment done for prepaid, paid, and settled hotel-collect", () => {
+    expect(collectionCopy("prepaid", 31500)).toEqual({ label: "Payment done", value: "Prepaid", due: false });
+    expect(collectionCopy("paid", 0)).toEqual({ label: "Payment done", value: "Collected", due: false });
+    expect(collectionCopy("pay_at_hotel", 0)).toEqual({ label: "Payment done", value: "Collected", due: false });
+  });
+
+  it("omits the row for unknown / partial so walk-in still uses the rupee balance", () => {
+    expect(collectionCopy("unknown", 5000)).toBeNull();
+    expect(collectionCopy("partial", 5000)).toBeNull();
+    expect(collectionCopy("", 5000)).toBeNull();
+  });
+
+  it("detail panel paints Balance red for hotel-due or unknown unpaid, not prepaid", () => {
+    const panel = readFile("src/components/admin/booking-dashboard/BookingDetailPanel.tsx");
+    expect(panel).toContain("collectionCopy(booking.paymentStatus, booking.balance)");
+    expect(panel).toContain("collection ? collection.due : booking.balance > 0");
+    expect(panel).toContain("highlight={dueAtHotel}");
+    expect(panel).not.toContain("highlight={booking.balance > 0}");
+    const due = (status: string, balance: number) => {
+      const copy = collectionCopy(status, balance);
+      return copy ? copy.due : balance > 0;
+    };
+    expect(due("prepaid", 31500)).toBe(false);
+    expect(due("pay_at_hotel", 31500)).toBe(true);
+    expect(due("unknown", 5000)).toBe(true);
+    expect(due("unknown", 0)).toBe(false);
+    expect(due("paid", 0)).toBe(false);
+  });
+
+  it("CheckInPopup skips Collected for prepaid and still offers it when due at hotel or unknown with balance", () => {
+    const popup = readFile("src/components/admin/booking-dashboard/CheckInPopup.tsx");
+    expect(popup).toContain("collectionCopy(booking.paymentStatus, balance)");
+    expect(popup).toContain("const offerCollect = collection ? collection.due : balance > 0");
+    expect(popup).toContain("{offerCollect && (");
+    expect(popup).toContain("Collected");
+    expect(popup).toContain("onConfirm(false)");
+  });
+
+  it("checkIn collectPayment writes paymentStatus paid so the label flips after desk cash", () => {
+    const route = readFile("src/app/api/admin/bookings/route.ts");
+    const checkIn = route.match(/action === "checkIn"[\s\S]*?action === "checkOut"/);
+    expect(checkIn).not.toBeNull();
+    const section = checkIn![0];
+    expect(section).toContain("if (collectPayment)");
+    expect(section).toContain("updateData.amountPaid = detail.booking.amountTotal ?? 0");
+    expect(section).toContain('updateData.paymentStatus = "paid"');
   });
 });

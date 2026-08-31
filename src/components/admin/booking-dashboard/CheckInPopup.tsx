@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { overlayVariants, modalVariants } from "@/lib/animations";
 import { Button } from "@/components/ui/button";
 import { CreditCardIcon, ClockIcon } from "lucide-react";
-import { formatCurrency } from "./utils";
+import { formatCurrency, collectionCopy } from "./utils";
 import type { DashboardBooking } from "./types";
 
 export function CheckInPopup({
@@ -17,7 +17,9 @@ export function CheckInPopup({
   onCancel: () => void;
 }) {
   const balance = booking.balance;
-  const hasBalance = balance > 0;
+  const collection = collectionCopy(booking.paymentStatus, balance);
+  const offerCollect = collection ? collection.due : balance > 0;
+  const paymentDone = !!collection && !collection.due;
 
   return (
     <AnimatePresence>
@@ -44,9 +46,14 @@ export function CheckInPopup({
           {booking.guestName}
         </p>
 
-        {hasBalance ? (
+        {paymentDone && collection ? (
+          <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-center dark:border-green-800 dark:bg-green-900/20">
+            <p className="text-xs text-green-600 dark:text-green-400">{collection.label}</p>
+            <p className="mt-1 text-lg font-semibold text-green-700 dark:text-green-300">{collection.value}</p>
+          </div>
+        ) : offerCollect ? (
           <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-4 text-center dark:border-orange-800 dark:bg-orange-900/20">
-            <p className="text-xs text-orange-600 dark:text-orange-400">Balance Due</p>
+            <p className="text-xs text-orange-600 dark:text-orange-400">{collection?.label || "Balance Due"}</p>
             <p className="mt-1 text-2xl font-bold text-orange-700 dark:text-orange-300">
               {formatCurrency(balance)}
             </p>
@@ -58,7 +65,7 @@ export function CheckInPopup({
         )}
 
         <div className="mt-4 flex gap-2">
-          {hasBalance && (
+          {offerCollect && (
             <Button
               className="flex-1"
               size="sm"
@@ -71,10 +78,10 @@ export function CheckInPopup({
           <Button
             className="flex-1"
             size="sm"
-            variant={hasBalance ? "outline" : "default"}
+            variant={offerCollect ? "outline" : "default"}
             onClick={() => onConfirm(false)}
           >
-            {hasBalance ? (
+            {offerCollect ? (
               <>
                 <ClockIcon className="size-3.5" />
                 Later

@@ -20,7 +20,7 @@ import {
   BanIcon,
   EditIcon,
 } from "lucide-react";
-import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getNights } from "./utils";
+import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getNights, collectionCopy } from "./utils";
 import { parseGokoWalkin, walkinDiscountOnGross } from "@/lib/bookingPricing";
 import { CheckInPopup } from "./CheckInPopup";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -102,6 +102,8 @@ export function BookingDetailPanel({
   const discount = walkin
     ? walkinDiscountOnGross(gross, walkin)
     : (booking.source === "manual" ? Math.max(0, gross - booking.amountBeforeTax) : 0);
+  const collection = collectionCopy(booking.paymentStatus, booking.balance);
+  const dueAtHotel = collection ? collection.due : booking.balance > 0;
 
   return (
     <>
@@ -189,6 +191,14 @@ export function BookingDetailPanel({
 
             {/* Payment */}
             <Section icon={CreditCardIcon} title="Payment">
+              {collection && (
+                <InfoRow
+                  label={collection.label}
+                  value={collection.value}
+                  highlight
+                  className={dueAtHotel ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"}
+                />
+              )}
               <InfoRow label="Subtotal" value={formatCurrency(booking.amountBeforeTax + discount)} />
               {discount > 0 && (
                 <InfoRow
@@ -205,8 +215,8 @@ export function BookingDetailPanel({
               <InfoRow
                 label="Balance"
                 value={formatCurrency(booking.balance)}
-                highlight={booking.balance > 0}
-                className={booking.balance > 0 ? "text-red-600 dark:text-red-400" : ""}
+                highlight={dueAtHotel}
+                className={dueAtHotel ? "text-red-600 dark:text-red-400" : ""}
               />
               <InfoRow label="Nightly Rate" value={formatCurrency(booking.nightlyRate)} />
               <InfoRow label="Currency" value={booking.currency} />

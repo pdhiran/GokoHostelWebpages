@@ -23,6 +23,7 @@ export type DashboardBooking = {
   amountTax: number;
   amountTotal: number;
   amountPaid: number;
+  paymentStatus: string;
   nightlyRate: number;
   currency: string;
   holdExpiresAt: string;

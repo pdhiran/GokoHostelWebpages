@@ -41,6 +41,21 @@ export const STATUS_LABELS: Record<string, string> = {
   modified: "Modified",
 };
 
+/** Channel pah true → collect at hotel; pah false → prepaid. Desk collect becomes paid. */
+export function collectionCopy(status?: string | null, balance = 0): { label: string; value: string; due: boolean } | null {
+  const s = (status || "").toLowerCase();
+  const collect = s === "pay_at_hotel" || s === "pay_at_property";
+  const prepaid = s === "prepaid";
+  const paid = s === "paid";
+  if (collect && balance > 0) {
+    return { label: "Collect payment", value: formatCurrency(balance), due: true };
+  }
+  if (prepaid || paid || (collect && balance <= 0)) {
+    return { label: "Payment done", value: prepaid ? "Prepaid" : "Collected", due: false };
+  }
+  return null;
+}
+
 export function getHostelToday(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
