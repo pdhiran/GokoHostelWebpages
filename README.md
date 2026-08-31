@@ -2,7 +2,13 @@
 
 Marketing site for Goko Hostel (Gokarna), rebuilt with the App Router, TypeScript, Tailwind CSS, and Framer Motion.
 
-This repository **is** the Next.js app. The previous static Webflow-style export (HTML, `js/`, root `images/`) has been removed in favor of this project at the repo root.
+This repository **is** the Next.js app for Goko Hostel (Gokarna): marketing site, guest check-in/food, kitchen, admin PMS, accounts, splits, CMS.
+
+**Handbook (committed):** [`docs/README.md`](docs/README.md) — start [`docs/llm-onboarding.md`](docs/llm-onboarding.md) then [`docs/developing.md`](docs/developing.md).
+
+**Secrets (not in git):** `docs/secrets-and-access.md` and `MAINTAINER.local.md` on a maintainer machine.
+
+Root `ARCHITECTURE.md` and the “Option A GitHub Actions deploy” section below are **stale** — see [`docs/stale-docs.md`](docs/stale-docs.md). Production Worker ships via Cloudflare **Workers Builds** on push to `main`, not via `deploy-cloudflare.yml`.
 
 ## Setup
 

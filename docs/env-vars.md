@@ -1,0 +1,80 @@
+# Environment variable names
+
+**Git-safe.** Names and what they do. **Values** live in gitignored [secrets-and-access.md](secrets-and-access.md), Mac `.env.local`, Pi `.env.local`, and Wrangler secrets. Do not paste passwords here.
+
+Committed bindings (not env): `wrangler.jsonc` — Worker name, D1 `goko-hostel-db`, R2 `goko-media`.
+
+---
+
+## Runtime / build
+
+| Name | Where | Purpose |
+|------|--------|---------|
+| `GOKO_RUNTIME` | Pi `.env.local` / `build:pi` | `"pi"` → SQLite `src/db/pi.ts` |
+| `NEXT_PUBLIC_GOKO_RUNTIME` | **build time** | Hide CMS/Splits nav; must match runtime |
+| `SQLITE_PATH` | Pi | DB file, default `./goko.db` |
+| `BUILD_VERSION` | `cf:build` / `build:pi` | git short SHA inlined |
+| `OPENNEXT_CLOUDFLARE_DEV` / `NEXT_DEV_WRANGLER_ENV` | local | Load Wrangler in `next dev` (off by default) |
+| `NEXTJS_ENV` | `.dev.vars` | OpenNext preview |
+
+---
+
+## Staff passwords (env, not DB)
+
+| Name | Purpose |
+|------|---------|
+| `ADMIN_PASSWORD` | Admin bypass, Form C token, sync, Gmail sync, import/upload, Google OAuth start |
+| `MANAGER_PASSWORD` | Env manager login; `permissions: {}` so **RBAC denies gated actions** |
+| `SYNC_SECRET` | Optional sync auth; if unset, `ADMIN_PASSWORD` still works |
+
+DB staff: `users.password_hash` = SHA-256(password + `goko-salt-2026`). Kitchen accepts env admin/manager **or any DB hash** (no username).
+
+---
+
+## Google
+
+| Name | Purpose |
+|------|---------|
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Vision JSON |
+| `GOOGLE_DRIVE_FOLDER_ID` | Root Drive folder for IDs + bills |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `GOOGLE_OAUTH_REFRESH_TOKEN` | Drive + Gmail desktop OAuth |
+| `GOOGLE_WEB_CLIENT_ID` / `GOOGLE_WEB_CLIENT_SECRET` | `/api/auth/google/*` web OAuth (often unset on Mac) |
+
+---
+
+## Cloudflare HTTP (scripts / seed, not the Worker binding)
+
+| Name | Purpose |
+|------|---------|
+| `CLOUDFLARE_ACCOUNT_ID` | D1 HTTP API |
+| `CLOUDFLARE_DATABASE_ID` | D1 UUID (also in `wrangler.jsonc`) |
+| `CLOUDFLARE_D1_TOKEN` | Token for seed/scripts |
+
+Worker itself uses binding `DB`, not these.
+
+---
+
+## Pi ↔ Cloudflare
+
+| Name | Purpose |
+|------|---------|
+| `PI_PUBLIC_URL` | Worker → Pi (tunnel URL) |
+| `CLOUDFLARE_SITE_URL` | Pi → production site, default `https://www.gokohostel.com` |
+
+---
+
+## Other
+
+| Name | Purpose |
+|------|---------|
+| `GITHUB_TOKEN` / `GITHUB_REPO` | Rate-scrape workflow dispatch |
+| `VAPID_PRIVATE_KEY` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Web push; no-op if unset |
+| `ANALYZE` | `npm run analyze` bundle |
+
+Aiosell **production** hotel/password/webhook sit in D1 `channel_config`, not env. Sandbox UI defaults are in `src/lib/aiosell.ts` (already in git).
+
+---
+
+## Settings keys (D1 `settings` table)
+
+Not env. Synced subset and Kannada drift: [data-model.md](data-model.md). Food keys: [flows-food-kitchen.md](flows-food-kitchen.md). Failover: `failover_enabled`, `pi_local_url`. Reviews: `review_google_url`. Booking tax: `booking_tax_rate`.

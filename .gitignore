@@ -35,11 +35,9 @@ yarn-error.log*
 # env files
 .env*.local
 
-# Local maintainer handbook (ops notes, live IDs, current status — keep off GitHub)
+# Local maintainer stamps + secrets (keep off GitHub)
 MAINTAINER.local.md
-
-# Local project handbook (architecture, flows, secrets — keep off GitHub)
-/docs/
+/docs/secrets-and-access.md
 
 # typescript
 *.tsbuildinfo

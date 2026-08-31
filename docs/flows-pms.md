@@ -1,0 +1,128 @@
+# PMS — beds, bookings, inventory, Aiosell
+
+**Git-safe.** Admin: `/admin`. Aiosell sandbox defaults are in `src/lib/aiosell.ts`. **Live hotel credentials are in D1 `channel_config`** (values in secrets file / Channel Manager UI).
+
+---
+
+## Two occupancy models
+
+```mermaid
+flowchart LR
+  WALK[Walk-in / same day] --> BEDS[beds.status occupied]
+  OTA[OTA / calendar] --> BBA[booking_bed_assignments]
+  BEDS --> MAP[Beds + Timeline UI]
+  BBA --> CAL[Bookings calendar]
+  BBA --> AVAIL[inventoryAvailability]
+  BLK[bed_blocks] --> AVAIL
+  OVR[inventory_overrides] --> AVAIL
+  AVAIL --> AIO[Aiosell inventory]
+```
+
+**Physical bed** (`available` → `occupied` → `cleanup` → `available`): Beds tab, Timeline. `assignBed` writes guest onto the row. Checkout → cleanup → `markClean`.
+
+**Date-range assignment:** Bookings calendar creates `bookings` + `booking_bed_assignments` with `inventory_pool` `online` | `offline` | `block`. Nights are `[checkin, checkout)`. `getBookingCalendarData` also loads booking rows for assignment `bookingId`s missing from the date-window query so a tile cannot vanish when the stay row was dropped from that filter. `assignBeds` coerces `bedIds` to positive integers (JSON sometimes sends `"77"`). Dorm-match (`assignedBedsMatchNeeds`) counts `getBedById` rows even when `beds.status` is `available`/`occupied` — that field is not `booking_bed_assignments.status` (`assigned`/`unassigned`). `assignBedToBooking` retries transient D1 errors and treats an already-written stay+bed row as success.
+
+Aiosell availability (`getDateAwareAvailability`): total beds − active blocks − assignments, then min with online ceiling − already-online assignments − **unassigned `channel_manager` rooms** mapped to that dorm (`getUnassignedOtaRoomCountForDorm` / `countUnassignedOtaRooms`, case-insensitive codes). Default ceiling is `otaCeiling` = **total − blocked** (no override). Blocking/unblocking therefore moves the OTA number, not walk-in leftover. A staff override (`inventory_overrides.onlineAvailable`) still wins — then blocking eats walk-in first, matching a locked OTA cap. A CM stay holds those rooms until it has an **online** assignment. Auto-assign writes online and drops the hold. Overflow assigned only on **offline** beds keeps the hold so the next Goko inventory push cannot raise OTA. Count is rooms from `rawData.rooms`, not `persons`. The Unassigned panel still lists only stays with **no** assigned bed. Webhook auto-assign passes `excludeBookingId` into `getUnassignedOtaHoldsForRange` so the new row can take its own held online slots; staff Unassigned `getAvailableBeds` does **not** send `bookingId`. Hold SQL uses the same exclusive end as `occupiedNights` (NULL, `''`, or `checkout <= checkin` → `date(checkin, '+1 day')`, including inverted dates and empty checkout). `exclusiveEndDate` is null when checkout `<` checkin (auto-assign/Unassigned refuse); hold still one night. `explodeUnassignedOtaHolds` has no status field — cancelled stays do not hold only because those SQL queries use `status NOT IN ('cancelled', 'checked_out', 'no_show')`. Release is booking-level `NOT EXISTS` any online assignment (one online bed drops the whole mixed-room hold — written rule, do not remaining-rooms-fix). If `rawData.rooms` is a non-empty array with no matching `roomCode`, count does not fall back to `roomType` (typed Aiosell rooms include `roomCode`; `parseReservationPayload` does not require it). Empty `rooms[]` / missing `rooms` still falls back to `roomType`.
+
+Inventory grid cells and the override modal use the same remaining: `remainingSplit(available, otaCeiling(...), onlineAssigned + unassignedOta)`. **Unassigned OTA** is channel_manager bookings for that room type with no **online** bed yet — a hold on the OTA ceiling, not a physical bed. The OTA/walk-in numbers inside the modal (`overrideRemainingInput` / `overridePreview`) must match the cell. Saving uses `overrideCeilingToSave` so the ceiling still subtracts unassigned OTA (do not persist `ceilingFromRemaining(typed, onlineAssigned)` alone). Physical identity is `total = booked + blocked + online + offline`; unassigned OTA is a separate row.
+
+Math: `src/lib/inventoryAvailability.ts` (tested).
+
+---
+
+## Bed status
+
+```mermaid
+stateDiagram-v2
+  available --> occupied: assignBed
+  occupied --> cleanup: checkoutBed
+  cleanup --> available: markClean
+  occupied --> available: unassignBed
+  occupied --> cleanup: changeBed out
+  available --> occupied: changeBed in
+```
+
+Overdue: `expectedCheckout < today` still occupied → highlight.
+
+Check-in records `checkoutGuest` can check out without a bed.
+
+---
+
+## Bookings calendar
+
+Route `/api/admin/bookings`. Create / assign beds / check-in / check-out / move / cancel / no-show / hold. `rollbackCheckIn` / `rollbackCheckOut` = admin_only.
+
+**Calendar `checkIn` does not create a `checkins` row** and does not flip `beds.status`. It only sets `bookings.status = checked_in` (+ optional `amountPaid` **and** `paymentStatus: paid` if `collectPayment`). Guest ID register is still Self Check-in / Records. Same-day walk-in occupancy is still Beds tab `assignBed`.
+
+Aiosell `pah: true` → `paymentStatus` `pay_at_hotel` (desk **Collect payment**). `pah: false` → `prepaid` (**Payment done** / Prepaid — do not collect). Omitted `pah` → `unknown` (no extra Payment row; red Balance still means collect, same as walk-in `createBooking`). `amountPaid` is Goko cash only — never copy OTA total onto it for prepaid. Desk **Collected** at calendar check-in sets `amountPaid = amountTotal` and `paymentStatus: paid` so the label flips to Payment done / Collected. Booking detail paints Balance red when `collectionCopy` says due, or when status is unknown/partial and balance > 0 — not for prepaid/paid.
+
+New Booking (`createBooking`) mints `goko_booking_id` as `GOKO` + IST date + 6 chars (same shape as Records walk-in `checkins.booking_id`). Detail **Goko Booking ID** shows that string, or `#` + numeric `bookings.id` for older walk-ins that have none. **OTA Booking ID** is `booking_ref` (Aiosell `bookingId`). **CM Booking ID** is `cm_booking_id`. Channel ingest still leaves `goko_booking_id` empty.
+
+**Assign / 500 retry:** Bookings dashboard POSTs use `fetchWithRetry` (`src/components/admin/useAdminApi.ts`) — up to 2 extra attempts on network throw, 429/502/503, HTML 5xx, and JSON 500 (`retryServerError`). `createBooking` does **not** retry JSON 500 (would duplicate). Server-side `assignBedToBooking` is `dbWrite({ idempotentWrite: true })`; a zero-row insert still returns true if this stay+bed is already `assigned`, so a retried assign is not a 409. `getBookingCalendarData` also fetches booking rows referenced by visible assignments (empty checkout used to drop the stay, and the grid skipped the tile with `if (!booking) continue`).
+
+Gmail sync (`POST /api/bookings/sync`, **env** admin/manager passwords only): last 7 days OTA mail → `otaEmailParser.ts` → dedupe `bookingRef`. MakeMyTrip + Booking.com richer than Hostelworld.
+
+---
+
+## Inventory UI
+
+`/api/admin/inventory` — grid, channel CRUD, bed type config, blocks, overrides, bulk rates/restrictions. Permission `canManageInventory`.
+
+Bulk Update date fields (Block / Set Rates / Adjust / Restrictions): past days greyed (`min` = today IST). Choosing start auto-fills end = next day (staff can change it). **Both dates are nights included.** Block picker shows beds free on **every** night in that range (intersection / tightest night) — not booked, not already blocked — from `getBedsFreeToBlock` only (no stale grid snapshot fallback). Unblock lists **all** active blocks via `getActiveBlocks`, not only those overlapping the visible grid. API still stores blocks as `[start, exclusiveEnd)` via `exclusiveEndFromInclusive`. `getBedsFreeToBlock` / `blockBeds` reject occupied beds.
+
+Set Rates, Adjust Rates, and Restrictions all use the same room-grouped chips (`RatePlanChipPicker`): tap any number of plans (Executive EP, 6-Bed MAP, …). Set Rates writes **one ₹** onto every selected plan (`bulkSetRates` `ratePlanIds[]`; singular `ratePlanId` still accepted). If `channelId` is set, Set Rates writes `channel_rates` only and **does not** `triggerRatePush` (that helper reads `daily_rates`). Adjust is % / ₹ relative per plan (always `daily_rates`). Restrictions apply the same flag/value to each selected plan. D1 still **preserves** other flags per night (min stay 2 does not clear an existing stop-sell in the grid). Auto-push to Aiosell (`triggerRestrictionPush` + `restrictionPatch`) sends **only the field staff set** — Aiosell restriction keys are optional/merge, so a min-stay update must not re-assert `stopSell: true` on a night that already had it. Channel Manager **Push restrictions** / `includeRestrictions` on `/api/aiosell/push-rates` still send the full D1 snapshot.
+
+New Booking / Unassigned Assign use `getAvailableBedsForRange`: same intersection over `[checkin, checkout)` (checkout morning is free). Chips are capped to the tightest night’s `min(online)+min(offline)` **minus unassigned OTA rooms** (`unassignedOta` on the inventory grid; `getUnassignedOtaHoldsForRange` on the picker). Webhook auto-assign excludes the new booking’s own hold; staff Unassigned does **not**, so leftover chips stay offline. Leftover physical beds that would squeeze OTA are omitted. Changing check-in auto-sets checkout to the next day. New Booking check-in greys past dates (`min` = today IST). Missing checkout on assign / move / edit / modify CI-CO is coerced with `stayCheckout` (`exclusiveEndDate`) so PMS nights are never empty. Night counts (`stayNightCount` / `occupiedNights.length`) are civil dates — not `new Date(date + "T00:00:00")`. Amount = nightlyRate × nights × bed count. Walk-in New Booking can take a **% discount** or **amount discount** (kitchen-style tabs + reason). Tax is `booking_tax_rate` in settings (default **5%**, Channel Manager → Configuration), applied after discount. Server reads the setting — do not trust a client tax. Walk-in stores `{ gokoWalkin: { discount, discountPercent?, discountAmount?, discountReason, taxPercent } }` in `bookings.raw_data`. Do **not** write that onto Aiosell `rawData`. Booking Engine / OTA create has no discount tabs. Date change (`modifyCheckin` / `modifyCheckout`) re-applies stored walk-in percent (or capped amount) then the current tax setting, and rewrites `gokoWalkin.discount` / `taxPercent` so the detail panel stays in sync. `editReservation` amount edits clear the stored percent so a later date change cannot resurrect the old discount. Assign is all-or-nothing: if any selected bed is missing from the picker, none are inserted (create then cancels the new row). `assignTaggedBeds` / date-change re-assign roll back partial writes then 409.
+
+Channel Manager **push** dates and Check Rates From grey past days; picking start fills end with the next day. Check Rates To is exclusive (`current < To`) so To `min` is start+1. CM push is inclusive (`current <= end`) so same-day start=end is one night. Public booking enquiry form matches New Booking. Calendar view custom range and food/ledger report dates stay able to look at the past.
+
+Aiosell cancel webhook pushes assignment nights when beds were assigned, else `occupiedNights(checkin, checkout)` — not checkout+1. Empty stay dates skip the push (do not default to today). `modify` rewrites assigned bed CI/CO to the new stay when those beds are free; on conflict it leaves booking dates on the old stay (guest/amount still update). Occupancy shrink/type change still reseats on those old dates. It still does **not** push inventory. Calendar `checkOut` shortens remaining **assignment** nights to today IST (same-day / pre-arrival: exclusive checkout = check-in, zero nights — assignments stay `assigned` so rollback can restore). A second checkout on an already-closed booking is 409 and does not extend the shortened assignment. Zero-night rows are omitted from `getBookingCalendarData` and overlap checks (`checkoutDate > checkinDate`); the grid does not paint a tile when `endIdx <= startIdx`. `bookings.checkoutDate` stays the planned stay so `rollbackCheckOut` can restore it. Rollback conflict-checks `[assignment.checkoutDate, bookings.checkoutDate)` (the nights being put back), not `[today, checkout)` — 409 if any of those nights were taken. It does not flip `beds.status`. Aiosell `modify` and staff date/bed edits skip realign / return 409 when status is `checked_out` / `no_show` / `cancelled` so an early checkout cannot be stretched back over nights already sold. `markNoShow` treats `booking.com` and `booking_com` as Booking.com. Unblock with unmatched `blockIds` does not push today's inventory.
+
+Dirty tracking: `inventory_dirty` then push. Default Channel Manager inventory push drains unmapped-dorm dirty rows first (they cannot be sent) so incremental mode cannot stick on an empty payload. Ranged push clears only dirty rows for nights actually sent. Full Sync still clears all dirty.
+
+Date arithmetic for stays/blocks/grid (`addCalendarDays`, `inclusiveNights`, `stayNights`) is civil `YYYY-MM-DD` via UTC — not `T00:00:00` local + IST format — so browsers east of IST do not drop a night.
+
+---
+
+## Aiosell
+
+```mermaid
+sequenceDiagram
+  participant Goko
+  participant Aio as live.aiosell.com
+  Goko->>Aio: push inventory / rates / restrictions / noshow
+  Aio->>Goko: POST /api/aiosell/reservations
+  Note over Goko: do not push back the same occupancy
+```
+
+Config in Management → Channel Manager (`/api/admin/channel-manager`, admin only). Enabling `isActive` **requires** `webhookSecret`. Auto inventory push also needs `autoPushInventory`. Auto restriction push from Bulk Update needs `autoPushRateRestrictions` and sends a **patch** (`restrictionPatch`), not a full snapshot. Rate / inventory / restriction **HTTP bodies** coalesce consecutive nights that share the same payload into one `{ startDate, endDate }` block (`coalesceAiosellUpdates` in `src/lib/aiosell.ts` — Aiosell expands the range server-side). Weekday-filter gaps and nights whose leftover/rate/restriction differs stay separate objects. Callers still build per-day rows (dirty clear / `inventoryPushed` counts).
+
+Live D1 (checked 31 Aug 2026): `hotelCode` `sandbox-pms`, `pmsId` `sample-pms`, host **`live.aiosell.com`** (Aiosell’s live API with a sandbox hotel, not a separate sandbox hostname). Auto-push inventory/rates/restrictions are all on. Goko room maps: `dorm-1`, `dorm-2`, `female-dorm`, `executive`, `shiva-dorm`. Aiosell fetch inventory/rates only returned **`executive`** and **`suite`**. `shiva-dorm` has **0** rate plans. Dorm 1/2/female each have **duplicate** EP/MAP/CP plan rows. Auto-push of `dorm-*` / `female-dorm` is logged as Aiosell `success:true` plus `INVALID_ROOM_CODE` warnings. Do **not** Full Sync / push inventory to invent `dorm-*` rooms on Aiosell until those codes exist there. `POST /api/aiosell/fetch` for inventory/rates is read-only; **`type: reservation` also ingest-creates missing Goko bookings** (skips refs that already exist, including cancelled — does not rebook). A fetch row with `action: "cancel"` is skipped even if the ref is unknown (same as webhook cancel of a missing ref — no insert). `book` / `modify` snapshots of unknown refs still go through `handleNewBooking`. Push routes write the live hotel.
+
+Beds-tab `assignBed` / `checkoutBed` / `unassignBed` / `markClean` do **not** auto-push inventory (`beds.status` is not in OTA math). Calendar occupancy, blocks, overrides, and webhook cancel still do.
+
+Inbound webhook `POST /api/aiosell/reservations`:
+
+- 503 if config missing/inactive or `webhookSecret` empty.
+- 401 unless `Authorization` or `x-api-key` equals the secret (or `Bearer {secret}`).
+- `hotelCode` must match on the webhook **and** on fetch ingest (`ingestFetchedReservations` skips snapshots whose `hotelCode` ≠ config).
+- `book` / `modify`: write `bookings` (`source: channel_manager`); `pah` true/`false`/omitted → `paymentStatus` `pay_at_hotel`/`prepaid`/`unknown` (`channelPaymentStatus`; modify keeps the existing status when `pah` is omitted). Do **not** push inventory (Aiosell already has the sale). `book`, cancelled/no-show rebook, and `modify` auto-assign online beds in the mapped room type (`channelBedNeeds` / `autoAssignOnlineChannelBeds`) for the whole stay — nights do not multiply beds. **One rooms[] row** uses occupancy as persons (1 executive × adults 2 → 2 beds). **The same `roomCode` repeated** with occupancy on every row is 1 bed per sold unit — occupancy is that unit's capacity (6 suite × adults 3 → **6 beds**, not 18). Stored `persons` matches that bed count (`channelPersonCount`). `modify` realigns the same bed IDs when dates change (keeps each assignment’s pool). If person count or room type changes (`channelAssignmentNeedsReseat`), it unassigns and re-auto-assigns all-or-nothing. Staff overflow in another dorm is kept when count and type are unchanged. Concurrent books retry `refreshTagged` up to 3 times (`autoAssignOnlineChannelBeds`: on `assignBed` false, skip that bed id, `unassignAll`, refresh, retry; without `refreshTagged` fail after the first conflict). Empty occupancy `{adults:0,children:0}` is the same as missing occupancy and uses `persons`. Mixed rooms[] keep specified occupancy counts and put leftover persons only on unspecified rooms (never inflate a specified room; omit unspecified rows when leftover is 0). Extra staff overflow beds are not occupancy growth (`previousNeedCount`). All-or-nothing: not enough online chips, inactive mapping, or unmapped code → Unassigned. Unassigned stays show under Admin → **Bookings → Unassigned** (orange badge). The panel is loaded via `getUnassigned` (all open stays with no assigned bed), **not** the visible calendar date range; response includes `requestedRoomCodes`, `requestedDormIds`, `requestedDormNames`, `requestedBedCount`, `requestedNeedLabels`, `requestedNeeds` (per-dorm `{ dormId, count, name }`). `enrichUnassignedBooking` recomputes bed count from `rawData.rooms` (so a row stored with persons 18 still asks for 6 suite beds after this rule). Rows whose stay is outside the visible dates are labelled **Off this calendar** (stays on-screen first). They do **not** appear on the calendar grid until a bed is assigned, and they do **not** create a Records/check-in row. Staff **Assign** leftover **offline** (walk-in) chips, one per requested bed, stores the chip pool, and **does not** push Aiosell. The Unassigned picker splits **Requested room(s)** vs **Other rooms (overflow)**, shows `requestedNeedLabels` / `requestedNeeds` (fallback `roomLabel` if empty), greens leftover chips with an **off** label, and caps requested-dorm chips at that dorm’s quota (`picked/quota`). `assignBeds` 400s unless the pick count matches one-per-person **and the stay currently has zero assigned beds**; mapped requested-dorm picks must match `requestedNeeds` (cannot dump 3 Executive for 2 Exec + 1 Dorm). Any selected bed outside `requestedDormIds` is overflow and skips the dorm-match 400 — mixed 2 Executive + 1 other-dorm for a 2+1 stay is 200 (intended). Once a stay already has an assigned bed, `assignBeds` still **adds** beds (`assignTaggedBeds`) but 400s if `currentAssigned + bedIds.length > requestedBedCount`. Calendar extra beds are `editReservation` `addBedIds`. **Reject** (admin/manager only) is Goko-only `cancelBooking` — confirm copy says it does **not** cancel the OTA. Staff do not see the button; a staff `cancelBooking` of a stay with no assigned beds is 403 even with `canDeleteBooking`. Calendar Cancel of an assigned stay still uses `canDeleteBooking`. Env manager can Reject unassigned without that key; assigned cancel still needs it. Detail **Cancel** on a stay with no assigned beds is the same admin/manager gate (staff with delete-booking do not see a 403 Cancel). Unassigned `getAvailableBeds` does **not** send `bookingId`. A later OTA cancel webhook on an already-cancelled Goko row no-ops and does not push. After assign, the stay is a calendar bar on that bed — it leaves Unassigned. If that stay does not overlap the current window, `rangeCoveringStay` shifts the calendar to a custom range of the same length starting at check-in **without** reloading the old dates first, other dorms collapse, and the Unassigned panel closes so the bar is on screen. The Timeline tab is physical `beds.status`, not calendar assignments. Multi-room webhooks store `nightlyRate` = sum of each room’s first-night `sellRate` (if `prices` is null, `amountAfterTax / nights`). Stay totals still come from `amount`. Guest `lastName: null` is omitted (`Pawan 123`, not `Pawan 123 null`). Fetch reservation ingest uses the same insert + auto-assign path but **never rebooks** an existing ref. Empty `rooms[]` stores `roomType ""` / `persons` 1 and stays Unassigned (a leftover `roomType` field on the JSON is ignored). Duplicate `bookingId` in one fetch batch: first row inserts, second is skipped once `getBookingByRef` sees it (`booking_ref` is indexed, not unique).
+- Staff occupancy of a `channel_manager` booking (assign, unassign, cancel, check-out, rollback check-out, date change, add/remove bed, move room) **does not** push inventory. `markNoShow` still notifies Aiosell (`pushNoShow`) then pushes occupancy because Goko already told Aiosell the night is free. Walk-in / manual bookings still push when OTA availability changes.
+- `cancel` **webhook**: status cancelled, capture nights from assignments (fallback booking dates), `unassignBookingBeds`, **then** `triggerInventoryPush` only if nights exist. Late OTA cancel of `checked_out` / `no_show` is a no-op (`Reservation already closed`) — does not overwrite status, unassign, or push. Already-cancelled is still `Reservation already cancelled`. Admin `hold` has no `stayClosed` check (no Hold button in the calendar UI) — posting `action: "hold"` on a cancelled CM stay sets `status: hold`, which **re-enters** `getUnassignedOtaHoldsForRange` (`NOT IN ('cancelled', 'checked_out', 'no_show')`). `getExpiredHoldBookings` is defined and never called; expiry does not auto-release. `checkOut` of an unassigned CM stay does not map dorms (unlike `markNoShow`) and still skips occupancy push — the hold drops locally via the `checked_out` status filter. Date-realign fail + occupancy **grow** (1→2) keeps old dates and reseats the new count on the old stay (same as shrink).
+
+## PMS logs
+
+Every Aiosell hop writes `channel_sync_log` (Management → Logs → PMS). `logPmsCall` in `src/lib/pmsLog.ts` — never throws. Payloads stored as sent (no PII redact). Bodies capped at 32KB. The card shows an **operation** line from `summarizePmsLog` in `src/lib/pmsLogSummary.ts` (display only; Aiosell bodies unchanged). **Do not** import `pmsLog.ts` from `ManagementLogs` — that module `import()`s D1 queries. Push inventory/rates/restrictions: `executive 30 Aug 10 → 9` by diffing this request against the previous **successful** log of the same kind (`inventory` matches `inventory (auto)`). No previous overlapping cell → `executive 30 Aug → 9` (do not invent a from). Pull reservation: `Book · SAN… · 2 executive · 31 Aug–1 Sep` — inventory remaining is **not** on the webhook. Repeated same-code rooms collapse to sold units (`6 suite`, not `3 suite + 3 suite` × 6). Fetch/no-show: one-line. Caps at 6 lines + `+N more`. Full restriction snapshots collapse defaults to `open`; 1-key auto patches still show `stopSell` / `stopSell off`.
+
+| Direction | Type | What |
+|-----------|------|------|
+| **pull** | `reservation` | Inbound webhook `POST /api/aiosell/reservations` (`book` / `modify` / `cancel`). URL in the log is our path, not live.aiosell.com. Auth failures do **not** store the body. |
+| **pull** | `fetch (inventory\|rates\|reservation)` | Channel Manager **Fetch from Aiosell** → `POST /api/v2/cm/data/{pmsId}` |
+| **push** | `inventory` / `inventory (auto)` | Manual Channel Manager push vs calendar/block auto-push → `/api/v2/cm/update/{pmsId}` |
+| **push** | `rate` / `rate (auto)` | Manual push-rates vs bulk Set Rates auto-push → `/api/v2/cm/update-rates/{pmsId}` |
+| **push** | `restriction` / `restriction (auto)` | Inventory restrictions or rate restrictions (auto = Bulk Update patch) |
+| **push** | `noshow` | Calendar mark no-show → `/api/v2/cm/noshow` |
+
+`getSyncLogs` type filter is prefix: `inventory` also returns `inventory (auto)` (`LIKE` with escaped `%`/`_`). Management → Logs keeps the last **30 days** (not a 500-row cap). UI default **50 per page** (25 / 50 / 100). Response is `{ logs, total, page, pageSize }`. Download is a menu: **PDF** (full fields + pretty request/response via `logExport.formatPmsLogsForPdf`, then browser `jspdf`) or **JSON** (same payload as before). Both use `download: true` / `pageSize: LOG_DOWNLOAD_MAX` (2000). System Logs has the same PDF/JSON menu. Auto-push catch failures are typed `inventory (auto)` / `rate (auto)` / `restriction (auto)` so they do not look like a failed manual push.
+
+Stayflexi is **only** the public Book now URL (`hotel_id=30819`), not this inventory loop.

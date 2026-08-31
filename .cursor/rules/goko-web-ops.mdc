@@ -1,28 +1,30 @@
 ---
-description: Goko Hostel website/ops upkeep — read local handbook; do not follow stale deploy notes
+description: Goko Hostel website/ops upkeep — read handbook; secrets stay local
 alwaysApply: true
 ---
 
 # Goko Web — maintainer ops
 
-Before deploy, D1 migrate, Pi work, Website CMS, or R2: **read `MAINTAINER.local.md` and `docs/` at the repo root** (both gitignored). If those are missing, say so and do not invent live IDs or “auto-deploy” behavior.
+Before deploy, D1 migrate, Pi work, Website CMS, or R2: **read gitignored `MAINTAINER.local.md` and `docs/secrets-and-access.md`**. Architecture and flows are in committed `docs/` (`docs/README.md`). If the secrets files are missing, say so and do not invent passwords or “GitHub Actions auto-deploy”.
 
-`MAINTAINER.local.md` is the source of truth for: Cloudflare account/worker/D1 IDs, current R2 status, migration stamp history, CMS vs Pi, and upkeep commands.
+`MAINTAINER.local.md` is the source of truth for: live Worker versions, D1 migration stamps, current R2 status.
 
-`docs/` is the local-only project handbook (how the system works, every flow, **secrets and passwords**). Start at `docs/README.md`. New agent session: `docs/llm-onboarding.md`, then `docs/secrets-and-access.md` if you need to run anything.
+`docs/secrets-and-access.md` is the source of truth for: passwords, Google JSON, Cloudflare tokens, Pi SSH.
+
+`docs/` (everything else) is the project knowledge base in git. New agent: `docs/llm-onboarding.md` then `docs/developing.md`.
 
 ## Do this
 
-- Production Worker deploys are **local Wrangler** (`npm run deploy:cf`). There is **no** `deploy-cloudflare.yml`. GitHub CI (`ci.yml`) tests/lints/`next build` only — it does **not** ship the Worker.
+- Production Worker: Cloudflare **Workers Builds** on `goko-hostel-latest-webpage` deploys on push to `main` (`npm run cf:build`). GitHub Actions `ci.yml` tests/lints/`next build` only — it does **not** ship the Worker. There is **no** `deploy-cloudflare.yml`. Local fallback: `npm run deploy:cf` from a worktree.
 - Never run `next build` / `deploy:cf` in the same checkout as a running `npm run dev` (they share `.next`). Use a git worktree or stop `next dev`.
 - New SQL in `migrations/` → apply production D1 (`npm run db:migrate:prod`) around the same time as the Worker deploy. If Wrangler says pending but the column/table already exists, **stamp** `d1_migrations` — do not re-run ALTER.
-- Website CMS (Events + Community Area) is D1 + R2, admin-only under Management → Website. **Not** synced to the Pi. Pi migrator **skips** `0035_site_cms.sql`.
+- Website CMS (Events + Community Area) is D1 + R2, admin-only under Management → Website. **Not** synced to the Pi. Pi migrator **skips** `0035_site_cms.sql`. Splits skip `0041_splits.sql`.
 - Guest ID/visa/bill photos still go to **Google Drive**. CMS card/hero JPEGs go to **R2** (`goko-media` / `MEDIA`) once the account has R2 enabled.
-- `npm test` (Vitest) exists; run it for CMS/auth/stock changes.
-- After a product change, update the matching file under gitignored `docs/` (see `.cursor/rules/goko-local-docs.mdc`). Do not commit `docs/`.
+- `npm test` (Vitest) exists; run it for CMS/auth/stock/PMS changes. Also `npx tsc --noEmit` before push.
+- After a product change, update the matching file under `docs/` (see `.cursor/rules/goko-local-docs.mdc`). Secrets → only `docs/secrets-and-access.md`. Never commit that file or `MAINTAINER.local.md`.
 
 ## Do not
 
-- Follow `goko-web-overview.mdc` “auto-deploy on push” / “do not run deploy:cf” — that is outdated.
+- Follow `goko-web-overview.mdc` “GitHub Actions auto-deploy” / “do not run deploy:cf” — that is outdated.
 - Enable R2 via Wrangler API if the dashboard has never opened R2 (error 10042). User must enable R2 in the Cloudflare dashboard first.
-- Put secrets, SSH passwords, or live Worker version IDs in git. Keep them in `MAINTAINER.local.md` and `docs/` (both gitignored).
+- Put secrets, SSH passwords, or live Worker version IDs in git. Keep them in `MAINTAINER.local.md` and `docs/secrets-and-access.md`.
