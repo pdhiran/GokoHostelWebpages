@@ -846,6 +846,26 @@ describe("Channel Manager config API", () => {
     expect(q.setSetting).toHaveBeenCalledWith("booking_tax_rate", "8");
   });
 
+  it("saveConfig writes booking_tax_rate 0", async () => {
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "saveConfig",
+      config: { isActive: false, hotelCode: "GOKO-001", webhookSecret: "" },
+      bookingTaxRate: 0,
+    })));
+    expect(res.status).toBe(200);
+    expect(q.setSetting).toHaveBeenCalledWith("booking_tax_rate", "0");
+  });
+
+  it("getConfig returns bookingTaxRate 0 when setting is 0", async () => {
+    q.getChannelConfig.mockResolvedValue(activeConfig);
+    q.getSetting.mockResolvedValue("0");
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "getConfig",
+    })));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ config: activeConfig, bookingTaxRate: 0 });
+  });
+
   it.each([
     [{ dormId: 8, channelRoomCode: "" }],
     [{ dormId: 0, channelRoomCode: "executive" }],

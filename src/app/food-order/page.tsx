@@ -8,6 +8,7 @@ import { PhoneEntry, type GuestInfo } from "@/components/food/PhoneEntry";
 import type { CartItem } from "@/components/food/MenuBrowser";
 import type { CartItemData, GuestInfoData } from "@/components/food/FoodCart";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
+import { foodTaxPercent } from "@/lib/foodLookup";
 // import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 const MenuBrowser = dynamic(
@@ -504,7 +505,7 @@ export default function FoodOrderPage() {
                 <FoodCart
                   cart={cart as CartItemData[]}
                   guestInfo={guestInfo}
-                  taxRate={settings?.taxRate || 5}
+                  taxRate={foodTaxPercent(settings?.taxRate)}
                   whatsappNumber={settings?.whatsappNumber || ""}
                   customerWhatsappEnabled={settings?.customerWhatsappEnabled ?? true}
                   onUpdateQuantity={handleUpdateQuantity}

@@ -228,7 +228,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
               min="0"
               max="100"
               value={bookingTaxRate}
-              onChange={(e) => setBookingTaxRate(Number(e.target.value))}
+              onChange={(e) => setBookingTaxRate(e.target.value === "" ? 0 : bookingTaxPercent(e.target.value))}
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
           </div>

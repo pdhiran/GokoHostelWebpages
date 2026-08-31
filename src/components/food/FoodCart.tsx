@@ -294,10 +294,12 @@ export function FoodCart({
           <span>Subtotal</span>
           <span>{formatPrice(subtotal)}</span>
         </div>
-        <div className="mt-1 flex justify-between text-sm text-gray-600 dark:text-muted-foreground">
-          <span>Tax ({taxRate}%)</span>
-          <span>{formatPrice(taxAmount)}</span>
-        </div>
+        {taxRate > 0 && (
+          <div className="mt-1 flex justify-between text-sm text-gray-600 dark:text-muted-foreground">
+            <span>Tax ({taxRate}%)</span>
+            <span>{formatPrice(taxAmount)}</span>
+          </div>
+        )}
         <div className="mt-2 border-t border-gray-100 dark:border-border pt-2">
           <div className="flex justify-between text-base font-bold text-gray-800 dark:text-foreground">
             <span>Total</span>

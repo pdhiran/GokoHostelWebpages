@@ -37,7 +37,7 @@ vi.mock("@/lib/runtime", () => ({ isOfflineMode: () => true }));
 
 import { GET as lookupGET } from "@/app/api/food/lookup/route";
 import { POST as checkinPOST } from "@/app/api/checkin/route";
-import { parseFoodCheckoutGraceDays } from "@/lib/foodLookup";
+import { foodTaxPercent, parseFoodCheckoutGraceDays } from "@/lib/foodLookup";
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -48,6 +48,17 @@ describe("parseFoodCheckoutGraceDays", () => {
     expect(parseFoodCheckoutGraceDays(null)).toBe(10);
     expect(parseFoodCheckoutGraceDays("")).toBe(10);
     expect(parseFoodCheckoutGraceDays("nope")).toBe(10);
+  });
+});
+
+describe("foodTaxPercent", () => {
+  it("keeps 0% and defaults empty/invalid to 5", () => {
+    expect(foodTaxPercent(undefined)).toBe(5);
+    expect(foodTaxPercent("")).toBe(5);
+    expect(foodTaxPercent("nope")).toBe(5);
+    expect(foodTaxPercent("0")).toBe(0);
+    expect(foodTaxPercent(0)).toBe(0);
+    expect(foodTaxPercent("12")).toBe(12);
   });
 });
 

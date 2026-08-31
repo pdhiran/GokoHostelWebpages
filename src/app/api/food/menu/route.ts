@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getActiveMenuCategories, getAvailableMenuItems, getAllMenuItems, getSetting } from "@/db/queries";
+import { foodTaxPercent } from "@/lib/foodLookup";
 
 export async function GET() {
   try {
@@ -23,7 +24,7 @@ export async function GET() {
       settings: {
         kitchenHours: kitchenHours || "08:00-15:00,18:00-23:30",
         isBusy: kitchenBusy === "true",
-        taxRate: Number(taxRate) || 5,
+        taxRate: foodTaxPercent(taxRate),
         whatsappNumber: whatsappNumber || "",
         customerWhatsappEnabled: customerWhatsapp !== "false",
         showOutOfStock,

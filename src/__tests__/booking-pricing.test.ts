@@ -18,7 +18,17 @@ describe("bookingPricing", () => {
     expect(bookingTaxPercent(-1)).toBe(5);
     expect(bookingTaxPercent("12")).toBe(12);
     expect(bookingTaxPercent(0)).toBe(0);
+    expect(bookingTaxPercent("0")).toBe(0);
     expect(bookingTaxPercent(150)).toBe(100);
+  });
+
+  it("taxes 0% as zero, not the default 5%", () => {
+    expect(bookingTotals(1100, { taxPercent: 0 })).toEqual({
+      gross: 1100, discount: 0, beforeTax: 1100, tax: 0, total: 1100,
+    });
+    expect(bookingTotals(1100, { discountPercent: 10, taxPercent: 0 })).toEqual({
+      gross: 1100, discount: 110, beforeTax: 990, tax: 0, total: 990,
+    });
   });
 
   it("prefers percent discount over amount and caps at gross", () => {

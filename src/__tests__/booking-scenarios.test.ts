@@ -294,6 +294,26 @@ describe("createBooking permutations", () => {
     }));
   });
 
+  it("stores amountTax 0 when booking_tax_rate is 0", async () => {
+    q.getSetting.mockResolvedValue("0");
+    mockBeds([7]);
+    const res = await POST(req({
+      password: "x",
+      action: "createBooking",
+      guestName: "ZeroTax",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-06",
+      nightlyRate: 1000,
+      bedIds: [7],
+    }));
+    expect(res.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      amountBeforeTax: 1000,
+      amountTax: 0,
+      amountTotal: 1000,
+    }));
+  });
+
   it("ignores a client-supplied taxPercent on create", async () => {
     mockBeds([7]);
     const res = await POST(req({

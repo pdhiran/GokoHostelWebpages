@@ -13,6 +13,7 @@ import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { usePanelHistory } from "@/hooks/usePanelHistory";
 import { RecordPaymentModal, PaymentDetailLabel } from "@/components/admin/RecordPaymentModal";
+import { foodTaxPercent, foodTaxRateFromAmounts } from "@/lib/foodLookup";
 
 type FoodTab = "summary" | "place" | "combined" | "payment" | "active";
 
@@ -216,6 +217,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
   const [confirmWithGuest, setConfirmWithGuest] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [occupiedTables, setOccupiedTables] = useState<Map<number, string>>(new Map());
+  const [taxRate, setTaxRate] = useState(5);
   const cartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -228,6 +230,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
         if (data.categories?.length > 0) setSelectedCategory(data.categories[0].id);
         setCafeTableCount(parseInt(data.cafeTableCount) || 0);
         setConfirmWithGuest(data.confirmWithGuest === true);
+        if (data.taxRate != null) setTaxRate(foodTaxPercent(data.taxRate));
       }
       setLoadingMenu(false);
     })();
@@ -332,7 +335,7 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
   };
 
   const cartTotal = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
-  const cartTax = Math.round(cartTotal * 0.05);
+  const cartTax = Math.round((cartTotal * taxRate) / 100);
   const cartGrandTotal = cartTotal + cartTax;
 
   const submit = async () => {
@@ -635,7 +638,9 @@ function PlaceOrder({ apiCall, prefillGuest, onPrefillConsumed, onOrderPlaced }:
           </div>
           <div className="mt-3 border-t border-brand-mist pt-2 text-sm">
             <div className="flex justify-between text-brand-green-dark/70"><span>Subtotal</span><span>₹{(cartTotal / 100).toFixed(0)}</span></div>
-            <div className="flex justify-between text-brand-green-dark/70"><span>Tax (5%)</span><span>₹{(cartTax / 100).toFixed(0)}</span></div>
+            {taxRate > 0 && (
+              <div className="flex justify-between text-brand-green-dark/70"><span>Tax ({taxRate}%)</span><span>₹{(cartTax / 100).toFixed(0)}</span></div>
+            )}
             <div className="flex justify-between font-bold text-brand-green-dark"><span>Total</span><span>₹{(cartGrandTotal / 100).toFixed(0)}</span></div>
           </div>
           <textarea
@@ -1065,7 +1070,7 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
         subtotal,
         tax,
         total,
-        taxRate: 5,
+        taxRate: foodTaxRateFromAmounts(subtotal, tax),
         discount: discount || undefined,
         discountableSubtotal: printGross - printExempt,
         exemptSubtotal: printExempt,
@@ -1143,7 +1148,10 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
       grandSubtotal: orders.reduce((s, o) => s + o.subtotal, 0),
       grandTax: orders.reduce((s, o) => s + o.tax, 0),
       grandTotal: orders.reduce((s, o) => s + o.total, 0),
-      taxRate: 5,
+      taxRate: foodTaxRateFromAmounts(
+        orders.reduce((s, o) => s + o.subtotal, 0),
+        orders.reduce((s, o) => s + o.tax, 0),
+      ),
       billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
       discountableSubtotal: grossSub - exemptSub,
       exemptSubtotal: exemptSub,
@@ -1778,7 +1786,10 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
           }))
         ),
       }));
-      await printCombinedBill(guestData, preview.grandTotal, 5, undefined, cpGross - cpExempt, cpExempt);
+      const cpOrders = preview.guests.flatMap((g: any) => g.orders || []);
+      const cpSub = cpOrders.reduce((s: number, o: any) => s + (o.subtotal || 0), 0);
+      const cpTax = cpOrders.reduce((s: number, o: any) => s + (o.tax || 0), 0);
+      await printCombinedBill(guestData, preview.grandTotal, foodTaxRateFromAmounts(cpSub, cpTax), undefined, cpGross - cpExempt, cpExempt);
       showSuccess("Combined bill printed successfully!");
     } catch (err: any) {
       showError("Print failed", err.message || "Unknown error");
@@ -1885,6 +1896,9 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                     }
                   }
                 }
+                const combOrders = (preview.guests as any[]).flatMap((g: any) => g.orders || []);
+                const combSub = combOrders.reduce((s: number, o: any) => s + (o.subtotal || 0), 0);
+                const combTax = combOrders.reduce((s: number, o: any) => s + (o.tax || 0), 0);
                 const combinedData: CombinedBillData = {
                   guests: preview.guests.map((g: any) => ({
                     guestName: g.guestName as string,
@@ -1909,10 +1923,10 @@ function CombinedBill({ apiCall }: { apiCall: (body: any) => Promise<Response> }
                     guestTax: (g.tax || 0) as number,
                     guestTotal: (g.subtotal || 0) as number,
                   })),
-                  grandSubtotal: preview.grandTotal,
-                  grandTax: Math.round(preview.grandTotal * 5 / 105),
+                  grandSubtotal: combSub,
+                  grandTax: combTax,
                   grandTotal: preview.grandTotal,
-                  taxRate: 5,
+                  taxRate: foodTaxRateFromAmounts(combSub, combTax),
                   billDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
                   discountableSubtotal: combGrossSub - combExemptSub,
                   exemptSubtotal: combExemptSub,
@@ -3031,7 +3045,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                               subtotal: order.subtotal,
                               tax: order.tax,
                               total: order.total,
-                              taxRate: 5,
+                              taxRate: foodTaxRateFromAmounts(order.subtotal, order.tax),
                               discount: order.discount || undefined,
                               discountableSubtotal: spGross - spExempt,
                               exemptSubtotal: spExempt,
@@ -3085,7 +3099,7 @@ export function OrderHistory({ apiCall }: { apiCall: (body: any) => Promise<Resp
                           grandSubtotal: order.subtotal,
                           grandTax: order.tax,
                           grandTotal: order.total,
-                          taxRate: 5,
+                          taxRate: foodTaxRateFromAmounts(order.subtotal, order.tax),
                           billDate: new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
                           discountableSubtotal: singleGross - singleExempt,
                           exemptSubtotal: singleExempt,

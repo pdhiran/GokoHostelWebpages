@@ -145,6 +145,12 @@ describe("GET /api/food/menu", () => {
     const json = await (await getMenu()).json();
     expect(json.settings.kitchenHours).toBe(DEFAULT_HOURS);
   });
+
+  it("returns taxRate 0 when food_tax_rate is 0", async () => {
+    mockSettings({ food_tax_rate: "0" });
+    const json = await (await getMenu()).json();
+    expect(json.settings.taxRate).toBe(0);
+  });
 });
 
 describe("POST /api/food/order", () => {

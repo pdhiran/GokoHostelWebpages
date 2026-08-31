@@ -27,6 +27,7 @@ import { getDb } from "@/db";
 import { foodOrderItems, foodOrders, orderModifications } from "@/db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
 import { authenticateKitchen } from "@/lib/auth";
+import { foodTaxPercent } from "@/lib/foodLookup";
 
 export async function POST(req: NextRequest) {
   try {
@@ -158,8 +159,7 @@ export async function POST(req: NextRequest) {
       const discountableSubtotal = activeItems.filter((i) => !exemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
       const existingDiscount = Math.min(curOrder?.discount || 0, discountableSubtotal);
       const subtotal = grossSubtotal - existingDiscount;
-      const taxRateStr = await getSetting("food_tax_rate");
-      const taxRate = Number(taxRateStr) || 5;
+      const taxRate = foodTaxPercent(await getSetting("food_tax_rate"));
       const tax = Math.round((subtotal * taxRate) / 100);
       const total = subtotal + tax;
 
@@ -223,8 +223,7 @@ export async function POST(req: NextRequest) {
       const kitchenDiscountable = activeItems.filter((i) => !kitchenExemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
       const disc = Math.min(curOrd?.discount || 0, kitchenDiscountable);
       const subtotal = grossSub - disc;
-      const taxRateStr = await getSetting("food_tax_rate");
-      const taxRate = Number(taxRateStr) || 5;
+      const taxRate = foodTaxPercent(await getSetting("food_tax_rate"));
       const tax = Math.round((subtotal * taxRate) / 100);
       const total = subtotal + tax;
 
@@ -281,8 +280,7 @@ export async function POST(req: NextRequest) {
       const addDiscountable = activeItems.filter((i) => !addExemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
       const disc2 = Math.min(curOrd2?.discount || 0, addDiscountable);
       const subtotal = grossSub2 - disc2;
-      const taxRateStr = await getSetting("food_tax_rate");
-      const taxRate = Number(taxRateStr) || 5;
+      const taxRate = foodTaxPercent(await getSetting("food_tax_rate"));
       const tax = Math.round((subtotal * taxRate) / 100);
       const total = subtotal + tax;
 

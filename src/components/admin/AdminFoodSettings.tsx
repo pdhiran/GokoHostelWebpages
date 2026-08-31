@@ -88,7 +88,7 @@ export function AdminFoodSettings({ password, username, role }: { password: stri
         }
         const merged: FoodSettings = {
           food_kitchen_whatsapp: s.food_kitchen_whatsapp || DEFAULT_SETTINGS.food_kitchen_whatsapp,
-          food_tax_rate: s.food_tax_rate || DEFAULT_SETTINGS.food_tax_rate,
+          food_tax_rate: s.food_tax_rate != null && s.food_tax_rate !== "" ? String(s.food_tax_rate) : DEFAULT_SETTINGS.food_tax_rate,
           food_kitchen_hours: kitchenHours || DEFAULT_SETTINGS.food_kitchen_hours,
           food_tab_limit: s.food_tab_limit || DEFAULT_SETTINGS.food_tab_limit,
           food_checkout_grace_days: s.food_checkout_grace_days || DEFAULT_SETTINGS.food_checkout_grace_days,

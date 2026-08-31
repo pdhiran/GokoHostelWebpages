@@ -264,6 +264,21 @@ describe("Bookings calendar and rates workflows", () => {
     expect((await res.json()).taxRate).toBe(8);
   });
 
+  it("getAvailableBeds returns taxRate 0 when booking_tax_rate is 0", async () => {
+    q.getAvailableBedsForRange.mockResolvedValue([]);
+    q.getRoomTypeMappings.mockResolvedValue([]);
+    q.getRatePlanMappings.mockResolvedValue([]);
+    q.getAllDailyRates.mockResolvedValue([]);
+    q.getSetting.mockResolvedValue("0");
+    const res = await POST(req({
+      password: "x",
+      action: "getAvailableBeds",
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-02",
+    }));
+    expect((await res.json()).taxRate).toBe(0);
+  });
+
   it("early checkOut shortens assigned nights to today", async () => {
     q.getBookingDetail.mockResolvedValue({
       booking: { checkinDate: "2020-01-01", checkoutDate: "2099-01-01" },

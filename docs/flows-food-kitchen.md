@@ -73,7 +73,7 @@ Exact names in code. UI defaults in `AdminFoodSettings.tsx`.
 | `food_kitchen_hours` | `08:00-15:00,18:00-23:30` | Guest orders blocked when closed |
 | `food_kitchen_open` / `food_kitchen_close` | legacy | UI concatenates into hours if hours empty |
 | `food_kitchen_busy` | `false` | Guest POST 503 iff string `"true"` |
-| `food_tax_rate` | `5` | percent |
+| `food_tax_rate` | `5` | percent. **0 is 0%** — `foodTaxPercent` in `src/lib/foodLookup.ts`. Never `Number(x) || 5`. |
 | `food_tab_limit` | `0` | unpaid cap paise; 0 unlimited |
 | `food_checkout_grace_days` | (parsed in `foodLookup.ts`) | hostel order after checkout |
 | `food_cafe_tables` | `6` | admin place-order tables |

@@ -1,5 +1,20 @@
 import { normalizePhone } from "@/lib/phoneUtils";
 
+export const DEFAULT_FOOD_TAX_PERCENT = 5;
+
+/** `food_tax_rate` percent. 0 is 0% — do not `Number(x) || 5`. */
+export function foodTaxPercent(raw: unknown): number {
+  if (raw == null || raw === "") return DEFAULT_FOOD_TAX_PERCENT;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_FOOD_TAX_PERCENT;
+  return Math.min(100, n);
+}
+
+export function foodTaxRateFromAmounts(subtotal: number, tax: number): number {
+  if (!(subtotal > 0)) return 0;
+  return Math.round((Number(tax) * 100) / subtotal);
+}
+
 export function parseFoodCheckoutGraceDays(setting: string | null | undefined): number {
   if (setting == null || setting === "") return 10;
   const parsed = Number(setting);

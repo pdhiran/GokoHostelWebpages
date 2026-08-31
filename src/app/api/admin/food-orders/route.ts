@@ -36,7 +36,7 @@ import {
   deleteFoodOrderItem,
   getMenuItemCategoryExemptions,
 } from "@/db/queries";
-import { parseFoodCheckoutGraceDays } from "@/lib/foodLookup";
+import { parseFoodCheckoutGraceDays, foodTaxPercent } from "@/lib/foodLookup";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { authenticateUser } from "@/lib/auth";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
@@ -212,8 +212,7 @@ export async function POST(req: NextRequest) {
         }
 
         const newItemsSubtotal = validatedItems.reduce((sum, i) => sum + i.lineTotal, 0);
-        const taxRateStr = await getSetting("food_tax_rate");
-        const taxRate = Number(taxRateStr) || 5;
+        const taxRate = foodTaxPercent(await getSetting("food_tax_rate"));
 
         const subtotal = newItemsSubtotal;
         const tax = Math.round((subtotal * taxRate) / 100);
@@ -356,8 +355,7 @@ export async function POST(req: NextRequest) {
         const discountableSubtotal = activeItems.filter((i) => !exemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
         const existingDiscount = Math.min(currentOrder?.discount || 0, discountableSubtotal);
         const newSubtotal = grossSubtotal - existingDiscount;
-        const voidTaxRateStr = await getSetting("food_tax_rate");
-        const voidTaxRate = Number(voidTaxRateStr) || 5;
+        const voidTaxRate = foodTaxPercent(await getSetting("food_tax_rate"));
         const newTax = Math.round((newSubtotal * voidTaxRate) / 100);
         const newTotal = newSubtotal + newTax;
         await updateFoodOrder(orderId, { subtotal: newSubtotal, tax: newTax, total: newTotal, discount: existingDiscount });
@@ -405,8 +403,7 @@ export async function POST(req: NextRequest) {
         const qtyExemptions = await getMenuItemCategoryExemptions(actItems.map((i) => i.menuItemId));
         const qtyDiscountable = actItems.filter((i) => !qtyExemptions.get(i.menuItemId)).reduce((sum, i) => sum + i.lineTotal, 0);
         const disc = Math.min(curOrd?.discount || 0, qtyDiscountable);
-        const qtyTaxRateStr = await getSetting("food_tax_rate");
-        const qtyTaxRate = Number(qtyTaxRateStr) || 5;
+        const qtyTaxRate = foodTaxPercent(await getSetting("food_tax_rate"));
         const qtySubtotal = grossSub - disc;
         const qtyTax = Math.round((qtySubtotal * qtyTaxRate) / 100);
         const qtyTotal = qtySubtotal + qtyTax;
@@ -425,8 +422,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "discountPercent or discountAmount required" }, { status: 400 });
         }
 
-        const discTaxRateStr = await getSetting("food_tax_rate");
-        const discTaxRate = Number(discTaxRateStr) || 5;
+        const discTaxRate = foodTaxPercent(await getSetting("food_tax_rate"));
 
         const orderData: { id: number; grossSubtotal: number; discountableSubtotal: number }[] = [];
         const itemsByOrder = await getFoodOrderItemsBatch(orderIds);
@@ -495,8 +491,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "orderIds required" }, { status: 400 });
         }
 
-        const rmTaxRateStr = await getSetting("food_tax_rate");
-        const rmTaxRate = Number(rmTaxRateStr) || 5;
+        const rmTaxRate = foodTaxPercent(await getSetting("food_tax_rate"));
 
         const rmItemsByOrder = await getFoodOrderItemsBatch(removeOrderIds);
         for (const oid of removeOrderIds) {
@@ -694,7 +689,7 @@ export async function POST(req: NextRequest) {
         const paymentHistoryDays = parseInt(histDaysStr || "7") || 7;
         const kannadaPrint = (await getSetting("food_kannada_kitchen_print")) !== "false";
         const kannadaDisplay = (await getSetting("food_kannada_kitchen_display")) !== "false";
-        return NextResponse.json({ role, ...data, cafeTableCount, confirmWithGuest, paymentHistoryDays, kannadaPrint, kannadaDisplay });
+        return NextResponse.json({ role, ...data, cafeTableCount, confirmWithGuest, paymentHistoryDays, kannadaPrint, kannadaDisplay, taxRate: foodTaxPercent(await getSetting("food_tax_rate")) });
       }
 
       case "getWalkinOrders": {

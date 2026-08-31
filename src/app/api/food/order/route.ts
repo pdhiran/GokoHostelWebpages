@@ -12,7 +12,7 @@ import {
   decrementStock,
   updateFoodOrderStatus,
 } from "@/db/queries";
-import { parseFoodCheckoutGraceDays } from "@/lib/foodLookup";
+import { parseFoodCheckoutGraceDays, foodTaxPercent } from "@/lib/foodLookup";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
 import { sendPushToAll } from "@/lib/pushNotify";
@@ -148,8 +148,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Calculate totals
     const subtotal = validatedItems.reduce((sum, i) => sum + i.lineTotal, 0);
-    const taxRateStr = await getSetting("food_tax_rate");
-    const taxRate = Number(taxRateStr) || 5;
+    const taxRate = foodTaxPercent(await getSetting("food_tax_rate"));
     const tax = Math.round((subtotal * taxRate) / 100);
     const total = subtotal + tax;
 

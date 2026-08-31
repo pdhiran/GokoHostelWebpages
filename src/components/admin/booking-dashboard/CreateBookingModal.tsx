@@ -514,10 +514,12 @@ export function CreateBookingModal({
                       <span>-{formatCurrency(pricing.discount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tax ({taxPercent}%)</span>
-                    <span className="text-foreground">{formatCurrency(pricing.tax)}</span>
-                  </div>
+                  {taxPercent > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tax ({taxPercent}%)</span>
+                      <span className="text-foreground">{formatCurrency(pricing.tax)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t border-border pt-1 font-semibold">
                     <span className="text-foreground">Total</span>
                     <span className="text-foreground">{formatCurrency(pricing.total)}</span>

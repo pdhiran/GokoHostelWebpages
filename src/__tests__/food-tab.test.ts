@@ -100,6 +100,16 @@ describe("checkout UIs look up the self-checkin food tab", () => {
     expect(checkins).toContain('from "@/lib/foodTabDb"');
   });
 
+  it("food and stay tax UIs do not treat 0% as the default 5%", () => {
+    const orders = readFileSync("src/components/admin/AdminFoodOrders.tsx", "utf8");
+    expect(orders).not.toContain("Tax (5%)");
+    expect(orders).not.toContain("* 0.05");
+    expect(orders).toContain("foodTaxPercent");
+    const guest = readFileSync("src/app/food-order/page.tsx", "utf8");
+    expect(guest).toContain("foodTaxPercent(settings?.taxRate)");
+    expect(guest).not.toContain("settings?.taxRate || 5");
+  });
+
   it("bookings route exposes getPendingFoodTab next to checkOut", () => {
     const route = readFileSync("src/app/api/admin/bookings/route.ts", "utf8");
     expect(route).toContain("getPendingFoodTab: [\"canCheckOut\", \"canAddBooking\"]");
