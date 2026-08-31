@@ -6,6 +6,8 @@ This handbook is an **orientation layer**, not a substitute for `src/`. It is en
 
 Trust order: **running system → secrets files → `MAINTAINER.local.md` (live stamps) → `src/` → these docs → committed README/ARCHITECTURE (stale).**
 
+Handoff to another agent (not autopilot): [developing.md](developing.md#handoff-to-another-agent). Never commit secrets. Workers Builds deploys on push to `main`; GitHub Actions does not.
+
 ---
 
 ## What is documented well

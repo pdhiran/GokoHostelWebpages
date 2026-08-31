@@ -18,6 +18,20 @@ Trust order: **running system → secrets / MAINTAINER.local.md → `src/` → t
 
 ---
 
+## Handoff to another agent
+
+The handbook is enough to **continue** development. It is not a fire-and-forget autopilot: there is no OpenAPI; request JSON, SQL, and UI still come from the `route.ts` / component you are changing.
+
+Tell the next agent:
+
+- Trust `src/` over `docs/` when they disagree.
+- Trust **local** `MAINTAINER.local.md` over docs for what is live (Worker versions, D1 stamps, R2). That file is gitignored — a fresh clone will not have it.
+- Never commit `docs/secrets-and-access.md` or `MAINTAINER.local.md`. If they are missing, stop and say so; do not invent passwords.
+- Never treat GitHub Actions `ci.yml` as a Worker deploy. Cloudflare **Workers Builds** on `goko-hostel-latest-webpage` **does** deploy on push to `main`.
+- Read [llm-onboarding.md](llm-onboarding.md) landmines **before** touching bookings, food tab, or money.
+
+---
+
 ## What this product is (one paragraph)
 
 One Next.js 15.5 App Router monolith: marketing site, guest check-in/food, kitchen, admin PMS (beds + calendar bookings + Aiosell), accounts, splits IOUs, Events/Community CMS. Cloudflare Workers (OpenNext) + D1 + R2. Optional Pi SQLite copy for front desk (`GOKO_RUNTIME=pi`). Public Book now is Stayflexi; inventory/rates are Aiosell. ID photos go to Google Drive, CMS stills to R2.

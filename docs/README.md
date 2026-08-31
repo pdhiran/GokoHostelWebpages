@@ -15,12 +15,14 @@ Last source-aligned pass: **31 Aug 2026** (stay collect/refund, Room Revenue, 0%
 
 ## New LLM session
 
-1. [developing.md](developing.md) — how to continue work  
+1. [developing.md](developing.md) — how to continue work (includes **handoff** rules)  
 2. [llm-onboarding.md](llm-onboarding.md) — landmines  
 3. [overview.md](overview.md) — product map  
 4. [interactions.md](interactions.md) — mermaid sequences  
 5. One flow file for the task  
 6. [secrets-and-access.md](secrets-and-access.md) only if you must run or deploy  
+
+Handoff in short: trust `src/` over docs; trust local `MAINTAINER.local.md` for what is live; never commit secrets files; GitHub Actions does **not** deploy (Workers Builds **does** on push to `main`); landmines before bookings / food tab / money. Full text: [developing.md](developing.md#handoff-to-another-agent).  
 
 ---
 
