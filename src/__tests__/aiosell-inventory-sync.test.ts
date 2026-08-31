@@ -13,6 +13,7 @@ const queryMocks = vi.hoisted(() => ({
   markInventoryDirty: vi.fn(),
   getDirtyInventory: vi.fn(),
   clearDirtyInventory: vi.fn(),
+  getUnassignedOtaRoomCountForDorm: vi.fn(),
 }));
 
 const pushInventory = vi.hoisted(() => vi.fn());
@@ -66,6 +67,7 @@ describe("getDateAwareAvailability", () => {
     queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(0);
     queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(0);
     queryMocks.getInventoryOverrideForDormDate.mockResolvedValue(null);
+    queryMocks.getUnassignedOtaRoomCountForDorm.mockResolvedValue(0);
   });
 
   it("is physical minus blocks minus assignments, capped by online ceiling", async () => {
@@ -75,6 +77,16 @@ describe("getDateAwareAvailability", () => {
     queryMocks.getInventoryOverrideForDormDate.mockResolvedValue({ onlineAvailable: 5 });
     // 12 - 2 blocked - 3 assigned = 7 physical free; ceiling 5 - 1 online assigned = 4
     expect(await getDateAwareAvailability(8, "2026-09-05")).toBe(4);
+  });
+
+  it("holds unassigned OTA rooms against the online ceiling, not physical leftover", async () => {
+    queryMocks.getBlockedBedIdsForDate.mockResolvedValue([1, 2]);
+    queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(3);
+    queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(1);
+    queryMocks.getInventoryOverrideForDormDate.mockResolvedValue({ onlineAvailable: 5 });
+    queryMocks.getUnassignedOtaRoomCountForDorm.mockResolvedValue(2);
+    // physical 7; ceiling 5 - 1 assigned - 2 unassigned OTA = 2
+    expect(await getDateAwareAvailability(8, "2026-09-05")).toBe(2);
   });
 
   it("never goes below zero when everything is taken", async () => {
@@ -97,6 +109,7 @@ describe("triggerInventoryPush", () => {
     queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(2);
     queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(1);
     queryMocks.getInventoryOverrideForDormDate.mockResolvedValue(null);
+    queryMocks.getUnassignedOtaRoomCountForDorm.mockResolvedValue(0);
     pushInventory.mockResolvedValue({ success: true });
   });
 
@@ -174,6 +187,7 @@ describe("pushIfOtaChanged", () => {
     queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(2);
     queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(1);
     queryMocks.getInventoryOverrideForDormDate.mockResolvedValue(null);
+    queryMocks.getUnassignedOtaRoomCountForDorm.mockResolvedValue(0);
     pushInventory.mockResolvedValue({ success: true });
   });
 

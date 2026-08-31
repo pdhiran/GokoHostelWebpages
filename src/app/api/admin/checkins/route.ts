@@ -4,7 +4,6 @@ import { getDb } from "@/db";
 import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser, hashPassword, verifyPassword, type UserRole } from "@/lib/auth";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
-import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { todayIST } from "@/lib/utils";
 import {
@@ -611,7 +610,6 @@ export async function POST(req: NextRequest) {
       await logBedHistoryEntry({ bedIdLabel: bed.bedId, dormName: bed.dormName, action: "assign", guestName, guestContact: guestContact || "" });
       await addAuditEntry({ username: actingUser, action: "bed_assign", target: `${bed.bedId} ${guestName}` });
       addSystemLog({ level: "info", source: "admin-api", message: `Bed assigned: ${bed.bedId} → ${guestName} by ${actingUser}` }).catch(() => {});
-      triggerInventoryPush().catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -653,7 +651,6 @@ export async function POST(req: NextRequest) {
 
       await addAuditEntry({ username: actingUser, action: "bed_checkout", target: `${bed.bedId} ${bed.guestName || ""}` });
       addSystemLog({ level: "info", source: "admin-api", message: `Checkout: ${bed.bedId} (${bed.guestName || "unknown"}) by ${actingUser}` }).catch(() => {});
-      triggerInventoryPush().catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -704,7 +701,6 @@ export async function POST(req: NextRequest) {
       await logBedHistoryEntry({ bedIdLabel: bed.bedId, dormName: bed.dormName, action: "markClean", guestName: "", guestContact: "" });
       await updateBedStatus(bedId, { status: "available" });
       await addAuditEntry({ username: actingUser, action: "bed_clean", target: bed.bedId });
-      triggerInventoryPush().catch(() => {});
       return NextResponse.json({ success: true });
     }
 
@@ -719,7 +715,6 @@ export async function POST(req: NextRequest) {
       await logBedHistoryEntry({ bedIdLabel: bed.bedId, dormName: bed.dormName, action: "unassign", guestName: bed.guestName || "", guestContact: bed.guestContact || "" });
       await updateBedStatus(bedId, { status: "available" });
       await addAuditEntry({ username: actingUser, action: "bed_unassign", target: `${bed.bedId} ${bed.guestName || ""}` });
-      triggerInventoryPush().catch(() => {});
       return NextResponse.json({ success: true });
     }
 

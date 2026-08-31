@@ -1,7 +1,7 @@
 import { eq, desc, and, sql, inArray, gte, lte, or } from "drizzle-orm";
 import { getDb } from "./index";
 import { todayIST } from "@/lib/utils";
-import { bedsFitInventoryCap, pickInventoryOverride, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
+import { addCalendarDays, bedsFitInventoryCap, countUnassignedOtaRooms, explodeUnassignedOtaHolds, pickInventoryOverride, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { sqliteLikePrefix } from "@/lib/pmsLog";
 import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides, inventoryDirty } from "./schema";
@@ -1588,6 +1588,69 @@ export async function getUnassignedBookings() {
   ).orderBy(desc(bookings.id));
 }
 
+/** Unassigned channel_manager rooms occupying this dorm's OTA pool for `date`. */
+export async function getUnassignedOtaRoomCountForDorm(dormId: number, date: string): Promise<number> {
+  const codes = (await getRoomTypeMappings())
+    .filter((m) => m.dormId === dormId && m.isActive)
+    .map((m) => m.channelRoomCode);
+  if (codes.length === 0) return 0;
+  const db = getDb();
+  const rows = await db.select({
+    roomType: bookings.roomType,
+    rawData: bookings.rawData,
+  }).from(bookings).where(
+    and(
+      eq(bookings.source, "channel_manager"),
+      sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')`,
+      lte(bookings.checkinDate, date),
+      sql`(
+        (${bookings.checkoutDate} != '' AND ${bookings.checkoutDate} > ${date})
+        OR ((${bookings.checkoutDate} IS NULL OR ${bookings.checkoutDate} = '') AND ${bookings.checkinDate} = ${date})
+      )`,
+      sql`NOT EXISTS (
+        SELECT 1 FROM ${bookingBedAssignments}
+        WHERE ${bookingBedAssignments.bookingId} = ${bookings.id}
+          AND ${bookingBedAssignments.status} = 'assigned'
+      )`,
+    ),
+  );
+  return countUnassignedOtaRooms(codes, rows);
+}
+
+export async function getUnassignedOtaHoldsForRange(
+  startDate: string,
+  endExclusive: string,
+  excludeBookingId?: number,
+): Promise<Array<{ dormId: number; date: string; rooms: number }>> {
+  if (!startDate || !endExclusive || startDate >= endExclusive) return [];
+  const mappings = (await getRoomTypeMappings()).filter((m) => m.isActive);
+  if (mappings.length === 0) return [];
+  const db = getDb();
+  const rows = await db.select({
+    id: bookings.id,
+    checkinDate: bookings.checkinDate,
+    checkoutDate: bookings.checkoutDate,
+    roomType: bookings.roomType,
+    rawData: bookings.rawData,
+  }).from(bookings).where(
+    and(
+      eq(bookings.source, "channel_manager"),
+      sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')`,
+      sql`${bookings.checkinDate} < ${endExclusive}`,
+      sql`(
+        (${bookings.checkoutDate} != '' AND ${bookings.checkoutDate} > ${startDate})
+        OR ((${bookings.checkoutDate} IS NULL OR ${bookings.checkoutDate} = '') AND ${bookings.checkinDate} >= ${startDate} AND ${bookings.checkinDate} < ${endExclusive})
+      )`,
+      sql`NOT EXISTS (
+        SELECT 1 FROM ${bookingBedAssignments}
+        WHERE ${bookingBedAssignments.bookingId} = ${bookings.id}
+          AND ${bookingBedAssignments.status} = 'assigned'
+      )`,
+    ),
+  );
+  return explodeUnassignedOtaHolds(rows, mappings, startDate, endExclusive, excludeBookingId);
+}
+
 export async function checkBedAvailability(bedId: number, checkinDate: string, checkoutDate: string, excludeBookingId?: number): Promise<boolean> {
   if (!checkinDate || !checkoutDate || checkinDate >= checkoutDate) return true;
   const db = getDb();
@@ -1656,10 +1719,16 @@ async function loadBedsAvailabilityForRange(checkinDate: string, checkoutDate: s
   return { allBeds, assignments, blocks, overrides, nights, physical, blockedOnly };
 }
 
-export async function getAvailableBedsForRange(checkinDate: string, checkoutDate: string, dormId?: number) {
+export async function getAvailableBedsForRange(
+  checkinDate: string,
+  checkoutDate: string,
+  dormId?: number,
+  excludeBookingId?: number,
+) {
   const { allBeds, assignments, blocks, overrides, nights, physical, blockedOnly } = await loadBedsAvailabilityForRange(checkinDate, checkoutDate, dormId);
   if (nights.length === 0) return [];
-  return tagBedsForPicker(physical, blockedOnly, allBeds, nights, blocks, assignments, overrides);
+  const unassignedHolds = await getUnassignedOtaHoldsForRange(checkinDate, checkoutDate, excludeBookingId);
+  return tagBedsForPicker(physical, blockedOnly, allBeds, nights, blocks, assignments, overrides, unassignedHolds);
 }
 
 /** Physical beds with no assignment and no block overlapping [startDate, endDate). */
@@ -1669,9 +1738,14 @@ export async function getBedsFreeToBlock(startDate: string, endDate: string, dor
   return physical;
 }
 
-export async function validateBedsForRange(bedIds: number[], checkinDate: string, checkoutDate: string): Promise<string | null> {
+export async function validateBedsForRange(
+  bedIds: number[],
+  checkinDate: string,
+  checkoutDate: string,
+  excludeBookingId?: number,
+): Promise<string | null> {
   if (bedIds.length === 0) return null;
-  const tagged = await getAvailableBedsForRange(checkinDate, checkoutDate);
+  const tagged = await getAvailableBedsForRange(checkinDate, checkoutDate, undefined, excludeBookingId);
   const byId = new Map(tagged.map((b) => [b.id, b]));
   const requested = [];
   for (const id of bedIds) {
@@ -1982,8 +2056,9 @@ export async function getInventoryGridData(startDate: string, endDate: string) {
   const overrides = await db.select().from(inventoryOverrides).where(
     and(gte(inventoryOverrides.date, startDate), lte(inventoryOverrides.date, endDate))
   );
+  const unassignedOta = await getUnassignedOtaHoldsForRange(startDate, addCalendarDays(endDate, 1));
 
-  return { dorms: allDorms, beds: allBeds, blocks, assignments, roomMappings, ratePlans, rates, overrides };
+  return { dorms: allDorms, beds: allBeds, blocks, assignments, roomMappings, ratePlans, rates, overrides, unassignedOta };
 }
 
 // --- Inventory Dirty Tracking ---

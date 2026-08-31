@@ -369,6 +369,7 @@ describe("Booking API: calendar enrich and rates batch", () => {
   it("loads check-in-day rates once via getAllDailyRates", () => {
     const section = route.match(/action === "getAvailableBeds"[\s\S]*?action === "getBookingHistory"/)![0];
     expect(section).toContain("getAllDailyRates(checkinDate, checkinDate)");
+    expect(section).toContain("getAvailableBedsForRange(checkinDate, checkoutDate, undefined, bookingId)");
     expect(section).not.toMatch(/await getDailyRates\(/);
     expect(section).toContain("adult1Rate ?? rate.rate");
     expect(section).toContain("pool: b.pool");
@@ -410,6 +411,7 @@ describe("Unassigned bookings: same availability as New Booking", () => {
 
   it("loads beds for the booking stay via getAvailableBeds, not calendar occupancy", () => {
     expect(unassigned).toContain('action: "getAvailableBeds"');
+    expect(unassigned).toContain("bookingId: booking.id");
     expect(unassigned).toContain("exclusiveEndDate");
     expect(unassigned).not.toContain("!bed.isBlocked");
     expect(unassigned).toContain("bedsError");

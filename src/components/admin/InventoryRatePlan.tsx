@@ -7,7 +7,7 @@ import {
   RefreshCwIcon, Loader2Icon, ChevronLeftIcon, ChevronRightIcon,
   PackageIcon, BanIcon, EditIcon,
 } from "lucide-react";
-import { computeNightAvailability, pickInventoryOverride, remainingSplit, splitAvailable, ceilingFromRemaining, exclusiveEndFromInclusive, addCalendarDays, inclusiveNights, civilWeekday, type NightAvailability } from "@/lib/inventoryAvailability";
+import { computeNightAvailability, pickInventoryOverride, remainingSplit, splitAvailable, ceilingFromRemaining, exclusiveEndFromInclusive, addCalendarDays, inclusiveNights, civilWeekday, unassignedOtaOnNight, type NightAvailability } from "@/lib/inventoryAvailability";
 import type { Role } from "./types";
 
 type Props = { password: string; username?: string; role: Role; permissions: Record<string, boolean> };
@@ -31,6 +31,7 @@ type GridData = {
   ratePlans: RatePlanData[];
   rates: DailyRateData[];
   overrides: OverrideData[];
+  unassignedOta?: Array<{ dormId: number; date: string; rooms: number }>;
   bedConfigs: Array<{ id: number; dormId: number; bedType: string; maxOccupancy: number; extraPersonAllowed: number }>;
 };
 
@@ -96,7 +97,10 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
 
   const computeAvailability = useCallback((dormId: number, date: string) => {
     if (!data) return { total: 0, blocked: 0, assigned: 0, onlineAssigned: 0, available: 0, online: 0, offline: 0, overridden: false };
-    return computeNightAvailability(dormId, date, data.beds, data.blocks, data.assignments, data.overrides ?? []);
+    return computeNightAvailability(
+      dormId, date, data.beds, data.blocks, data.assignments, data.overrides ?? [],
+      unassignedOtaOnNight(data.unassignedOta, dormId, date),
+    );
   }, [data]);
 
   const computeHeaderStats = useCallback((date: string) => {

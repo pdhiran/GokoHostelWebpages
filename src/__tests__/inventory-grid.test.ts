@@ -212,6 +212,7 @@ describe("Inventory grid: date helpers stay in sync with source", () => {
 describe("Inventory grid: availability and occupancy workflows", () => {
   it("matches the source occupancy formula (blocked exclusive-end, cancelled ignored, override wins)", () => {
     expect(ui).toContain("computeNightAvailability");
+    expect(ui).toContain("unassignedOtaOnNight");
     expect(ui).toContain("OTA");
     expect(ui).toContain("walk-in");
     expect(ui).toContain("Math.round((totalAssigned / sellable) * 100)");
@@ -305,6 +306,7 @@ describe("Inventory grid: edit and bulk workflows still wired", () => {
     expect(ui).toContain("{[7, 14, 30].map");
     expect(ui).toContain('action: "getInventoryGrid"');
     expect(queries).toContain("export async function getInventoryGridData");
+    expect(queries).toContain("unassignedOta");
   });
 
   it("only offers beds free to block (not booked or already blocked)", () => {

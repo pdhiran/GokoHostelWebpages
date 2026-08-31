@@ -123,6 +123,75 @@ export function remainingSplit(available: number, ceiling: number, onlineAssigne
   return { online, offline: Math.max(0, available - online) };
 }
 
+/** Rooms an unassigned channel_manager booking holds on the given Aiosell codes (not persons). */
+export function countUnassignedOtaRooms(
+  channelRoomCodes: string[],
+  bookings: Array<{ roomType?: string | null; rawData?: string | null }>,
+): number {
+  const codes = new Set(channelRoomCodes.filter(Boolean));
+  if (codes.size === 0) return 0;
+  let n = 0;
+  for (const b of bookings) {
+    try {
+      const raw = JSON.parse(b.rawData || "null") as { rooms?: Array<{ roomCode?: string }> } | null;
+      const rooms = raw?.rooms;
+      if (Array.isArray(rooms) && rooms.length > 0) {
+        n += rooms.filter((r) => r?.roomCode && codes.has(r.roomCode)).length;
+        continue;
+      }
+    } catch { /* roomType fallback */ }
+    for (const part of (b.roomType || "").split(",")) {
+      if (codes.has(part.trim())) n += 1;
+    }
+  }
+  return n;
+}
+
+export type UnassignedOtaHold = { dormId: number; date: string; rooms: number };
+
+export function unassignedOtaOnNight(holds: UnassignedOtaHold[] | undefined, dormId: number, date: string): number {
+  if (!holds?.length) return 0;
+  let n = 0;
+  for (const h of holds) {
+    if (h.dormId === dormId && h.date === date) n += h.rooms;
+  }
+  return n;
+}
+
+/** Spread unassigned CM bookings onto mapped dorms for nights in [startDate, endExclusive). */
+export function explodeUnassignedOtaHolds(
+  rows: Array<{
+    id?: number;
+    checkinDate: string;
+    checkoutDate?: string | null;
+    roomType?: string | null;
+    rawData?: string | null;
+  }>,
+  mappings: Array<{ dormId: number; channelRoomCode: string }>,
+  startDate: string,
+  endExclusive: string,
+  excludeBookingId?: number,
+): UnassignedOtaHold[] {
+  if (!startDate || !endExclusive || startDate >= endExclusive || mappings.length === 0) return [];
+  const byKey = new Map<string, number>();
+  for (const row of rows) {
+    if (excludeBookingId && row.id === excludeBookingId) continue;
+    for (const date of occupiedNights(row.checkinDate, row.checkoutDate)) {
+      if (date < startDate || date >= endExclusive) continue;
+      for (const m of mappings) {
+        const rooms = countUnassignedOtaRooms([m.channelRoomCode], [row]);
+        if (!rooms) continue;
+        const key = `${m.dormId}:${date}`;
+        byKey.set(key, (byKey.get(key) || 0) + rooms);
+      }
+    }
+  }
+  return [...byKey.entries()].map(([key, rooms]) => {
+    const colon = key.indexOf(":");
+    return { dormId: Number(key.slice(0, colon)), date: key.slice(colon + 1), rooms };
+  });
+}
+
 /**
  * Split currently available beds (booked + blocked already excluded).
  * `onlineRemaining` is what staff type: how many of the leftover beds go to OTA.
@@ -158,6 +227,7 @@ export function computeNightAvailability(
   blocks: BlockRef[],
   assignments: AssignmentRef[],
   overrides: OverrideRef[],
+  unassignedOta = 0,
 ): NightAvailability {
   const total = beds.filter((b) => b.dormId === dormId).length;
   const blocked = new Set(
@@ -171,7 +241,7 @@ export function computeNightAvailability(
   const available = Math.max(0, total - blocked - assigned);
   const override = pickInventoryOverride(overrides, dormId, date);
   const ceiling = override?.onlineAvailable ?? total;
-  const { online, offline } = remainingSplit(available, ceiling, onlineAssigned);
+  const { online, offline } = remainingSplit(available, ceiling, onlineAssigned + unassignedOta);
   return {
     total,
     blocked,
@@ -203,6 +273,7 @@ export function minPoolForStay(
   blocks: BlockRef[],
   assignments: AssignmentRef[],
   overrides: OverrideRef[],
+  unassignedHolds?: UnassignedOtaHold[],
 ): { online: number; offline: number } {
   if (nights.length === 0) {
     const n = computeNightAvailability(dormId, "", beds, [], [], []);
@@ -211,7 +282,10 @@ export function minPoolForStay(
   let online = Infinity;
   let offline = Infinity;
   for (const night of nights) {
-    const s = computeNightAvailability(dormId, night, beds, blocks, assignments, overrides);
+    const s = computeNightAvailability(
+      dormId, night, beds, blocks, assignments, overrides,
+      unassignedOtaOnNight(unassignedHolds, dormId, night),
+    );
     online = Math.min(online, s.online);
     offline = Math.min(offline, s.offline);
   }
@@ -226,6 +300,7 @@ export function tagBedsForPicker<T extends { id: number; dormId: number; bedId: 
   blocks: BlockRef[],
   assignments: AssignmentRef[],
   overrides: OverrideRef[],
+  unassignedHolds?: UnassignedOtaHold[],
 ): Array<T & { pool: InventoryPool }> {
   const freeByDorm = new Map<number, T[]>();
   for (const bed of physicalBeds) {
@@ -242,7 +317,7 @@ export function tagBedsForPicker<T extends { id: number; dormId: number; bedId: 
   const dormIds = new Set([...freeByDorm.keys(), ...blockedByDorm.keys()]);
   const out: Array<T & { pool: InventoryPool }> = [];
   for (const dormId of dormIds) {
-    const slots = minPoolForStay(dormId, nights, allBeds, blocks, assignments, overrides);
+    const slots = minPoolForStay(dormId, nights, allBeds, blocks, assignments, overrides, unassignedHolds);
     const free = (freeByDorm.get(dormId) ?? []).slice().sort((a, b) => a.bedId.localeCompare(b.bedId, undefined, { numeric: true }));
     const blocked = (blockedByDorm.get(dormId) ?? []).slice().sort((a, b) => a.bedId.localeCompare(b.bedId, undefined, { numeric: true }));
     // Tightest night: only min(online)+min(offline) chips; extra physical leftover would squeeze OTA.

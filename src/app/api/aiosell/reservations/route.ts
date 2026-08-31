@@ -123,9 +123,52 @@ function channelPersons(rooms: ReservationPayload["rooms"] | undefined, fallback
   return n || fallback;
 }
 
-function channelNightlyRate(rooms: ReservationPayload["rooms"] | undefined, fallback = 0): number {
-  if (!rooms?.length) return fallback;
-  return rooms.reduce((sum, r) => sum + (r.prices?.[0]?.sellRate || 0), 0);
+function channelNightlyRate(
+  rooms: ReservationPayload["rooms"] | undefined,
+  fallback = 0,
+  amount?: ReservationPayload["amount"],
+  checkin?: string,
+  checkout?: string,
+): number {
+  const fromPrices = rooms?.reduce((sum, r) => sum + (r.prices?.[0]?.sellRate || 0), 0) ?? 0;
+  if (fromPrices) return fromPrices;
+  const nights = occupiedNights(checkin || "", checkout).length || 1;
+  const total = amount?.amountAfterTax || 0;
+  if (total) return Math.round(total / nights);
+  return fallback;
+}
+
+function fetchedReservationRows(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.data)) return o.data;
+    if (Array.isArray(o.reservations)) return o.reservations;
+  }
+  return [];
+}
+
+/** Pull-ingest: create missing refs only. Never rebook a cancelled Goko row from a fetch snapshot. */
+export async function ingestFetchedReservations(raw: unknown): Promise<{ imported: number; skipped: number; refs: string[] }> {
+  let imported = 0;
+  let skipped = 0;
+  const refs: string[] = [];
+  for (const row of fetchedReservationRows(raw)) {
+    const payload = parseReservationPayload(row);
+    if (!payload) {
+      skipped++;
+      continue;
+    }
+    const existing = await getBookingByRef(payload.bookingId);
+    if (existing) {
+      skipped++;
+      continue;
+    }
+    await handleNewBooking(payload);
+    imported++;
+    refs.push(payload.bookingId);
+  }
+  return { imported, skipped, refs };
 }
 
 function extractBookingFields(payload: ReservationPayload) {
@@ -155,7 +198,7 @@ function extractBookingFields(payload: ReservationPayload) {
     email: guest?.email || "",
     cmBookingId: payload.cmBookingId || "",
     ratePlan: payload.rooms?.[0]?.rateplanCode || "",
-    nightlyRate: channelNightlyRate(payload.rooms),
+    nightlyRate: channelNightlyRate(payload.rooms, 0, payload.amount, payload.checkin, payload.checkout),
   };
 }
 
@@ -207,7 +250,13 @@ async function handleModifyBooking(payload: ReservationPayload) {
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || existing.roomType;
   const persons = channelPersons(payload.rooms, existing.persons);
   const ratePlan = payload.rooms?.[0]?.rateplanCode || existing.ratePlan || "";
-  const nightlyRate = channelNightlyRate(payload.rooms, existing.nightlyRate || 0);
+  const nightlyRate = channelNightlyRate(
+    payload.rooms,
+    existing.nightlyRate || 0,
+    payload.amount,
+    payload.checkin || existing.checkinDate || undefined,
+    payload.checkout || existing.checkoutDate || undefined,
+  );
 
   const closed = existing.status === "checked_out" || existing.status === "no_show" || existing.status === "cancelled";
   const newCheckin = payload.checkin || existing.checkinDate;

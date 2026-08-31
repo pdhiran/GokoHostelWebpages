@@ -231,7 +231,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input type="checkbox" checked={config.autoPushInventory === 1} onChange={(e) => setConfig({ ...config, autoPushInventory: e.target.checked ? 1 : 0 })} className="rounded" />
           Auto-push inventory
-          <span className="text-[10px] text-muted-foreground">(on bed assign, checkout, block, unblock)</span>
+          <span className="text-[10px] text-muted-foreground">(on calendar occupancy, blocks, overrides — not Beds-tab assign)</span>
         </label>
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input type="checkbox" checked={config.autoPushRates === 1} onChange={(e) => setConfig({ ...config, autoPushRates: e.target.checked ? 1 : 0 })} className="rounded" />
@@ -246,7 +246,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input type="checkbox" checked={config.autoPushInvRestrictions === 1} onChange={(e) => setConfig({ ...config, autoPushInvRestrictions: e.target.checked ? 1 : 0 })} className="rounded" />
           Auto-push inventory restrictions
-          <span className="text-[10px] text-muted-foreground">(on room-level restriction changes)</span>
+          <span className="text-[10px] text-muted-foreground">(saved; room-level push is the Inv Restrictions button — Bulk Update uses rate restrictions)</span>
         </label>
       </div>
 
@@ -601,6 +601,10 @@ function SyncTab({ password, username }: { password: string; username?: string }
     try {
       const res = await apiCall("/api/aiosell/fetch", { type: fetchType, startDate: fetchStart, endDate: fetchEnd });
       setFetchResult(res);
+      const ingested = res?.ingested;
+      if (ingested && (ingested.imported > 0 || ingested.skipped > 0)) {
+        showSuccess(`Fetch ok — imported ${ingested.imported}, already in Goko ${ingested.skipped}`);
+      }
     } catch (e: any) { showError(e.message); }
     setFetching(false);
   };

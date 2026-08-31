@@ -124,4 +124,48 @@ describe("parseReservationPayload", () => {
     expect(parseReservationPayload(42)).toBeNull();
     expect(parseReservationPayload(undefined)).toBeNull();
   });
+
+  it("keeps extra fields pah, cmBookingId, and rooms", () => {
+    const rooms = [{
+      roomCode: "DORM-6",
+      rateplanCode: "STD",
+      guestName: "Ada",
+      occupancy: { adults: 1, children: 0 },
+      prices: [{ date: "2026-07-01", sellRate: 900 }],
+    }];
+    const result = parseReservationPayload({
+      action: "book",
+      hotelCode: "GOKO-001",
+      bookingId: "BK-EXTRA",
+      pah: true,
+      cmBookingId: "CM-KEEP",
+      rooms,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.pah).toBe(true);
+    expect(result!.cmBookingId).toBe("CM-KEEP");
+    expect(result!.rooms).toEqual(rooms);
+  });
+
+  it("parses Direct channel with prices null using only required fields", () => {
+    const result = parseReservationPayload({
+      action: "book",
+      hotelCode: "GOKO-001",
+      bookingId: "BK-DIRECT",
+      channel: "Direct",
+      rooms: [{
+        roomCode: "executive",
+        rateplanCode: "STD",
+        guestName: "Walk-in",
+        occupancy: { adults: 1, children: 0 },
+        prices: null,
+      }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.action).toBe("book");
+    expect(result!.hotelCode).toBe("GOKO-001");
+    expect(result!.bookingId).toBe("BK-DIRECT");
+    expect(result!.channel).toBe("Direct");
+    expect(result!.rooms![0].prices).toBeNull();
+  });
 });

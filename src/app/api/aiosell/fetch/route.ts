@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig } from "@/db/queries";
 import { fetchFromAiosell, type AiosellConfig } from "@/lib/aiosell";
+import { ingestFetchedReservations } from "@/app/api/aiosell/reservations/route";
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,6 +34,14 @@ export async function POST(req: NextRequest) {
     };
 
     const result = await fetchFromAiosell(aiosellConfig, type, startDate, endDate);
+
+    if (type === "reservation") {
+      const ingested = await ingestFetchedReservations(result);
+      if (Array.isArray(result)) {
+        return NextResponse.json({ success: true, data: result, ingested });
+      }
+      return NextResponse.json({ ...result, ingested });
+    }
 
     return NextResponse.json(result);
   } catch (error: any) {

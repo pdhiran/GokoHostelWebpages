@@ -65,7 +65,7 @@ async function assignTaggedBeds(
   actingUser: string,
   source?: string | null,
 ): Promise<{ labels: string[]; pools: InventoryPool[]; dormIds: number[] }> {
-  const tagged = await getAvailableBedsForRange(checkinDate, checkoutDate);
+  const tagged = await getAvailableBedsForRange(checkinDate, checkoutDate, undefined, bookingId);
   const byId = new Map(tagged.map((b) => [b.id, b]));
   const prepared: { bedId: number; dormId: number; dormName: string; bedLabel: string; pool: InventoryPool; tagPool: InventoryPool }[] = [];
   for (const bedId of bedIds) {
@@ -250,9 +250,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "getAvailableBeds") {
-      const { checkinDate, checkoutDate } = body;
+      const { checkinDate, checkoutDate, bookingId } = body;
       if (!checkinDate || !checkoutDate) return NextResponse.json({ error: "checkinDate and checkoutDate required" }, { status: 400 });
-      const available = await getAvailableBedsForRange(checkinDate, checkoutDate);
+      const available = await getAvailableBedsForRange(checkinDate, checkoutDate, undefined, bookingId);
       const beds = available.map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId, dormName: b.dormName, pool: b.pool }));
       const dormRates: Record<number, number> = {};
       const mappings = await getRoomTypeMappings();
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
       const checkinDate = detail.booking.checkinDate;
       const checkoutDate = stayCheckout(checkinDate, detail.booking.checkoutDate);
       if (!checkoutDate) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
-      const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate);
+      const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate, bookingId);
       if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
 
       const fromChannel = channelSource(detail.booking.source);
@@ -709,7 +709,7 @@ export async function POST(req: NextRequest) {
         if (currentAssignments.length === 0) {
           // No assignments — just update dates
           if (!confirmed) {
-            const available = await getAvailableBedsForRange(newCheckinDate, oldCheckout);
+            const available = await getAvailableBedsForRange(newCheckinDate, oldCheckout, undefined, bookingId);
             return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CI-1-no-beds" });
           }
           // Confirmed with selected beds
@@ -727,7 +727,7 @@ export async function POST(req: NextRequest) {
           }
 
           if (!allAvailable && !confirmed) {
-            const available = await getAvailableBedsForRange(newCheckinDate, oldCheckout);
+            const available = await getAvailableBedsForRange(newCheckinDate, oldCheckout, undefined, bookingId);
             return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CI-1-conflict" });
           }
 
@@ -830,7 +830,7 @@ export async function POST(req: NextRequest) {
           }
 
           if (!allAvailable && !confirmed) {
-            const available = await getAvailableBedsForRange(oldCheckin, newCheckoutDate);
+            const available = await getAvailableBedsForRange(oldCheckin, newCheckoutDate, undefined, bookingId);
             return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CO-1-conflict" });
           }
 
@@ -849,7 +849,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Select at least one bed" }, { status: 400 });
           }
         } else if (!confirmed) {
-          const available = await getAvailableBedsForRange(oldCheckin, newCheckoutDate);
+          const available = await getAvailableBedsForRange(oldCheckin, newCheckoutDate, undefined, bookingId);
           return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CO-1-no-beds" });
         } else if (confirmed && selectedBedIds?.length > 0) {
           const { labels } = await assignTaggedBeds(bookingId, selectedBedIds, oldCheckin, newCheckoutDate, actingUser, detail.booking.source);

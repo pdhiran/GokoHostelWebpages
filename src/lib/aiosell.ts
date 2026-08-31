@@ -133,6 +133,17 @@ function buildAuthHeader(config: AiosellConfig): string {
 
 type AiosellCallType = "inventory" | "rate" | "restriction" | "noshow" | "reservation" | "fetch";
 
+export function countFetchedRecords(data: unknown): number | undefined {
+  if (Array.isArray(data)) return data.length;
+  if (data && typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    if (Array.isArray(o.updates)) return o.updates.length;
+    if (Array.isArray(o.data)) return o.data.length;
+    if (Array.isArray(o.reservations)) return o.reservations.length;
+  }
+  return undefined;
+}
+
 async function aiosellFetch(
   url: string,
   config: AiosellConfig,
@@ -189,12 +200,20 @@ async function aiosellFetch(
       return { success: false, message };
     }
 
-    await log({
+    const recordsAffected = meta.recordsAffected ?? countFetchedRecords(data);
+    await logPmsCall({
+      direction: meta.direction ?? "push",
+      type: meta.source ? `${meta.type} (${meta.source})` : meta.type,
       status: data.success === false ? "failed" : "success",
-      httpStatus: response.status,
+      request: body,
       response: data,
       errorMessage: data.success === false ? (data.message || "") : "",
-    });
+      recordsAffected,
+      httpMethod: "POST",
+      url,
+      httpStatus: response.status,
+      durationMs: Date.now() - started,
+    }).catch(() => {});
     return data;
   } catch (error: any) {
     const message = error?.message || "Network error";

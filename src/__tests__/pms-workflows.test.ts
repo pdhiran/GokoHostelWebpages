@@ -241,6 +241,7 @@ describe("PMS outbound workflows (mocked Aiosell HTTP)", () => {
       startDate: "2026-08-28",
       endDate: "2026-08-30",
     });
+    expect(log.recordsAffected).toBe(1);
   });
 
   it("rate-restriction and inventory-restriction pushes log as restriction, not rate", async () => {

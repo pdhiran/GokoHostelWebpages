@@ -14,6 +14,8 @@ import {
   occupiedNights,
   pickInventoryOverride,
   remainingSplit,
+  countUnassignedOtaRooms,
+  explodeUnassignedOtaHolds,
   splitAvailable,
   ceilingFromRemaining,
   shouldPushPms,
@@ -63,6 +65,49 @@ describe("occupiedNights", () => {
   it("treats a missing checkout as a single night", () => {
     expect(occupiedNights("2026-08-31")).toEqual(["2026-08-31"]);
     expect(occupiedNights("2026-08-31", "2026-08-31")).toEqual(["2026-08-31"]);
+  });
+});
+
+describe("countUnassignedOtaRooms", () => {
+  it("counts matching rooms from rawData, not persons", () => {
+    expect(countUnassignedOtaRooms(["executive"], [{
+      roomType: "executive",
+      rawData: JSON.stringify({
+        rooms: [
+          { roomCode: "executive", occupancy: { adults: 2, children: 0 } },
+          { roomCode: "suite", occupancy: { adults: 1, children: 0 } },
+        ],
+      }),
+    }])).toBe(1);
+  });
+
+  it("falls back to comma-separated roomType when prices/rooms are missing", () => {
+    expect(countUnassignedOtaRooms(["executive", "dorm-1"], [
+      { roomType: "executive, dorm-1", rawData: "" },
+    ])).toBe(2);
+  });
+});
+
+describe("explodeUnassignedOtaHolds", () => {
+  const mappings = [{ dormId: 9, channelRoomCode: "executive" }];
+  const row = {
+    id: 114,
+    checkinDate: "2026-08-31",
+    checkoutDate: "2026-09-01",
+    roomType: "executive",
+    rawData: JSON.stringify({ rooms: [{ roomCode: "executive" }] }),
+  };
+
+  it("places a 1-night unassigned OTA stay on that dorm/date", () => {
+    expect(explodeUnassignedOtaHolds([row], mappings, "2026-08-31", "2026-09-03")).toEqual([
+      { dormId: 9, date: "2026-08-31", rooms: 1 },
+    ]);
+  });
+
+  it("excludes the booking being assigned so chips still exist", () => {
+    expect(explodeUnassignedOtaHolds([row, { ...row, id: 113 }], mappings, "2026-08-31", "2026-09-01", 114)).toEqual([
+      { dormId: 9, date: "2026-08-31", rooms: 1 },
+    ]);
   });
 });
 
@@ -180,6 +225,16 @@ describe("Inventory split: EXECUTIVE 12 beds, 5 online / 7 walk-in", () => {
     expect(tagged.filter((b) => b.pool === "online").map((b) => b.bedId)).toEqual(["EXE-1", "EXE-2", "EXE-3", "EXE-4", "EXE-5"]);
     expect(tagged.filter((b) => b.pool === "offline")).toHaveLength(7);
     expect(tagged).toHaveLength(12);
+  });
+
+  it("holds unassigned OTA against the online ceiling so New Booking cannot resell those rooms", () => {
+    const snap = computeNightAvailability(2, "2026-08-31", beds, [], [], override5, 3);
+    expect(snap.online).toBe(2);
+    expect(snap.offline).toBe(10);
+    const tagged = tagBedsForPicker(beds, [], beds, ["2026-08-31"], [], [], override5, [
+      { dormId: 2, date: "2026-08-31", rooms: 3 },
+    ]);
+    expect(tagged.filter((b) => b.pool === "online")).toHaveLength(2);
   });
 });
 
@@ -328,6 +383,8 @@ describe("Mock workflows", () => {
 describe("Wiring", () => {
   it("tags picker beds including blocked, stores inventory_pool, and only pushes PMS when OTA numbers change", () => {
     expect(queries).toContain("tagBedsForPicker(physical, blockedOnly");
+    expect(queries).toContain("getUnassignedOtaHoldsForRange");
+    expect(queries).toContain("unassignedHolds");
     expect(queries).toContain("inventory_pool");
     expect(queries).toContain("deactivateBedBlocksByBedIds");
     expect(queries).toContain("pickInventoryOverride(rows, dormId, date)");
@@ -337,7 +394,8 @@ describe("Wiring", () => {
     expect(route).toContain("pushIfOtaChanged");
     expect(route).toContain("occupiedNights");
     expect(sync).toContain("getOnlineAssignmentCountForDorm");
-    expect(sync).toContain("Math.min(available, Math.max(0, ceiling - onlineAssigned))");
+    expect(sync).toContain("getUnassignedOtaRoomCountForDorm");
+    expect(sync).toContain("remainingSplit(available, ceiling, onlineAssigned + unassignedOta)");
     expect(sync).toContain("if (before !== after) await triggerInventoryPush(dates)");
     expect(sync).toContain("mappings.some((m) => m.dormId === affectedDormId)");
     expect(queries).toContain("if (nights.length === 0) return []");
@@ -345,7 +403,10 @@ describe("Wiring", () => {
     expect(route).toContain("pool: b.pool");
     expect(reservations).toContain("occupiedNights(existing.checkinDate, existing.checkoutDate)");
     expect(reservations).toContain("if (moveDates && newCheckin && newCheckout)");
+    expect(reservations).toContain("ingestFetchedReservations");
     expect(reservations).not.toContain("function cancelDateRange");
+    const checkins = readFileSync("src/app/api/admin/checkins/route.ts", "utf8");
+    expect(checkins).not.toContain("triggerInventoryPush");
   });
 
   it("drains unmapped dirty rows so incremental CM push cannot stick on empty updates", () => {

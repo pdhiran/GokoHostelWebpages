@@ -76,7 +76,7 @@ vi.mock("@/lib/aiosell", async (importOriginal) => {
 
 import { authenticateUser } from "@/lib/auth";
 import { restrictionPatch } from "@/lib/aiosell";
-import { POST as reservationsPOST } from "@/app/api/aiosell/reservations/route";
+import { POST as reservationsPOST, ingestFetchedReservations } from "@/app/api/aiosell/reservations/route";
 import { POST as channelManagerPOST } from "@/app/api/admin/channel-manager/route";
 import { POST as pushInventoryPOST } from "@/app/api/aiosell/push-inventory/route";
 import { POST as pushRatesPOST } from "@/app/api/aiosell/push-rates/route";
@@ -156,6 +156,10 @@ describe("restrictionPatch remaining CM keys", () => {
   ] as const)("%s", (key, value, expected) => {
     expect(restrictionPatch(key, value)).toEqual(expected);
   });
+
+  it("returns null for an unknown key", () => {
+    expect(restrictionPatch("minimumStayArrival", 2)).toBeNull();
+  });
 });
 
 describe("Webhook auth combinations", () => {
@@ -182,6 +186,30 @@ describe("Webhook auth combinations", () => {
 
   it("503s when webhookSecret is empty even if CM is active", async () => {
     q.getChannelConfig.mockResolvedValue({ ...activeConfig, webhookSecret: "" });
+    const res = await reservationsPOST(jsonReq(
+      "http://localhost/api/aiosell/reservations",
+      bookPayload(),
+      { authorization: "whsec-test" },
+    ));
+    expect(res.status).toBe(503);
+    expect(q.addBooking).not.toHaveBeenCalled();
+  });
+
+  it("401s with the wrong secret", async () => {
+    const res = await reservationsPOST(jsonReq(
+      "http://localhost/api/aiosell/reservations",
+      bookPayload(),
+      { authorization: "wrong-secret" },
+    ));
+    expect(res.status).toBe(401);
+    expect(q.addBooking).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["config is null", null],
+    ["channel is inactive", { ...activeConfig, isActive: 0 }],
+  ])("503s when %s", async (_label, config) => {
+    q.getChannelConfig.mockResolvedValue(config);
     const res = await reservationsPOST(jsonReq(
       "http://localhost/api/aiosell/reservations",
       bookPayload(),
@@ -357,6 +385,279 @@ describe("Webhook reservation combinations", () => {
     }, { authorization: "whsec-test" }));
     expect(triggerInventoryPush).toHaveBeenCalledWith(["2026-09-05", "2026-09-06", "2026-09-07"]);
   });
+
+  it("400s when hotelCode does not match config", async () => {
+    const res = await reservationsPOST(jsonReq(
+      "http://localhost/api/aiosell/reservations",
+      bookPayload({ hotelCode: "OTHER" }),
+      { authorization: "whsec-test" },
+    ));
+    expect(res.status).toBe(400);
+    expect(q.addBooking).not.toHaveBeenCalled();
+  });
+
+  it("duplicate live book is idempotent", async () => {
+    q.getBookingByRef.mockResolvedValue({ id: 12, status: "received", bookingRef: "BK-OPS-1" });
+    const res = await reservationsPOST(jsonReq(
+      "http://localhost/api/aiosell/reservations",
+      bookPayload(),
+      { authorization: "whsec-test" },
+    ));
+    expect(res.status).toBe(200);
+    expect((await res.json()).message).toMatch(/duplicate/i);
+    expect(q.addBooking).not.toHaveBeenCalled();
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("stores cmBookingId on book", async () => {
+    await reservationsPOST(jsonReq(
+      "http://localhost/api/aiosell/reservations",
+      bookPayload({ cmBookingId: "CM-OPS-1" }),
+      { authorization: "whsec-test" },
+    ));
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({ cmBookingId: "CM-OPS-1" }));
+  });
+
+  it("modify of checked_out updates guest but does not move dates or beds", async () => {
+    q.getBookingByRef.mockResolvedValue({
+      id: 12,
+      status: "checked_out",
+      guestName: "Old",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-08",
+      persons: 1,
+    });
+    q.getBookingDetail.mockResolvedValue({
+      booking: { status: "checked_out" },
+      assignments: [{ status: "assigned", bedId: 7, dormId: 8, checkinDate: "2026-09-05", checkoutDate: "2026-09-08" }],
+    });
+    const res = await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({
+      action: "modify",
+      checkin: "2026-09-10",
+      checkout: "2026-09-12",
+    }), { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(q.unassignBookingBeds).not.toHaveBeenCalled();
+    expect(q.assignBedToBooking).not.toHaveBeenCalled();
+    const patch = q.updateBookingFull.mock.calls[0][1];
+    expect(patch.guestName).toBe("Ada Lovelace");
+    expect(patch).not.toHaveProperty("checkinDate");
+    expect(patch).not.toHaveProperty("checkoutDate");
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("modify of no_show does not move dates", async () => {
+    q.getBookingByRef.mockResolvedValue({
+      id: 12,
+      status: "no_show",
+      guestName: "Old",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-08",
+      persons: 1,
+    });
+    const res = await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({
+      action: "modify",
+      checkin: "2026-09-10",
+      checkout: "2026-09-12",
+    }), { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    const patch = q.updateBookingFull.mock.calls[0][1];
+    expect(patch).not.toHaveProperty("checkinDate");
+    expect(patch).not.toHaveProperty("checkoutDate");
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("modify of an unassigned stay with new dates updates the booking but does not assign beds", async () => {
+    q.getBookingByRef.mockResolvedValue({
+      id: 12,
+      status: "received",
+      guestName: "Ada",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-08",
+      persons: 1,
+    });
+    q.getBookingDetail.mockResolvedValue({ booking: { status: "received" }, assignments: [] });
+    const res = await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({
+      action: "modify",
+      checkin: "2026-09-10",
+      checkout: "2026-09-12",
+    }), { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(12, expect.objectContaining({
+      checkinDate: "2026-09-10",
+      checkoutDate: "2026-09-12",
+    }));
+    expect(q.assignBedToBooking).not.toHaveBeenCalled();
+    expect(q.unassignBookingBeds).not.toHaveBeenCalled();
+  });
+
+  it("modify of an unassigned stay with missing checkout coerces dates and does not assign beds", async () => {
+    q.getBookingByRef.mockResolvedValue({
+      id: 12,
+      status: "received",
+      guestName: "Ada",
+      checkinDate: "2026-09-05",
+      checkoutDate: "",
+      persons: 1,
+    });
+    q.getBookingDetail.mockResolvedValue({ booking: { status: "received" }, assignments: [] });
+    const payload = bookPayload({ action: "modify", checkin: "2026-09-10" });
+    delete (payload as { checkout?: string }).checkout;
+    const res = await reservationsPOST(jsonReq(
+      "http://localhost/api/aiosell/reservations",
+      payload,
+      { authorization: "whsec-test" },
+    ));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(12, expect.objectContaining({
+      checkinDate: "2026-09-10",
+    }));
+    expect(q.assignBedToBooking).not.toHaveBeenCalled();
+    expect(q.unassignBookingBeds).not.toHaveBeenCalled();
+  });
+
+  it("cancel of an assigned stay pushes assignment nights, not the checkout morning", async () => {
+    q.getBookingByRef.mockResolvedValue({
+      id: 12, status: "received",
+      checkinDate: "2026-09-01", checkoutDate: "2026-09-10",
+    });
+    q.getBookingDetail.mockResolvedValue({
+      assignments: [{
+        status: "assigned", bedId: 7, dormId: 8,
+        checkinDate: "2026-09-05", checkoutDate: "2026-09-08",
+      }],
+    });
+    await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", {
+      action: "cancel", hotelCode: "GOKO-001", channel: "booking.com", bookingId: "BK-OPS-1",
+    }, { authorization: "whsec-test" }));
+    expect(triggerInventoryPush).toHaveBeenCalledWith(["2026-09-05", "2026-09-06", "2026-09-07"]);
+    expect(q.unassignBookingBeds).toHaveBeenCalledWith(12);
+  });
+
+  it("book with two rooms sums persons and first-night rates", async () => {
+    const res = await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({
+      bookingId: "BK-GROUP-3",
+      rooms: [
+        {
+          roomCode: "executive",
+          rateplanCode: "executive-s-ep",
+          occupancy: { adults: 2, children: 0 },
+          prices: [
+            { date: "2026-09-05", sellRate: 3700 },
+            { date: "2026-09-06", sellRate: 3700 },
+          ],
+        },
+        {
+          roomCode: "dorm-6",
+          rateplanCode: "STD",
+          occupancy: { adults: 1, children: 1 },
+          prices: [
+            { date: "2026-09-05", sellRate: 1200 },
+            { date: "2026-09-06", sellRate: 1100 },
+          ],
+        },
+      ],
+    }), { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      persons: 4,
+      nightlyRate: 4900,
+      roomType: "executive, dorm-6",
+    }));
+    expect(q.assignBedToBooking).not.toHaveBeenCalled();
+  });
+
+  it("uses amountAfterTax / nights when room prices are null", async () => {
+    const res = await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({
+      bookingId: "BK-NOPRICE",
+      rooms: [{
+        roomCode: "executive",
+        rateplanCode: "executive-s-ep",
+        occupancy: { adults: 1, children: 0 },
+        prices: null,
+      }],
+      amount: { amountAfterTax: 7400, amountBeforeTax: 7400, tax: 0, currency: "INR" },
+    }), { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({ nightlyRate: 2467 }));
+  });
+});
+
+describe("Fetch reservation ingest", () => {
+  beforeEach(() => {
+    for (const fn of Object.values(q)) fn.mockReset();
+    q.getChannelConfig.mockResolvedValue(activeConfig);
+    q.getBookingByRef.mockResolvedValue(null);
+    q.addBooking.mockResolvedValue(201);
+    vi.mocked(authenticateUser).mockResolvedValue(admin);
+    fetchFromAiosell.mockReset();
+  });
+
+  it("imports missing refs and skips ones already in D1, including cancelled", async () => {
+    q.getBookingByRef.mockImplementation(async (ref: string) => {
+      if (ref === "ALREADY") return { id: 9, status: "cancelled", bookingRef: "ALREADY" };
+      return null;
+    });
+    const result = await ingestFetchedReservations([
+      bookPayload({ bookingId: "NEW-1" }),
+      bookPayload({ bookingId: "ALREADY" }),
+      { hotelCode: "GOKO-001" },
+    ]);
+    expect(result).toEqual({ imported: 1, skipped: 2, refs: ["NEW-1"] });
+    expect(q.addBooking).toHaveBeenCalledTimes(1);
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
+  it("fetch reservation wraps Aiosell array and reports ingest counts", async () => {
+    fetchFromAiosell.mockResolvedValue([bookPayload({ bookingId: "FETCH-1" })]);
+    const res = await fetchPOST(jsonReq("http://localhost/api/aiosell/fetch", adminBody({
+      type: "reservation", startDate: "2026-08-31", endDate: "2026-09-03",
+    })));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveLength(1);
+    expect(body.ingested).toEqual({ imported: 1, skipped: 0, refs: ["FETCH-1"] });
+    expect(q.addBooking).toHaveBeenCalled();
+  });
+
+  it("ingestFetchedReservations returns zeros for an empty array", async () => {
+    const result = await ingestFetchedReservations([]);
+    expect(result).toEqual({ imported: 0, skipped: 0, refs: [] });
+    expect(q.addBooking).not.toHaveBeenCalled();
+  });
+
+  it("ingestFetchedReservations ignores a non-array object without data", async () => {
+    const result = await ingestFetchedReservations({ success: true, hotelCode: "GOKO-001" });
+    expect(result).toEqual({ imported: 0, skipped: 0, refs: [] });
+    expect(q.addBooking).not.toHaveBeenCalled();
+  });
+
+  it("ingestFetchedReservations uses amountAfterTax / nights when prices are null", async () => {
+    const result = await ingestFetchedReservations([
+      bookPayload({
+        bookingId: "FETCH-NOPRICE",
+        rooms: [{
+          roomCode: "executive",
+          rateplanCode: "executive-s-ep",
+          occupancy: { adults: 1, children: 0 },
+          prices: null,
+        }],
+        amount: { amountAfterTax: 7400, amountBeforeTax: 7400, tax: 0, currency: "INR" },
+      }),
+    ]);
+    expect(result).toEqual({ imported: 1, skipped: 0, refs: ["FETCH-NOPRICE"] });
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({ nightlyRate: 2467 }));
+  });
+
+  it("fetch type=inventory does not ingest reservations", async () => {
+    fetchFromAiosell.mockResolvedValue([bookPayload({ bookingId: "SHOULD-NOT-INGEST" })]);
+    const res = await fetchPOST(jsonReq("http://localhost/api/aiosell/fetch", adminBody({
+      type: "inventory", startDate: "2026-09-05", endDate: "2026-09-07",
+    })));
+    expect(res.status).toBe(200);
+    expect(q.addBooking).not.toHaveBeenCalled();
+  });
 });
 
 describe("Channel Manager config API", () => {
@@ -401,6 +702,104 @@ describe("Channel Manager config API", () => {
       action: "pushNow",
     })));
     expect(res.status).toBe(400);
+  });
+
+  it("401s staff", async () => {
+    vi.mocked(authenticateUser).mockResolvedValue({ role: "staff", displayName: "S", permissions: { canManageInventory: true } });
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "getConfig",
+    })));
+    expect(res.status).toBe(401);
+    expect(q.getChannelConfig).not.toHaveBeenCalled();
+  });
+
+  it("getConfig returns config", async () => {
+    q.getChannelConfig.mockResolvedValue(activeConfig);
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "getConfig",
+    })));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ config: activeConfig });
+  });
+
+  it.each([
+    [{ dormId: 8, channelRoomCode: "" }],
+    [{ dormId: 0, channelRoomCode: "executive" }],
+  ])("saveRoomMapping 400s for %j", async (mapping) => {
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "saveRoomMapping", mapping,
+    })));
+    expect(res.status).toBe(400);
+    expect(q.upsertRoomTypeMapping).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ roomMappingId: 1, ratePlanCode: "", ratePlanName: "EP" }],
+    [{ roomMappingId: 1, ratePlanCode: "ep", ratePlanName: "" }],
+  ])("saveRatePlan 400s for %j", async (plan) => {
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "saveRatePlan", plan,
+    })));
+    expect(res.status).toBe(400);
+    expect(q.upsertRatePlanMapping).not.toHaveBeenCalled();
+  });
+
+  it("deleteRatePlan 400s without id and 200s with a valid id", async () => {
+    expect((await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "deleteRatePlan",
+    })))).status).toBe(400);
+    expect(q.deleteRatePlanMapping).not.toHaveBeenCalled();
+
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "deleteRatePlan", id: 11,
+    })));
+    expect(res.status).toBe(200);
+    expect(q.deleteRatePlanMapping).toHaveBeenCalledWith(11);
+  });
+
+  it("getRatePlans forwards roomMappingId", async () => {
+    q.getRatePlanMappings.mockResolvedValue(plans);
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "getRatePlans", roomMappingId: 1,
+    })));
+    expect(res.status).toBe(200);
+    expect(q.getRatePlanMappings).toHaveBeenCalledWith(1);
+    expect(await res.json()).toEqual({ plans });
+  });
+
+  it("getDailyRates forwards plan and date range", async () => {
+    const rates = [{ date: "2026-09-05", rate: 3700 }];
+    q.getDailyRates.mockResolvedValue(rates);
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "getDailyRates", ratePlanId: 10, startDate: "2026-09-05", endDate: "2026-09-07",
+    })));
+    expect(res.status).toBe(200);
+    expect(q.getDailyRates).toHaveBeenCalledWith(10, "2026-09-05", "2026-09-07");
+    expect(await res.json()).toEqual({ rates });
+  });
+
+  it("getSyncLogs forwards limit and filters", async () => {
+    const logs = [{ id: 1, type: "inventory" }];
+    q.getChannelSyncLogs.mockResolvedValue(logs);
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "getSyncLogs", limit: 20, direction: "push", type: "inventory", status: "success", since: "2026-09-01",
+    })));
+    expect(res.status).toBe(200);
+    expect(q.getChannelSyncLogs).toHaveBeenCalledWith(20, {
+      direction: "push", type: "inventory", status: "success", since: "2026-09-01",
+    });
+    expect(await res.json()).toEqual({ logs });
+  });
+
+  it("saveDailyRates returns the upsert count", async () => {
+    q.bulkUpsertDailyRates.mockResolvedValue(3);
+    const rates = [{ ratePlanId: 10, date: "2026-09-05", rate: 3700 }];
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "saveDailyRates", rates,
+    })));
+    expect(res.status).toBe(200);
+    expect(q.bulkUpsertDailyRates).toHaveBeenCalledWith(rates);
+    expect(await res.json()).toEqual({ success: true, count: 3 });
   });
 });
 
@@ -494,6 +893,67 @@ describe("Push inventory route modes", () => {
     expect(res.status).toBe(502);
     expect(q.updateChannelSyncTime).not.toHaveBeenCalled();
   });
+
+  it("skips inactive room mappings", async () => {
+    q.getRoomTypeMappings.mockResolvedValue([
+      ...mappings,
+      { id: 3, dormId: 10, channelRoomCode: "closed-room", isActive: 0 },
+    ]);
+    const res = await pushInventoryPOST(jsonReq("http://localhost/api/aiosell/push-inventory", adminBody({
+      startDate: "2026-09-05", endDate: "2026-09-05",
+    })));
+    expect(res.status).toBe(200);
+    expect(pushInventory.mock.calls[0][1][0].rooms).toEqual([
+      { roomCode: "executive", available: 4 },
+      { roomCode: "dorm-6", available: 4 },
+    ]);
+  });
+
+  it("401s staff even with canManageInventory", async () => {
+    vi.mocked(authenticateUser).mockResolvedValue({
+      role: "staff", displayName: "S", permissions: { canManageInventory: true },
+    });
+    const res = await pushInventoryPOST(jsonReq("http://localhost/api/aiosell/push-inventory", adminBody()));
+    expect(res.status).toBe(401);
+    expect(pushInventory).not.toHaveBeenCalled();
+  });
+
+  it("drains all-unmapped dirty rows then falls through to full mode", async () => {
+    q.getDirtyInventory.mockResolvedValue([
+      { id: 1, dormId: 99, date: "2026-09-05" },
+      { id: 2, dormId: 100, date: "2026-09-06" },
+    ]);
+    const res = await pushInventoryPOST(jsonReq("http://localhost/api/aiosell/push-inventory", adminBody()));
+    expect(res.status).toBe(200);
+    expect(q.clearDirtyInventory).toHaveBeenCalledWith([1, 2]);
+    const body = await res.json();
+    expect(body.mode).toBe("full");
+    expect(pushInventory.mock.calls[0][1].length).toBeGreaterThan(1);
+  });
+
+  it("ranged push clears dirty only for nights actually sent", async () => {
+    q.getDirtyInventory.mockResolvedValue([
+      { id: 1, dormId: 8, date: "2026-09-05" },
+      { id: 2, dormId: 8, date: "2026-09-10" },
+      { id: 3, dormId: 9, date: "2026-09-05" },
+      { id: 4, dormId: 99, date: "2026-09-05" },
+    ]);
+    const res = await pushInventoryPOST(jsonReq("http://localhost/api/aiosell/push-inventory", adminBody({
+      startDate: "2026-09-05", endDate: "2026-09-05",
+    })));
+    expect(res.status).toBe(200);
+    expect(q.clearAllDirtyInventory).not.toHaveBeenCalled();
+    expect(q.clearDirtyInventory).toHaveBeenCalledWith([1, 3]);
+  });
+
+  it("400s when config is null", async () => {
+    q.getChannelConfig.mockResolvedValue(null);
+    const res = await pushInventoryPOST(jsonReq("http://localhost/api/aiosell/push-inventory", adminBody({
+      startDate: "2026-09-05", endDate: "2026-09-05",
+    })));
+    expect(res.status).toBe(400);
+    expect(pushInventory).not.toHaveBeenCalled();
+  });
 });
 
 describe("Push rates and fetch routes", () => {
@@ -585,6 +1045,73 @@ describe("Push rates and fetch routes", () => {
       "2026-09-07",
     );
   });
+
+  it("400s with no room mappings", async () => {
+    q.getRoomTypeMappings.mockResolvedValue([]);
+    const res = await pushRatesPOST(jsonReq("http://localhost/api/aiosell/push-rates", adminBody({
+      startDate: "2026-09-05", endDate: "2026-09-05",
+    })));
+    expect(res.status).toBe(400);
+    expect(pushRates).not.toHaveBeenCalled();
+  });
+
+  it("400s with no rate plans", async () => {
+    q.getRatePlanMappings.mockResolvedValue([]);
+    const res = await pushRatesPOST(jsonReq("http://localhost/api/aiosell/push-rates", adminBody({
+      startDate: "2026-09-05", endDate: "2026-09-05",
+    })));
+    expect(res.status).toBe(400);
+    expect(pushRates).not.toHaveBeenCalled();
+  });
+
+  it("502s when Aiosell rejects rates and does not mark synced", async () => {
+    pushRates.mockResolvedValue({ success: false, message: "rate reject" });
+    const res = await pushRatesPOST(jsonReq("http://localhost/api/aiosell/push-rates", adminBody({
+      startDate: "2026-09-05", endDate: "2026-09-05",
+    })));
+    expect(res.status).toBe(502);
+    expect(q.markRatesSynced).not.toHaveBeenCalled();
+  });
+
+  it("fetch still returns JSON 200 when Aiosell reports success:false", async () => {
+    fetchFromAiosell.mockResolvedValue({ success: false, message: "upstream down", data: [] });
+    const res = await fetchPOST(jsonReq("http://localhost/api/aiosell/fetch", adminBody({
+      type: "inventory", startDate: "2026-09-05", endDate: "2026-09-07",
+    })));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: false, message: "upstream down", data: [] });
+  });
+});
+
+describe("Aiosell admin routes require admin and an active CM", () => {
+  const routes = [
+    ["push-rates", pushRatesPOST],
+    ["fetch", fetchPOST],
+    ["noshow", pushNoShowPOST],
+    ["inv-restrictions", pushInvRestrictPOST],
+  ] as const;
+  const body = adminBody({
+    type: "inventory", startDate: "2026-09-05", endDate: "2026-09-05",
+    bookingId: "CM-1", partner: "booking_com",
+  });
+
+  beforeEach(() => {
+    for (const fn of Object.values(q)) fn.mockReset();
+    vi.mocked(authenticateUser).mockResolvedValue(admin);
+    q.getChannelConfig.mockResolvedValue(activeConfig);
+  });
+
+  it.each(routes)("401s staff on %s", async (_label, handler) => {
+    vi.mocked(authenticateUser).mockResolvedValue({
+      role: "staff", displayName: "S", permissions: { canManageInventory: true },
+    });
+    expect((await handler(jsonReq("http://localhost/api/aiosell/x", body))).status).toBe(401);
+  });
+
+  it.each(routes)("400s inactive CM on %s", async (_label, handler) => {
+    q.getChannelConfig.mockResolvedValue({ ...activeConfig, isActive: 0 });
+    expect((await handler(jsonReq("http://localhost/api/aiosell/x", body))).status).toBe(400);
+  });
 });
 
 describe("No-show and inventory-restriction routes", () => {
@@ -656,5 +1183,20 @@ describe("No-show and inventory-restriction routes", () => {
     })));
     expect(res.status).toBe(400);
     expect(pushInventoryRestrictions).not.toHaveBeenCalled();
+  });
+
+  it("room stopSell is true when every plan is stop-sold and maximumStay stays null when all are null", async () => {
+    q.getAllDailyRates.mockResolvedValue([
+      { ratePlanId: 10, date: "2026-09-05", stopSell: 1, minimumStay: 2, maximumStay: null, closeOnArrival: 1, closeOnDeparture: 1, minimumAdvanceReservation: 3, maximumAdvanceReservation: 10 },
+      { ratePlanId: 11, date: "2026-09-05", stopSell: 1, minimumStay: 1, maximumStay: null, closeOnArrival: 1, closeOnDeparture: 1, minimumAdvanceReservation: 1, maximumAdvanceReservation: 20 },
+    ]);
+    const res = await pushInvRestrictPOST(jsonReq("http://localhost/api/aiosell/push-inventory-restrictions", adminBody({
+      startDate: "2026-09-05", endDate: "2026-09-05",
+    })));
+    expect(res.status).toBe(200);
+    expect(pushInventoryRestrictions.mock.calls[0][1][0].rooms[0].restrictions).toMatchObject({
+      stopSell: true,
+      maximumStay: null,
+    });
   });
 });

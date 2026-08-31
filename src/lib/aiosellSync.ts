@@ -6,12 +6,13 @@
  * Aiosell-originated events (OTA/Website bookings via webhook) must NOT push back.
  */
 
-import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getOnlineAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty, getDirtyInventory, clearDirtyInventory } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getOnlineAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty, getDirtyInventory, clearDirtyInventory, getUnassignedOtaRoomCountForDorm } from "@/db/queries";
 import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { remainingSplit } from "@/lib/inventoryAvailability";
 import { pushInventory, pushRates, pushRateRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields, type RestrictionPatch } from "@/lib/aiosell";
 
 export async function getDateAwareAvailability(dormId: number, date: string): Promise<number> {
@@ -28,7 +29,8 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
   const override = await getInventoryOverrideForDormDate(dormId, date);
   const ceiling = override?.onlineAvailable ?? totalBeds;
   const available = Math.max(0, totalBeds - blockedBedIds.length - assignedCount);
-  return Math.min(available, Math.max(0, ceiling - onlineAssigned));
+  const unassignedOta = await getUnassignedOtaRoomCountForDorm(dormId, date);
+  return remainingSplit(available, ceiling, onlineAssigned + unassignedOta).online;
 }
 
 export async function otaFingerprint(dormIds: number[], dates: string[]): Promise<string> {

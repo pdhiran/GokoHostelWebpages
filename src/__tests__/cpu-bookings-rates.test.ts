@@ -565,4 +565,119 @@ describe("Bookings calendar and rates workflows", () => {
     expect((await POST(req({ password: "x", action: "checkOut", bookingId: 42 }))).status).toBe(200);
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });
+
+  it("rollbackCheckOut on a channel_manager booking does not push occupancy back to Aiosell", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-08-01",
+        checkoutDate: "2026-09-10",
+        status: "checked_out",
+        source: "channel_manager",
+      },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7, checkoutDate: "2026-08-20" }],
+    });
+    q.checkBedAvailability.mockResolvedValue(true);
+    const res = await POST(req({ password: "x", action: "rollbackCheckOut", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
+  it("modifyCheckin on a channel_manager booking does not push occupancy back to Aiosell", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-01",
+        checkoutDate: "2026-09-10",
+        status: "received",
+        source: "channel_manager",
+        nightlyRate: 1000,
+      },
+      assignments: [{
+        status: "assigned", dormId: 3, bedId: 7,
+        checkinDate: "2026-09-01", checkoutDate: "2026-09-10",
+      }],
+    });
+    q.assignBedToBooking.mockResolvedValue(true);
+    const res = await POST(req({
+      password: "x", action: "modifyCheckin", bookingId: 5, newCheckinDate: "2026-09-02",
+    }));
+    expect(res.status).toBe(200);
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
+  it("checkIn on a channel_manager booking does not push occupancy back to Aiosell", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-10",
+        status: "received",
+        source: "channel_manager",
+      },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    const res = await POST(req({ password: "x", action: "checkIn", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
+  it("rollbackCheckIn on a channel_manager booking does not push occupancy back to Aiosell", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-10",
+        status: "checked_in",
+        source: "channel_manager",
+      },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    const res = await POST(req({ password: "x", action: "rollbackCheckIn", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({ status: "received" }));
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
+  it("editReservation addBedIds on a channel_manager booking does not push Aiosell", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "channel_manager",
+      },
+      assignments: [],
+    });
+    q.getBedById.mockResolvedValue({ id: 7, bedId: "E1", dormId: 9, dormName: "Executive" });
+    q.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "E1", dormId: 9, dormName: "Executive", pool: "offline" },
+    ]);
+    q.assignBedToBooking.mockResolvedValue(true);
+
+    const res = await POST(req({
+      password: "x", action: "editReservation", bookingId: 42, addBedIds: [7],
+    }));
+    expect(res.status).toBe(200);
+    expect(q.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 42,
+      bedId: 7,
+      inventoryPool: "online",
+    }));
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
+  it("editReservation removeBedIds on a channel_manager booking does not push Aiosell", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "channel_manager",
+      },
+      assignments: [{ id: 11, status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    const res = await POST(req({
+      password: "x", action: "editReservation", bookingId: 42, removeBedIds: [7],
+    }));
+    expect(res.status).toBe(200);
+    expect(q.cancelBedAssignments).toHaveBeenCalledWith([11], 42);
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
 });
