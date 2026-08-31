@@ -89,6 +89,19 @@ describe("getDateAwareAvailability", () => {
     expect(await getDateAwareAvailability(8, "2026-09-05")).toBe(2);
   });
 
+  it("no override: blocked beds come out of the OTA ceiling so unblock raises what we push", async () => {
+    queryMocks.getBlockedBedIdsForDate.mockResolvedValue([10, 11, 12]);
+    queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(5);
+    queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(5);
+    queryMocks.getUnassignedOtaRoomCountForDorm.mockResolvedValue(4);
+    // 12-3-5=4 leftover; ceiling 9 - 9 held = 0 OTA
+    expect(await getDateAwareAvailability(8, "2026-08-31")).toBe(0);
+
+    queryMocks.getBlockedBedIdsForDate.mockResolvedValue([12]);
+    // 12-1-5=6 leftover; ceiling 11 - 9 held = 2 OTA (the two unblocked beds)
+    expect(await getDateAwareAvailability(8, "2026-08-31")).toBe(2);
+  });
+
   it("never goes below zero when everything is taken", async () => {
     queryMocks.getBlockedBedIdsForDate.mockResolvedValue([1, 2, 3, 4, 5, 6]);
     queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(10);

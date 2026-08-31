@@ -12,7 +12,7 @@ import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { remainingSplit } from "@/lib/inventoryAvailability";
+import { otaCeiling, remainingSplit } from "@/lib/inventoryAvailability";
 import { pushInventory, pushRates, pushRateRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields, type RestrictionPatch } from "@/lib/aiosell";
 
 export async function getDateAwareAvailability(dormId: number, date: string): Promise<number> {
@@ -27,8 +27,9 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
   const onlineAssigned = await getOnlineAssignmentCountForDorm(dormId, date);
 
   const override = await getInventoryOverrideForDormDate(dormId, date);
-  const ceiling = override?.onlineAvailable ?? totalBeds;
-  const available = Math.max(0, totalBeds - blockedBedIds.length - assignedCount);
+  const blocked = blockedBedIds.length;
+  const ceiling = otaCeiling(totalBeds, blocked, override?.onlineAvailable);
+  const available = Math.max(0, totalBeds - blocked - assignedCount);
   const unassignedOta = await getUnassignedOtaRoomCountForDorm(dormId, date);
   return remainingSplit(available, ceiling, onlineAssigned + unassignedOta).online;
 }

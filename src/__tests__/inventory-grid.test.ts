@@ -218,6 +218,8 @@ describe("Inventory grid: availability and occupancy workflows", () => {
     expect(ui).toContain("OTA");
     expect(ui).toContain("walk-in");
     expect(ui).toContain("Unassigned OTA");
+    expect(ui).toContain("channel bookings with no bed yet");
+    expect(ui).toContain("unblock returns them here");
     expect(ui).toContain("Math.round((totalAssigned / sellable) * 100)");
 
     const data = fixture();

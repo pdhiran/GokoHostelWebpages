@@ -14,6 +14,7 @@ import {
   occupiedNights,
   pickInventoryOverride,
   remainingSplit,
+  otaCeiling,
   countUnassignedOtaRooms,
   explodeUnassignedOtaHolds,
   splitAvailable,
@@ -287,6 +288,29 @@ describe("Inventory split: EXECUTIVE 12 beds, 5 online / 7 walk-in", () => {
     expect(overrideRemainingInput(snap, null)).toBe("");
     expect(overridePreview(snap, NaN)).toEqual({ online: 8, offline: 4 });
   });
+
+  it("no override: unblocking returns beds to OTA, not walk-in", () => {
+    const assigned = Array.from({ length: 5 }, () => ({
+      dormId: 2,
+      checkinDate: "2026-08-31",
+      checkoutDate: "2026-09-01",
+      status: "assigned" as const,
+      inventoryPool: "online" as const,
+    }));
+    const threeBlocked = [10, 11, 12].map((bedId) => ({
+      bedId, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01",
+    }));
+    expect(otaCeiling(12, 3, null)).toBe(9);
+    expect(otaCeiling(12, 1, null)).toBe(11);
+    expect(otaCeiling(12, 1, 5)).toBe(5);
+
+    const before = computeNightAvailability(2, "2026-08-31", beds, threeBlocked, assigned, [], 4);
+    expect(before).toMatchObject({ blocked: 3, assigned: 5, available: 4, online: 0, offline: 4, unassignedOta: 4 });
+
+    const after = computeNightAvailability(2, "2026-08-31", beds, threeBlocked.slice(2), assigned, [], 4);
+    expect(after).toMatchObject({ blocked: 1, available: 6, online: 2, offline: 4 });
+    expect(after.assigned + after.blocked + after.online + after.offline).toBe(12);
+  });
 });
 
 describe("Mock workflows", () => {
@@ -455,6 +479,7 @@ describe("Wiring", () => {
     expect(route).toContain("occupiedNights");
     expect(sync).toContain("getOnlineAssignmentCountForDorm");
     expect(sync).toContain("getUnassignedOtaRoomCountForDorm");
+    expect(sync).toContain("otaCeiling(totalBeds, blocked, override?.onlineAvailable)");
     expect(sync).toContain("remainingSplit(available, ceiling, onlineAssigned + unassignedOta)");
     expect(sync).toContain("if (before !== after) await triggerInventoryPush(dates)");
     expect(sync).toContain("mappings.some((m) => m.dormId === affectedDormId)");

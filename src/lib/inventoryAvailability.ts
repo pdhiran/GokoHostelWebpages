@@ -140,6 +140,12 @@ export function bedsFreeToBlock<T extends { id: number }>(
   return beds.filter((b) => !occupied.has(b.id) && !blocked.has(b.id));
 }
 
+/** Staff override, or the unblocked dorm — blocked beds are not for sale on OTA. */
+export function otaCeiling(total: number, blocked: number, stored?: number | null): number {
+  if (stored != null) return stored;
+  return Math.max(0, total - blocked);
+}
+
 /** Remaining OTA vs walk-in given physical leftover, OTA ceiling, and beds already counted as online. */
 export function remainingSplit(available: number, ceiling: number, onlineAssigned: number): { online: number; offline: number } {
   const online = Math.min(available, Math.max(0, ceiling - onlineAssigned));
@@ -265,7 +271,7 @@ export function computeNightAvailability(
   const onlineAssigned = nightAssigns.filter((a) => assignmentPool(a.inventoryPool) === "online").length;
   const available = Math.max(0, total - blocked - assigned);
   const override = pickInventoryOverride(overrides, dormId, date);
-  const ceiling = override?.onlineAvailable ?? total;
+  const ceiling = otaCeiling(total, blocked, override?.onlineAvailable);
   const { online, offline } = remainingSplit(available, ceiling, onlineAssigned + unassignedOta);
   return {
     total,

@@ -466,7 +466,7 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
               max={stats.available}
             />
             <p className="mt-0.5 text-[10px] text-brand-green-dark/40">
-              Same as the grid OTA number. Unassigned OTA rooms and assigned online beds are already excluded. Walk-in bookings do not reduce this after save.
+              Same as the grid OTA number. Unassigned OTA rooms (channel bookings with no bed yet) and assigned online beds are already excluded. With no override, blocked beds come out of this number — unblock returns them here, not to walk-in.
             </p>
             {Number.isFinite(typedRemaining) && typedRemaining > stats.available && (
               <p className="mt-0.5 text-[10px] text-amber-700">Capped at {stats.available} available. Extra cannot be sold.</p>
