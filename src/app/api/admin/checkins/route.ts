@@ -9,7 +9,8 @@ import { logListQuery, logSafePage } from "@/lib/logRetention";
 import { todayIST } from "@/lib/utils";
 import { addCalendarDays } from "@/lib/inventoryAvailability";
 import { stayDueAtHotel } from "@/lib/stayPayment";
-import { activeCheckinIdsForContact, checkinIdsMatchingContact, getPendingFoodTab } from "@/lib/foodTab";
+import { checkinIdsMatchingContact } from "@/lib/foodTab";
+import { activeCheckinIdsForContact, getPendingFoodTab } from "@/lib/foodTabDb";
 import {
   getCheckinsByMonth, getActiveCheckins, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
   getAllBeds, getBedById, updateBedStatus, getAllDorms, getDormByName, addDorm, addBed, deleteBed, deleteDormAndBeds,

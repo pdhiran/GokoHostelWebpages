@@ -36,7 +36,7 @@ Live marketing routes are `src/app/(marketing)/` (`force-static`). Do not add SS
 | `aiosell.ts` / `aiosellSync.ts` / `channelMapping.ts` / `channelAutoAssign.ts` / `inventoryAvailability.ts` / `bookingPricing.ts` / `stayPayment.ts` / `pmsLog.ts` / `pmsLogSummary.ts` / `logRetention.ts` / `logExport.ts` / `sqliteWriteCount.ts` | Channel manager + walk-in tax/discount + stay collect/refund math. Log **cards** import `pmsLogSummary` only (client). `pmsLog` writes D1. `logRetention` is 30-day prune + pager math (client-safe). `logExport` is JSON/PDF download text (client; dynamic `jspdf`). |
 | `syncEngine.ts` | Pi ↔ CF |
 | `siteContent.ts` / `siteCopy.ts` / `mediaR2.ts` / `mediaKeys.ts` / `processSiteImage.ts` / `cropRect.ts` | CMS |
-| `kitchenHours.ts` / `foodLookup.ts` / `foodTab.ts` / `orderStatus.ts` / `thermalPrint.ts` | Food |
+| `kitchenHours.ts` / `foodLookup.ts` / `foodTab.ts` / `foodTabDb.ts` / `orderStatus.ts` / `thermalPrint.ts` | Food. **`foodTab.ts` is client-safe copy/guards.** **`foodTabDb.ts` is server-only** (`getDb`). Admin UI must not import `foodTabDb` or the Worker bundle pulls `better-sqlite3`. |
 | `splits.ts` | Splitwise kernel (paise, FIFO Goko attribution) |
 | `checkinSchema.ts` / `checkinLookup.ts` / `phoneUtils.ts` | Check-in |
 | `otaEmailParser.ts` | Gmail bookings |

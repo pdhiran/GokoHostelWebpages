@@ -11,7 +11,7 @@ import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@
 import { UserPlusIcon, SparklesIcon, ClockIcon, Loader2Icon } from "lucide-react";
 import { parseBedRow, type Role, type BedRow, hasPermission } from "./types";
 import { AdminLoading } from "./AdminLoading";
-import { foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
+import { canLookupFoodTab, foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
 
 function getDaysRemaining(expectedCheckout: string): number {
   if (!expectedCheckout) return 0;
@@ -239,18 +239,19 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
 
   const checkoutBed = async (bedIdx: number) => {
     const bed = beds.find((b) => b.id === bedIdx);
+    const contact = bed?.guestContact || "";
     let msg = "Checkout this guest?";
-    if (!bed?.guestContact) {
+    if (!canLookupFoodTab({ contact })) {
       msg = foodTabUncheckedMessage("no-phone");
     } else {
       try {
-        const res = await apiCall({ action: "getPendingFoodTab", contact: bed.guestContact });
+        const res = await apiCall({ action: "getPendingFoodTab", contact });
         if (!res.ok) {
           msg = foodTabUncheckedMessage("lookup-failed");
         } else {
           const d = await res.json();
           if (d.pendingTab > 0) {
-            msg = unpaidFoodCheckoutMessage(bed.guestName || "This guest", d.pendingTab, d.pendingOrders);
+            msg = unpaidFoodCheckoutMessage(bed?.guestName || "This guest", d.pendingTab, d.pendingOrders);
           }
         }
       } catch {

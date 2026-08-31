@@ -29,7 +29,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { RecordPaymentModal, PaymentDetailLabel } from "@/components/admin/RecordPaymentModal";
 import { overlayVariants, modalVariants } from "@/lib/animations";
 import { fetchWithRetry } from "@/components/admin/useAdminApi";
-import { foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
+import { canLookupFoodTab, foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { hasPermission, type Role } from "../types";
 import type { DashboardBooking, BedAssignment, BookingHistoryEntry } from "./types";
@@ -108,6 +108,16 @@ export function BookingDetailPanel({
   };
 
   const promptCheckOut = async () => {
+    if (!canLookupFoodTab({ contact: booking.contact })) {
+      setConfirmAction({
+        action: "checkOut",
+        title: "Check Out Guest",
+        description: foodTabUncheckedMessage("no-phone"),
+        variant: "destructive",
+        confirmLabel: "Check out anyway",
+      });
+      return;
+    }
     setBusy(true);
     let pendingTab = 0;
     let pendingOrders = 0;

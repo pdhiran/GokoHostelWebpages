@@ -75,17 +75,20 @@ const food = vi.hoisted(() => ({
   getPendingFoodTab: vi.fn(),
   contactToCheckinIdMap: vi.fn(() => new Map()),
   checkinIdsMatchingContact: vi.fn(() => []),
-  activeCheckinIdsForContact: vi.fn(async () => []),
+  activeCheckinIdsForContact: vi.fn(async (): Promise<number[]> => []),
   unpaidFoodCheckoutMessage: vi.fn(),
 }));
 
 vi.mock("@/lib/foodTab", () => ({
-  getPendingFoodTab: food.getPendingFoodTab,
   contactToCheckinIdMap: food.contactToCheckinIdMap,
   checkinIdsMatchingContact: food.checkinIdsMatchingContact,
-  activeCheckinIdsForContact: food.activeCheckinIdsForContact,
   unpaidFoodCheckoutMessage: food.unpaidFoodCheckoutMessage,
   EMPTY_FOOD_TAB: { checkinId: null, pendingTab: 0, pendingOrders: 0, orderIds: [] },
+}));
+
+vi.mock("@/lib/foodTabDb", () => ({
+  getPendingFoodTab: food.getPendingFoodTab,
+  activeCheckinIdsForContact: food.activeCheckinIdsForContact,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -216,8 +219,12 @@ describe("Food tab API workflows", () => {
     for (const fn of Object.values(q)) fn.mockReset();
     food.getPendingFoodTab.mockReset();
     food.contactToCheckinIdMap.mockReset();
+    food.checkinIdsMatchingContact.mockReset();
+    food.activeCheckinIdsForContact.mockReset();
     food.unpaidFoodCheckoutMessage.mockReset();
     food.contactToCheckinIdMap.mockReturnValue(new Map());
+    food.checkinIdsMatchingContact.mockReturnValue([]);
+    food.activeCheckinIdsForContact.mockResolvedValue([]);
     food.getPendingFoodTab.mockResolvedValue(EMPTY_TAB);
     q.authenticateUser.mockResolvedValue(admin);
     q.addSystemLog.mockResolvedValue(undefined);
@@ -265,6 +272,24 @@ describe("Food tab API workflows", () => {
       expect(res.status).toBe(404);
       expect(await res.json()).toEqual({ error: "Booking not found" });
       expect(food.getPendingFoodTab).not.toHaveBeenCalled();
+    });
+
+    it("still calls the helper when booking contact is blank", async () => {
+      q.getBookingDetail.mockResolvedValue(openBookingDetail(""));
+      food.getPendingFoodTab.mockResolvedValue(EMPTY_TAB);
+
+      const res = await bookingsPOST(bookingsReq({
+        password: "x",
+        action: "getPendingFoodTab",
+        bookingId: 5,
+      }));
+
+      expect(res.status).toBe(200);
+      expect(food.getPendingFoodTab).toHaveBeenCalledWith({
+        checkinId: undefined,
+        contact: "",
+      });
+      expect(await res.json()).toEqual(EMPTY_TAB);
     });
   });
 
@@ -397,6 +422,41 @@ describe("Food tab API workflows", () => {
         action: "guest_checkout_direct",
         target: "Ada",
       }));
+    });
+  });
+
+  describe("G. Checkins checkoutBed closes checkins by normalized phone", () => {
+    it("calls activeCheckinIdsForContact and does not consult getPendingFoodTab", async () => {
+      food.activeCheckinIdsForContact.mockResolvedValue([42, 43]);
+      q.getBedById.mockResolvedValue({
+        id: 7,
+        status: "occupied",
+        bedId: "A1",
+        dormName: "Dorm",
+        guestName: "Ada",
+        guestContact: "+91 98765 43210",
+      });
+      q.updateBedStatus.mockResolvedValue(undefined);
+      q.logBedHistoryEntry.mockResolvedValue(undefined);
+      const where = vi.fn().mockResolvedValue({ meta: { changes: 2 } });
+      const limit = vi.fn().mockResolvedValue([]);
+      q.getDb.mockReturnValue({
+        update: () => ({ set: () => ({ where }) }),
+        select: () => ({ from: () => ({ where: () => ({ limit }) }) }),
+      });
+
+      const res = await checkinsPOST(checkinsReq({
+        password: "x",
+        action: "checkoutBed",
+        bedId: 7,
+      }));
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ success: true });
+      expect(food.activeCheckinIdsForContact).toHaveBeenCalledWith("+91 98765 43210");
+      expect(food.getPendingFoodTab).not.toHaveBeenCalled();
+      expect(q.updateBedStatus).toHaveBeenCalledWith(7, { status: "cleanup" });
+      expect(where).toHaveBeenCalled();
     });
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canLookupFoodTab,
   checkinIdsMatchingContact,
   contactToCheckinIdMap,
   foodTabUncheckedMessage,
@@ -39,6 +40,10 @@ describe("pending food tab matching", () => {
     expect(foodTabUncheckedMessage("lookup-failed")).toBe(
       "Could not check the food tab. Check out anyway?",
     );
+    expect(canLookupFoodTab({ contact: "" })).toBe(false);
+    expect(canLookupFoodTab({ contact: "12" })).toBe(false);
+    expect(canLookupFoodTab({ contact: "9876543210" })).toBe(true);
+    expect(canLookupFoodTab({ contact: "", checkinId: 9 })).toBe(true);
   });
 });
 
@@ -48,6 +53,8 @@ describe("checkout UIs look up the self-checkin food tab", () => {
     expect(panel).toContain("promptCheckOut");
     expect(panel).toContain('action: "getPendingFoodTab"');
     expect(panel).toContain("unpaidFoodCheckoutMessage");
+    expect(panel).toContain("canLookupFoodTab");
+    expect(panel).toContain('foodTabUncheckedMessage("no-phone")');
     expect(panel).toContain("Check out anyway");
   });
 
@@ -74,6 +81,23 @@ describe("checkout UIs look up the self-checkin food tab", () => {
     expect(dash).toContain('action: "getPendingFoodTab"');
     expect(dash).toContain("foodTabUncheckedMessage");
     expect(dash).toContain("checkoutModal.orderIds");
+    expect(dash).toContain("if (!payRes.ok)");
+  });
+
+  it("client UIs never import foodTabDb", () => {
+    for (const file of [
+      "src/components/admin/AdminBeds.tsx",
+      "src/components/admin/AdminTimeline.tsx",
+      "src/components/admin/AdminDashboard.tsx",
+      "src/components/admin/booking-dashboard/BookingDetailPanel.tsx",
+    ]) {
+      const src = readFileSync(file, "utf8");
+      expect(src, file).not.toContain("foodTabDb");
+    }
+    const bookings = readFileSync("src/app/api/admin/bookings/route.ts", "utf8");
+    const checkins = readFileSync("src/app/api/admin/checkins/route.ts", "utf8");
+    expect(bookings).toContain('from "@/lib/foodTabDb"');
+    expect(checkins).toContain('from "@/lib/foodTabDb"');
   });
 
   it("bookings route exposes getPendingFoodTab next to checkOut", () => {

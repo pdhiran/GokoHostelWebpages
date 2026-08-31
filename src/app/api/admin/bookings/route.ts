@@ -24,7 +24,7 @@ import {
 } from "@/db/queries";
 import { todayIST } from "@/lib/utils";
 import { isStayPayMethod, stayDueAtHotel, mergeStayCollect, stayRefundCap, stayRefundWrite, prepaidCheckInWrite, prepaidCheckInRollback } from "@/lib/stayPayment";
-import { getPendingFoodTab } from "@/lib/foodTab";
+import { getPendingFoodTab } from "@/lib/foodTabDb";
 import {
   BOOKING_TAX_SETTING,
   bookingDiscountRupees,

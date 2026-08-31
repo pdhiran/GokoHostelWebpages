@@ -11,7 +11,7 @@ import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import { RecordPaymentModal } from "@/components/admin/RecordPaymentModal";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { hasPermission, type Role, type AdminSection } from "./types";
-import { foodTabUncheckedMessage } from "@/lib/foodTab";
+import { canLookupFoodTab, foodTabUncheckedMessage } from "@/lib/foodTab";
 
 export function AdminDashboard({
   password,
@@ -106,7 +106,7 @@ export function AdminDashboard({
   const handleCheckoutClick = async (co: typeof todayCheckouts[0]) => {
     setBusyIdx(co.bedIdx);
     try {
-      if (!co.contact && !co.checkinId) {
+      if (!canLookupFoodTab({ contact: co.contact, checkinId: co.checkinId })) {
         if (!confirm(foodTabUncheckedMessage("no-phone"))) return;
         await doCheckout(co.bedIdx);
         return;
@@ -154,7 +154,13 @@ export function AdminDashboard({
         }
       }
       if (orderIds.length > 0) {
-        await foodApiCall({ action: "markOrderPaid", orderIds, paymentMethod: method });
+        const payRes = await foodApiCall({ action: "markOrderPaid", orderIds, paymentMethod: method });
+        if (!payRes.ok) {
+          const data = await payRes.json().catch(() => ({ error: "Could not record food payment" }));
+          showError(data.error || "Could not record food payment");
+          setCheckoutBusy(false);
+          return;
+        }
       }
       await doCheckout(checkoutModal.bedIdx);
     } catch {

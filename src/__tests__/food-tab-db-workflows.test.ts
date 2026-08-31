@@ -4,7 +4,8 @@ const { getDb } = vi.hoisted(() => ({ getDb: vi.fn() }));
 
 vi.mock("@/db", () => ({ getDb }));
 
-import { EMPTY_FOOD_TAB, getPendingFoodTab } from "@/lib/foodTab";
+import { EMPTY_FOOD_TAB } from "@/lib/foodTab";
+import { getPendingFoodTab } from "@/lib/foodTabDb";
 
 function drizzleChain(result: unknown) {
   const p = Promise.resolve(result);

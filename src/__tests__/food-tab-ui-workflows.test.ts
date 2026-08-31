@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
+import { canLookupFoodTab, foodTabUncheckedMessage, unpaidFoodCheckoutMessage } from "@/lib/foodTab";
 
 const ROOT = resolve(__dirname, "../..");
 
@@ -42,7 +42,7 @@ async function occupiedCheckoutConfirm(
   guestContact: string | undefined,
   lookup: TabLookup,
 ): Promise<{ lookedUp: boolean; message: string; warn: boolean }> {
-  if (!guestContact) {
+  if (!canLookupFoodTab({ contact: guestContact })) {
     return { lookedUp: false, warn: true, message: foodTabUncheckedMessage("no-phone") };
   }
   try {
@@ -89,7 +89,16 @@ async function unassignedCheckoutModal(
 async function bookingPromptCheckOut(
   guestName: string,
   lookup: TabLookup,
+  contact = "9876543210",
 ): Promise<{ title: string; confirmLabel: string | undefined; message: string; warn: boolean }> {
+  if (!canLookupFoodTab({ contact })) {
+    return {
+      title: "Check Out Guest",
+      confirmLabel: "Check out anyway",
+      warn: true,
+      message: foodTabUncheckedMessage("no-phone"),
+    };
+  }
   let lookupOk = false;
   let pendingTab = 0;
   let pendingOrders = 0;
@@ -124,7 +133,7 @@ async function dashboardCheckoutClick(opts: {
   checkinId?: number | null;
   lookup?: TabLookup;
 }): Promise<{ openedModal: boolean; immediateCheckout: boolean; confirm?: string }> {
-  if (!opts.contact && !opts.checkinId) {
+  if (!canLookupFoodTab({ contact: opts.contact, checkinId: opts.checkinId })) {
     return { openedModal: false, immediateCheckout: false, confirm: foodTabUncheckedMessage("no-phone") };
   }
   try {
@@ -137,6 +146,17 @@ async function dashboardCheckoutClick(opts: {
   } catch {
     return { openedModal: false, immediateCheckout: false, confirm: foodTabUncheckedMessage("lookup-failed") };
   }
+}
+
+async function dashboardPayThenCheckout(
+  orderIds: number[],
+  markPaid: () => Promise<{ ok: boolean }>,
+): Promise<{ checkout: boolean }> {
+  if (orderIds.length > 0) {
+    const payRes = await markPaid();
+    if (!payRes.ok) return { checkout: false };
+  }
+  return { checkout: true };
 }
 
 function sliceFrom(src: string, start: string, minLen = 1200): string {
@@ -194,7 +214,7 @@ describe("food-tab UI checkout workflows", () => {
   it("3. Beds occupied empty guestContact warns instead of silent checkout", async () => {
     const beds = readSrc(BEDS);
     const fn = sliceFrom(beds, "const checkoutBed = async");
-    const guard = fn.indexOf("if (!bed?.guestContact)");
+    const guard = fn.indexOf("canLookupFoodTab");
     const lookup = fn.indexOf("getPendingFoodTab");
     expect(guard).toBeGreaterThan(-1);
     expect(fn).toContain('foodTabUncheckedMessage("no-phone")');
@@ -208,10 +228,16 @@ describe("food-tab UI checkout workflows", () => {
     expect(skipped.message).toBe(foodTabUncheckedMessage("no-phone"));
     expect(skipped.message).not.toBe(FALLBACK_BEDS_TIMELINE);
 
+    const garbage = await occupiedCheckoutConfirm("Ada", "12", async () => {
+      throw new Error("must not look up");
+    });
+    expect(garbage.lookedUp).toBe(false);
+    expect(garbage.message).toBe(foodTabUncheckedMessage("no-phone"));
+
     const timeline = readSrc(TIMELINE);
     const act = sliceFrom(timeline, 'if (action === "checkoutBed")');
-    expect(act.indexOf("if (!bed?.guestContact)")).toBeGreaterThan(-1);
-    expect(act.indexOf("if (!bed?.guestContact)")).toBeLessThan(act.indexOf("getPendingFoodTab"));
+    expect(act.indexOf("canLookupFoodTab")).toBeGreaterThan(-1);
+    expect(act.indexOf("canLookupFoodTab")).toBeLessThan(act.indexOf("getPendingFoodTab"));
     expect(act).toContain('foodTabUncheckedMessage("no-phone")');
   });
 
@@ -261,9 +287,10 @@ describe("food-tab UI checkout workflows", () => {
 
   it("6. Booking Check Out Guest: getPendingFoodTab then Unpaid food bill / Check out anyway", async () => {
     const panel = readSrc(PANEL);
-    const fn = sliceFrom(panel, "const promptCheckOut = async", 1400);
+    const fn = sliceFrom(panel, "const promptCheckOut = async", 2500);
+    expect(fn).toContain("canLookupFoodTab");
     expect(fn).toContain('action: "getPendingFoodTab"');
-    expect(fn.indexOf("getPendingFoodTab")).toBeLessThan(fn.indexOf('action: "checkOut"'));
+    expect(fn.indexOf("canLookupFoodTab")).toBeLessThan(fn.indexOf("getPendingFoodTab"));
     expect(fn).toContain('title: "Unpaid food bill"');
     expect(fn).toContain('confirmLabel: "Check out anyway"');
     expect(fn).toContain("unpaidFoodCheckoutMessage");
@@ -284,6 +311,14 @@ describe("food-tab UI checkout workflows", () => {
     expect(failed.warn).toBe(true);
     expect(failed.confirmLabel).toBe("Check out anyway");
     expect(failed.message).toBe(foodTabUncheckedMessage("lookup-failed"));
+
+    const noPhone = await bookingPromptCheckOut("Ada", async () => {
+      throw new Error("must not look up");
+    }, "");
+    expect(noPhone.warn).toBe(true);
+    expect(noPhone.message).toBe(foodTabUncheckedMessage("no-phone"));
+    expect(fn).toContain("canLookupFoodTab");
+    expect(fn).toContain('foodTabUncheckedMessage("no-phone")');
   });
 
   it("7. Dashboard today checkout: live tab lookup; unpaid opens modal; pendingTab===0 doCheckout", async () => {
@@ -311,6 +346,15 @@ describe("food-tab UI checkout workflows", () => {
     const noPhone = await dashboardCheckoutClick({});
     expect(noPhone.confirm).toBe(foodTabUncheckedMessage("no-phone"));
     expect(noPhone.immediateCheckout).toBe(false);
+
+    const garbage = await dashboardCheckoutClick({ contact: "12" });
+    expect(garbage.confirm).toBe(foodTabUncheckedMessage("no-phone"));
+
+    const byIdOnly = await dashboardCheckoutClick({
+      checkinId: 9,
+      lookup: async () => PAID_TAB,
+    });
+    expect(byIdOnly).toEqual({ openedModal: false, immediateCheckout: true });
 
     const failed = await dashboardCheckoutClick({
       contact: "9876543210",
@@ -341,6 +385,19 @@ describe("food-tab UI checkout workflows", () => {
 
     const timeline = await occupiedCheckoutConfirm("Ada", "9876543210", boom);
     expect(timeline.message).toBe(failedMsg);
+  });
+
+  it("8b. Dashboard Pay does not checkout when markOrderPaid fails", async () => {
+    const dash = readSrc(DASHBOARD);
+    expect(dash).toContain("if (!payRes.ok)");
+    expect(dash).toContain("Could not record food payment");
+    expect(dash.indexOf("if (!payRes.ok)")).toBeLessThan(dash.indexOf("await doCheckout(checkoutModal.bedIdx)"));
+
+    await expect(dashboardPayThenCheckout([1, 2], async () => ({ ok: false }))).resolves.toEqual({ checkout: false });
+    await expect(dashboardPayThenCheckout([1, 2], async () => ({ ok: true }))).resolves.toEqual({ checkout: true });
+    await expect(dashboardPayThenCheckout([], async () => {
+      throw new Error("must not pay");
+    })).resolves.toEqual({ checkout: true });
   });
 
   it("9. Inventory: no other src/components guest-checkout button besides the four UIs", () => {
