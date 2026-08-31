@@ -110,6 +110,24 @@ describe("summarizePmsLog", () => {
       .toBe("Book · San332ee8875314 · Ada Lovelace · Mmt · 2 executive · 31 Aug–1 Sep");
   });
 
+  it("repeated same-code rooms summarize as sold units, not occupancy × rooms", () => {
+    expect(summarizePmsLog({
+      type: "reservation",
+      requestPayload: JSON.stringify({
+        action: "book",
+        bookingId: "San5c72b7455549",
+        channel: "MMT",
+        checkin: "2026-08-31",
+        checkout: "2026-09-01",
+        guest: { firstName: "Pawan 123", lastName: null },
+        rooms: Array.from({ length: 6 }, () => ({
+          roomCode: "suite",
+          occupancy: { adults: 3, children: 0 },
+        })),
+      }),
+    })).toBe("Book · San5c72b7455549 · Pawan 123 · MMT · 6 suite · 31 Aug–1 Sep");
+  });
+
   it("fetch and noshow stay one line", () => {
     expect(summarizePmsLog({
       type: "fetch (reservation)",

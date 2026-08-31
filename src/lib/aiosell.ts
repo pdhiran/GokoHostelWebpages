@@ -106,7 +106,7 @@ export type ReservationPayload = {
   };
   guest?: {
     firstName: string;
-    lastName: string;
+    lastName: string | null;
     email: string;
     phone: string;
     address?: {

@@ -44,10 +44,7 @@ describe("channelBedNeeds occupancySpecified vs missing occupancy", () => {
         { roomCode: "executive", occupancy: { adults: 1, children: 0 } },
       ],
       persons: 5,
-    })).toEqual([
-      { roomCode: "executive", count: 1 },
-      { roomCode: "executive", count: 1 },
-    ]);
+    })).toEqual([{ roomCode: "executive", count: 2 }]);
   });
 
   it("two rooms[] with the same roomCode and no occupancy use persons (1 each, extra on first)", () => {
@@ -91,6 +88,18 @@ describe("channelBedNeeds occupancySpecified vs missing occupancy", () => {
       rooms: [{ roomCode: "executive", occupancy: { adults: 0, children: 0 } }],
       persons: 3,
     })).toEqual([{ roomCode: "executive", count: 3 }]);
+  });
+
+  it("6 suite rooms occupancy 3 is 6 beds (capacity), 1 executive occupancy 2 is still 2", () => {
+    expect(channelBedNeeds({
+      rooms: Array.from({ length: 6 }, () => ({
+        roomCode: "suite",
+        occupancy: { adults: 3, children: 0 },
+      })),
+    })).toEqual([{ roomCode: "suite", count: 6 }]);
+    expect(channelBedNeeds({
+      rooms: [{ roomCode: "executive", occupancy: { adults: 2, children: 0 } }],
+    })).toEqual([{ roomCode: "executive", count: 2 }]);
   });
 
   it("missing occupancy on a single room uses all persons", () => {

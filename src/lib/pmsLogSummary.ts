@@ -164,14 +164,27 @@ function summarizeReservation(body: Record<string, unknown>): string {
     ? `${(body.guest as { firstName?: string }).firstName || ""} ${(body.guest as { lastName?: string }).lastName || ""}`.trim()
     : "";
   const rooms = Array.isArray(body.rooms) ? body.rooms as Array<Record<string, unknown>> : [];
-  const roomBits = rooms.map((r) => {
+  const grouped = new Map<string, { n: number; occ: number }>();
+  const order: string[] = [];
+  for (const r of rooms) {
     const code = String(r.roomCode || "").trim() || "room";
     const occ = r.occupancy && typeof r.occupancy === "object"
       ? r.occupancy as { adults?: unknown; children?: unknown }
       : null;
-    const n = (Number(occ?.adults) || 0) + (Number(occ?.children) || 0);
-    return n > 1 ? `${n} ${code}` : code;
-  }).filter(Boolean);
+    const occN = (Number(occ?.adults) || 0) + (Number(occ?.children) || 0);
+    const cur = grouped.get(code);
+    if (!cur) {
+      grouped.set(code, { n: 1, occ: occN });
+      order.push(code);
+    } else {
+      cur.n += 1;
+    }
+  }
+  const roomBits = order.map((code) => {
+    const g = grouped.get(code)!;
+    if (g.n > 1) return `${g.n} ${code}`;
+    return g.occ > 1 ? `${g.occ} ${code}` : code;
+  });
   const stay = body.checkin
     ? fmtRange(String(body.checkin), String(body.checkout || body.checkin))
     : "";

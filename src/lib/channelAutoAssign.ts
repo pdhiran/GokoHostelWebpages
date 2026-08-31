@@ -52,6 +52,22 @@ function distributePersonBeds(
 
 type ChannelRoomRow = { roomCode?: string | null; occupancy?: ChannelRoomOccupancy | null };
 
+function groupRoomsByCode(rooms: ChannelRoomRow[]): Array<{ roomCode: string; rows: ChannelRoomRow[] }> {
+  const groups: Array<{ roomCode: string; rows: ChannelRoomRow[] }> = [];
+  const idx = new Map<string, number>();
+  for (const r of rooms) {
+    const roomCode = (r.roomCode || "").trim();
+    const i = idx.get(roomCode);
+    if (i == null) {
+      idx.set(roomCode, groups.length);
+      groups.push({ roomCode, rows: [r] });
+    } else {
+      groups[i].rows.push(r);
+    }
+  }
+  return groups;
+}
+
 function roomsFromRawData(rawData?: string | null): ChannelRoomRow[] {
   if (!rawData) return [];
   try {
@@ -76,8 +92,10 @@ export function roomCodesFromChannelBooking(
 }
 
 /**
- * Beds to auto-assign: one per person in that room type, for the whole stay.
- * 1 person → 1 bed; 2 persons × 2 nights → 2 beds covering both nights.
+ * Beds to auto-assign for the whole stay (nights do not multiply beds).
+ * One rooms[] row with occupancy 2 → 2 beds (persons in that sold unit).
+ * The same roomCode repeated with occupancy on every row → 1 bed per row:
+ * occupancy is that unit's capacity (6 suite × adults 3 → 6 beds, not 18).
  */
 export function channelBedNeeds(args: {
   rooms?: ChannelRoomRow[] | null;
@@ -88,10 +106,19 @@ export function channelBedNeeds(args: {
   const rooms = (args.rooms && args.rooms.length > 0 ? args.rooms : roomsFromRawData(args.rawData))
     .filter((r) => (r.roomCode || "").trim());
   if (rooms.length > 0) {
-    const specified = rooms.map((r) => ({
-      roomCode: (r.roomCode || "").trim(),
-      count: occupancySpecified(r.occupancy) ? occupancyBedCount(r.occupancy) : 0,
-    }));
+    const specified: Array<{ roomCode: string; count: number }> = [];
+    for (const g of groupRoomsByCode(rooms)) {
+      if (g.rows.length > 1 && g.rows.every((r) => occupancySpecified(r.occupancy))) {
+        specified.push({ roomCode: g.roomCode, count: g.rows.length });
+        continue;
+      }
+      for (const r of g.rows) {
+        specified.push({
+          roomCode: g.roomCode,
+          count: occupancySpecified(r.occupancy) ? occupancyBedCount(r.occupancy) : 0,
+        });
+      }
+    }
     if (specified.every((n) => n.count > 0)) return specified;
     const persons = Math.max(1, Number(args.persons) || specified.reduce((s, n) => s + n.count, 0) || rooms.length);
     if (specified.every((n) => n.count === 0)) {
@@ -105,6 +132,17 @@ export function channelBedNeeds(args: {
   const codes = roomCodesFromChannelBooking(null, args.roomType, args.rawData);
   const persons = Math.max(1, Number(args.persons) || codes.length || 1);
   return distributePersonBeds(codes, persons);
+}
+
+/** Same count as channelBedNeeds so stored persons and auto-assign never diverge. */
+export function channelPersonCount(args: {
+  rooms?: ChannelRoomRow[] | null;
+  roomType?: string | null;
+  rawData?: string | null;
+  persons?: number | null;
+}): number {
+  const n = channelBedNeeds(args).reduce((s, x) => s + x.count, 0);
+  return n > 0 ? n : Math.max(1, Number(args.persons) || 1);
 }
 
 export function activeMappingsByCode(mappings: ChannelRoomMapping[]): Map<string, ChannelRoomMapping> {
@@ -156,14 +194,16 @@ export function enrichUnassignedBooking<T extends {
     rawData: booking.rawData,
     persons: booking.persons,
   });
+  const requestedBedCount = needs.reduce((sum, n) => sum + n.count, 0);
   const requestedRoomCodes = needs.map((n) => n.roomCode);
   const { dormIds, dormNames } = requestedDormsForCodes(requestedRoomCodes, mappings);
   return {
     ...booking,
+    persons: requestedBedCount || booking.persons,
     requestedRoomCodes: [...new Set(requestedRoomCodes)],
     requestedDormIds: dormIds,
     requestedDormNames: dormNames,
-    requestedBedCount: needs.reduce((sum, n) => sum + n.count, 0),
+    requestedBedCount,
     requestedNeedLabels: formatChannelNeedLabels(needs, mappings),
     requestedNeeds: requestedNeedsByDorm(needs, mappings),
   };

@@ -331,6 +331,7 @@ describe("PMS inbound webhook workflows", () => {
       { dormId: 8, channelRoomCode: "executive", isActive: 1, dormName: "Executive" },
       { dormId: 9, channelRoomCode: "dorm-6", isActive: 1, dormName: "Dorm 1" },
       { dormId: 9, channelRoomCode: "DORM-6", isActive: 1, dormName: "Dorm 1" },
+      { dormId: 11, channelRoomCode: "suite", isActive: 1, dormName: "Suite" },
     ]);
     vi.mocked(addBooking).mockResolvedValue(42 as never);
     vi.mocked(triggerInventoryPush).mockReset();
@@ -700,6 +701,84 @@ describe("PMS inbound webhook workflows", () => {
       inventoryPool: "online",
     }));
     expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("6 suite rooms with occupancy 3 auto-assign 6 beds, not 18", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue(
+      Array.from({ length: 6 }, (_, i) => ({
+        id: 101 + i,
+        bedId: `SUI-${i + 1}`,
+        dormId: 11,
+        dormName: "Suite",
+        pool: "online",
+      })),
+    );
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "MMT",
+      bookingId: "San5c72b7455549",
+      checkin: "2026-08-31",
+      checkout: "2026-09-01",
+      guest: { firstName: "Pawan 123", lastName: null },
+      rooms: Array.from({ length: 6 }, () => ({
+        roomCode: "suite",
+        rateplanCode: "suite-d-ep",
+        occupancy: { adults: 3, children: 0 },
+        prices: [{ date: "2026-08-31", sellRate: 2300 }],
+      })),
+      amount: { amountAfterTax: 13800, amountBeforeTax: 13800, tax: 0, currency: "INR" },
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      guestName: "Pawan 123",
+      persons: 6,
+      bookingRef: "San5c72b7455549",
+      roomType: "suite, suite, suite, suite, suite, suite",
+      nightlyRate: 13800,
+    }));
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(6);
+    expect(queryMocks.assignBedToBooking.mock.calls.map((c) => c[0].bedId).sort()).toEqual([
+      101, 102, 103, 104, 105, 106,
+    ]);
+    expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      action: "Beds Auto-Assigned",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("6 suite occupancy 3 stays Unassigned when only 5 online suite beds exist", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue(
+      Array.from({ length: 5 }, (_, i) => ({
+        id: 101 + i,
+        bedId: `SUI-${i + 1}`,
+        dormId: 11,
+        dormName: "Suite",
+        pool: "online",
+      })),
+    );
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "MMT",
+      bookingId: "San-suite-short",
+      checkin: "2026-08-31",
+      checkout: "2026-09-01",
+      guest: { firstName: "Pawan 123", lastName: null },
+      rooms: Array.from({ length: 6 }, () => ({
+        roomCode: "suite",
+        occupancy: { adults: 3, children: 0 },
+      })),
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalledWith(expect.objectContaining({ persons: 6 }));
+    expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+    expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      action: "Unassigned",
+      details: expect.stringMatching(/Suite \(suite\)/),
+    }));
   });
 
   it("modify of an unassigned stay auto-assigns when online beds now exist", async () => {

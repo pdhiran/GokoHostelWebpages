@@ -615,6 +615,44 @@ describe("Webhook reservation combinations", () => {
     expect(q.assignBedToBooking).not.toHaveBeenCalled();
   });
 
+  it("6 identical suite rooms occupancy 3 store 6 persons and auto-assign 6 beds", async () => {
+    q.getRoomTypeMappings.mockResolvedValue([
+      ...mappings,
+      { id: 3, dormId: 11, channelRoomCode: "suite", isActive: 1, dormName: "Suite" },
+    ]);
+    q.getAvailableBedsForRange.mockResolvedValue(
+      Array.from({ length: 6 }, (_, i) => ({
+        id: 101 + i,
+        bedId: `SUI-${i + 1}`,
+        dormId: 11,
+        dormName: "Suite",
+        pool: "online",
+      })),
+    );
+    const res = await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({
+      bookingId: "San5c72b7455549",
+      channel: "MMT",
+      checkin: "2026-08-31",
+      checkout: "2026-09-01",
+      guest: { firstName: "Pawan 123", lastName: null, email: "pawan123@gmail.com", phone: "0123456789" },
+      rooms: Array.from({ length: 6 }, () => ({
+        roomCode: "suite",
+        rateplanCode: "suite-d-ep",
+        occupancy: { adults: 3, children: 0 },
+        prices: [{ date: "2026-08-31", sellRate: 2300 }],
+      })),
+      amount: { amountAfterTax: 13800, amountBeforeTax: 13800, tax: 0, currency: "INR" },
+    }), { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      guestName: "Pawan 123",
+      persons: 6,
+      nightlyRate: 13800,
+      roomType: "suite, suite, suite, suite, suite, suite",
+    }));
+    expect(q.assignBedToBooking).toHaveBeenCalledTimes(6);
+  });
+
   it("uses amountAfterTax / nights when room prices are null", async () => {
     const res = await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({
       bookingId: "BK-NOPRICE",

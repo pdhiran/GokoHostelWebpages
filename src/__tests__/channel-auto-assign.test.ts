@@ -90,16 +90,23 @@ describe("channelBedNeeds", () => {
     })).toEqual([{ roomCode: "executive", count: 2 }]);
   });
 
-  it("gives each rooms[] row its own beds even when roomCode repeats", () => {
+  it("gives each rooms[] row its own bed when the same roomCode repeats", () => {
     expect(channelBedNeeds({
       rooms: [
         { roomCode: "executive", occupancy: { adults: 1, children: 0 } },
         { roomCode: "executive", occupancy: { adults: 1, children: 0 } },
       ],
-    })).toEqual([
-      { roomCode: "executive", count: 1 },
-      { roomCode: "executive", count: 1 },
-    ]);
+    })).toEqual([{ roomCode: "executive", count: 2 }]);
+  });
+
+  it("treats occupancy on repeated same-code rooms as capacity, not extra beds", () => {
+    const suiteRow = {
+      roomCode: "suite",
+      occupancy: { adults: 3, children: 0 },
+    };
+    expect(channelBedNeeds({
+      rooms: Array.from({ length: 6 }, () => ({ ...suiteRow })),
+    })).toEqual([{ roomCode: "suite", count: 6 }]);
   });
 
   it("JSON occupancy adults 0 children 0 uses persons when set", () => {
@@ -221,10 +228,7 @@ describe("pickOnlineBedsForChannelRooms", () => {
 
   it("picks two online beds when two rooms[] share the same roomCode", () => {
     const picked = pickOnlineBedsForChannelRooms(
-      [
-        { roomCode: "executive", count: 1 },
-        { roomCode: "executive", count: 1 },
-      ],
+      [{ roomCode: "executive", count: 2 }],
       mappings,
       online(8, 2),
     );
@@ -235,6 +239,27 @@ describe("pickOnlineBedsForChannelRooms", () => {
         { bedId: 2, dormId: 8 },
       ],
     });
+  });
+
+  it("picks 6 suite beds for 6 sold suite rooms, not 18", () => {
+    const suiteMap = [...mappings, { dormId: 11, channelRoomCode: "suite", dormName: "Suite", isActive: 1 }];
+    const tagged = Array.from({ length: 6 }, (_, i) => ({
+      id: 101 + i,
+      dormId: 11,
+      pool: "online" as const,
+      bedId: `SUI-${i + 1}`,
+      dormName: "Suite",
+    }));
+    const needs = channelBedNeeds({
+      rooms: Array.from({ length: 6 }, () => ({
+        roomCode: "suite",
+        occupancy: { adults: 3, children: 0 },
+      })),
+    });
+    expect(needs).toEqual([{ roomCode: "suite", count: 6 }]);
+    const picked = pickOnlineBedsForChannelRooms(needs, suiteMap, tagged);
+    expect(picked.ok).toBe(true);
+    if (picked.ok) expect(picked.picks).toHaveLength(6);
   });
 
   it("is all-or-nothing across mixed types when dorm has no online bed", () => {
@@ -436,5 +461,22 @@ describe("enrichUnassignedBooking", () => {
       { dormId: 8, count: 2, name: "Executive" },
       { dormId: 9, count: 1, name: "Dorm 1" },
     ]);
+  });
+
+  it("6 suite rooms with occupancy 3 are 6 beds, not 18", () => {
+    const row = enrichUnassignedBooking({
+      roomType: "suite, suite, suite, suite, suite, suite",
+      persons: 18,
+      rawData: JSON.stringify({
+        rooms: Array.from({ length: 6 }, () => ({
+          roomCode: "suite",
+          occupancy: { adults: 3, children: 0 },
+        })),
+      }),
+    }, [...mappings, { dormId: 11, channelRoomCode: "suite", dormName: "Suite", isActive: 1 }]);
+    expect(row.requestedBedCount).toBe(6);
+    expect(row.persons).toBe(6);
+    expect(row.requestedNeedLabels).toBe("6 Suite");
+    expect(row.requestedNeeds).toEqual([{ dormId: 11, count: 6, name: "Suite" }]);
   });
 });

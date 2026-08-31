@@ -3,7 +3,7 @@ import { getChannelConfig, addBooking, updateBookingFull, getBookingByRef, unass
 import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell";
 import { occupiedNights, exclusiveEndDate } from "@/lib/inventoryAvailability";
-import { autoAssignOnlineChannelBeds, channelAssignmentNeedsReseat, channelBedNeeds } from "@/lib/channelAutoAssign";
+import { autoAssignOnlineChannelBeds, channelAssignmentNeedsReseat, channelBedNeeds, channelPersonCount } from "@/lib/channelAutoAssign";
 import { logPmsCall } from "@/lib/pmsLog";
 
 const WEBHOOK_URL = "/api/aiosell/reservations";
@@ -119,12 +119,15 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function channelPersons(rooms: ReservationPayload["rooms"] | undefined, fallback = 1): number {
-  const n = rooms?.reduce(
-    (sum, r) => sum + (Number(r.occupancy?.adults) || 0) + (Number(r.occupancy?.children) || 0),
-    0,
-  ) ?? 0;
-  return n > 0 ? n : fallback;
+function channelGuestName(
+  guest: { firstName?: string | null; lastName?: string | null } | null | undefined,
+  fallback = "Unknown Guest",
+): string {
+  if (!guest) return fallback;
+  const parts = [guest.firstName, guest.lastName]
+    .filter((p): p is string => p != null && String(p).trim() !== "" && String(p).toLowerCase() !== "null")
+    .map((p) => String(p).trim());
+  return parts.join(" ") || fallback;
 }
 
 function channelNightlyRate(
@@ -183,7 +186,7 @@ export async function ingestFetchedReservations(raw: unknown): Promise<{ importe
 
 function extractBookingFields(payload: ReservationPayload) {
   const guest = payload.guest;
-  const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : "Unknown Guest";
+  const guestName = channelGuestName(guest);
   const contact = guest?.phone || guest?.email || "";
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || "";
 
@@ -195,7 +198,7 @@ function extractBookingFields(payload: ReservationPayload) {
     checkinDate: payload.checkin || "",
     checkoutDate: payload.checkout || "",
     roomType: roomInfo,
-    persons: channelPersons(payload.rooms),
+    persons: channelPersonCount({ rooms: payload.rooms }),
     paymentStatus: payload.pah ? "pay_at_hotel" : "prepaid",
     specialRequests: payload.specialRequests || "",
     status: "received" as const,
@@ -235,7 +238,7 @@ async function tryAutoAssignChannelBeds(
   const needs = channelBedNeeds({
     rooms: payload.rooms,
     roomType: payload.rooms?.map((r) => r.roomCode).join(", ") || "",
-    persons: channelPersons(payload.rooms, personsFallback),
+    persons: channelPersonCount({ rooms: payload.rooms, persons: personsFallback }),
   });
   const result = await autoAssignOnlineChannelBeds({
     bookingId,
@@ -320,10 +323,10 @@ async function handleModifyBooking(payload: ReservationPayload) {
   }
 
   const guest = payload.guest;
-  const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : existing.guestName;
+  const guestName = guest ? channelGuestName(guest, existing.guestName) : existing.guestName;
   const contact = guest?.phone || guest?.email || existing.contact;
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || existing.roomType;
-  const persons = channelPersons(payload.rooms, existing.persons);
+  const persons = channelPersonCount({ rooms: payload.rooms, persons: existing.persons });
   const ratePlan = payload.rooms?.[0]?.rateplanCode || existing.ratePlan || "";
   const nightlyRate = channelNightlyRate(
     payload.rooms,
