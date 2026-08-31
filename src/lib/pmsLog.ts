@@ -1,6 +1,7 @@
 /**
  * PMS (Aiosell) request/response logging helpers.
  * Logging must never throw — addChannelSyncLog swallows errors.
+ * Client UI summaries live in `pmsLogSummary.ts` so this file is not imported in the browser.
  */
 
 export const PMS_LOG_MAX_BYTES = 32_000;

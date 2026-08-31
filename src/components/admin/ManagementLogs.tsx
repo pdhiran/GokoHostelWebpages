@@ -6,6 +6,7 @@ import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { DownloadIcon, AlertCircleIcon, AlertTriangleIcon, InfoIcon, CopyIcon, CheckIcon, ChevronDownIcon } from "lucide-react";
 import { cn, localDateStr } from "@/lib/utils";
+import { previousPmsPayload, summarizePmsLog } from "@/lib/pmsLogSummary";
 import type { Role } from "./types";
 
 type LogSubTab = "system" | "pms";
@@ -335,23 +336,31 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
             No PMS calls yet. They appear when inventory, rates, or no-show are pushed, or when Aiosell sends a reservation.
           </p>
         ) : (
-          logs.map((l) => <PmsLogCard key={l.id} log={l} />)
+          logs.map((l, i) => (
+            <PmsLogCard key={l.id} log={l} previousRequestPayload={previousPmsPayload(logs, i)} />
+          ))
         )}
       </div>
     </div>
   );
 }
 
-function PmsLogCard({ log }: { log: PmsLogRow }) {
+function PmsLogCard({ log, previousRequestPayload }: { log: PmsLogRow; previousRequestPayload?: string | null }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const failed = log.status !== "success";
+  const summary = summarizePmsLog({
+    type: log.type,
+    requestPayload: log.requestPayload,
+    previousRequestPayload,
+  });
 
   const copyLog = () => {
     const requestText = prettyJson(log.requestPayload);
     const responseText = prettyJson(log.responsePayload);
     const text = [
       `${log.direction} ${log.type} ${log.status}`,
+      summary ? `Operation:\n${summary}` : "",
       log.url ? `URL: ${log.httpMethod || "POST"} ${log.url}` : "",
       log.httpStatus === 0 ? "network error" : log.httpStatus != null ? `HTTP ${log.httpStatus}` : "",
       log.durationMs != null ? `${log.durationMs}ms` : "",
@@ -392,6 +401,9 @@ function PmsLogCard({ log }: { log: PmsLogRow }) {
               <span className="text-[10px] text-brand-green-dark/40">{log.recordsAffected} records</span>
             )}
           </div>
+          {summary && (
+            <p className="mt-0.5 whitespace-pre-wrap text-[11px] text-brand-green-dark/80">{summary}</p>
+          )}
           {log.url && <p className="mt-0.5 truncate font-mono text-[10px] text-brand-green-dark/40">{log.httpMethod || "POST"} {log.url}</p>}
           {log.errorMessage && <p className="mt-0.5 text-[11px] text-red-600 dark:text-red-400 break-all">{log.errorMessage}</p>}
           <p className="mt-0.5 text-[10px] text-brand-green-dark/40">{new Date(log.createdAt).toLocaleString()}</p>
