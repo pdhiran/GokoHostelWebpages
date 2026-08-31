@@ -7,7 +7,7 @@ import {
   RefreshCwIcon, Loader2Icon, ChevronLeftIcon, ChevronRightIcon,
   PackageIcon, BanIcon, EditIcon,
 } from "lucide-react";
-import { computeNightAvailability, pickInventoryOverride, remainingSplit, splitAvailable, ceilingFromRemaining, exclusiveEndFromInclusive, addCalendarDays, inclusiveNights, civilWeekday, unassignedOtaOnNight, type NightAvailability } from "@/lib/inventoryAvailability";
+import { computeNightAvailability, pickInventoryOverride, overrideRemainingInput, overridePreview, overrideCeilingToSave, exclusiveEndFromInclusive, addCalendarDays, inclusiveNights, civilWeekday, unassignedOtaOnNight, type NightAvailability } from "@/lib/inventoryAvailability";
 import type { Role } from "./types";
 
 type Props = { password: string; username?: string; role: Role; permissions: Record<string, boolean> };
@@ -96,7 +96,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const computeAvailability = useCallback((dormId: number, date: string) => {
-    if (!data) return { total: 0, blocked: 0, assigned: 0, onlineAssigned: 0, available: 0, online: 0, offline: 0, overridden: false };
+    if (!data) return { total: 0, blocked: 0, assigned: 0, onlineAssigned: 0, unassignedOta: 0, available: 0, online: 0, offline: 0, overridden: false };
     return computeNightAvailability(
       dormId, date, data.beds, data.blocks, data.assignments, data.overrides ?? [],
       unassignedOtaOnNight(data.unassignedOta, dormId, date),
@@ -259,7 +259,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                     <span className="truncate text-xs font-semibold text-brand-green-dark dark:text-zinc-200">{dorm.name}</span>
                   </div>
                   {dates.map((date) => {
-                    const { available, blocked, overridden, online, offline } = computeAvailability(dorm.id, date);
+                    const { available, blocked, overridden, online, offline, unassignedOta } = computeAvailability(dorm.id, date);
                     const { isToday, isWeekend } = formatDateShort(date);
                     const split = overridden || offline > 0;
                     return (
@@ -275,7 +275,11 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
                           overridden && "underline decoration-dotted decoration-blue-400",
                         )}
                         style={{ width: colWidth }}
-                        title={split ? `${online} online (OTA) · ${offline} walk-in` : overridden ? "Override active" : undefined}
+                        title={
+                          split
+                            ? `${online} online (OTA) · ${offline} walk-in${unassignedOta > 0 ? ` · ${unassignedOta} unassigned OTA` : ""}`
+                            : overridden ? "Override active" : undefined
+                        }
                       >
                         {split ? (
                           <span className="tabular-nums">
@@ -396,16 +400,13 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
   const dorm = data.dorms.find((d) => d.id === dormId);
   const existingOverride = pickInventoryOverride(data.overrides ?? [], dormId, date);
   const storedCeiling = existingOverride?.onlineAvailable;
-  const initialRemaining = storedCeiling != null
-    ? String(remainingSplit(stats.available, storedCeiling, stats.onlineAssigned).online)
-    : "";
+  const initialRemaining = overrideRemainingInput(stats, storedCeiling);
   const [saving, setSaving] = useState(false);
   const [onlineOverride, setOnlineOverride] = useState<string>(initialRemaining);
   const [error, setError] = useState("");
 
   const typedRemaining = onlineOverride === "" ? NaN : parseInt(onlineOverride, 10);
-  const previewCap = Number.isFinite(typedRemaining) ? typedRemaining : remainingSplit(stats.available, stats.total, stats.onlineAssigned).online;
-  const preview = splitAvailable(stats.available, previewCap);
+  const preview = overridePreview(stats, typedRemaining);
 
   const handleSave = async () => {
     setSaving(true);
@@ -413,7 +414,7 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
     try {
       const remaining = onlineOverride !== "" ? parseInt(onlineOverride, 10) : NaN;
       const onlineAvailable = Number.isFinite(remaining)
-        ? ceilingFromRemaining(Math.min(stats.available, Math.max(0, remaining)), stats.onlineAssigned)
+        ? overrideCeilingToSave(stats, remaining)
         : null;
       const res = await fetch("/api/admin/inventory", {
         method: "POST",
@@ -444,6 +445,9 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
         <div className="mt-3 space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-brand-green-dark/60">Total Beds</span><span className="font-medium">{stats.total}</span></div>
           <div className="flex justify-between"><span className="text-brand-green-dark/60">Booked</span><span className="font-medium">{stats.assigned}</span></div>
+          {stats.unassignedOta > 0 && (
+            <div className="flex justify-between"><span className="text-brand-green-dark/60">Unassigned OTA</span><span className="font-medium text-sky-700">{stats.unassignedOta}</span></div>
+          )}
           <div className="flex justify-between"><span className="text-brand-green-dark/60">Blocked</span><span className="font-medium text-orange-600">{stats.blocked}</span></div>
           <div className="flex justify-between"><span className="text-brand-green-dark/60">Available</span><span className="font-bold text-brand-green">{stats.available}</span></div>
           <p className="text-[10px] text-brand-green-dark/40">
@@ -457,12 +461,12 @@ function InventoryDetailModal({ dormId, date, data, computeAvailability, passwor
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
               value={onlineOverride}
               onChange={(e) => setOnlineOverride(e.target.value)}
-              placeholder={String(stats.available)}
+              placeholder={String(stats.online)}
               min={0}
               max={stats.available}
             />
             <p className="mt-0.5 text-[10px] text-brand-green-dark/40">
-              Of the {stats.available} available beds. Booked and blocked are already excluded. Walk-in bookings do not reduce this after save.
+              Same as the grid OTA number. Unassigned OTA rooms and assigned online beds are already excluded. Walk-in bookings do not reduce this after save.
             </p>
             {Number.isFinite(typedRemaining) && typedRemaining > stats.available && (
               <p className="mt-0.5 text-[10px] text-amber-700">Capped at {stats.available} available. Extra cannot be sold.</p>

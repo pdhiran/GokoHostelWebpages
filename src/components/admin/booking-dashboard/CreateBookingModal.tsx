@@ -78,7 +78,7 @@ export function CreateBookingModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        });
+        }, { retryServerError: true });
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();

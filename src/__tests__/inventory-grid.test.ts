@@ -156,9 +156,11 @@ describe("Inventory grid: sticky + colour structure", () => {
     expect(ui).toContain("bg-emerald-50");
     expect(ui).toContain("bg-sky-50");
     expect(ui).toContain("bg-brand-sand");
-    expect(ui).toContain("remainingSplit");
-    expect(ui).toContain("splitAvailable");
-    expect(ui).toContain("ceilingFromRemaining");
+    expect(ui).toContain("overrideRemainingInput");
+    expect(ui).toContain("overridePreview");
+    expect(ui).toContain("overrideCeilingToSave");
+    expect(ui).not.toContain("remainingSplit(stats.available, storedCeiling, stats.onlineAssigned)");
+    expect(ui).not.toContain("ceilingFromRemaining(Math.min(stats.available, Math.max(0, remaining)), stats.onlineAssigned)");
   });
 });
 
@@ -215,6 +217,7 @@ describe("Inventory grid: availability and occupancy workflows", () => {
     expect(ui).toContain("unassignedOtaOnNight");
     expect(ui).toContain("OTA");
     expect(ui).toContain("walk-in");
+    expect(ui).toContain("Unassigned OTA");
     expect(ui).toContain("Math.round((totalAssigned / sellable) * 100)");
 
     const data = fixture();

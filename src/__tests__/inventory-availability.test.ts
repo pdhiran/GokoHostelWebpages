@@ -18,6 +18,10 @@ import {
   explodeUnassignedOtaHolds,
   splitAvailable,
   ceilingFromRemaining,
+  heldOnline,
+  overrideRemainingInput,
+  overridePreview,
+  overrideCeilingToSave,
   shouldPushPms,
   stayNights,
   stayNightCount,
@@ -231,10 +235,50 @@ describe("Inventory split: EXECUTIVE 12 beds, 5 online / 7 walk-in", () => {
     const snap = computeNightAvailability(2, "2026-08-31", beds, [], [], override5, 3);
     expect(snap.online).toBe(2);
     expect(snap.offline).toBe(10);
+    expect(snap.unassignedOta).toBe(3);
     const tagged = tagBedsForPicker(beds, [], beds, ["2026-08-31"], [], [], override5, [
       { dormId: 2, date: "2026-08-31", rooms: 3 },
     ]);
     expect(tagged.filter((b) => b.pool === "online")).toHaveLength(2);
+  });
+
+  it("override modal remaining matches the grid OTA/walk-in split when unassigned OTA holds the ceiling", () => {
+    const snap = computeNightAvailability(2, "2026-08-31", beds, [
+      { bedId: 10, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" },
+      { bedId: 11, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" },
+      { bedId: 12, dormId: 2, startDate: "2026-08-31", endDate: "2026-09-01" },
+    ], [], override5, 5);
+    expect(snap).toMatchObject({ total: 12, blocked: 3, assigned: 0, available: 9, online: 0, offline: 9, unassignedOta: 5 });
+    expect(overrideRemainingInput(snap, 5)).toBe("0");
+    expect(overridePreview(snap, NaN)).toEqual({ online: 0, offline: 9 });
+    expect(snap.assigned + snap.blocked + snap.online + snap.offline).toBe(12);
+    expect(overrideCeilingToSave(snap, 0)).toBe(5);
+    expect(overrideCeilingToSave(snap, 2)).toBe(7);
+    expect(remainingSplit(9, 7, heldOnline(snap))).toEqual({ online: 2, offline: 7 });
+  });
+
+  it("assigned online beds and unassigned OTA share the ceiling so modal remaining matches the grid", () => {
+    const assignments = [{
+      dormId: 2, checkinDate: "2026-08-31", checkoutDate: "2026-09-01",
+      status: "assigned", inventoryPool: "online" as const,
+    }];
+    const snap = computeNightAvailability(2, "2026-08-31", beds, [], assignments, override5, 3);
+    expect(snap.onlineAssigned).toBe(1);
+    expect(snap.unassignedOta).toBe(3);
+    expect(heldOnline(snap)).toBe(4);
+    expect(snap.online).toBe(1);
+    expect(overrideRemainingInput(snap, 5)).toBe("1");
+    expect(overridePreview(snap, NaN)).toEqual({ online: snap.online, offline: snap.offline });
+    expect(snap.assigned + snap.blocked + snap.online + snap.offline).toBe(snap.total);
+  });
+
+  it("no override: unassigned OTA still drops OTA remaining and empty modal preview matches the grid", () => {
+    const snap = computeNightAvailability(2, "2026-08-31", beds, [], [], [], 4);
+    expect(snap.overridden).toBe(false);
+    expect(snap.online).toBe(8);
+    expect(snap.offline).toBe(4);
+    expect(overrideRemainingInput(snap, null)).toBe("");
+    expect(overridePreview(snap, NaN)).toEqual({ online: 8, offline: 4 });
   });
 });
 
@@ -248,6 +292,14 @@ describe("Mock workflows", () => {
     expect(after.offline).toBe(6);
     expect(after.available).toBe(11);
     expect(shouldPushPms(["offline"])).toBe(false);
+  });
+
+  it("walk-in after an unassigned OTA hold keeps the hold on the snapshot", () => {
+    const before = computeNightAvailability(2, "2026-08-31", beds, [], [], override5, 3);
+    const after = applyBookingToNight(before, "offline");
+    expect(after.unassignedOta).toBe(3);
+    expect(after.online).toBe(2);
+    expect(after.offline).toBe(9);
   });
 
   it("OTA bed selected: online drops to 4 and PMS should push", () => {

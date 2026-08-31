@@ -5,11 +5,34 @@ export type NightAvailability = {
   blocked: number;
   assigned: number;
   onlineAssigned: number;
+  unassignedOta: number;
   available: number;
   online: number;
   offline: number;
   overridden: boolean;
 };
+
+/** Beds already counting against the OTA ceiling (assigned online + unassigned channel_manager rooms). */
+export function heldOnline(snap: Pick<NightAvailability, "onlineAssigned" | "unassignedOta">): number {
+  return Math.max(0, snap.onlineAssigned) + Math.max(0, snap.unassignedOta);
+}
+
+/** Override modal input — same remaining the grid cell shows as the OTA side of OTA/walk-in. */
+export function overrideRemainingInput(snap: NightAvailability, storedCeiling: number | null | undefined): string {
+  if (storedCeiling == null) return "";
+  return String(remainingSplit(snap.available, storedCeiling, heldOnline(snap)).online);
+}
+
+/** Live preview while typing. Empty/invalid keeps the grid snapshot so inside matches outside. */
+export function overridePreview(snap: NightAvailability, typedRemaining: number): { online: number; offline: number } {
+  if (!Number.isFinite(typedRemaining)) return { online: snap.online, offline: snap.offline };
+  return splitAvailable(snap.available, typedRemaining);
+}
+
+/** Persist typed remaining as a ceiling that still subtracts assigned + unassigned OTA. */
+export function overrideCeilingToSave(snap: NightAvailability, typedRemaining: number): number {
+  return ceilingFromRemaining(Math.min(snap.available, Math.max(0, typedRemaining)), heldOnline(snap));
+}
 
 type BedRef = { dormId: number };
 type BlockRef = { bedId: number; dormId: number; startDate: string; endDate: string };
@@ -247,6 +270,7 @@ export function computeNightAvailability(
     blocked,
     assigned,
     onlineAssigned,
+    unassignedOta,
     available,
     online,
     offline,
@@ -262,8 +286,9 @@ export function inventoryAvailableForNight(
   blocks: BlockRef[],
   assignments: AssignmentRef[],
   overrides: OverrideRef[],
+  unassignedOta = 0,
 ): number {
-  return computeNightAvailability(dormId, date, beds, blocks, assignments, overrides).online;
+  return computeNightAvailability(dormId, date, beds, blocks, assignments, overrides, unassignedOta).online;
 }
 
 export function minPoolForStay(

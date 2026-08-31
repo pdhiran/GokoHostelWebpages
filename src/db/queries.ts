@@ -1527,45 +1527,58 @@ export async function getAvailableBedsForDorm(dormId: number): Promise<number> {
 // --- Booking Dashboard Queries ---
 
 export async function getBookingCalendarData(startDate: string, endDate: string) {
-  const db = getDb();
-  // endDate is the last visible night (inclusive), not an exclusive checkout.
-  const bookingRows = await db.select().from(bookings).where(
-    and(
-      sql`${bookings.checkinDate} <= ${endDate}`,
-      sql`${bookings.checkoutDate} > ${startDate}`,
-      sql`${bookings.status} != 'cancelled'`
-    )
-  );
+  return dbRead(async () => {
+    const db = getDb();
+    // endDate is the last visible night (inclusive), not an exclusive checkout.
+    let bookingRows = await db.select().from(bookings).where(
+      and(
+        sql`${bookings.checkinDate} <= ${endDate}`,
+        sql`${bookings.checkoutDate} > ${startDate}`,
+        sql`${bookings.status} != 'cancelled'`
+      )
+    );
 
-  const assignments = await db.select().from(bookingBedAssignments).where(
-    and(
-      eq(bookingBedAssignments.status, "assigned"),
-      sql`${bookingBedAssignments.checkoutDate} > ${bookingBedAssignments.checkinDate}`,
-      sql`${bookingBedAssignments.checkinDate} <= ${endDate}`,
-      sql`${bookingBedAssignments.checkoutDate} > ${startDate}`
-    )
-  );
+    const assignments = await db.select().from(bookingBedAssignments).where(
+      and(
+        eq(bookingBedAssignments.status, "assigned"),
+        sql`${bookingBedAssignments.checkoutDate} > ${bookingBedAssignments.checkinDate}`,
+        sql`${bookingBedAssignments.checkinDate} <= ${endDate}`,
+        sql`${bookingBedAssignments.checkoutDate} > ${startDate}`
+      )
+    );
 
-  return { bookings: bookingRows, assignments };
+    // Assignments can exist when the booking row was dropped (empty checkout, etc.).
+    // Without these rows the calendar skips the tile (`if (!booking) continue`).
+    const have = new Set(bookingRows.map((b) => b.id));
+    const missing = [...new Set(assignments.map((a) => a.bookingId))].filter((id) => !have.has(id));
+    if (missing.length > 0) {
+      const extra = await db.select().from(bookings).where(inArray(bookings.id, missing));
+      bookingRows = bookingRows.concat(extra);
+    }
+
+    return { bookings: bookingRows, assignments };
+  });
 }
 
 export async function getBookingDetail(bookingId: number) {
-  const db = getDb();
-  const bookingRows = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
-  if (bookingRows.length === 0) return null;
+  return dbRead(async () => {
+    const db = getDb();
+    const bookingRows = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
+    if (bookingRows.length === 0) return null;
 
-  const booking = bookingRows[0];
-  const assignmentRows = await db.select().from(bookingBedAssignments).where(eq(bookingBedAssignments.bookingId, bookingId));
-  const historyRows = await db.select().from(bookingHistory).where(eq(bookingHistory.bookingId, bookingId)).orderBy(desc(bookingHistory.id));
+    const booking = bookingRows[0];
+    const assignmentRows = await db.select().from(bookingBedAssignments).where(eq(bookingBedAssignments.bookingId, bookingId));
+    const historyRows = await db.select().from(bookingHistory).where(eq(bookingHistory.bookingId, bookingId)).orderBy(desc(bookingHistory.id));
 
-  let linkedBookings: typeof bookingRows = [];
-  if (booking.gokoBookingId) {
-    linkedBookings = await db.select().from(bookings).where(
-      and(eq(bookings.gokoBookingId, booking.gokoBookingId), sql`${bookings.id} != ${bookingId}`)
-    );
-  }
+    let linkedBookings: typeof bookingRows = [];
+    if (booking.gokoBookingId) {
+      linkedBookings = await db.select().from(bookings).where(
+        and(eq(bookings.gokoBookingId, booking.gokoBookingId), sql`${bookings.id} != ${bookingId}`)
+      );
+    }
 
-  return { booking, assignments: assignmentRows, history: historyRows, linkedBookings };
+    return { booking, assignments: assignmentRows, history: historyRows, linkedBookings };
+  });
 }
 
 export async function searchBookings(query: string) {
@@ -1577,15 +1590,17 @@ export async function searchBookings(query: string) {
 }
 
 export async function getUnassignedBookings() {
-  const db = getDb();
-  return db.select().from(bookings).where(
-    sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')
-      AND NOT EXISTS (
-        SELECT 1 FROM ${bookingBedAssignments}
-        WHERE ${bookingBedAssignments.bookingId} = ${bookings.id}
-          AND ${bookingBedAssignments.status} = 'assigned'
-      )`
-  ).orderBy(desc(bookings.id));
+  return dbRead(() => {
+    const db = getDb();
+    return db.select().from(bookings).where(
+      sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')
+        AND NOT EXISTS (
+          SELECT 1 FROM ${bookingBedAssignments}
+          WHERE ${bookingBedAssignments.bookingId} = ${bookings.id}
+            AND ${bookingBedAssignments.status} = 'assigned'
+        )`
+    ).orderBy(desc(bookings.id));
+  });
 }
 
 /** Unassigned channel_manager rooms occupying this dorm's OTA pool for `date`. */
@@ -1725,10 +1740,12 @@ export async function getAvailableBedsForRange(
   dormId?: number,
   excludeBookingId?: number,
 ) {
-  const { allBeds, assignments, blocks, overrides, nights, physical, blockedOnly } = await loadBedsAvailabilityForRange(checkinDate, checkoutDate, dormId);
-  if (nights.length === 0) return [];
-  const unassignedHolds = await getUnassignedOtaHoldsForRange(checkinDate, checkoutDate, excludeBookingId);
-  return tagBedsForPicker(physical, blockedOnly, allBeds, nights, blocks, assignments, overrides, unassignedHolds);
+  return dbRead(async () => {
+    const { allBeds, assignments, blocks, overrides, nights, physical, blockedOnly } = await loadBedsAvailabilityForRange(checkinDate, checkoutDate, dormId);
+    if (nights.length === 0) return [];
+    const unassignedHolds = await getUnassignedOtaHoldsForRange(checkinDate, checkoutDate, excludeBookingId);
+    return tagBedsForPicker(physical, blockedOnly, allBeds, nights, blocks, assignments, overrides, unassignedHolds);
+  });
 }
 
 /** Physical beds with no assignment and no block overlapping [startDate, endDate). */
@@ -1761,22 +1778,34 @@ export async function assignBedToBooking(data: {
   inventoryPool?: string;
 }): Promise<boolean> {
   if (!data.checkinDate || !data.checkoutDate || data.checkinDate >= data.checkoutDate) return false;
-  const db = getDb();
-  const now = new Date().toISOString();
-  const pool = data.inventoryPool || "online";
+  return dbWrite(async () => {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const pool = data.inventoryPool || "online";
 
-  const result: any = await db.run(sql`
-    INSERT INTO booking_bed_assignments (booking_id, bed_id, dorm_id, checkin_date, checkout_date, status, assigned_by, assigned_at, inventory_pool)
-    SELECT ${data.bookingId}, ${data.bedId}, ${data.dormId}, ${data.checkinDate}, ${data.checkoutDate}, 'assigned', ${data.assignedBy}, ${now}, ${pool}
-    WHERE NOT EXISTS (
-      SELECT 1 FROM booking_bed_assignments
-      WHERE bed_id = ${data.bedId} AND status = 'assigned'
-      AND checkout_date > checkin_date
-      AND checkin_date < ${data.checkoutDate} AND checkout_date > ${data.checkinDate}
-    )
-  `);
-
-  return sqliteWriteCount(result) > 0;
+    const result: any = await db.run(sql`
+      INSERT INTO booking_bed_assignments (booking_id, bed_id, dorm_id, checkin_date, checkout_date, status, assigned_by, assigned_at, inventory_pool)
+      SELECT ${data.bookingId}, ${data.bedId}, ${data.dormId}, ${data.checkinDate}, ${data.checkoutDate}, 'assigned', ${data.assignedBy}, ${now}, ${pool}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM booking_bed_assignments
+        WHERE bed_id = ${data.bedId} AND status = 'assigned'
+        AND checkout_date > checkin_date
+        AND checkin_date < ${data.checkoutDate} AND checkout_date > ${data.checkinDate}
+      )
+    `);
+    if (sqliteWriteCount(result) > 0) return true;
+    // Retry after a thrown D1 error: this stay+bed may already be written.
+    const own = await db.select({ id: bookingBedAssignments.id }).from(bookingBedAssignments).where(
+      and(
+        eq(bookingBedAssignments.bookingId, data.bookingId),
+        eq(bookingBedAssignments.bedId, data.bedId),
+        eq(bookingBedAssignments.status, "assigned"),
+        sql`${bookingBedAssignments.checkinDate} = ${data.checkinDate}`,
+        sql`${bookingBedAssignments.checkoutDate} = ${data.checkoutDate}`,
+      )
+    ).limit(1);
+    return own.length > 0;
+  }, { idempotentWrite: true });
 }
 
 export async function unassignBookingBeds(bookingId: number) {

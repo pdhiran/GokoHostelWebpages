@@ -72,7 +72,7 @@ export function UnassignedBookings({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        });
+        }, { retryServerError: true });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           if (!cancelled) {

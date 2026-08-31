@@ -17,18 +17,21 @@ import { AdminLoading } from "../AdminLoading";
 import type { DashboardBooking, BedAssignment, DateRange, CalendarDorm } from "./types";
 import type { Role } from "../types";
 import { hasPermission } from "../types";
+import { fetchWithRetry } from "@/components/admin/useAdminApi";
 
 function useBookingApi(password: string, username?: string) {
   const apiCall = useCallback(
     async (body: Record<string, unknown>) => {
       const payload: Record<string, unknown> = { password, ...body };
       if (username) payload.username = username;
-      const res = await fetch("/api/admin/bookings", {
+      return fetchWithRetry("/api/admin/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+      }, {
+        retries: 2,
+        retryServerError: body.action !== "createBooking",
       });
-      return res;
     },
     [password, username],
   );

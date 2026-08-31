@@ -23,11 +23,11 @@ const TRANSIENT_PATTERNS = [
   "ECONNRESET",
 ];
 
-function isTransientError(message: string): boolean {
+export function isTransientError(message: string): boolean {
   const lower = message.toLowerCase();
   if (lower.includes("unique constraint") || lower.includes("sqlite_constraint")) return false;
   if (lower.includes("syntax error") || lower.includes("no such table") || lower.includes("no such column")) return false;
-  return TRANSIENT_PATTERNS.some((p) => message.includes(p));
+  return TRANSIENT_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
 }
 
 type RetryOptions = {

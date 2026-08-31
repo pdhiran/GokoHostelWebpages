@@ -359,8 +359,11 @@ export async function POST(req: NextRequest) {
     // --- Assign Beds ---
 
     if (action === "assignBeds") {
-      const { bookingId, bedIds } = body;
-      if (!bookingId || !bedIds || !Array.isArray(bedIds) || bedIds.length === 0) {
+      const { bookingId, bedIds: rawBedIds } = body;
+      const bedIds = Array.isArray(rawBedIds)
+        ? rawBedIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0)
+        : [];
+      if (!bookingId || bedIds.length === 0) {
         return NextResponse.json({ error: "bookingId and bedIds[] required" }, { status: 400 });
       }
 

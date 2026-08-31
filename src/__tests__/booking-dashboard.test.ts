@@ -3,6 +3,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { isWeekend, getNights, platformLogo } from "@/components/admin/booking-dashboard/utils";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
+import { isRetryableAdminResponse } from "@/components/admin/useAdminApi";
+import { isTransientError } from "@/lib/dbRetry";
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -56,44 +58,32 @@ describe("Booking Dashboard: Query Logic Verification", () => {
 
   describe("assignBedToBooking", () => {
     const queriesCode = readFile("src/db/queries.ts");
+    const fn = queriesCode.match(
+      /export async function assignBedToBooking[\s\S]*?\nexport async function unassignBookingBeds/
+    )![0];
 
     it("uses INSERT ... WHERE NOT EXISTS pattern for atomic conflict check", () => {
-      const fnMatch = queriesCode.match(
-        /export async function assignBedToBooking[\s\S]*?return sqliteWriteCount/
-      );
-      expect(fnMatch).not.toBeNull();
-      const fn = fnMatch![0];
-
       expect(fn).toContain("INSERT INTO booking_bed_assignments");
       expect(fn).toContain("WHERE NOT EXISTS");
       expect(fn).toContain("SELECT 1 FROM booking_bed_assignments");
     });
 
     it("conflict check uses same overlap logic (checkin_date < checkoutDate AND checkout_date > checkinDate)", () => {
-      const fnMatch = queriesCode.match(
-        /export async function assignBedToBooking[\s\S]*?return sqliteWriteCount/
-      );
-      const fn = fnMatch![0];
       expect(fn).toContain("checkin_date < ${data.checkoutDate}");
       expect(fn).toContain("checkout_date > ${data.checkinDate}");
       expect(fn).toContain("checkout_date > checkin_date");
     });
 
-    it("returns false (not assigned) when no rows written", () => {
-      const fnMatch = queriesCode.match(
-        /export async function assignBedToBooking[\s\S]*?return sqliteWriteCount[\s\S]*?\n\}/
-      );
-      expect(fnMatch).not.toBeNull();
-      const fn = fnMatch![0];
+    it("returns true when a row is written, or when this stay+bed already exists after a D1 retry", () => {
       expect(fn).toContain("sqliteWriteCount");
       expect(fn).toContain("> 0");
+      expect(fn).toContain("idempotentWrite: true");
+      expect(fn).toContain("own.length > 0");
+      expect(fn).toContain("eq(bookingBedAssignments.bookingId, data.bookingId)");
+      expect(fn).toContain("eq(bookingBedAssignments.bedId, data.bedId)");
     });
 
     it("only blocks against 'assigned' status conflicts", () => {
-      const fnMatch = queriesCode.match(
-        /export async function assignBedToBooking[\s\S]*?return sqliteWriteCount/
-      );
-      const fn = fnMatch![0];
       expect(fn).toContain("status = 'assigned'");
     });
   });
@@ -303,7 +293,9 @@ describe("Booking Calendar: inclusive last night", () => {
     expect(fn).toContain("checkinDate} <= ${endDate}");
     expect(fn).toContain("checkoutDate} > ${startDate}");
     expect(fn).toContain("checkoutDate} > ${bookingBedAssignments.checkinDate}");
+    expect(fn).toContain("inArray(bookings.id, missing)");
     expect(fn).not.toMatch(/checkinDate\} < \$\{endDate\}/);
+    expect(fn).toContain("assignments.map((a) => a.bookingId)");
   });
 
   it("includes a 6 Sep stay on the default 10-day view that ends 6 Sep", () => {
@@ -429,6 +421,7 @@ describe("Unassigned bookings: same availability as New Booking", () => {
     expect(assign).toContain("stayCheckout(checkinDate, detail.booking.checkoutDate)");
     expect(assign).toContain("channelSource(detail.booking.source)");
     expect(assign).toContain("pushIfGokoOccupancy");
+    expect(assign).toContain("rawBedIds.map((id: unknown) => Number(id))");
     expect(assign).not.toContain("checkoutDate || checkinDate");
     expect(route).toContain('source === "channel_manager"');
     expect(route).toContain('action === "modifyCheckin"');
@@ -469,5 +462,49 @@ describe("platformLogo", () => {
     expect(platformLogo("Direct")?.label).toBe("Direct");
     expect(platformLogo("booking.com")?.label).toBe("Booking.com");
     expect(platformLogo("booking_com")?.abbr).toBe("B");
+  });
+});
+
+describe("Mock workflows: assign + admin retry", () => {
+  const route = readFile("src/app/api/admin/bookings/route.ts");
+  const dashboard = readFile("src/components/admin/booking-dashboard/index.tsx");
+  const adminApi = readFile("src/components/admin/useAdminApi.ts");
+
+  it("assignBeds coerces string bed ids and drops junk", () => {
+    const coerce = (raw: unknown) =>
+      Array.isArray(raw)
+        ? raw.map((id: unknown) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0)
+        : [];
+    expect(coerce(["77", 78, "x", 0, -1, 1.5, null])).toEqual([77, 78]);
+    expect(coerce(undefined)).toEqual([]);
+    expect(route).toContain("rawBedIds.map((id: unknown) => Number(id))");
+  });
+
+  it("calendar and Unassigned booking POSTs use fetchWithRetry, not a bare fetch", () => {
+    expect(dashboard).toContain('fetchWithRetry("/api/admin/bookings"');
+    expect(dashboard).not.toMatch(/await fetch\("\/api\/admin\/bookings"/);
+    expect(dashboard).toContain('retryServerError: body.action !== "createBooking"');
+    expect(adminApi).toContain("export async function fetchWithRetry");
+    expect(adminApi).toContain("retries: retriesOrOpts?.retries ?? 2");
+  });
+
+  it("retries 429/502/503 and HTML 5xx; JSON 500 only when opted in; never auth or 409", () => {
+    const json = (status: number) =>
+      new Response("{}", { status, headers: { "content-type": "application/json" } });
+    expect(isRetryableAdminResponse(json(503))).toBe(true);
+    expect(isRetryableAdminResponse(json(429))).toBe(true);
+    expect(isRetryableAdminResponse(json(500))).toBe(false);
+    expect(isRetryableAdminResponse(json(500), true)).toBe(true);
+    expect(isRetryableAdminResponse(new Response("oops", { status: 500, headers: { "content-type": "text/html" } }))).toBe(true);
+    expect(isRetryableAdminResponse(json(409), true)).toBe(false);
+    expect(isRetryableAdminResponse(json(401), true)).toBe(false);
+    expect(isRetryableAdminResponse(json(400), true)).toBe(false);
+  });
+
+  it("treats D1 errors as transient regardless of case, never unique/syntax", () => {
+    expect(isTransientError("d1_error: failed query")).toBe(true);
+    expect(isTransientError("SQLITE_BUSY")).toBe(true);
+    expect(isTransientError("Unique constraint failed")).toBe(false);
+    expect(isTransientError("syntax error near INSERT")).toBe(false);
   });
 });
