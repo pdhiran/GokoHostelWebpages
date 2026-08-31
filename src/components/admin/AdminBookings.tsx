@@ -331,7 +331,7 @@ export function AdminBookings({ password, username, role, permissions = {} }: { 
       <AnimatePresence>
       {showForm && (
         <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
-          <motion.div className="w-full max-w-lg rounded-2xl bg-white dark:bg-card p-6 shadow-xl dark:shadow-none" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div className="w-full min-w-0 max-w-lg max-h-[min(90dvh,100%)] overflow-y-auto rounded-2xl bg-white dark:bg-card p-6 shadow-xl dark:shadow-none" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-bold text-brand-green">Add Booking</h3>
               <button type="button" onClick={() => setShowForm(false)}><XIcon className="h-5 w-5 text-brand-green-dark/40" /></button>

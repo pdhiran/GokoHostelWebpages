@@ -83,6 +83,11 @@ export const staggerItem: Variants = {
 };
 
 // --- Modal / overlay variants ---
+// modalVariants sets CSS `transform` (scale + y). Do not also put Tailwind
+// `-translate-x-1/2` on that node — Framer overwrites transform, so `left-1/2`
+// pins the top-left to the viewport center and the card overflows on mobile.
+// Center with a flex overlay (`inset-0 flex items-center justify-center p-4`).
+// Same rule for any `animate={{ y }}` node (food-order cart FAB uses inset-x-4).
 
 export const overlayVariants: Variants = {
   hidden: { opacity: 0 },

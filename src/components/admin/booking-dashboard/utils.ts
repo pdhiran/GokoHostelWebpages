@@ -56,6 +56,18 @@ export function collectionCopy(status?: string | null, balance = 0): { label: st
   return null;
 }
 
+/** Prepaid was paid on the OTA. Ledger `amountPaid` stays 0; the card shows total / ₹0 due. */
+export function displayedStayPayment(
+  status?: string | null,
+  amountTotal = 0,
+  amountPaid = 0,
+): { paid: number; balance: number } {
+  if ((status || "").toLowerCase() === "prepaid") {
+    return { paid: amountTotal, balance: 0 };
+  }
+  return { paid: amountPaid, balance: amountTotal - amountPaid };
+}
+
 export function getHostelToday(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }

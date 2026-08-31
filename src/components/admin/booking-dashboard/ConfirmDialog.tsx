@@ -35,32 +35,34 @@ export function ConfirmDialog({
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm"
+        className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/30 p-4 backdrop-blur-sm"
         onClick={onCancel}
-      />
-      <motion.div
-        key="confirm-modal"
-        variants={modalVariants}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-        className="fixed left-1/2 top-1/2 z-[60] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-popover p-5 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="font-heading text-base font-medium text-foreground">{title}</h3>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={variant === "destructive" ? "destructive" : "default"}
-            size="sm"
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
-        </div>
+        <motion.div
+          key="confirm-modal"
+          variants={modalVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          className="w-full min-w-0 max-w-sm rounded-2xl border border-border bg-popover p-5 shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 className="font-heading text-base font-medium break-words text-foreground">{title}</h3>
+          <p className="mt-2 break-words text-sm text-muted-foreground">{description}</p>
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button variant="outline" size="sm" className="min-w-0" onClick={onCancel}>
+              {cancelLabel}
+            </Button>
+            <Button
+              variant={variant === "destructive" ? "destructive" : "default"}
+              size="sm"
+              className="min-w-0"
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </Button>
+          </div>
+        </motion.div>
       </motion.div>
     </AnimatePresence>
   );

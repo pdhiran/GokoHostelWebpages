@@ -341,7 +341,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
       <AnimatePresence>
       {checkoutConfirm && (
         <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
-          <motion.div className="mx-4 w-full max-w-sm rounded-2xl bg-white dark:bg-card p-6 shadow-xl dark:shadow-none" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div className="w-full min-w-0 max-w-sm rounded-2xl bg-white dark:bg-card p-6 shadow-xl dark:shadow-none" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <h3 className="font-display text-lg font-bold text-brand-green-dark">Confirm Checkout</h3>
             <p className="mt-2 text-sm text-brand-green-dark/80">
               Are you sure you want to mark <strong>{checkoutConfirm[3]}</strong> as checked out?

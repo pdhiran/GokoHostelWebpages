@@ -1017,7 +1017,7 @@ export function KitchenDashboard({ password, onLogout }: KitchenDashboardProps) 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-sm rounded-2xl border border-gray-200 dark:border-border bg-white dark:bg-card p-6 shadow-xl dark:shadow-none"
+              className="w-full min-w-0 max-w-sm rounded-2xl border border-gray-200 dark:border-border bg-white dark:bg-card p-6 shadow-xl dark:shadow-none"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center gap-3">

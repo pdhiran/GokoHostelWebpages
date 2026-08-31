@@ -8,7 +8,7 @@ Menu/settings admin: `/api/admin/food` is **admin role only**.
 
 ## Guest
 
-`/food-order`: `GET /api/food/menu` → phone `GET /api/food/lookup` → cart in `localStorage` (`gokoFoodCart`, `gokoFoodPhone`) → `POST /api/food/order`.
+`/food-order`: `GET /api/food/menu` → phone `GET /api/food/lookup` → cart in `localStorage` (`gokoFoodCart`, `gokoFoodPhone`) → `POST /api/food/order`. The View Cart FAB and reorder toast are `inset-x-4 mx-auto` — do not center them with `left-1/2 -translate-x-1/2` on the same node as Framer `y`/`scale`.
 
 Server order of checks (`src/app/api/food/order/route.ts`):
 

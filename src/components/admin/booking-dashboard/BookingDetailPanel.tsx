@@ -20,7 +20,7 @@ import {
   BanIcon,
   EditIcon,
 } from "lucide-react";
-import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getNights, collectionCopy } from "./utils";
+import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getNights, collectionCopy, displayedStayPayment } from "./utils";
 import { parseGokoWalkin, walkinDiscountOnGross } from "@/lib/bookingPricing";
 import { CheckInPopup } from "./CheckInPopup";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -104,6 +104,7 @@ export function BookingDetailPanel({
     : (booking.source === "manual" ? Math.max(0, gross - booking.amountBeforeTax) : 0);
   const collection = collectionCopy(booking.paymentStatus, booking.balance);
   const dueAtHotel = collection ? collection.due : booking.balance > 0;
+  const shownPay = displayedStayPayment(booking.paymentStatus, booking.amountTotal, booking.amountPaid);
   const hasAssignedBed = assignments.some((a) => a.status === "assigned");
   const canCancelStay = hasAssignedBed
     ? hasPermission(role, permissions, "canDeleteBooking")
@@ -215,10 +216,10 @@ export function BookingDetailPanel({
                 value={formatCurrency(booking.amountTax)}
               />
               <InfoRow label="Total" value={formatCurrency(booking.amountTotal)} highlight />
-              <InfoRow label="Paid" value={formatCurrency(booking.amountPaid)} />
+              <InfoRow label="Paid" value={formatCurrency(shownPay.paid)} />
               <InfoRow
                 label="Balance"
-                value={formatCurrency(booking.balance)}
+                value={formatCurrency(shownPay.balance)}
                 highlight={dueAtHotel}
                 className={dueAtHotel ? "text-red-600 dark:text-red-400" : ""}
               />

@@ -369,7 +369,7 @@ export function AdminDashboard({
       {checkoutModal && (
         <motion.div className="fixed inset-0 z-[60] flex items-center justify-center p-4" variants={overlayVariants} initial="hidden" animate="visible" exit="exit">
           <div className="absolute inset-0 bg-black/40" onClick={() => !checkoutBusy && setCheckoutModal(null)} />
-          <motion.div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl dark:shadow-none dark:border dark:border-zinc-800" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div className="relative w-full min-w-0 max-w-sm rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl dark:shadow-none dark:border dark:border-zinc-800" variants={modalVariants} initial="hidden" animate="visible" exit="exit">
             <div className="flex items-center justify-between border-b border-brand-mist dark:border-zinc-800 px-5 py-4">
               <div>
                 <h3 className="text-base font-bold text-brand-green-dark dark:text-zinc-100">Checkout {checkoutModal.name}</h3>

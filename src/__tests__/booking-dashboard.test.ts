@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
-import { isWeekend, getNights, platformLogo, stayOverlapsVisible, rangeCoveringStay, computeTilePlacements, getDatesArray, collectionCopy, formatCurrency } from "@/components/admin/booking-dashboard/utils";
+import { isWeekend, getNights, platformLogo, stayOverlapsVisible, rangeCoveringStay, computeTilePlacements, getDatesArray, collectionCopy, displayedStayPayment, formatCurrency } from "@/components/admin/booking-dashboard/utils";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { isRetryableAdminResponse } from "@/components/admin/useAdminApi";
 import { isTransientError } from "@/lib/dbRetry";
@@ -643,6 +643,13 @@ describe("collectionCopy / check-in payment labels", () => {
     expect(collectionCopy("pay_at_hotel", 0)).toEqual({ label: "Payment done", value: "Collected", due: false });
   });
 
+  it("prepaid card shows OTA total as Paid and ₹0 Balance without writing amountPaid", () => {
+    expect(displayedStayPayment("prepaid", 31500, 0)).toEqual({ paid: 31500, balance: 0 });
+    expect(displayedStayPayment("pay_at_hotel", 31500, 0)).toEqual({ paid: 0, balance: 31500 });
+    expect(displayedStayPayment("paid", 31500, 31500)).toEqual({ paid: 31500, balance: 0 });
+    expect(displayedStayPayment("unknown", 5000, 0)).toEqual({ paid: 0, balance: 5000 });
+  });
+
   it("omits the row for unknown / partial so walk-in still uses the rupee balance", () => {
     expect(collectionCopy("unknown", 5000)).toBeNull();
     expect(collectionCopy("partial", 5000)).toBeNull();
@@ -653,6 +660,10 @@ describe("collectionCopy / check-in payment labels", () => {
     const panel = readFile("src/components/admin/booking-dashboard/BookingDetailPanel.tsx");
     expect(panel).toContain("collectionCopy(booking.paymentStatus, booking.balance)");
     expect(panel).toContain("collection ? collection.due : booking.balance > 0");
+    expect(panel).toContain("displayedStayPayment(booking.paymentStatus, booking.amountTotal, booking.amountPaid)");
+    expect(panel).toContain("formatCurrency(shownPay.paid)");
+    expect(panel).toContain("formatCurrency(shownPay.balance)");
+    expect(panel).not.toContain('label="Paid" value={formatCurrency(booking.amountPaid)}');
     expect(panel).toContain("highlight={dueAtHotel}");
     expect(panel).not.toContain("highlight={booking.balance > 0}");
     const due = (status: string, balance: number) => {
@@ -673,6 +684,25 @@ describe("collectionCopy / check-in payment labels", () => {
     expect(popup).toContain("{offerCollect && (");
     expect(popup).toContain("Collected");
     expect(popup).toContain("onConfirm(false)");
+    expect(popup).toContain("flex items-center justify-center");
+    expect(popup).toContain("p-4");
+    expect(popup).toContain("overflow-y-auto");
+    expect(popup).not.toContain("left-1/2");
+    expect(popup).not.toContain("-translate-x-1/2");
+  });
+
+  it("ConfirmDialog and CheckInPopup center in a padded overlay so Framer scale/y cannot un-center them on mobile", () => {
+    const confirm = readFile("src/components/admin/booking-dashboard/ConfirmDialog.tsx");
+    expect(confirm).toContain("flex items-center justify-center");
+    expect(confirm).toContain("p-4");
+    expect(confirm).toContain("min-w-0 max-w-sm");
+    expect(confirm).toContain("overflow-y-auto");
+    expect(confirm).not.toContain("left-1/2");
+    expect(confirm).not.toContain("-translate-x-1/2");
+    const anim = readFile("src/lib/animations.ts");
+    expect(anim).toContain("Do not also put Tailwind");
+    const beds = readFile("src/components/admin/AdminBeds.tsx");
+    expect(beds).not.toMatch(/mx-4 w-full max-w-sm/);
   });
 
   it("checkIn collectPayment writes paymentStatus paid so the label flips after desk cash", () => {

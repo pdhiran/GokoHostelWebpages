@@ -369,4 +369,11 @@ describe("food-order CPU/SSR split", () => {
   it("marks the food-order layout force-static", () => {
     expect(readFile("src/app/food-order/layout.tsx")).toContain('export const dynamic = "force-static"');
   });
+
+  it("centers the cart FAB and reorder toast without Framer y fighting left-1/2 translate", () => {
+    const page = readFile("src/app/food-order/page.tsx");
+    expect(page).toContain("inset-x-4");
+    expect(page).not.toContain("left-1/2");
+    expect(page).not.toContain("-translate-x-1/2");
+  });
 });

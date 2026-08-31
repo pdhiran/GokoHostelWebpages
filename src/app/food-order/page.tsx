@@ -528,7 +528,7 @@ export default function FoodOrderPage() {
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setView("cart")}
-          className="goko-gradient-cta fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-6 py-4 shadow-2xl"
+          className="goko-gradient-cta fixed bottom-6 inset-x-4 z-50 mx-auto flex w-max max-w-full items-center gap-3 rounded-2xl px-6 py-4 shadow-2xl"
         >
           <div className="relative">
             <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -558,7 +558,7 @@ export default function FoodOrderPage() {
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
-            className="fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg max-w-[calc(100vw-2rem)] break-words text-center"
+            className="fixed bottom-24 inset-x-4 z-[60] mx-auto w-fit max-w-full rounded-xl bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg break-words text-center"
           >
             {reorderToast}
           </motion.div>
