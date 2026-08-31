@@ -5,8 +5,9 @@ import {
   getRoomTypeMappings, upsertRoomTypeMapping, deleteRoomTypeMapping,
   getRatePlanMappings, upsertRatePlanMapping, deleteRatePlanMapping,
   getDailyRates, bulkUpsertDailyRates, getChannelSyncLogs,
-  getAllDorms, getAllBeds,
+  getAllDorms, getAllBeds, getSetting, setSetting,
 } from "@/db/queries";
+import { BOOKING_TAX_SETTING, bookingTaxPercent } from "@/lib/bookingPricing";
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,10 +22,8 @@ export async function POST(req: NextRequest) {
     switch (action) {
       case "getConfig": {
         const cfg = await getChannelConfig();
-        if (cfg) {
-          return NextResponse.json({ config: cfg });
-        }
-        return NextResponse.json({ config: null });
+        const bookingTaxRate = bookingTaxPercent(await getSetting(BOOKING_TAX_SETTING));
+        return NextResponse.json({ config: cfg ?? null, bookingTaxRate });
       }
 
       case "saveConfig": {
@@ -33,6 +32,9 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Webhook secret is required to enable the channel manager" }, { status: 400 });
         }
         await upsertChannelConfig(configData);
+        if (body.bookingTaxRate != null && body.bookingTaxRate !== "") {
+          await setSetting(BOOKING_TAX_SETTING, String(bookingTaxPercent(body.bookingTaxRate)));
+        }
         return NextResponse.json({ success: true });
       }
 

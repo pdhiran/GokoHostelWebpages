@@ -22,6 +22,7 @@ const q = vi.hoisted(() => ({
   getAllBeds: vi.fn(),
   getBedById: vi.fn(),
   getChannelConfig: vi.fn(),
+  getSetting: vi.fn(),
   getActiveBedBlocks: vi.fn(),
   getRoomTypeMappings: vi.fn(),
   getRatePlanMappings: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock("@/db/queries", () => ({
   getAllBeds: q.getAllBeds,
   getBedById: q.getBedById,
   getChannelConfig: q.getChannelConfig,
+  getSetting: q.getSetting,
   getActiveBedBlocks: q.getActiveBedBlocks,
   getRoomTypeMappings: q.getRoomTypeMappings,
   getRatePlanMappings: q.getRatePlanMappings,
@@ -156,6 +158,10 @@ describe("Bookings calendar and rates workflows", () => {
     expect(await res.json()).toMatchObject({ success: true, bookingId: 77 });
     expect(q.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({ bookingId: 77, bedId: 7 }));
     expect(q.addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({ bookingId: 77, action: "Created" }));
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      source: "manual",
+      gokoBookingId: expect.stringMatching(/^GOKO\d{8}[A-Z0-9]{6}$/),
+    }));
     expect(pushIfOtaChanged).toHaveBeenCalled();
   });
 
@@ -240,6 +246,22 @@ describe("Bookings calendar and rates workflows", () => {
     expect(json.beds[0]).toMatchObject({ pool: "inventory", dormId: 9 });
     expect(json.dormRates).toEqual({ 9: 0, 11: 1200 });
     expect(json.dormRates[10]).toBeUndefined();
+    expect(json.taxRate).toBe(5);
+  });
+
+  it("getAvailableBeds returns the configured booking_tax_rate", async () => {
+    q.getAvailableBedsForRange.mockResolvedValue([]);
+    q.getRoomTypeMappings.mockResolvedValue([]);
+    q.getRatePlanMappings.mockResolvedValue([]);
+    q.getAllDailyRates.mockResolvedValue([]);
+    q.getSetting.mockResolvedValue("8");
+    const res = await POST(req({
+      password: "x",
+      action: "getAvailableBeds",
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-02",
+    }));
+    expect((await res.json()).taxRate).toBe(8);
   });
 
   it("early checkOut shortens assigned nights to today", async () => {

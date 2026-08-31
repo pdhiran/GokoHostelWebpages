@@ -10,6 +10,8 @@ const { captured, queryMocks } = vi.hoisted(() => {
         captured.push(row);
       }),
       getChannelConfig: vi.fn(),
+      getSetting: vi.fn(),
+      setSetting: vi.fn(),
       addBooking: vi.fn(),
       updateBookingFull: vi.fn(),
       getBookingByRef: vi.fn(),

@@ -18,7 +18,7 @@ const SYNCED_TABLES_APPEND = [
 
 const SYNCABLE_SETTINGS = [
   "image_validation", "guest_min_age", "guest_max_age", "show_dob_in_records",
-  "log_level", "food_tax_rate", "food_kitchen_hours", "food_tab_limit",
+  "log_level", "food_tax_rate", "booking_tax_rate", "food_kitchen_hours", "food_tab_limit",
   "food_kitchen_busy", "food_confirm_with_guest", "food_kannada_labels",
   "food_cafe_tables", "primary_server",
 ] as const;

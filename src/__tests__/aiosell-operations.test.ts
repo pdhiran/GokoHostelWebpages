@@ -25,6 +25,8 @@ const { captured, q } = vi.hoisted(() => {
       getAllBeds: vi.fn(),
       addBooking: vi.fn(),
       updateBookingFull: vi.fn(),
+      getSetting: vi.fn(),
+      setSetting: vi.fn(),
       getBookingByRef: vi.fn(),
       unassignBookingBeds: vi.fn(),
       addBookingHistoryEntry: vi.fn(),
@@ -766,7 +768,17 @@ describe("Channel Manager config API", () => {
       action: "getConfig",
     })));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ config: activeConfig });
+    expect(await res.json()).toEqual({ config: activeConfig, bookingTaxRate: 5 });
+  });
+
+  it("saveConfig writes booking_tax_rate", async () => {
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "saveConfig",
+      config: { isActive: false, hotelCode: "GOKO-001", webhookSecret: "" },
+      bookingTaxRate: 8,
+    })));
+    expect(res.status).toBe(200);
+    expect(q.setSetting).toHaveBeenCalledWith("booking_tax_rate", "8");
   });
 
   it.each([

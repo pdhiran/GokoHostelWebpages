@@ -126,7 +126,8 @@ describe("Booking Dashboard: modifyCheckin Scenarios", () => {
     expect(section).toContain("checkBedAvailability(a.bedId, newCheckinDate");
     expect(section).toContain("allAvailable");
     expect(section).toContain("nightlyRate * nights * bedsCount");
-    expect(section).toContain("totalBeforeTax * 0.12");
+    expect(section).toContain("stayAmounts(");
+    expect(section).toContain("loadBookingTaxPercent");
   });
 
   it("handles CI-4: early check-in, same bed NOT available — returns needsSelection with available beds", () => {
@@ -383,6 +384,25 @@ describe("Booking calendar UI permissions match the API keys", () => {
     expect(panel).toContain("canDeleteBooking");
     expect(panel).not.toContain("canCancelBooking");
     expect(panel).not.toContain("canMarkNoShow");
+  });
+
+  it("shows Goko Booking ID, falling back to #id for walk-in rows with an empty gokoBookingId", () => {
+    expect(panel).toContain('label="Goko Booking ID"');
+    expect(panel).toContain('booking.source === "manual" ? `#${booking.id}`');
+    expect(panel).toContain("walkinDiscountOnGross");
+    expect(panel).toContain("parseGokoWalkin");
+  });
+
+  it("walk-in New Booking has percent and amount discount tabs; tax is not hardcoded 12%", () => {
+    const modal = readFile("src/components/admin/booking-dashboard/CreateBookingModal.tsx");
+    expect(modal).toContain("% discount");
+    expect(modal).toContain("Amount discount");
+    expect(modal).toContain('platform === "walkin"');
+    expect(modal).toContain("bookingTaxPercent(data.taxRate)");
+    expect(modal).not.toContain("Tax (12%)");
+    const cm = readFile("src/components/admin/ChannelManager.tsx");
+    expect(cm).toContain("bookingTaxRate");
+    expect(cm).toContain("Walk-in / offline GST");
   });
 
   it("loads Unassigned from getUnassigned, not the visible calendar range", () => {

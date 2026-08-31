@@ -21,6 +21,7 @@ import {
   EditIcon,
 } from "lucide-react";
 import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getNights } from "./utils";
+import { parseGokoWalkin, walkinDiscountOnGross } from "@/lib/bookingPricing";
 import { CheckInPopup } from "./CheckInPopup";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useAdminToast } from "@/components/admin/AdminToast";
@@ -96,6 +97,11 @@ export function BookingDetailPanel({
   };
 
   const nights = getNights(booking.checkinDate, booking.checkoutDate);
+  const walkin = parseGokoWalkin(booking.rawData);
+  const gross = booking.nightlyRate * nights * Math.max(1, booking.persons);
+  const discount = walkin
+    ? walkinDiscountOnGross(gross, walkin)
+    : (booking.source === "manual" ? Math.max(0, gross - booking.amountBeforeTax) : 0);
 
   return (
     <>
@@ -140,7 +146,13 @@ export function BookingDetailPanel({
             <Section icon={FileTextIcon} title="Booking Info">
               <InfoRow label="CM Booking ID" value={booking.cmBookingId} />
               <InfoRow label="OTA Booking ID" value={booking.bookingRef} />
-              <InfoRow label="Goko Booking ID" value={booking.gokoBookingId} />
+              <InfoRow
+                label="Goko Booking ID"
+                value={
+                  booking.gokoBookingId
+                  || (booking.source === "manual" ? `#${booking.id}` : "")
+                }
+              />
               <InfoRow label="Check-in" value={booking.checkinDate} />
               <InfoRow label="Check-out" value={booking.checkoutDate} />
               <InfoRow label="Nights" value={String(nights)} />
@@ -177,8 +189,17 @@ export function BookingDetailPanel({
 
             {/* Payment */}
             <Section icon={CreditCardIcon} title="Payment">
-              <InfoRow label="Subtotal" value={formatCurrency(booking.amountBeforeTax)} />
-              <InfoRow label="Tax" value={formatCurrency(booking.amountTax)} />
+              <InfoRow label="Subtotal" value={formatCurrency(booking.amountBeforeTax + discount)} />
+              {discount > 0 && (
+                <InfoRow
+                  label={walkin?.discountReason ? `Discount (${walkin.discountReason})` : "Discount"}
+                  value={`-${formatCurrency(discount)}`}
+                />
+              )}
+              <InfoRow
+                label={walkin?.taxPercent != null ? `Tax (${walkin.taxPercent}%)` : "Tax"}
+                value={formatCurrency(booking.amountTax)}
+              />
               <InfoRow label="Total" value={formatCurrency(booking.amountTotal)} highlight />
               <InfoRow label="Paid" value={formatCurrency(booking.amountPaid)} />
               <InfoRow

@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const q = vi.hoisted(() => ({
   addChannelSyncLog: vi.fn(),
   getChannelConfig: vi.fn(),
+  getSetting: vi.fn(),
   addBooking: vi.fn(),
   updateBookingFull: vi.fn(),
   getBookingByRef: vi.fn(),
@@ -52,6 +53,7 @@ vi.mock("@/lib/aiosell", async (importOriginal) => {
 vi.mock("@/db/queries", () => ({
   addChannelSyncLog: q.addChannelSyncLog,
   getChannelConfig: q.getChannelConfig,
+  getSetting: q.getSetting,
   addBooking: q.addBooking,
   updateBookingFull: q.updateBookingFull,
   getBookingByRef: q.getBookingByRef,

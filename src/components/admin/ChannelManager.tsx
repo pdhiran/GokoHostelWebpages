@@ -13,6 +13,7 @@ import {
   EyeIcon, EyeOffIcon,
 } from "lucide-react";
 import { suggestAiosellRoomCode } from "@/lib/channelMapping";
+import { bookingTaxPercent, DEFAULT_BOOKING_TAX_PERCENT } from "@/lib/bookingPricing";
 import type { Role } from "./types";
 
 function useChannelApi(password: string, username?: string) {
@@ -140,6 +141,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
   const { call: apiCall } = useChannelApi(password, username);
   const { showError, showSuccess } = useAdminToast();
   const [config, setConfig] = useState<ChannelConfig>(DEFAULT_CONFIG);
+  const [bookingTaxRate, setBookingTaxRate] = useState(DEFAULT_BOOKING_TAX_PERCENT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -152,6 +154,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
     try {
       const res = await apiCall("/api/admin/channel-manager", { action: "getConfig" });
       if (res.config) setConfig(res.config);
+      if (res.bookingTaxRate != null) setBookingTaxRate(bookingTaxPercent(res.bookingTaxRate));
     } catch (e: any) { showError(e.message); }
     setLoading(false);
   };
@@ -159,7 +162,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
   const saveConfig = async () => {
     setSaving(true);
     try {
-      await apiCall("/api/admin/channel-manager", { action: "saveConfig", config });
+      await apiCall("/api/admin/channel-manager", { action: "saveConfig", config, bookingTaxRate });
       showSuccess("Configuration saved");
     } catch (e: any) { showError(e.message); }
     setSaving(false);
@@ -215,6 +218,21 @@ function ConfigTab({ password, username }: { password: string; username?: string
         <div className="sm:col-span-2">
           <label className="text-xs text-muted-foreground">Booking Engine URL (for direct guests)</label>
           <Input value={config.bookingEngineUrl} onChange={(e) => setConfig({ ...config, bookingEngineUrl: e.target.value })} placeholder="https://..." />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Walk-in / offline GST (%)</label>
+          <div className="relative max-w-[120px]">
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={bookingTaxRate}
+              onChange={(e) => setBookingTaxRate(Number(e.target.value))}
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">Applied to New Booking walk-in and Booking Engine totals. Default 5%.</p>
         </div>
       </div>
 

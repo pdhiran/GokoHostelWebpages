@@ -18,11 +18,21 @@ import {
   unassignBookingBedsByBedIds,
   cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
   addBooking, updateBookingFull, getAllDorms, getAllBeds, getBedById,
-  getChannelConfig, getActiveBedBlocks,
+  getChannelConfig, getActiveBedBlocks, getSetting,
   getRoomTypeMappings, getRatePlanMappings, getAllDailyRates,
   deactivateBedBlocksByBedIds, shortenAssignedCheckout,
 } from "@/db/queries";
 import { todayIST } from "@/lib/utils";
+import {
+  BOOKING_TAX_SETTING,
+  bookingDiscountRupees,
+  bookingTaxPercent,
+  bookingTotals,
+  parseGokoWalkin,
+  stringifyGokoWalkin,
+  walkinDiscountOnGross,
+  nextGokoWalkinRaw,
+} from "@/lib/bookingPricing";
 
 function bookingDateRange(checkinDate: string, checkoutDate?: string | null): string[] {
   return occupiedNights(checkinDate, checkoutDate);
@@ -48,6 +58,29 @@ function activeAssignmentDormIds(assignments: { dormId: number; status?: string 
 
 function channelSource(source?: string | null): boolean {
   return source === "channel_manager";
+}
+
+function generateGokoBookingId(): string {
+  const dateStr = todayIST().replace(/-/g, "");
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let random = "";
+  for (let i = 0; i < 6; i++) random += chars[Math.floor(Math.random() * chars.length)];
+  return `GOKO${dateStr}${random}`;
+}
+
+async function loadBookingTaxPercent(): Promise<number> {
+  return bookingTaxPercent(await getSetting(BOOKING_TAX_SETTING));
+}
+
+function stayAmounts(gross: number, rawData: string | null | undefined, taxPercent: number) {
+  const walkin = parseGokoWalkin(rawData);
+  const priced = bookingTotals(gross, {
+    discount: walkinDiscountOnGross(gross, walkin),
+    taxPercent,
+  });
+  const totalBeforeTax = priced.beforeTax;
+  const tax = priced.tax;
+  return { totalBeforeTax, tax, total: totalBeforeTax + tax, discount: priced.discount, walkin };
 }
 
 function assignmentPool(existing?: string | null): InventoryPool {
@@ -311,7 +344,8 @@ export async function POST(req: NextRequest) {
           dormRates[mapping.dormId] = rate.adult1Rate ?? rate.rate;
         }
       }
-      return NextResponse.json({ beds, dormRates });
+      const taxRate = await loadBookingTaxPercent();
+      return NextResponse.json({ beds, dormRates, taxRate });
     }
 
     if (action === "getBookingHistory") {
@@ -324,7 +358,7 @@ export async function POST(req: NextRequest) {
     // --- Create ---
 
     if (action === "createBooking") {
-      const { guestName, contact, email, checkinDate, checkoutDate, platform, nightlyRate, specialRequests, bedIds } = body;
+      const { guestName, contact, email, checkinDate, checkoutDate, platform, nightlyRate, specialRequests, bedIds, discountPercent, discountAmount, discountReason } = body;
       if (!guestName || !checkinDate || !checkoutDate) {
         return NextResponse.json({ error: "guestName, checkinDate, checkoutDate required" }, { status: 400 });
       }
@@ -338,15 +372,23 @@ export async function POST(req: NextRequest) {
         const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate);
         if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
       }
-      const totalBeforeTax = (nightlyRate || 0) * nights * bedsCount;
-      const tax = Math.round(totalBeforeTax * 0.12);
+      const src = platform || "walkin";
+      const taxPercent = await loadBookingTaxPercent();
+      const gross = (nightlyRate || 0) * nights * bedsCount;
+      const discount = src === "walkin"
+        ? bookingDiscountRupees(gross, { percent: discountPercent, amount: discountAmount })
+        : 0;
+      const priced = bookingTotals(gross, { discount, taxPercent });
+      const totalBeforeTax = priced.beforeTax;
+      const tax = priced.tax;
       const total = totalBeforeTax + tax;
+      const reason = typeof discountReason === "string" ? discountReason.trim() : "";
 
       const newBookingId = await addBooking({
         guestName,
         contact: contact || "",
         email: email || "",
-        platform: platform || "walkin",
+        platform: src,
         checkinDate,
         checkoutDate,
         persons: bedsCount,
@@ -357,6 +399,16 @@ export async function POST(req: NextRequest) {
         specialRequests: specialRequests || "",
         source: "manual",
         status: "received",
+        gokoBookingId: generateGokoBookingId(),
+        rawData: src === "walkin"
+          ? stringifyGokoWalkin({
+              discount,
+              discountPercent: discount > 0 && Number(discountPercent) > 0 ? Number(discountPercent) : undefined,
+              discountAmount: discount > 0 && !(Number(discountPercent) > 0) && Number(discountAmount) > 0 ? Number(discountAmount) : undefined,
+              discountReason: discount > 0 ? reason : undefined,
+              taxPercent,
+            })
+          : undefined,
       });
 
       if (!newBookingId) {
@@ -389,7 +441,7 @@ export async function POST(req: NextRequest) {
         await addBookingHistoryEntry({
           bookingId: newBookingId,
           action: "Created",
-          details: `Manual booking by ${actingUser}. ${bedsCount} bed(s), ${nights} night(s).`,
+          details: `Manual booking by ${actingUser}. ${bedsCount} bed(s), ${nights} night(s).${discount > 0 ? ` Discount ₹${discount}${reason ? ` (${reason})` : ""}.` : ""}`,
           performedBy: actingUser,
         });
       }
@@ -850,8 +902,18 @@ export async function POST(req: NextRequest) {
       const nights = diffDays(newCheckinDate, oldCheckout);
       const nightlyRate = detail.booking.nightlyRate ?? 0;
       const bedsCount = Math.max(1, selectedBedIds?.length || currentAssignments.length);
-      const totalBeforeTax = nightlyRate * nights * bedsCount;
-      const tax = Math.round(totalBeforeTax * 0.12);
+      const taxPercent = await loadBookingTaxPercent();
+      const { totalBeforeTax, tax, discount } = stayAmounts(
+        nightlyRate * nights * bedsCount,
+        detail.booking.rawData,
+        taxPercent,
+      );
+      const walkinRaw = nextGokoWalkinRaw(
+        detail.booking.rawData,
+        detail.booking.source,
+        discount,
+        taxPercent,
+      );
 
       await updateBookingFull(bookingId, {
         checkinDate: newCheckinDate,
@@ -859,6 +921,7 @@ export async function POST(req: NextRequest) {
         amountBeforeTax: totalBeforeTax,
         amountTax: tax,
         amountTotal: totalBeforeTax + tax,
+        ...(walkinRaw ? { rawData: walkinRaw } : {}),
       });
 
       await addBookingHistoryEntry({
@@ -954,14 +1017,25 @@ export async function POST(req: NextRequest) {
       const nights = diffDays(oldCheckin, newCheckoutDate);
       const nightlyRate = detail.booking.nightlyRate ?? 0;
       const bedsCount = Math.max(1, selectedBedIds?.length || currentAssignments.length);
-      const totalBeforeTax = nightlyRate * nights * bedsCount;
-      const tax = Math.round(totalBeforeTax * 0.12);
+      const taxPercent = await loadBookingTaxPercent();
+      const { totalBeforeTax, tax, discount } = stayAmounts(
+        nightlyRate * nights * bedsCount,
+        detail.booking.rawData,
+        taxPercent,
+      );
+      const walkinRaw = nextGokoWalkinRaw(
+        detail.booking.rawData,
+        detail.booking.source,
+        discount,
+        taxPercent,
+      );
 
       await updateBookingFull(bookingId, {
         checkoutDate: newCheckoutDate,
         amountBeforeTax: totalBeforeTax,
         amountTax: tax,
         amountTotal: totalBeforeTax + tax,
+        ...(walkinRaw ? { rawData: walkinRaw } : {}),
       });
 
       await addBookingHistoryEntry({
@@ -997,23 +1071,34 @@ export async function POST(req: NextRequest) {
         changes.push(`Nightly rate → ${nightlyRate}`);
       }
       if (taxMode === "inclusive" && amountTotal !== undefined) {
+        const taxPercent = await loadBookingTaxPercent();
         const total = amountTotal;
-        const beforeTax = Math.round(total / 1.12);
+        const beforeTax = Math.round(total / (1 + taxPercent / 100));
         const taxAmt = total - beforeTax;
         updates.amountBeforeTax = beforeTax;
         updates.amountTax = taxAmt;
         updates.amountTotal = total;
         changes.push(`Total (incl. tax) → ${total}`);
+        const cleared = nextGokoWalkinRaw(detail.booking.rawData, detail.booking.source, 0, taxPercent, true);
+        if (cleared) updates.rawData = cleared;
       } else if (taxMode === "exclusive" && amountBeforeTax !== undefined) {
-        const taxAmt = Math.round(amountBeforeTax * 0.12);
+        const taxPercent = await loadBookingTaxPercent();
+        const taxAmt = Math.round((amountBeforeTax * taxPercent) / 100);
         updates.amountBeforeTax = amountBeforeTax;
         updates.amountTax = taxAmt;
         updates.amountTotal = amountBeforeTax + taxAmt;
         changes.push(`Amount before tax → ${amountBeforeTax}`);
+        const cleared = nextGokoWalkinRaw(detail.booking.rawData, detail.booking.source, 0, taxPercent, true);
+        if (cleared) updates.rawData = cleared;
       } else {
         if (amountBeforeTax !== undefined) updates.amountBeforeTax = amountBeforeTax;
         if (amountTax !== undefined) updates.amountTax = amountTax;
         if (amountTotal !== undefined) updates.amountTotal = amountTotal;
+        if (amountBeforeTax !== undefined || amountTax !== undefined || amountTotal !== undefined) {
+          const taxPercent = await loadBookingTaxPercent();
+          const cleared = nextGokoWalkinRaw(detail.booking.rawData, detail.booking.source, 0, taxPercent, true);
+          if (cleared) updates.rawData = cleared;
+        }
       }
       if (amountPaid !== undefined) {
         updates.amountPaid = amountPaid;

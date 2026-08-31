@@ -11,10 +11,19 @@ import { Label } from "@/components/ui/label";
 import { XIcon, Loader2Icon, CheckIcon } from "lucide-react";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { fetchWithRetry } from "@/components/admin/useAdminApi";
-import { getNights, formatCurrency, calculateTax } from "./utils";
+import { getNights, formatCurrency } from "./utils";
+import {
+  bookingDiscountRupees,
+  bookingTaxPercent,
+  bookingTotals,
+  DEFAULT_BOOKING_TAX_PERCENT,
+} from "@/lib/bookingPricing";
 import type { CalendarDorm, DateRange } from "./types";
 
 type AvailableBed = { id: number; bedId: string; dormId: number; dormName: string; pool?: "online" | "offline" | "block" };
+
+const DISCOUNT_REASONS = ["Complimentary", "Staff Stay", "Loyalty Guest", "Service Issue", "Manager Discount", "Other"];
+const QUICK_PERCENTS = [5, 10, 15, 20, 25, 50, 100];
 
 export function CreateBookingModal({
   dorms,
@@ -53,12 +62,23 @@ export function CreateBookingModal({
   const [availableBedsList, setAvailableBedsList] = useState<AvailableBed[]>([]);
   const [loadingBeds, setLoadingBeds] = useState(false);
   const [dormRates, setDormRates] = useState<Record<number, number>>({});
+  const [taxPercent, setTaxPercent] = useState(DEFAULT_BOOKING_TAX_PERCENT);
+  const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
+  const [discountPercent, setDiscountPercent] = useState("");
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [discountReason, setDiscountReason] = useState(DISCOUNT_REASONS[0]);
+  const [customReason, setCustomReason] = useState("");
 
   const nights = useMemo(() => getNights(checkinDate, checkoutDate), [checkinDate, checkoutDate]);
   const pricing = useMemo(() => {
-    const subtotal = nightlyRate * nights * Math.max(1, selectedBeds.length);
-    return calculateTax(subtotal);
-  }, [nightlyRate, nights, selectedBeds.length]);
+    const gross = nightlyRate * nights * Math.max(1, selectedBeds.length);
+    const discount = platform === "walkin"
+      ? bookingDiscountRupees(gross, discountMode === "percent"
+        ? { percent: discountPercent }
+        : { amount: discountAmount })
+      : 0;
+    return bookingTotals(gross, { discount, taxPercent });
+  }, [nightlyRate, nights, selectedBeds.length, platform, discountMode, discountPercent, discountAmount, taxPercent]);
 
   useEffect(() => {
     if (!checkinDate || !checkoutDate || checkinDate >= checkoutDate) {
@@ -84,6 +104,7 @@ export function CreateBookingModal({
           const data = await res.json();
           setAvailableBedsList(data.beds || []);
           setDormRates(data.dormRates || {});
+          if (data.taxRate != null) setTaxPercent(bookingTaxPercent(data.taxRate));
         } else {
           setAvailableBedsList([]);
         }
@@ -137,6 +158,11 @@ export function CreateBookingModal({
         bedIds: selectedBeds,
       };
       if (username) payload.username = username;
+      if (platform === "walkin" && pricing.discount > 0) {
+        if (discountMode === "percent") payload.discountPercent = Number(discountPercent) || 0;
+        else payload.discountAmount = Number(discountAmount) || 0;
+        payload.discountReason = discountReason === "Other" ? customReason.trim() : discountReason;
+      }
 
       const res = await fetch("/api/admin/bookings", {
         method: "POST",
@@ -381,6 +407,94 @@ export function CreateBookingModal({
               />
             </div>
 
+            {platform === "walkin" && (
+              <div>
+                <Label className="text-xs">Discount</Label>
+                <div className="mt-1 flex gap-1 border-b border-border">
+                  {([{ id: "percent" as const, label: "% discount" }, { id: "fixed" as const, label: "Amount discount" }]).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setDiscountMode(t.id)}
+                      className={cn(
+                        "rounded-t-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                        discountMode === t.id
+                          ? "border-b-2 border-purple-600 bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-400"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 space-y-2">
+                  {discountMode === "percent" ? (
+                    <>
+                      <div className="flex flex-wrap gap-1">
+                        {QUICK_PERCENTS.map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setDiscountPercent(String(p))}
+                            className={cn(
+                              "rounded-md border px-2 py-0.5 text-[11px]",
+                              Number(discountPercent) === p
+                                ? "border-purple-600 bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-400"
+                                : "border-input text-muted-foreground hover:bg-muted",
+                            )}
+                          >
+                            {p}%
+                          </button>
+                        ))}
+                      </div>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={discountPercent}
+                        onChange={(e) => setDiscountPercent(e.target.value)}
+                        placeholder="Custom %"
+                        className="w-32"
+                      />
+                    </>
+                  ) : (
+                    <Input
+                      type="number"
+                      min={0}
+                      value={discountAmount}
+                      onChange={(e) => setDiscountAmount(e.target.value)}
+                      placeholder="₹ amount"
+                      className="w-32"
+                    />
+                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {DISCOUNT_REASONS.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setDiscountReason(r)}
+                        className={cn(
+                          "rounded-md border px-2 py-0.5 text-[11px]",
+                          discountReason === r
+                            ? "border-brand-green bg-brand-green/10 text-brand-green"
+                            : "border-input text-muted-foreground hover:bg-muted",
+                        )}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                  {discountReason === "Other" && (
+                    <Input
+                      value={customReason}
+                      onChange={(e) => setCustomReason(e.target.value)}
+                      placeholder="Reason..."
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Pricing summary */}
             {selectedBeds.length > 0 && (
               <div className="rounded-lg border border-border bg-muted/30 p-3">
@@ -389,10 +503,19 @@ export function CreateBookingModal({
                     <span className="text-muted-foreground">
                       {formatCurrency(nightlyRate)} x {nights} night{nights !== 1 ? "s" : ""} x {selectedBeds.length} bed{selectedBeds.length !== 1 ? "s" : ""}
                     </span>
-                    <span className="text-foreground">{formatCurrency(pricing.beforeTax)}</span>
+                    <span className="text-foreground">{formatCurrency(pricing.gross)}</span>
                   </div>
+                  {pricing.discount > 0 && (
+                    <div className="flex justify-between text-purple-700 dark:text-purple-400">
+                      <span>
+                        Discount
+                        {discountMode === "percent" && discountPercent ? ` (${discountPercent}%)` : ""}
+                      </span>
+                      <span>-{formatCurrency(pricing.discount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tax (12%)</span>
+                    <span className="text-muted-foreground">Tax ({taxPercent}%)</span>
                     <span className="text-foreground">{formatCurrency(pricing.tax)}</span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-1 font-semibold">

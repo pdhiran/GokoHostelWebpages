@@ -41,6 +41,7 @@ export type DashboardBooking = {
   requestedBedCount?: number;
   requestedNeedLabels?: string;
   requestedNeeds?: Array<{ dormId: number; count: number; name: string }>;
+  rawData?: string;
 };
 
 export type BedAssignment = {

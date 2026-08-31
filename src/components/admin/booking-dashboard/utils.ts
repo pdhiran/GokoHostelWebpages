@@ -1,4 +1,5 @@
 import { addCalendarDays, exclusiveEndDate, stayNightCount } from "@/lib/inventoryAvailability";
+import { bookingTotals, DEFAULT_BOOKING_TAX_PERCENT } from "@/lib/bookingPricing";
 import type { DateRange } from "./types";
 
 export const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -76,9 +77,9 @@ export function getNights(checkin: string, checkout?: string | null): number {
   return Math.max(1, stayNightCount(checkin, checkout));
 }
 
-export function calculateTax(amount: number, taxRate: number = 0.12): { beforeTax: number; tax: number; total: number } {
-  const tax = Math.round(amount * taxRate);
-  return { beforeTax: amount, tax, total: amount + tax };
+export function calculateTax(amount: number, taxPercent: number = DEFAULT_BOOKING_TAX_PERCENT): { beforeTax: number; tax: number; total: number } {
+  const t = bookingTotals(amount, { taxPercent });
+  return { beforeTax: t.beforeTax, tax: t.tax, total: t.total };
 }
 
 export function formatCurrency(amount: number): string {

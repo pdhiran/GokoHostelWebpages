@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { stayNightCount } from "@/lib/inventoryAvailability";
 import { getNights, calculateTax } from "@/components/admin/booking-dashboard/utils";
+import { stringifyGokoWalkin } from "@/lib/bookingPricing";
 
 const q = vi.hoisted(() => ({
   authenticateUser: vi.fn(),
@@ -24,6 +25,7 @@ const q = vi.hoisted(() => ({
   getAllBeds: vi.fn(),
   getBedById: vi.fn(),
   getChannelConfig: vi.fn(),
+  getSetting: vi.fn(),
   getActiveBedBlocks: vi.fn(),
   getRoomTypeMappings: vi.fn(),
   getRatePlanMappings: vi.fn(),
@@ -59,6 +61,7 @@ vi.mock("@/db/queries", () => ({
   getAllBeds: q.getAllBeds,
   getBedById: q.getBedById,
   getChannelConfig: q.getChannelConfig,
+  getSetting: q.getSetting,
   getActiveBedBlocks: q.getActiveBedBlocks,
   getRoomTypeMappings: q.getRoomTypeMappings,
   getRatePlanMappings: q.getRatePlanMappings,
@@ -120,8 +123,8 @@ describe("Stay permutations: night math matches UI and server", () => {
   it("UI tax for 3 people × 4 nights at ₹1000 matches server formula", () => {
     const p = priced(1000, 4, 3);
     expect(p.before).toBe(12000);
-    expect(p.tax).toBe(1440);
-    expect(p.total).toBe(13440);
+    expect(p.tax).toBe(600);
+    expect(p.total).toBe(12600);
   });
 });
 
@@ -200,10 +203,114 @@ describe("createBooking permutations", () => {
     expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
       persons: 1,
       amountBeforeTax: 1400,
-      amountTax: 168,
-      amountTotal: 1568,
+      amountTax: 70,
+      amountTotal: 1470,
     }));
     expect(q.assignBedToBooking).not.toHaveBeenCalled();
+  });
+
+  it("applies walk-in percent discount then 5% tax on the remainder", async () => {
+    mockBeds([7]);
+    const res = await POST(req({
+      password: "x",
+      action: "createBooking",
+      guestName: "Loyalty",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-07",
+      nightlyRate: 550,
+      bedIds: [7],
+      discountPercent: 10,
+      discountReason: "Loyalty Guest",
+    }));
+    expect(res.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      amountBeforeTax: 990,
+      amountTax: 50,
+      amountTotal: 1040,
+      rawData: expect.stringContaining("gokoWalkin"),
+    }));
+  });
+
+  it("applies walk-in amount discount and ignores it for booking_engine", async () => {
+    mockBeds([7]);
+    const walkin = await POST(req({
+      password: "x",
+      action: "createBooking",
+      guestName: "Amt",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-07",
+      nightlyRate: 550,
+      bedIds: [7],
+      discountAmount: 100,
+    }));
+    expect(walkin.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      amountBeforeTax: 1000,
+      amountTax: 50,
+      amountTotal: 1050,
+    }));
+
+    q.addBooking.mockClear();
+    q.addBooking.mockResolvedValue(11);
+    const engine = await POST(req({
+      password: "x",
+      action: "createBooking",
+      guestName: "Web",
+      platform: "booking_engine",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-07",
+      nightlyRate: 550,
+      bedIds: [7],
+      discountPercent: 50,
+    }));
+    expect(engine.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      platform: "booking_engine",
+      amountBeforeTax: 1100,
+      amountTax: 55,
+      amountTotal: 1155,
+      rawData: undefined,
+    }));
+  });
+
+  it("reads booking_tax_rate from settings", async () => {
+    q.getSetting.mockResolvedValue("12");
+    mockBeds([7]);
+    const res = await POST(req({
+      password: "x",
+      action: "createBooking",
+      guestName: "Tax",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-06",
+      nightlyRate: 1000,
+      bedIds: [7],
+    }));
+    expect(res.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      amountBeforeTax: 1000,
+      amountTax: 120,
+      amountTotal: 1120,
+    }));
+  });
+
+  it("ignores a client-supplied taxPercent on create", async () => {
+    mockBeds([7]);
+    const res = await POST(req({
+      password: "x",
+      action: "createBooking",
+      guestName: "Sneaky",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-06",
+      nightlyRate: 1000,
+      bedIds: [7],
+      taxPercent: 0,
+    }));
+    expect(res.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      amountBeforeTax: 1000,
+      amountTax: 50,
+      amountTotal: 1050,
+    }));
   });
 
   it("500s when insert returns no id", async () => {
@@ -406,6 +513,134 @@ describe("date change permutations", () => {
     expect(res.status).toBe(200);
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
     expect(q.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({ inventoryPool: "online" }));
+  });
+
+  it("re-applies a walk-in percent discount when checkout is extended", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-07",
+        status: "received",
+        source: "manual",
+        nightlyRate: 550,
+        rawData: stringifyGokoWalkin({
+          discount: 110,
+          discountPercent: 10,
+          discountReason: "Loyalty Guest",
+          taxPercent: 5,
+        }),
+      },
+      assignments: [
+        { id: 1, status: "assigned", bedId: 7, dormId: 9, checkinDate: "2026-09-05", checkoutDate: "2026-09-07", inventoryPool: "offline" },
+      ],
+    });
+    q.assignBedToBooking.mockResolvedValue(true);
+    const res = await POST(req({
+      password: "x", action: "modifyCheckout", bookingId: 5, newCheckoutDate: "2026-09-09",
+    }));
+    expect(res.status).toBe(200);
+    // gross 550*4*1=2200, 10% = 220, taxable 1980, tax 99
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      checkoutDate: "2026-09-09",
+      amountBeforeTax: 1980,
+      amountTax: 99,
+      amountTotal: 2079,
+    }));
+    const saved = JSON.parse(q.updateBookingFull.mock.calls[0][1].rawData);
+    expect(saved.gokoWalkin.discount).toBe(220);
+    expect(saved.gokoWalkin.discountPercent).toBe(10);
+  });
+
+  it("caps a walk-in amount discount when the stay is shortened", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-08",
+        status: "received",
+        source: "manual",
+        nightlyRate: 500,
+        rawData: stringifyGokoWalkin({
+          discount: 1200,
+          discountAmount: 1200,
+          taxPercent: 5,
+        }),
+      },
+      assignments: [
+        { id: 1, status: "assigned", bedId: 7, dormId: 9, checkinDate: "2026-09-05", checkoutDate: "2026-09-08", inventoryPool: "offline" },
+      ],
+    });
+    q.assignBedToBooking.mockResolvedValue(true);
+    const res = await POST(req({
+      password: "x", action: "modifyCheckout", bookingId: 5, newCheckoutDate: "2026-09-06",
+    }));
+    expect(res.status).toBe(200);
+    // gross 500*1=500, amount 1200 capped to 500, tax 0
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      amountBeforeTax: 0,
+      amountTax: 0,
+      amountTotal: 0,
+    }));
+  });
+
+  it("does not treat Aiosell rawData as a walk-in discount on date change", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "channel_manager",
+        nightlyRate: 1000,
+        rawData: JSON.stringify({ action: "book", rooms: [{ roomCode: "executive" }] }),
+      },
+      assignments: [
+        { id: 1, status: "assigned", bedId: 7, dormId: 9, checkinDate: "2026-09-05", checkoutDate: "2026-09-06", inventoryPool: "online" },
+      ],
+    });
+    q.assignBedToBooking.mockResolvedValue(true);
+    const res = await POST(req({
+      password: "x", action: "modifyCheckout", bookingId: 5, newCheckoutDate: "2026-09-08",
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      amountBeforeTax: 3000,
+      amountTax: 150,
+      amountTotal: 3150,
+    }));
+    expect(q.updateBookingFull.mock.calls[0][1]).not.toHaveProperty("rawData");
+  });
+
+  it("editReservation exclusive tax uses booking_tax_rate not 12%", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "manual",
+        rawData: stringifyGokoWalkin({
+          discount: 110,
+          discountPercent: 10,
+          discountReason: "Loyalty Guest",
+          taxPercent: 5,
+        }),
+      },
+      assignments: [],
+    });
+    const res = await POST(req({
+      password: "x",
+      action: "editReservation",
+      bookingId: 5,
+      taxMode: "exclusive",
+      amountBeforeTax: 1000,
+    }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      amountBeforeTax: 1000,
+      amountTax: 50,
+      amountTotal: 1050,
+    }));
+    const saved = JSON.parse(q.updateBookingFull.mock.calls[0][1].rawData);
+    expect(saved.gokoWalkin.discount).toBe(0);
+    expect(saved.gokoWalkin.discountPercent).toBeUndefined();
   });
 });
 
