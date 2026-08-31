@@ -178,7 +178,8 @@ export const bookings = sqliteTable("bookings", {
   amountBeforeTax: integer("amount_before_tax").default(0),
   amountTax: integer("amount_tax").default(0),
   amountTotal: integer("amount_total").default(0),
-  amountPaid: integer("amount_paid").default(0),
+  amountPaid: integer("amount_paid").default(0), // Goko cash only; prepaid OTA ingest leaves 0
+
   nightlyRate: integer("nightly_rate").default(0),
   currency: text("currency").default("INR"),
   email: text("email").default(""),

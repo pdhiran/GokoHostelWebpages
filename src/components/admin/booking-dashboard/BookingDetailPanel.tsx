@@ -104,6 +104,7 @@ export function BookingDetailPanel({
     : (booking.source === "manual" ? Math.max(0, gross - booking.amountBeforeTax) : 0);
   const collection = collectionCopy(booking.paymentStatus, booking.balance);
   const dueAtHotel = collection ? collection.due : booking.balance > 0;
+  // Prepaid: Paid = total / Balance = ₹0. Ledger amountPaid stays 0. Red Balance uses dueAtHotel, not shownPay.
   const shownPay = displayedStayPayment(booking.paymentStatus, booking.amountTotal, booking.amountPaid);
   const hasAssignedBed = assignments.some((a) => a.status === "assigned");
   const canCancelStay = hasAssignedBed

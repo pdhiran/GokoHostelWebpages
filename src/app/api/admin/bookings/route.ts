@@ -263,6 +263,7 @@ export async function POST(req: NextRequest) {
       const enrichedBookings = calendarData.bookings.map((b) => {
         const checkout = stayCheckout(b.checkinDate, b.checkoutDate);
         const nights = checkout ? diffDays(b.checkinDate, checkout) : 0;
+        // Ledger, not the detail card. Prepaid stays amountPaid 0 so this is the OTA total until desk collect.
         const balance = (b.amountTotal ?? 0) - (b.amountPaid ?? 0);
         return { ...b, nights, balance };
       });
@@ -562,6 +563,7 @@ export async function POST(req: NextRequest) {
         checkedInBy: actingUser,
       };
 
+      // Desk till only. Prepaid CheckInPopup does not offer Collected, so this path is hotel-collect / unknown.
       if (collectPayment) {
         updateData.amountPaid = detail.booking.amountTotal ?? 0;
         updateData.paymentStatus = "paid";

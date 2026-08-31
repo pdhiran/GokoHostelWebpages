@@ -41,7 +41,7 @@ export const STATUS_LABELS: Record<string, string> = {
   modified: "Modified",
 };
 
-/** Channel pah true → collect at hotel; pah false → prepaid. Desk collect becomes paid. */
+/** Channel pah true → collect at hotel; pah false → prepaid. Desk collect becomes paid. Prepaid is not due even when ledger balance > 0. */
 export function collectionCopy(status?: string | null, balance = 0): { label: string; value: string; due: boolean } | null {
   const s = (status || "").toLowerCase();
   const collect = s === "pay_at_hotel" || s === "pay_at_property";
@@ -56,7 +56,25 @@ export function collectionCopy(status?: string | null, balance = 0): { label: st
   return null;
 }
 
-/** Prepaid was paid on the OTA. Ledger `amountPaid` stays 0; the card shows total / ₹0 due. */
+/**
+ * Display-only Paid/Balance for the booking-detail Payment card.
+ * The card lies in Sunny’s favor; the ledger does not.
+ *
+ * Prepaid: Paid = amountTotal, Balance = 0. Aiosell webhook `pah: false` sets
+ * paymentStatus prepaid and totals from `amount`, with no paid-amount field.
+ * addBooking still stores amountPaid = 0. Do not copy OTA total onto amountPaid
+ * (that cash never hit Goko). Calendar JSON `balance` stays amountTotal − amountPaid.
+ *
+ * Hotel-collect / paid / unknown: Paid = amountPaid, Balance = amountTotal − amountPaid.
+ *
+ * collectionCopy still drives the green Payment done / Prepaid line and whether
+ * Balance is painted red (“due at hotel”). Check-in skips Collected for prepaid
+ * and does not write the till. Desk collect sets amountPaid = total and status paid.
+ *
+ * Edge: editReservation can put a real amountPaid on a stay that is still prepaid;
+ * this helper would still show Paid = total / Balance = 0 and hide the ledger.
+ * Check-in cannot do that for prepaid.
+ */
 export function displayedStayPayment(
   status?: string | null,
   amountTotal = 0,

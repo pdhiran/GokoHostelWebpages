@@ -184,6 +184,7 @@ export async function ingestFetchedReservations(raw: unknown): Promise<{ importe
   return { imported, skipped, refs };
 }
 
+/** pah false → prepaid. Webhook has no paid-amount; amountPaid stays 0 (see displayedStayPayment). */
 function channelPaymentStatus(pah?: boolean): "pay_at_hotel" | "prepaid" | "unknown" {
   if (pah === true) return "pay_at_hotel";
   if (pah === false) return "prepaid";
@@ -213,6 +214,7 @@ function extractBookingFields(payload: ReservationPayload) {
     amountBeforeTax: payload.amount?.amountBeforeTax || 0,
     amountTax: payload.amount?.tax || 0,
     amountTotal: payload.amount?.amountAfterTax || 0,
+    // amountPaid omitted → addBooking defaults 0. Prepaid is status only; do not set amountPaid = amountTotal.
     currency: payload.amount?.currency || "INR",
     email: guest?.email || "",
     cmBookingId: payload.cmBookingId || "",
