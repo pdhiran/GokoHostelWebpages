@@ -35,6 +35,12 @@ export type DashboardBooking = {
   createdAt: string;
   nights: number;
   balance: number;
+  requestedRoomCodes?: string[];
+  requestedDormIds?: number[];
+  requestedDormNames?: string[];
+  requestedBedCount?: number;
+  requestedNeedLabels?: string;
+  requestedNeeds?: Array<{ dormId: number; count: number; name: string }>;
 };
 
 export type BedAssignment = {

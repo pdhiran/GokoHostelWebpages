@@ -85,6 +85,13 @@ describe("countUnassignedOtaRooms", () => {
     }])).toBe(1);
   });
 
+  it("matches room codes case-insensitively like auto-assign", () => {
+    expect(countUnassignedOtaRooms(["executive"], [{
+      roomType: "Executive",
+      rawData: JSON.stringify({ rooms: [{ roomCode: "Executive" }] }),
+    }])).toBe(1);
+  });
+
   it("falls back to comma-separated roomType when prices/rooms are missing", () => {
     expect(countUnassignedOtaRooms(["executive", "dorm-1"], [
       { roomType: "executive, dorm-1", rawData: "" },
@@ -438,6 +445,7 @@ describe("Wiring", () => {
     expect(queries).toContain("getUnassignedOtaHoldsForRange");
     expect(queries).toContain("unassignedHolds");
     expect(queries).toContain("inventory_pool");
+    expect(queries).toContain("coalesce(${bookingBedAssignments.inventoryPool}, 'online') = 'online'");
     expect(queries).toContain("deactivateBedBlocksByBedIds");
     expect(queries).toContain("pickInventoryOverride(rows, dormId, date)");
     expect(queries).toContain("[...new Set(rows.map(r => r.bedId))]");

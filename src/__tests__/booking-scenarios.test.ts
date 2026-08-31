@@ -14,6 +14,7 @@ const q = vi.hoisted(() => ({
   validateBedsForRange: vi.fn(),
   assignBedToBooking: vi.fn(),
   unassignBookingBeds: vi.fn(),
+  unassignBookingBedsByBedIds: vi.fn(),
   cancelBedAssignments: vi.fn(),
   addBookingHistoryEntry: vi.fn(),
   getBookingHistoryEntries: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock("@/db/queries", () => ({
   validateBedsForRange: q.validateBedsForRange,
   assignBedToBooking: q.assignBedToBooking,
   unassignBookingBeds: q.unassignBookingBeds,
+  unassignBookingBedsByBedIds: q.unassignBookingBedsByBedIds,
   cancelBedAssignments: q.cancelBedAssignments,
   addBookingHistoryEntry: q.addBookingHistoryEntry,
   getBookingHistoryEntries: q.getBookingHistoryEntries,
@@ -267,6 +269,31 @@ describe("assignBeds permutations", () => {
       checkinDate: "2026-09-05",
       checkoutDate: "2026-09-10",
       inventoryPool: "online",
+    }));
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
+  it("staff assigning leftover offline chips on a channel_manager stay stores offline pool", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-07",
+        status: "received",
+        source: "channel_manager",
+      },
+      assignments: [],
+    });
+    mockBeds([7, 8]);
+    q.getAvailableBedsForRange.mockResolvedValue(tagBeds([7, 8], "offline"));
+    const res = await POST(req({
+      password: "x", action: "assignBeds", bookingId: 42, bedIds: [7, 8],
+    }));
+    expect(res.status).toBe(200);
+    expect(q.assignBedToBooking).toHaveBeenCalledTimes(2);
+    expect(q.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-07",
+      inventoryPool: "offline",
     }));
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });

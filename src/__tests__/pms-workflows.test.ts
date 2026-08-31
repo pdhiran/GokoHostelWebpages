@@ -32,6 +32,7 @@ const { captured, queryMocks } = vi.hoisted(() => {
       getBookingDetail: vi.fn(),
       checkBedAvailability: vi.fn(),
       assignBedToBooking: vi.fn(),
+      getAvailableBedsForRange: vi.fn(),
     },
   };
 });
@@ -321,6 +322,15 @@ describe("PMS inbound webhook workflows", () => {
     queryMocks.checkBedAvailability.mockResolvedValue(true);
     queryMocks.assignBedToBooking.mockReset();
     queryMocks.assignBedToBooking.mockResolvedValue(true);
+    queryMocks.getAvailableBedsForRange.mockReset();
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([]);
+    queryMocks.getRoomTypeMappings.mockReset();
+    queryMocks.getRoomTypeMappings.mockResolvedValue([
+      { dormId: 8, channelRoomCode: "executive", isActive: 1, dormName: "Executive" },
+      { dormId: 9, channelRoomCode: "dorm-6", isActive: 1, dormName: "Dorm 1" },
+      { dormId: 9, channelRoomCode: "DORM-6", isActive: 1, dormName: "Dorm 1" },
+    ]);
+    vi.mocked(addBooking).mockResolvedValue(42 as never);
     vi.mocked(triggerInventoryPush).mockReset();
     vi.mocked(triggerInventoryPush).mockResolvedValue(undefined);
   });
@@ -420,6 +430,396 @@ describe("PMS inbound webhook workflows", () => {
       status: "received",
     }));
     expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("auto-assigns 1 online executive bed for a 1-person book and does not push", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "EXE-1", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 70, bedId: "EXE-OFF", dormId: 8, dormName: "Executive", pool: "offline" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "Direct",
+      bookingId: "San-auto-1",
+      checkin: "2026-09-05",
+      checkout: "2026-09-06",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [{
+        roomCode: "executive",
+        rateplanCode: "executive-s-ep",
+        occupancy: { adults: 1, children: 0 },
+        prices: [{ date: "2026-09-05", sellRate: 3700 }],
+      }],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(1);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 42,
+      bedId: 7,
+      dormId: 8,
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-06",
+      inventoryPool: "online",
+      assignedBy: "channel_manager",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("auto-assigns 2 online beds for 2 persons covering both nights", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "EXE-1", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 8, bedId: "EXE-2", dormId: 8, dormName: "Executive", pool: "online" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-2P-2N",
+      checkin: "2026-09-05",
+      checkout: "2026-09-07",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [{
+        roomCode: "executive",
+        occupancy: { adults: 2, children: 0 },
+        prices: [{ date: "2026-09-05", sellRate: 3700 }, { date: "2026-09-06", sellRate: 3700 }],
+      }],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(2);
+    expect(queryMocks.assignBedToBooking.mock.calls.map((c) => c[0].bedId).sort()).toEqual([7, 8]);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-07",
+      inventoryPool: "online",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("auto-assigns one bed per person across mixed room types for the whole stay", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "EXE-1", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 8, bedId: "EXE-2", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 40, bedId: "D1", dormId: 9, dormName: "Dorm 1", pool: "online" },
+      { id: 90, bedId: "DOFF", dormId: 9, dormName: "Dorm 1", pool: "offline" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-MIX-2N",
+      checkin: "2026-09-05",
+      checkout: "2026-09-07",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [
+        { roomCode: "executive", occupancy: { adults: 2, children: 0 } },
+        { roomCode: "dorm-6", occupancy: { adults: 1, children: 0 } },
+      ],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(3);
+    const byBed = queryMocks.assignBedToBooking.mock.calls.map((c) => c[0]);
+    expect(byBed.filter((a) => a.dormId === 8)).toHaveLength(2);
+    expect(byBed.filter((a) => a.dormId === 9)).toHaveLength(1);
+    expect(byBed.every((a) => a.checkinDate === "2026-09-05" && a.checkoutDate === "2026-09-07" && a.inventoryPool === "online")).toBe(true);
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("stays Unassigned when only offline beds remain in the requested room type", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 70, bedId: "EXE-OFF", dormId: 8, dormName: "Executive", pool: "offline" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-OVERFLOW",
+      checkin: "2026-09-05",
+      checkout: "2026-09-06",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [{
+        roomCode: "executive",
+        occupancy: { adults: 1, children: 0 },
+        prices: [{ date: "2026-09-05", sellRate: 3700 }],
+      }],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalled();
+    expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+    expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      action: "Unassigned",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("auto-assigns 2 beds when occupancy includes a child", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "EXE-1", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 8, bedId: "EXE-2", dormId: 8, dormName: "Executive", pool: "online" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-CHILD",
+      checkin: "2026-09-05",
+      checkout: "2026-09-07",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [{
+        roomCode: "executive",
+        occupancy: { adults: 1, children: 1 },
+      }],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalledWith(expect.objectContaining({ persons: 2 }));
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(2);
+    expect(queryMocks.assignBedToBooking.mock.calls.map((c) => c[0].bedId).sort()).toEqual([7, 8]);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-07",
+      inventoryPool: "online",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("auto-assigns from occupancy strings and stores 2 persons", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "EXE-1", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 8, bedId: "EXE-2", dormId: 8, dormName: "Executive", pool: "online" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-STR-OCC",
+      checkin: "2026-09-05",
+      checkout: "2026-09-06",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [{
+        roomCode: "executive",
+        occupancy: { adults: "2", children: "0" },
+      }],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalledWith(expect.objectContaining({ persons: 2 }));
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(2);
+    expect(queryMocks.assignBedToBooking.mock.calls.map((c) => c[0].bedId).sort()).toEqual([7, 8]);
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("auto-assigns a bed for each rooms[] row when both share the same roomCode", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "EXE-1", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 8, bedId: "EXE-2", dormId: 8, dormName: "Executive", pool: "online" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-2EXE",
+      checkin: "2026-09-05",
+      checkout: "2026-09-07",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [
+        { roomCode: "executive", occupancy: { adults: 1, children: 0 } },
+        { roomCode: "executive", occupancy: { adults: 1, children: 0 } },
+      ],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(2);
+    expect(queryMocks.assignBedToBooking.mock.calls.map((c) => c[0].bedId).sort()).toEqual([7, 8]);
+    expect(queryMocks.assignBedToBooking.mock.calls.every((c) =>
+      c[0].dormId === 8 && c[0].checkinDate === "2026-09-05" && c[0].checkoutDate === "2026-09-07",
+    )).toBe(true);
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("assigns zero beds when executive has stock but dorm does not", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "EXE-1", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 8, bedId: "EXE-2", dormId: 8, dormName: "Executive", pool: "online" },
+      { id: 90, bedId: "DOFF", dormId: 9, dormName: "Dorm 1", pool: "offline" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-MIX-SHORT",
+      checkin: "2026-09-05",
+      checkout: "2026-09-07",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [
+        { roomCode: "executive", occupancy: { adults: 2, children: 0 } },
+        { roomCode: "dorm-6", occupancy: { adults: 1, children: 0 } },
+      ],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalled();
+    expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+    expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      action: "Unassigned",
+      details: expect.stringMatching(/Dorm 1 \(dorm-6\)/),
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("JSON occupancy adults 0 children 0 auto-assigns 1 bed", async () => {
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "EXE-1", dormId: 8, dormName: "Executive", pool: "online" },
+    ]);
+    const payload = {
+      action: "book" as const,
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-ZERO-OCC",
+      checkin: "2026-09-05",
+      checkout: "2026-09-06",
+      guest: { firstName: "Ada", lastName: "Lovelace" },
+      rooms: [{
+        roomCode: "executive",
+        occupancy: { adults: 0, children: 0 },
+      }],
+    };
+    const res = await reservationsPOST(req(payload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalledWith(expect.objectContaining({ persons: 1 }));
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(1);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bedId: 7,
+      inventoryPool: "online",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("modify of an unassigned stay auto-assigns when online beds now exist", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9,
+      bookingRef: "BK-100",
+      guestName: "Old",
+      contact: "",
+      platform: "booking.com",
+      status: "received",
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-03",
+      roomType: "DORM-6",
+      persons: 1,
+      paymentStatus: "prepaid",
+      specialRequests: "",
+      amountBeforeTax: 0,
+      amountTax: 0,
+      amountTotal: 0,
+      currency: "INR",
+      email: "",
+      cmBookingId: "",
+      ratePlan: "",
+      nightlyRate: 0,
+    } as never);
+    queryMocks.getBookingDetail.mockResolvedValue({ assignments: [] } as never);
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 40, bedId: "D1", dormId: 9, dormName: "Dorm 1", pool: "online" },
+    ]);
+    const res = await reservationsPOST(req({ ...bookPayload, action: "modify" }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(1);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 9,
+      bedId: 40,
+      dormId: 9,
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-03",
+      inventoryPool: "online",
+      assignedBy: "channel_manager",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("modify that grows occupancy from 1 to 2 unassigns and auto-assigns 2 online beds", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9,
+      bookingRef: "BK-100",
+      guestName: "Old",
+      contact: "",
+      platform: "booking.com",
+      status: "received",
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-03",
+      roomType: "DORM-6",
+      persons: 1,
+      paymentStatus: "prepaid",
+      specialRequests: "",
+      amountBeforeTax: 0,
+      amountTax: 0,
+      amountTotal: 0,
+      currency: "INR",
+      email: "",
+      cmBookingId: "",
+      ratePlan: "",
+      nightlyRate: 0,
+    } as never);
+    queryMocks.getBookingDetail.mockResolvedValue({
+      assignments: [{
+        bedId: 40, dormId: 9, status: "assigned",
+        checkinDate: "2026-09-01", checkoutDate: "2026-09-03", inventoryPool: "online",
+      }],
+    } as never);
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 40, bedId: "D1", dormId: 9, dormName: "Dorm 1", pool: "online" },
+      { id: 41, bedId: "D2", dormId: 9, dormName: "Dorm 1", pool: "online" },
+    ]);
+    const res = await reservationsPOST(req({
+      ...bookPayload,
+      action: "modify",
+      rooms: [{
+        roomCode: "DORM-6",
+        occupancy: { adults: 2, children: 0 },
+        prices: [{ date: "2026-09-01", sellRate: 1200 }],
+      }],
+    }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(unassignBookingBeds).toHaveBeenCalledWith(9);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(2);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 9, bedId: 40, inventoryPool: "online",
+    }));
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 9, bedId: 41, inventoryPool: "online",
+    }));
+    expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
+      action: "Beds Auto-Assigned",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("rebook of a cancelled ref auto-assigns online beds and does not push", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9, bookingRef: "BK-100", status: "cancelled",
+      checkinDate: "2026-09-01", checkoutDate: "2026-09-03",
+    } as never);
+    queryMocks.getAvailableBedsForRange.mockResolvedValue([
+      { id: 40, bedId: "D1", dormId: 9, dormName: "Dorm 1", pool: "online" },
+    ]);
+    const res = await reservationsPOST(req(bookPayload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).not.toHaveBeenCalled();
+    expect(updateBookingFull).toHaveBeenCalledWith(9, expect.objectContaining({ status: "received" }));
+    expect(unassignBookingBeds).toHaveBeenCalledWith(9);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledTimes(1);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 9,
+      bedId: 40,
+      dormId: 9,
+      inventoryPool: "online",
+      assignedBy: "channel_manager",
+    }));
     expect(triggerInventoryPush).not.toHaveBeenCalled();
   });
 

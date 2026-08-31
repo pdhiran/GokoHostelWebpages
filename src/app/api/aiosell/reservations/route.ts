@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChannelConfig, addBooking, updateBookingFull, getBookingByRef, unassignBookingBeds, addBookingHistoryEntry, getBookingDetail, checkBedAvailability, assignBedToBooking } from "@/db/queries";
+import { getChannelConfig, addBooking, updateBookingFull, getBookingByRef, unassignBookingBeds, addBookingHistoryEntry, getBookingDetail, checkBedAvailability, assignBedToBooking, getRoomTypeMappings, getAvailableBedsForRange } from "@/db/queries";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell";
 import { occupiedNights, exclusiveEndDate } from "@/lib/inventoryAvailability";
+import { autoAssignOnlineChannelBeds, channelAssignmentNeedsReseat, channelBedNeeds } from "@/lib/channelAutoAssign";
 import { logPmsCall } from "@/lib/pmsLog";
 
 const WEBHOOK_URL = "/api/aiosell/reservations";
@@ -119,8 +120,11 @@ export async function POST(req: NextRequest) {
 }
 
 function channelPersons(rooms: ReservationPayload["rooms"] | undefined, fallback = 1): number {
-  const n = rooms?.reduce((sum, r) => sum + (r.occupancy?.adults ?? 0) + (r.occupancy?.children ?? 0), 0) ?? 0;
-  return n || fallback;
+  const n = rooms?.reduce(
+    (sum, r) => sum + (Number(r.occupancy?.adults) || 0) + (Number(r.occupancy?.children) || 0),
+    0,
+  ) ?? 0;
+  return n > 0 ? n : fallback;
 }
 
 function channelNightlyRate(
@@ -148,19 +152,25 @@ function fetchedReservationRows(raw: unknown): unknown[] {
   return [];
 }
 
-/** Pull-ingest: create missing refs only. Never rebook a cancelled Goko row from a fetch snapshot. */
+/** Pull-ingest: create missing live refs only. Never rebook an existing Goko row. Never insert a cancel snapshot. */
 export async function ingestFetchedReservations(raw: unknown): Promise<{ imported: number; skipped: number; refs: string[] }> {
   let imported = 0;
   let skipped = 0;
   const refs: string[] = [];
-  for (const row of fetchedReservationRows(raw)) {
+  const rows = fetchedReservationRows(raw);
+  const hotelCode = rows.length ? (await getChannelConfig())?.hotelCode : undefined;
+  for (const row of rows) {
     const payload = parseReservationPayload(row);
     if (!payload) {
       skipped++;
       continue;
     }
+    if (hotelCode && payload.hotelCode !== hotelCode) {
+      skipped++;
+      continue;
+    }
     const existing = await getBookingByRef(payload.bookingId);
-    if (existing) {
+    if (existing || payload.action === "cancel") {
       skipped++;
       continue;
     }
@@ -202,6 +212,65 @@ function extractBookingFields(payload: ReservationPayload) {
   };
 }
 
+async function tryAutoAssignChannelBeds(
+  bookingId: number,
+  payload: ReservationPayload,
+  checkin: string,
+  checkout?: string | null,
+  personsFallback?: number,
+) {
+  const co = exclusiveEndDate(checkin, checkout);
+  if (!checkin || !co) {
+    await addBookingHistoryEntry({
+      bookingId,
+      action: "Unassigned",
+      details: "Invalid stay dates — staff must assign beds",
+      performedBy: "channel_manager",
+    });
+    return;
+  }
+  const mappings = (await getRoomTypeMappings()) || [];
+  const loadTagged = () => getAvailableBedsForRange(checkin, co, undefined, bookingId);
+  const tagged = await loadTagged();
+  const needs = channelBedNeeds({
+    rooms: payload.rooms,
+    roomType: payload.rooms?.map((r) => r.roomCode).join(", ") || "",
+    persons: channelPersons(payload.rooms, personsFallback),
+  });
+  const result = await autoAssignOnlineChannelBeds({
+    bookingId,
+    needs,
+    mappings,
+    tagged,
+    assignBed: ({ bedId, dormId }) => assignBedToBooking({
+      bookingId,
+      bedId,
+      dormId,
+      checkinDate: checkin,
+      checkoutDate: co,
+      assignedBy: "channel_manager",
+      inventoryPool: "online",
+    }),
+    unassignAll: async () => { await unassignBookingBeds(bookingId); },
+    refreshTagged: loadTagged,
+  });
+  if (result.assigned > 0) {
+    await addBookingHistoryEntry({
+      bookingId,
+      action: "Beds Auto-Assigned",
+      details: `Online: ${result.labels.join(", ")}`,
+      performedBy: "channel_manager",
+    });
+    return;
+  }
+  await addBookingHistoryEntry({
+    bookingId,
+    action: "Unassigned",
+    details: `${result.reason || "No online beds in requested room type"}. Assign offline beds or reject.`,
+    performedBy: "channel_manager",
+  });
+}
+
 async function handleNewBooking(payload: ReservationPayload) {
   const existing = await getBookingByRef(payload.bookingId);
   if (existing) {
@@ -212,18 +281,23 @@ async function handleNewBooking(payload: ReservationPayload) {
         cancelledAt: "",
         cancelledBy: "",
       });
+      await unassignBookingBeds(existing.id);
       await addBookingHistoryEntry({
         bookingId: existing.id,
         action: "Rebooked from Channel",
         details: `Cancelled/no-show ref reused via ${payload.channel || "aiosell"}`,
         performedBy: "channel_manager",
       });
+      await tryAutoAssignChannelBeds(
+        existing.id, payload, payload.checkin || existing.checkinDate, payload.checkout || existing.checkoutDate,
+      );
       return respondSuccess("Reservation Created Successfully");
     }
     return respondSuccess("Reservation already exists (duplicate)");
   }
 
-  const bookingId = await addBooking(extractBookingFields(payload));
+  const fields = extractBookingFields(payload);
+  const bookingId = await addBooking(fields);
 
   if (bookingId) {
     await addBookingHistoryEntry({
@@ -232,6 +306,7 @@ async function handleNewBooking(payload: ReservationPayload) {
       details: `New booking via ${payload.channel || "aiosell"} (ref: ${payload.bookingId})`,
       performedBy: "channel_manager",
     });
+    await tryAutoAssignChannelBeds(bookingId, payload, fields.checkinDate, fields.checkoutDate);
   }
 
   return respondSuccess("Reservation Created Successfully");
@@ -298,6 +373,36 @@ async function handleModifyBooking(payload: ReservationPayload) {
     performedBy: "channel_manager",
   });
 
+  if (!closed) {
+    const after = await getBookingDetail(existing.id);
+    const assignedNow = (after?.assignments || []).filter((a) => a.status === "assigned");
+    const needs = channelBedNeeds({
+      rooms: payload.rooms,
+      roomType: roomInfo,
+      persons,
+      rawData: JSON.stringify(payload),
+    });
+    const previousNeedCount = channelBedNeeds({
+      roomType: existing.roomType,
+      persons: existing.persons,
+      rawData: existing.rawData,
+    }).reduce((sum, n) => sum + n.count, 0);
+    if (channelAssignmentNeedsReseat({
+      assignedCount: assignedNow.length,
+      needs,
+      previousNeedCount,
+      previousRoomType: existing.roomType,
+      nextRoomType: roomInfo,
+    })) {
+      if (assignedNow.length > 0) await unassignBookingBeds(existing.id);
+      const assignCheckin = moveDates ? newCheckin : existing.checkinDate;
+      const assignCheckout = moveDates
+        ? (payload.checkout || existing.checkoutDate)
+        : existing.checkoutDate;
+      await tryAutoAssignChannelBeds(existing.id, payload, assignCheckin, assignCheckout, persons);
+    }
+  }
+
   return respondSuccess("Reservation Modified Successfully");
 }
 
@@ -310,6 +415,9 @@ async function handleCancelBooking(payload: ReservationPayload) {
 
   if (existing.status === "cancelled") {
     return respondSuccess("Reservation already cancelled");
+  }
+  if (existing.status === "checked_out" || existing.status === "no_show") {
+    return respondSuccess("Reservation already closed");
   }
 
   const now = new Date().toISOString();
@@ -355,15 +463,19 @@ async function realignAssignments(bookingId: number, newCheckin: string, newChec
   }
   await unassignBookingBeds(bookingId);
   for (const a of assigned) {
-    await assignBedToBooking({
+    const ok = await assignBedToBooking({
       bookingId,
       bedId: a.bedId,
       dormId: a.dormId,
       checkinDate: newCheckin,
       checkoutDate: newCheckout,
       assignedBy: "channel_manager",
-      inventoryPool: "online",
+      inventoryPool: a.inventoryPool === "offline" || a.inventoryPool === "block" ? a.inventoryPool : "online",
     });
+    if (!ok) {
+      await unassignBookingBeds(bookingId);
+      return false;
+    }
   }
   return true;
 }

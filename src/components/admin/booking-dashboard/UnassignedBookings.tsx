@@ -12,24 +12,29 @@ import { platformLogo, stayOverlapsVisible, formatDateCompact } from "./utils";
 import type { DashboardBooking, CalendarDorm, DateRange } from "./types";
 
 type AvailableBed = { id: number; bedId: string; dormId: number; dormName: string; pool?: "online" | "offline" | "block" };
+type DormBeds = { id: number; name: string; beds: AvailableBed[] };
 
 export function UnassignedBookings({
   bookings,
   dateRange,
   onAssign,
+  onReject,
   onClose,
   password,
   username,
   canAssign = true,
+  canReject = false,
 }: {
   bookings: DashboardBooking[];
   dorms: CalendarDorm[];
   dateRange: DateRange;
   onAssign: (bookingId: number, bedIds: number[]) => Promise<boolean>;
+  onReject?: (bookingId: number) => Promise<boolean>;
   onClose: () => void;
   password: string;
   username?: string;
   canAssign?: boolean;
+  canReject?: boolean;
 }) {
   const [assigningId, setAssigningId] = useState<number | null>(null);
   const [selectedBeds, setSelectedBeds] = useState<number[]>([]);
@@ -77,7 +82,7 @@ export function UnassignedBookings({
     setLoadingBeds(true);
     setSelectedBeds([]);
     setBedsError("");
-    const payload: Record<string, unknown> = { password, action: "getAvailableBeds", checkinDate, checkoutDate, bookingId: booking.id };
+    const payload: Record<string, unknown> = { password, action: "getAvailableBeds", checkinDate, checkoutDate };
     if (username) payload.username = username;
     let cancelled = false;
     (async () => {
@@ -109,7 +114,7 @@ export function UnassignedBookings({
   }, [assigningId, bookings, password, username]);
 
   const availableBeds = useMemo(() => {
-    const dormMap = new Map<number, { id: number; name: string; beds: AvailableBed[] }>();
+    const dormMap = new Map<number, DormBeds>();
     for (const bed of rangeBeds) {
       if (!dormMap.has(bed.dormId)) {
         dormMap.set(bed.dormId, { id: bed.dormId, name: bed.dormName, beds: [] });
@@ -125,14 +130,51 @@ export function UnassignedBookings({
     );
   }, []);
 
-  const handleAssign = async (bookingId: number) => {
-    if (selectedBeds.length === 0) {
-      showError("Select at least one bed");
+  const bedsNeeded = (booking: DashboardBooking) =>
+    booking.requestedBedCount || booking.persons || 1;
+
+  const bedById = useCallback((id: number) => rangeBeds.find((b) => b.id === id), [rangeBeds]);
+
+  const isOverflowSelection = (booking: DashboardBooking, selected: number[]) => {
+    const requested = new Set(booking.requestedDormIds || []);
+    if (requested.size === 0) return false;
+    return selected.some((id) => {
+      const bed = bedById(id);
+      return !!bed && !requested.has(bed.dormId);
+    });
+  };
+
+  const canSelectBed = (bed: AvailableBed, booking: DashboardBooking) => {
+    if (selectedBeds.includes(bed.id)) return true;
+    if (selectedBeds.length >= bedsNeeded(booking)) return false;
+    const requested = new Set(booking.requestedDormIds || []);
+    const overflow = isOverflowSelection(booking, selectedBeds) || (requested.size > 0 && !requested.has(bed.dormId));
+    if (overflow) return true;
+    const quota = (booking.requestedNeeds || []).find((n) => n.dormId === bed.dormId)?.count;
+    if (quota == null) return true;
+    const inDorm = selectedBeds.filter((id) => bedById(id)?.dormId === bed.dormId).length;
+    return inDorm < quota;
+  };
+
+  const handleAssign = async (booking: DashboardBooking) => {
+    const need = bedsNeeded(booking);
+    if (selectedBeds.length !== need) {
+      showError(`Select ${need} bed${need !== 1 ? "s" : ""} (one per person)`);
       return;
+    }
+    const quotas = booking.requestedNeeds || [];
+    if (quotas.length > 0 && !isOverflowSelection(booking, selectedBeds)) {
+      const mismatch = quotas.some((n) =>
+        selectedBeds.filter((id) => bedById(id)?.dormId === n.dormId).length !== n.count,
+      );
+      if (mismatch) {
+        showError(`Assign ${booking.requestedNeedLabels} (one per person in those room types)`);
+        return;
+      }
     }
     setBusy(true);
     try {
-      const ok = await onAssign(bookingId, selectedBeds);
+      const ok = await onAssign(booking.id, selectedBeds);
       if (!ok) return;
       setAssigningId(null);
       setSelectedBeds([]);
@@ -143,6 +185,67 @@ export function UnassignedBookings({
     }
   };
 
+  const handleReject = async (bookingId: number) => {
+    if (!onReject) return;
+    if (!window.confirm("Reject removes this stay from Goko only. It does not cancel the OTA booking. Cancel it on Booking.com / the channel too, or the guest will still arrive.")) return;
+    setBusy(true);
+    try {
+      const ok = await onReject(bookingId);
+      if (ok && assigningId === bookingId) {
+        setAssigningId(null);
+        setSelectedBeds([]);
+      }
+    } catch {
+      showError("Failed to reject booking");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const renderDorm = (dorm: DormBeds, booking: DashboardBooking) => {
+    const quota = (booking.requestedNeeds || []).find((n) => n.dormId === dorm.id)?.count;
+    const picked = selectedBeds.filter((id) => bedById(id)?.dormId === dorm.id).length;
+    return (
+    <div key={dorm.id} className="rounded-lg border border-border bg-white p-2 dark:bg-card">
+      <div className="mb-1.5 text-[11px] font-semibold text-foreground">
+        {dorm.name}
+        {quota != null && (
+          <span className="ml-1 font-normal text-muted-foreground">({picked}/{quota})</span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {dorm.beds.map((bed) => {
+          const isSelected = selectedBeds.includes(bed.id);
+          const pool = bed.pool ?? "online";
+          const allowed = canSelectBed(bed, booking);
+          return (
+            <button
+              key={bed.id}
+              type="button"
+              disabled={!isSelected && !allowed}
+              onClick={() => allowed && toggleBed(bed.id)}
+              className={cn(
+                "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                !isSelected && !allowed && "cursor-not-allowed opacity-40",
+                isSelected && pool === "online" && "border-sky-600 bg-sky-100 text-sky-800",
+                isSelected && pool === "offline" && "border-emerald-600 bg-emerald-100 text-emerald-800",
+                isSelected && pool === "block" && "border-orange-500 bg-orange-100 text-orange-800",
+                !isSelected && allowed && pool === "online" && "border-sky-200 bg-sky-50/80 text-sky-800 hover:bg-sky-100",
+                !isSelected && allowed && pool === "offline" && "border-emerald-200 bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100",
+                !isSelected && allowed && pool === "block" && "border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100",
+              )}
+            >
+              {isSelected && <CheckIcon className="size-3" />}
+              {bed.bedId}
+              {pool === "offline" && <span className="text-[9px] opacity-70">off</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+    );
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, height: 0 }}
@@ -151,16 +254,21 @@ export function UnassignedBookings({
       className="overflow-hidden rounded-xl border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20"
     >
       <div className="flex items-center justify-between border-b border-orange-200 px-4 py-2 dark:border-orange-800">
-        <div className="flex items-center gap-2">
-          <AlertCircleIcon className="size-4 text-orange-600 dark:text-orange-400" />
-          <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300">
-            Unassigned Bookings ({bookings.length})
-          </h3>
-          {offCalendarCount > 0 && (
-            <span className="text-[11px] font-normal text-orange-700 dark:text-orange-400">
-              {offCalendarCount} outside current dates
-            </span>
-          )}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <AlertCircleIcon className="size-4 text-orange-600 dark:text-orange-400" />
+            <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300">
+              Unassigned Bookings ({bookings.length})
+            </h3>
+            {offCalendarCount > 0 && (
+              <span className="text-[11px] font-normal text-orange-700 dark:text-orange-400">
+                {offCalendarCount} outside current dates
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-[11px] text-orange-800/80 dark:text-orange-300/80">
+            Online beds in the requested room type were full. Assign offline beds (one per person) or reject.
+          </p>
         </div>
         <Button variant="ghost" size="icon-sm" onClick={onClose}>
           <XIcon className="size-4" />
@@ -181,9 +289,21 @@ export function UnassignedBookings({
             dateRange.startDate,
             dateRange.endDate,
           );
+          const need = bedsNeeded(booking);
+          const roomLabel = booking.requestedDormNames?.length
+            ? `${booking.requestedDormNames.join(", ")} (${(booking.requestedRoomCodes || []).join(", ")})`
+            : booking.roomType || "Unknown room type";
+          const requestedIds = new Set(booking.requestedDormIds || []);
+          const quotas = booking.requestedNeeds || [];
+          const requestedDorms = requestedIds.size
+            ? availableBeds.filter((d) => requestedIds.has(d.id))
+            : availableBeds;
+          const otherDorms = requestedIds.size
+            ? availableBeds.filter((d) => !requestedIds.has(d.id))
+            : [];
           return (
             <div key={booking.id} className="p-3">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     {platform && (
@@ -199,34 +319,52 @@ export function UnassignedBookings({
                     )}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    {formatDateCompact(booking.checkinDate)} – {booking.checkoutDate ? formatDateCompact(booking.checkoutDate) : "—"} | {booking.persons} person{booking.persons !== 1 ? "s" : ""}
+                    {formatDateCompact(booking.checkinDate)} – {booking.checkoutDate ? formatDateCompact(booking.checkoutDate) : "—"} | {need} bed{need !== 1 ? "s" : ""} ({booking.persons} person{booking.persons !== 1 ? "s" : ""})
                     {booking.bookingRef ? ` | ${booking.bookingRef}` : ""}
                   </div>
+                  <div className="mt-0.5 text-xs font-medium text-orange-900 dark:text-orange-200">
+                    Requested: {booking.requestedNeedLabels || roomLabel}
+                  </div>
                 </div>
-                {canAssign && (
-                  !isAssigning ? (
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => { setAssigningId(booking.id); setSelectedBeds([]); }}
-                  >
-                    Assign
-                  </Button>
-                  ) : (
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => { setAssigningId(null); setSelectedBeds([]); }}
-                  >
-                    <XIcon className="size-3" />
-                  </Button>
-                  )
-                )}
+                <div className="flex shrink-0 items-center gap-1">
+                  {canReject && onReject && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-50"
+                      disabled={busy}
+                      onClick={() => handleReject(booking.id)}
+                    >
+                      Reject
+                    </Button>
+                  )}
+                  {canAssign && (
+                    !isAssigning ? (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => { setAssigningId(booking.id); setSelectedBeds([]); }}
+                    >
+                      Assign
+                    </Button>
+                    ) : (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => { setAssigningId(null); setSelectedBeds([]); }}
+                    >
+                      <XIcon className="size-3" />
+                    </Button>
+                    )
+                  )}
+                </div>
               </div>
 
-              {/* Bed picker */}
               {isAssigning && (
                 <div className="mt-3 space-y-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    Pick {need} bed{need !== 1 ? "s" : ""}{booking.requestedNeedLabels ? ` (${booking.requestedNeedLabels})` : ""} — one per person for the whole stay. Green chips are offline (walk-in) beds. Reject is Goko-only; cancel the OTA separately.
+                  </p>
                   {loadingBeds ? (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Loader2Icon className="size-3.5 animate-spin" /> Loading available beds...
@@ -236,45 +374,34 @@ export function UnassignedBookings({
                   ) : availableBeds.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No beds available for this stay.</p>
                   ) : (
-                    availableBeds.map((dorm) => (
-                    <div key={dorm.id} className="rounded-lg border border-border bg-white p-2 dark:bg-card">
-                      <div className="mb-1.5 text-[11px] font-semibold text-foreground">{dorm.name}</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {dorm.beds.map((bed) => {
-                          const isSelected = selectedBeds.includes(bed.id);
-                          const pool = bed.pool ?? "online";
-                          return (
-                            <button
-                              key={bed.id}
-                              type="button"
-                              onClick={() => toggleBed(bed.id)}
-                              className={cn(
-                                "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
-                                isSelected && pool === "online" && "border-sky-600 bg-sky-100 text-sky-800",
-                                isSelected && pool === "offline" && "border-emerald-600 bg-emerald-100 text-emerald-800",
-                                isSelected && pool === "block" && "border-orange-500 bg-orange-100 text-orange-800",
-                                !isSelected && pool === "online" && "border-sky-200 bg-sky-50/80 text-sky-800 hover:bg-sky-100",
-                                !isSelected && pool === "offline" && "border-emerald-200 bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100",
-                                !isSelected && pool === "block" && "border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100",
-                              )}
-                            >
-                              {isSelected && <CheckIcon className="size-3" />}
-                              {bed.bedId}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    ))
+                    <>
+                      {requestedDorms.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-orange-800">
+                            {quotas.length > 1 ? "Requested rooms" : "Requested room"}
+                          </div>
+                          {requestedDorms.map((d) => renderDorm(d, booking))}
+                        </div>
+                      )}
+                      {otherDorms.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Other rooms (overflow)</div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Use only if leftover beds in the requested type are gone. Overflow does not have to match the room-type split.
+                          </p>
+                          {otherDorms.map((d) => renderDorm(d, booking))}
+                        </div>
+                      )}
+                    </>
                   )}
                   <div className="flex justify-end gap-2 pt-1">
                     <Button
                       size="xs"
-                      onClick={() => handleAssign(booking.id)}
-                      disabled={selectedBeds.length === 0 || busy || loadingBeds}
+                      onClick={() => handleAssign(booking)}
+                      disabled={selectedBeds.length !== need || busy || loadingBeds}
                     >
                       {busy && <Loader2Icon className="size-3 animate-spin" />}
-                      Assign {selectedBeds.length} bed{selectedBeds.length !== 1 ? "s" : ""}
+                      Assign {selectedBeds.length}/{need} bed{need !== 1 ? "s" : ""}
                     </Button>
                   </div>
                 </div>

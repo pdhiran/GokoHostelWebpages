@@ -271,6 +271,8 @@ export function BookingDashboard({
             password={password}
             username={username}
             canAssign={hasPermission(role, permissions, "canAddBooking")}
+            canReject={hasPermission(role, permissions, "canDeleteBooking")}
+            onReject={async (bookingId) => handleBookingAction("cancelBooking", bookingId)}
           />
         </div>
       )}

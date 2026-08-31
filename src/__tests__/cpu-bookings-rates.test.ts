@@ -12,6 +12,7 @@ const q = vi.hoisted(() => ({
   validateBedsForRange: vi.fn(),
   assignBedToBooking: vi.fn(),
   unassignBookingBeds: vi.fn(),
+  unassignBookingBedsByBedIds: vi.fn(),
   cancelBedAssignments: vi.fn(),
   addBookingHistoryEntry: vi.fn(),
   getBookingHistoryEntries: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock("@/db/queries", () => ({
   validateBedsForRange: q.validateBedsForRange,
   assignBedToBooking: q.assignBedToBooking,
   unassignBookingBeds: q.unassignBookingBeds,
+  unassignBookingBedsByBedIds: q.unassignBookingBedsByBedIds,
   cancelBedAssignments: q.cancelBedAssignments,
   addBookingHistoryEntry: q.addBookingHistoryEntry,
   getBookingHistoryEntries: q.getBookingHistoryEntries,
@@ -95,15 +97,40 @@ describe("Bookings calendar and rates workflows", () => {
     expect((await POST(req({ password: "bad", action: "getAvailableBeds", checkinDate: "2026-09-01", checkoutDate: "2026-09-02" }))).status).toBe(401);
   });
 
-  it("getUnassigned returns open bookings with no assigned bed", async () => {
+  it("getUnassigned returns open bookings with requested room type and one bed per person", async () => {
     q.getUnassignedBookings.mockResolvedValue([
-      { id: 9, guestName: "Ada", checkinDate: "2027-01-01", checkoutDate: "2027-01-03", source: "channel_manager" },
+      {
+        id: 9,
+        guestName: "Ada",
+        checkinDate: "2027-01-01",
+        checkoutDate: "2027-01-03",
+        source: "channel_manager",
+        roomType: "executive",
+        persons: 2,
+      },
+    ]);
+    q.getRoomTypeMappings.mockResolvedValue([
+      { dormId: 8, channelRoomCode: "executive", isActive: 1, dormName: "Executive" },
     ]);
     const res = await POST(req({ password: "x", action: "getUnassigned" }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.bookings).toEqual([
-      { id: 9, guestName: "Ada", checkinDate: "2027-01-01", checkoutDate: "2027-01-03", source: "channel_manager" },
+      {
+        id: 9,
+        guestName: "Ada",
+        checkinDate: "2027-01-01",
+        checkoutDate: "2027-01-03",
+        source: "channel_manager",
+        roomType: "executive",
+        persons: 2,
+        requestedRoomCodes: ["executive"],
+        requestedDormIds: [8],
+        requestedDormNames: ["Executive"],
+        requestedBedCount: 2,
+        requestedNeedLabels: "2 Executive",
+        requestedNeeds: [{ dormId: 8, count: 2, name: "Executive" }],
+      },
     ]);
   });
 
@@ -414,7 +441,7 @@ describe("Bookings calendar and rates workflows", () => {
     expect(q.updateBookingFull).not.toHaveBeenCalled();
   });
 
-  it("assignBeds on a channel_manager booking occupies an online slot and does not push Aiosell", async () => {
+  it("assignBeds on a channel_manager overflow stay keeps the offline chip pool and does not push Aiosell", async () => {
     q.getBookingDetail.mockResolvedValue({
       booking: {
         checkinDate: "2026-09-05",
@@ -440,7 +467,7 @@ describe("Bookings calendar and rates workflows", () => {
       bedId: 7,
       checkinDate: "2026-09-05",
       checkoutDate: "2026-09-06",
-      inventoryPool: "online",
+      inventoryPool: "offline",
     }));
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });
@@ -491,6 +518,118 @@ describe("Bookings calendar and rates workflows", () => {
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });
 
+  it("rolls back the first bed when the second assignBeds write fails", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-07",
+        status: "received",
+        source: "channel_manager",
+      },
+      assignments: [],
+    });
+    q.validateBedsForRange.mockResolvedValue(null);
+    q.getBedById.mockImplementation(async (id: number) => (
+      id === 7 || id === 8
+        ? { id, bedId: `E${id}`, dormId: 9, dormName: "Executive" }
+        : null
+    ));
+    q.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "E7", dormId: 9, dormName: "Executive", pool: "offline" },
+      { id: 8, bedId: "E8", dormId: 9, dormName: "Executive", pool: "offline" },
+    ]);
+    q.assignBedToBooking.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    const res = await POST(req({ password: "x", action: "assignBeds", bookingId: 42, bedIds: [7, 8] }));
+    expect(res.status).toBe(409);
+    expect(q.unassignBookingBedsByBedIds).toHaveBeenCalledWith(42, [7]);
+    expect(q.addBookingHistoryEntry).not.toHaveBeenCalled();
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
+  it("assignBeds 400s when the pick count is not one bed per person", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "channel_manager",
+        roomType: "executive",
+        persons: 2,
+      },
+      assignments: [],
+    });
+    q.getRoomTypeMappings.mockResolvedValue([
+      { dormId: 8, channelRoomCode: "executive", isActive: 1, dormName: "Executive" },
+    ]);
+    q.getBedById.mockResolvedValue({ id: 7, bedId: "E1", dormId: 8, dormName: "Executive" });
+
+    const res = await POST(req({ password: "x", action: "assignBeds", bookingId: 42, bedIds: [7] }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/2 bed/);
+    expect(q.assignBedToBooking).not.toHaveBeenCalled();
+  });
+
+  it("assignBeds 400s when mixed types are all tagged in one dorm", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "channel_manager",
+        roomType: "executive, dorm-6",
+        persons: 3,
+      },
+      assignments: [],
+    });
+    q.getRoomTypeMappings.mockResolvedValue([
+      { dormId: 8, channelRoomCode: "executive", isActive: 1, dormName: "Executive" },
+      { dormId: 9, channelRoomCode: "dorm-6", isActive: 1, dormName: "Dorm 1" },
+    ]);
+    q.validateBedsForRange.mockResolvedValue(null);
+    q.getBedById.mockImplementation(async (id: number) => ({
+      id, bedId: `E${id}`, dormId: 8, dormName: "Executive",
+    }));
+
+    const res = await POST(req({ password: "x", action: "assignBeds", bookingId: 42, bedIds: [7, 8, 9] }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Executive/);
+    expect(q.assignBedToBooking).not.toHaveBeenCalled();
+  });
+
+  it("assignBeds allows overflow beds in another dorm when leftover requested chips are gone", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        checkinDate: "2026-09-05",
+        checkoutDate: "2026-09-06",
+        status: "received",
+        source: "channel_manager",
+        roomType: "executive",
+        persons: 2,
+      },
+      assignments: [],
+    });
+    q.getRoomTypeMappings.mockResolvedValue([
+      { dormId: 8, channelRoomCode: "executive", isActive: 1, dormName: "Executive" },
+    ]);
+    q.validateBedsForRange.mockResolvedValue(null);
+    q.getBedById.mockImplementation(async (id: number) => ({
+      id, bedId: `D${id}`, dormId: 9, dormName: "Dorm 1",
+    }));
+    q.getAvailableBedsForRange.mockResolvedValue([
+      { id: 7, bedId: "D7", dormId: 9, dormName: "Dorm 1", pool: "offline" },
+      { id: 8, bedId: "D8", dormId: 9, dormName: "Dorm 1", pool: "offline" },
+    ]);
+    q.assignBedToBooking.mockResolvedValue(true);
+
+    const res = await POST(req({ password: "x", action: "assignBeds", bookingId: 42, bedIds: [7, 8] }));
+    expect(res.status).toBe(200);
+    expect(q.assignBedToBooking).toHaveBeenCalledTimes(2);
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+  });
+
   it("unassign and cancel on a channel_manager booking do not push Aiosell", async () => {
     const cm = {
       booking: {
@@ -525,7 +664,7 @@ describe("Bookings calendar and rates workflows", () => {
     expect(pushIfOtaChanged).toHaveBeenCalled();
   });
 
-  it("moveRoom on a channel_manager booking keeps the online pool and does not push", async () => {
+  it("moveRoom on a channel_manager booking stores the destination chip pool and does not push", async () => {
     q.getBookingDetail.mockResolvedValue({
       booking: {
         checkinDate: "2026-09-05",
@@ -547,7 +686,7 @@ describe("Bookings calendar and rates workflows", () => {
     expect(res.status).toBe(200);
     expect(q.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
       bedId: 8,
-      inventoryPool: "online",
+      inventoryPool: "offline",
     }));
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });
@@ -658,7 +797,7 @@ describe("Bookings calendar and rates workflows", () => {
     expect(q.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
       bookingId: 42,
       bedId: 7,
-      inventoryPool: "online",
+      inventoryPool: "offline",
     }));
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });

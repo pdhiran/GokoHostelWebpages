@@ -151,7 +151,9 @@ export function countUnassignedOtaRooms(
   channelRoomCodes: string[],
   bookings: Array<{ roomType?: string | null; rawData?: string | null }>,
 ): number {
-  const codes = new Set(channelRoomCodes.filter(Boolean));
+  const codes = new Set(
+    channelRoomCodes.map((c) => (c || "").trim().toLowerCase()).filter(Boolean),
+  );
   if (codes.size === 0) return 0;
   let n = 0;
   for (const b of bookings) {
@@ -159,12 +161,12 @@ export function countUnassignedOtaRooms(
       const raw = JSON.parse(b.rawData || "null") as { rooms?: Array<{ roomCode?: string }> } | null;
       const rooms = raw?.rooms;
       if (Array.isArray(rooms) && rooms.length > 0) {
-        n += rooms.filter((r) => r?.roomCode && codes.has(r.roomCode)).length;
+        n += rooms.filter((r) => r?.roomCode && codes.has(r.roomCode.trim().toLowerCase())).length;
         continue;
       }
     } catch { /* roomType fallback */ }
     for (const part of (b.roomType || "").split(",")) {
-      if (codes.has(part.trim())) n += 1;
+      if (codes.has(part.trim().toLowerCase())) n += 1;
     }
   }
   return n;

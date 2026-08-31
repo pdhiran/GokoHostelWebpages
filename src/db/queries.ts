@@ -1619,13 +1619,19 @@ export async function getUnassignedOtaRoomCountForDorm(dormId: number, date: str
       sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')`,
       lte(bookings.checkinDate, date),
       sql`(
-        (${bookings.checkoutDate} != '' AND ${bookings.checkoutDate} > ${date})
-        OR ((${bookings.checkoutDate} IS NULL OR ${bookings.checkoutDate} = '') AND ${bookings.checkinDate} = ${date})
+        CASE
+          WHEN ${bookings.checkoutDate} IS NULL
+            OR ${bookings.checkoutDate} = ''
+            OR ${bookings.checkoutDate} <= ${bookings.checkinDate}
+          THEN date(${bookings.checkinDate}, '+1 day')
+          ELSE ${bookings.checkoutDate}
+        END > ${date}
       )`,
       sql`NOT EXISTS (
         SELECT 1 FROM ${bookingBedAssignments}
         WHERE ${bookingBedAssignments.bookingId} = ${bookings.id}
           AND ${bookingBedAssignments.status} = 'assigned'
+          AND coalesce(${bookingBedAssignments.inventoryPool}, 'online') = 'online'
       )`,
     ),
   );
@@ -1653,13 +1659,19 @@ export async function getUnassignedOtaHoldsForRange(
       sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')`,
       sql`${bookings.checkinDate} < ${endExclusive}`,
       sql`(
-        (${bookings.checkoutDate} != '' AND ${bookings.checkoutDate} > ${startDate})
-        OR ((${bookings.checkoutDate} IS NULL OR ${bookings.checkoutDate} = '') AND ${bookings.checkinDate} >= ${startDate} AND ${bookings.checkinDate} < ${endExclusive})
+        CASE
+          WHEN ${bookings.checkoutDate} IS NULL
+            OR ${bookings.checkoutDate} = ''
+            OR ${bookings.checkoutDate} <= ${bookings.checkinDate}
+          THEN date(${bookings.checkinDate}, '+1 day')
+          ELSE ${bookings.checkoutDate}
+        END > ${startDate}
       )`,
       sql`NOT EXISTS (
         SELECT 1 FROM ${bookingBedAssignments}
         WHERE ${bookingBedAssignments.bookingId} = ${bookings.id}
           AND ${bookingBedAssignments.status} = 'assigned'
+          AND coalesce(${bookingBedAssignments.inventoryPool}, 'online') = 'online'
       )`,
     ),
   );
@@ -1813,6 +1825,18 @@ export async function unassignBookingBeds(bookingId: number) {
   return db.update(bookingBedAssignments)
     .set({ status: "unassigned" })
     .where(and(eq(bookingBedAssignments.bookingId, bookingId), eq(bookingBedAssignments.status, "assigned")));
+}
+
+export async function unassignBookingBedsByBedIds(bookingId: number, bedIds: number[]) {
+  if (bedIds.length === 0) return;
+  const db = getDb();
+  return db.update(bookingBedAssignments)
+    .set({ status: "unassigned" })
+    .where(and(
+      eq(bookingBedAssignments.bookingId, bookingId),
+      eq(bookingBedAssignments.status, "assigned"),
+      inArray(bookingBedAssignments.bedId, bedIds),
+    ));
 }
 
 export async function shortenAssignedCheckout(bookingId: number, newCheckout: string) {

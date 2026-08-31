@@ -31,6 +31,7 @@ const { captured, q } = vi.hoisted(() => {
       getBookingDetail: vi.fn(),
       checkBedAvailability: vi.fn(),
       assignBedToBooking: vi.fn(),
+      getAvailableBedsForRange: vi.fn(),
       updateChannelSyncTime: vi.fn(),
       getDirtyInventory: vi.fn(),
       clearDirtyInventory: vi.fn(),
@@ -169,6 +170,8 @@ describe("Webhook auth combinations", () => {
     q.getChannelConfig.mockResolvedValue(activeConfig);
     q.getBookingByRef.mockResolvedValue(null);
     q.addBooking.mockResolvedValue(88);
+    q.getAvailableBedsForRange.mockResolvedValue([]);
+    q.getRoomTypeMappings.mockResolvedValue(mappings);
     triggerInventoryPush.mockReset();
   });
 
@@ -227,9 +230,13 @@ describe("Webhook reservation combinations", () => {
     q.getChannelConfig.mockResolvedValue(activeConfig);
     q.getBookingByRef.mockResolvedValue(null);
     q.addBooking.mockResolvedValue(88);
+    q.getAvailableBedsForRange.mockResolvedValue([]);
+    q.getRoomTypeMappings.mockResolvedValue(mappings);
     q.getBookingDetail.mockResolvedValue({ assignments: [] });
     q.checkBedAvailability.mockResolvedValue(true);
     q.assignBedToBooking.mockResolvedValue(true);
+    q.getAvailableBedsForRange.mockResolvedValue([]);
+    q.getRoomTypeMappings.mockResolvedValue(mappings);
     triggerInventoryPush.mockReset();
     triggerInventoryPush.mockResolvedValue(undefined);
   });
@@ -286,6 +293,44 @@ describe("Webhook reservation combinations", () => {
       checkoutDate: "2026-09-06",
     }));
     expect(q.assignBedToBooking).not.toHaveBeenCalled();
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("auto-assigns 1 online bed per person for any mapped room type and does not push", async () => {
+    q.getAvailableBedsForRange.mockResolvedValue([
+      { id: 11, bedId: "D1", dormId: 9, dormName: "Dorm 1", pool: "online" },
+      { id: 12, bedId: "D2", dormId: 9, dormName: "Dorm 1", pool: "online" },
+      { id: 90, bedId: "DOFF", dormId: 9, dormName: "Dorm 1", pool: "offline" },
+    ]);
+    const res = await reservationsPOST(jsonReq("http://localhost/api/aiosell/reservations", bookPayload({
+      bookingId: "HW-2P",
+      channel: "hostelworld",
+      checkin: "2026-09-05",
+      checkout: "2026-09-07",
+      rooms: [{
+        roomCode: "dorm-6",
+        rateplanCode: "STD",
+        occupancy: { adults: 2, children: 0 },
+        prices: [
+          { date: "2026-09-05", sellRate: 800 },
+          { date: "2026-09-06", sellRate: 800 },
+        ],
+      }],
+    }), { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(q.assignBedToBooking).toHaveBeenCalledTimes(2);
+    expect(q.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bedId: 11,
+      dormId: 9,
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-07",
+      inventoryPool: "online",
+    }));
+    expect(q.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bedId: 12,
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-07",
+    }));
     expect(triggerInventoryPush).not.toHaveBeenCalled();
   });
 
@@ -590,6 +635,8 @@ describe("Fetch reservation ingest", () => {
     q.getChannelConfig.mockResolvedValue(activeConfig);
     q.getBookingByRef.mockResolvedValue(null);
     q.addBooking.mockResolvedValue(201);
+    q.getAvailableBedsForRange.mockResolvedValue([]);
+    q.getRoomTypeMappings.mockResolvedValue(mappings);
     vi.mocked(authenticateUser).mockResolvedValue(admin);
     fetchFromAiosell.mockReset();
   });

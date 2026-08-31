@@ -101,8 +101,8 @@ describe("Booking Dashboard: modifyCheckin Scenarios", () => {
 
     expect(section).toContain("isEarlier = newCheckinDate < oldCheckin");
     expect(section).toContain("Late check-in");
-    expect(section).toContain("await unassignBookingBeds(bookingId)");
-    expect(section).toContain("checkinDate: newCheckinDate, checkoutDate: oldCheckout");
+    expect(section).toContain("reassignSameBeds(bookingId, currentAssignments, newCheckinDate, oldCheckout");
+    expect(routeCode).toContain("await unassignBookingBeds(bookingId)");
   });
 
   it("handles CI-2: late check-in where new >= checkout — returns 400 error", () => {
@@ -406,6 +406,16 @@ describe("Booking calendar UI permissions match the API keys", () => {
     expect(unassigned).toContain("Off this calendar");
     expect(unassigned).toContain("stayOverlapsVisible");
     expect(unassigned).toContain("dateRange,");
+    expect(unassigned).toContain("Requested:");
+    expect(unassigned).toContain("one per person");
+    expect(unassigned).toContain("Reject");
+    expect(unassigned).toContain("Reject removes this stay from Goko only");
+    expect(unassigned).toContain("requestedNeedLabels");
+    expect(unassigned).toContain("requestedDormIds");
+    expect(dashboard).toContain("canReject={hasPermission(role, permissions, \"canDeleteBooking\")}");
+    expect(dashboard).toContain("handleBookingAction(\"cancelBooking\", bookingId)");
+    expect(unassigned).toContain('action: "getAvailableBeds", checkinDate, checkoutDate }');
+    expect(unassigned).not.toContain("bookingId: booking.id");
     const selector = readFile("src/components/admin/booking-dashboard/DateRangeSelector.tsx");
     expect(selector).toContain("[dateRange.startDate, dateRange.endDate]");
   });
@@ -490,7 +500,7 @@ describe("Unassigned bookings: same availability as New Booking", () => {
 
   it("loads beds for the booking stay via getAvailableBeds, not calendar occupancy", () => {
     expect(unassigned).toContain('action: "getAvailableBeds"');
-    expect(unassigned).toContain("bookingId: booking.id");
+    expect(unassigned).not.toContain("bookingId: booking.id");
     expect(unassigned).toContain("exclusiveEndDate");
     expect(unassigned).not.toContain("!bed.isBlocked");
     expect(unassigned).toContain("bedsError");
