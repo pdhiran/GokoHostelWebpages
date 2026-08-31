@@ -47,6 +47,19 @@ describe("parseReservationPayload", () => {
     expect(result!.rooms?.length).toBe(1);
   });
 
+  it("parses a valid 'modify' payload", () => {
+    const result = parseReservationPayload({
+      action: "modify",
+      hotelCode: "GOKO-001",
+      bookingId: "BK-123456",
+      checkin: "2026-07-02",
+      checkout: "2026-07-04",
+    });
+    expect(result).not.toBeNull();
+    expect(result!.action).toBe("modify");
+    expect(result!.checkin).toBe("2026-07-02");
+  });
+
   it("parses a valid 'cancel' payload", () => {
     const payload = {
       action: "cancel",

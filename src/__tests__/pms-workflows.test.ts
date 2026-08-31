@@ -25,6 +25,7 @@ const { captured, queryMocks } = vi.hoisted(() => {
       deleteRatePlanMapping: vi.fn(),
       getDailyRates: vi.fn(),
       upsertDailyRate: vi.fn(),
+      upsertChannelRate: vi.fn(),
       bulkUpsertDailyRates: vi.fn(),
       getAllDorms: vi.fn(),
       getAllBeds: vi.fn(),
@@ -60,7 +61,7 @@ import {
 } from "@/db/queries";
 import { authenticateUser } from "@/lib/auth";
 import { triggerRatePush, triggerRestrictionPush, triggerInventoryPush } from "@/lib/aiosellSync";
-import { pushInventory, pushRates, pushNoShow, fetchFromAiosell, type AiosellConfig } from "@/lib/aiosell";
+import { pushInventory, pushRates, pushNoShow, fetchFromAiosell, pushRateRestrictions, pushInventoryRestrictions, type AiosellConfig } from "@/lib/aiosell";
 import { POST as reservationsPOST } from "@/app/api/aiosell/reservations/route";
 import { POST as channelManagerPOST } from "@/app/api/admin/channel-manager/route";
 import { POST as inventoryPOST } from "@/app/api/admin/inventory/route";
@@ -240,6 +241,30 @@ describe("PMS outbound workflows (mocked Aiosell HTTP)", () => {
       startDate: "2026-08-28",
       endDate: "2026-08-30",
     });
+  });
+
+  it("rate-restriction and inventory-restriction pushes log as restriction, not rate", async () => {
+    fetchMock.mockResolvedValue(jsonRes({ success: true }));
+    await pushRateRestrictions(CFG, [{
+      startDate: "2026-08-28", endDate: "2026-08-28",
+      rates: [{ roomCode: "executive", rateplanCode: "executive-s-ep", restrictions: { stopSell: true } as never }],
+    }]);
+    expect(lastLog().type).toBe("restriction");
+    expect(lastLog().url).toContain("/api/v2/cm/update-rates/");
+    await pushInventoryRestrictions(CFG, [{
+      startDate: "2026-08-28", endDate: "2026-08-28",
+      rooms: [{ roomCode: "executive", restrictions: { stopSell: false } as never }],
+    }]);
+    expect(lastLog().type).toBe("restriction");
+    expect(lastLog().url).toContain("/api/v2/cm/update/");
+  });
+
+  it("fetch rates and reservation are pull logs with the type in the name", async () => {
+    fetchMock.mockResolvedValue(jsonRes({ success: true, data: [] }));
+    await fetchFromAiosell(CFG, "rates", "2026-09-05", "2026-09-07");
+    expect(lastLog()).toMatchObject({ direction: "pull", type: "fetch (rates)" });
+    await fetchFromAiosell(CFG, "reservation", "2026-09-05", "2026-09-07");
+    expect(lastLog()).toMatchObject({ direction: "pull", type: "fetch (reservation)" });
   });
 });
 
@@ -888,6 +913,8 @@ describe("Restriction and rate adjustment workflows", () => {
     queryMocks.getDailyRates.mockReset();
     queryMocks.upsertDailyRate.mockReset();
     queryMocks.upsertDailyRate.mockResolvedValue(undefined);
+    queryMocks.upsertChannelRate.mockReset();
+    queryMocks.upsertChannelRate.mockResolvedValue(undefined);
     vi.mocked(triggerRatePush).mockReset();
     vi.mocked(triggerRatePush).mockResolvedValue(undefined);
     vi.mocked(triggerRestrictionPush).mockReset();
@@ -1162,6 +1189,24 @@ describe("Restriction and rate adjustment workflows", () => {
       ratePlanId: 11, date: "2026-09-01", rate: 800, adult1Rate: 800, stopSell: 0,
     }));
     expect(triggerRatePush).toHaveBeenCalledWith(["2026-09-01"], [10, 11]);
+  });
+
+  it("bulkSetRates with channelId writes channel_rates and does not push daily_rates to Aiosell", async () => {
+    queryMocks.upsertChannelRate.mockResolvedValue(undefined);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRates",
+      ratePlanIds: [10],
+      dates: ["2026-09-01"],
+      channelId: 3,
+      adult1Rate: 4100,
+    });
+    expect(res.status).toBe(200);
+    expect(queryMocks.upsertChannelRate).toHaveBeenCalledWith(expect.objectContaining({
+      ratePlanId: 10, channelId: 3, date: "2026-09-01", adult1Rate: 4100,
+    }));
+    expect(queryMocks.upsertDailyRate).not.toHaveBeenCalled();
+    expect(triggerRatePush).not.toHaveBeenCalled();
   });
 
   it("bulkSetRates still accepts singular ratePlanId", async () => {

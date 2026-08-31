@@ -234,7 +234,8 @@ export async function POST(req: NextRequest) {
           count++;
         }
       }
-      await triggerRatePush(filteredDates, ids).catch(() => {});
+      // Channel-only rates live in channel_rates; triggerRatePush reads daily_rates.
+      if (!channelId) await triggerRatePush(filteredDates, ids).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 

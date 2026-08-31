@@ -315,6 +315,56 @@ describe("Bookings calendar and rates workflows", () => {
     expect(res.status).toBe(200);
     expect(q.unassignBookingBeds).toHaveBeenCalledWith(5);
     expect(q.pushNoShow).toHaveBeenCalledWith(expect.objectContaining({ hotelCode: "H" }), "CM-1", "booking_com");
+    expect(pushIfOtaChanged).toHaveBeenCalled();
+  });
+
+  it("markNoShow on a channel_manager stay still pushes occupancy (Aiosell already got noshow)", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        platform: "booking.com",
+        cmBookingId: "CM-9",
+        source: "channel_manager",
+        checkinDate: "2026-09-01",
+        checkoutDate: "2026-09-03",
+      },
+      assignments: [{ status: "assigned", dormId: 3 }],
+    });
+    q.getChannelConfig.mockResolvedValue({
+      isActive: 1, hotelCode: "H", pmsId: "P", apiBaseUrl: "http://x", apiUsername: "u", apiPassword: "p",
+    });
+    q.pushNoShow.mockResolvedValue({ success: true });
+    const res = await POST(req({ password: "x", action: "markNoShow", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.pushNoShow).toHaveBeenCalledWith(expect.anything(), "CM-9", "booking_com");
+    expect(pushIfOtaChanged).toHaveBeenCalled();
+  });
+
+  it("markNoShow skips the Aiosell noshow API for Hostelworld but still unassigns", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: {
+        platform: "hostelworld",
+        cmBookingId: "HW-1",
+        source: "channel_manager",
+        checkinDate: "2026-09-01",
+        checkoutDate: "2026-09-02",
+      },
+      assignments: [{ status: "assigned", dormId: 3 }],
+    });
+    const res = await POST(req({ password: "x", action: "markNoShow", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.pushNoShow).not.toHaveBeenCalled();
+    expect(q.unassignBookingBeds).toHaveBeenCalledWith(5);
+    expect(pushIfOtaChanged).toHaveBeenCalled();
+  });
+
+  it("markNoShow skips Aiosell when cmBookingId is missing", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { platform: "booking.com", cmBookingId: "", checkinDate: "2026-09-01", checkoutDate: "2026-09-02" },
+      assignments: [],
+    });
+    const res = await POST(req({ password: "x", action: "markNoShow", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.pushNoShow).not.toHaveBeenCalled();
   });
 
   it("checkIn 409s on a checked-out booking", async () => {
