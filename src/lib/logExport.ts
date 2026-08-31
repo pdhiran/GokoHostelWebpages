@@ -113,8 +113,9 @@ export function formatSystemLogsForPdf(logs: SystemExportRow[], generatedAt = ne
 }
 
 export async function saveTextPdf(filename: string, lines: string[]): Promise<void> {
-  const { default: jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const mod = await import("jspdf");
+  const JsPDF = typeof mod.jsPDF === "function" ? mod.jsPDF : (mod.default as typeof mod.jsPDF);
+  const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const margin = 12;
   const pageH = 297;
   const pageW = 210;

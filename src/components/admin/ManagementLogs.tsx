@@ -164,7 +164,7 @@ function SystemLogsPanel({ password, username, role }: { password: string; usern
         return;
       }
       await saveTextPdf(`system-logs-${stamp}.pdf`, formatSystemLogsForPdf(rows));
-    } finally {
+    } catch { /* keep the list as-is */ } finally {
       setDownloading(false);
     }
   };

@@ -159,6 +159,12 @@ describe("summarizePmsLog", () => {
     expect(ui).toContain("summarizePmsLog");
     expect(ui).toContain("previousPmsPayload(logs, i)");
     expect(ui).toContain("LogPager");
+    expect(ui).toContain("DownloadMenu");
+    expect(ui).toContain('onPdf={() => downloadLogs("pdf")}');
+    expect(ui).toContain('onJson={() => downloadLogs("json")}');
+    expect(ui).toMatch(/>\s*PDF\s*</);
+    expect(ui).toMatch(/>\s*JSON\s*</);
+    expect(ui).toContain('from "@/lib/logExport"');
     expect(ui).not.toContain("Newest 200");
     expect(ui).not.toContain("pruned after 500");
   });
@@ -228,5 +234,72 @@ describe("summarizePmsLog", () => {
 
   it("invalid JSON request has no summary", () => {
     expect(summarizePmsLog({ type: "inventory", requestPayload: "{not-json" })).toBe("");
+  });
+});
+
+describe("formatPmsLogsForPdf", () => {
+  it("includes every stored field plus pretty request and response", async () => {
+    const { formatPmsLogsForPdf, prettyJson } = await import("@/lib/logExport");
+    const request = { updates: [{ startDate: "2026-08-31", endDate: "2026-08-31", rates: [{ roomCode: "suite", rate: 555 }] }] };
+    const response = { status: "ok", records: 31 };
+    const text = formatPmsLogsForPdf([{
+      direction: "push",
+      type: "rate (auto)",
+      status: "success",
+      requestPayload: JSON.stringify(request),
+      responsePayload: JSON.stringify(response),
+      errorMessage: "",
+      recordsAffected: 31,
+      createdAt: "2026-08-31T13:33:50.000Z",
+      httpMethod: "POST",
+      url: "https://live.aiosell.com/api/v2/cw/update-rates/sample-pms",
+      httpStatus: 200,
+      durationMs: 945,
+    }], new Date("2026-08-31T13:40:00.000Z")).join("\n");
+    expect(text).toContain("Goko Hostel — PMS Logs");
+    expect(text).toContain("1 log(s)");
+    expect(text).toContain("push rate (auto) success");
+    expect(text).toContain("HTTP 200");
+    expect(text).toContain("945ms");
+    expect(text).toContain("31 records");
+    expect(text).toContain("POST https://live.aiosell.com/api/v2/cw/update-rates/sample-pms");
+    expect(text).toContain("Request:");
+    expect(text).toContain(prettyJson(JSON.stringify(request)).split("\n")[0]);
+    expect(text).toContain('"rate": 555');
+    expect(text).toContain("Response:");
+    expect(text).toContain('"records": 31');
+  });
+
+  it("notes when request and response bodies are empty", async () => {
+    const { formatPmsLogsForPdf } = await import("@/lib/logExport");
+    const text = formatPmsLogsForPdf([{
+      direction: "pull",
+      type: "reservation",
+      status: "failed",
+      requestPayload: "",
+      responsePayload: "",
+      errorMessage: "unauthorized",
+      recordsAffected: 0,
+      createdAt: "2026-08-31T13:33:50.000Z",
+    }]).join("\n");
+    expect(text).toContain("Error: unauthorized");
+    expect(text).toContain("No request or response body stored.");
+  });
+});
+
+describe("formatSystemLogsForPdf", () => {
+  it("includes level, source, message, and details", async () => {
+    const { formatSystemLogsForPdf } = await import("@/lib/logExport");
+    const text = formatSystemLogsForPdf([{
+      timestamp: "2026-08-31T13:33:50.000Z",
+      level: "error",
+      source: "channel-manager",
+      message: "push failed",
+      details: "timeout\nretry 2",
+    }]).join("\n");
+    expect(text).toContain("[ERROR] push failed");
+    expect(text).toContain("Source: channel-manager");
+    expect(text).toContain("timeout");
+    expect(text).toContain("retry 2");
   });
 });
