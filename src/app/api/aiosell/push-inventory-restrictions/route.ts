@@ -3,6 +3,7 @@ import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime } from "@/db/queries";
 import { pushInventoryRestrictions, type AiosellConfig, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
 import { todayIST } from "@/lib/utils";
+import { inclusiveNights } from "@/lib/inventoryAvailability";
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,13 +36,7 @@ export async function POST(req: NextRequest) {
       ratesByPlanAndDate.set(`${dr.ratePlanId}:${dr.date}`, dr);
     }
 
-    const dates: string[] = [];
-    const current = new Date(start + "T00:00:00");
-    const endD = new Date(end + "T00:00:00");
-    while (current <= endD) {
-      dates.push(current.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
-      current.setDate(current.getDate() + 1);
-    }
+    const dates = inclusiveNights(start, end);
 
     const updatesByDate = new Map<string, Array<{ roomCode: string; restrictions: RestrictionFields }>>();
 
@@ -56,7 +51,7 @@ export async function POST(req: NextRequest) {
         // Room is stop-sold / COA / COD only if ALL rate plans agree; min/max across plans
         const restrictions: RestrictionFields = {
           stopSell: planRates.every((r) => r!.stopSell === 1),
-          minimumStay: Math.min(...planRates.map((r) => r!.minimumStay || 1)),
+          minimumStay: Math.min(...planRates.map((r) => r!.minimumStay ?? 1)),
           maximumStay: (() => { const vals = planRates.filter((r) => r!.maximumStay != null).map((r) => r!.maximumStay!); return vals.length ? Math.max(...vals) : null; })(),
           closeOnArrival: planRates.every((r) => r!.closeOnArrival === 1),
           closeOnDeparture: planRates.every((r) => r!.closeOnDeparture === 1),

@@ -15,18 +15,19 @@ describe("Booking Dashboard: Query Logic Verification", () => {
 
     it("has correct overlap condition: checkin_date < checkoutDate AND checkout_date > checkinDate", () => {
       const fnMatch = queriesCode.match(
-        /export async function checkBedAvailability[\s\S]*?return \(conflicts\[0\]/
+        /export async function checkBedAvailability[\s\S]*?return \(blocked\[0\]/
       );
       expect(fnMatch).not.toBeNull();
       const fn = fnMatch![0];
 
       expect(fn).toContain("checkinDate} < ${checkoutDate}");
       expect(fn).toContain("checkoutDate} > ${checkinDate}");
+      expect(fn).toContain("checkoutDate} > ${bookingBedAssignments.checkinDate}");
     });
 
     it("filters only 'assigned' status", () => {
       const fnMatch = queriesCode.match(
-        /export async function checkBedAvailability[\s\S]*?return \(conflicts\[0\]/
+        /export async function checkBedAvailability[\s\S]*?return \(blocked\[0\]/
       );
       const fn = fnMatch![0];
       expect(fn).toContain('eq(bookingBedAssignments.status, "assigned")');
@@ -34,20 +35,21 @@ describe("Booking Dashboard: Query Logic Verification", () => {
 
     it("supports excludeBookingId to ignore current booking's own assignments", () => {
       const fnMatch = queriesCode.match(
-        /export async function checkBedAvailability[\s\S]*?return \(conflicts\[0\]/
+        /export async function checkBedAvailability[\s\S]*?return \(blocked\[0\]/
       );
       const fn = fnMatch![0];
       expect(fn).toContain("excludeBookingId");
       expect(fn).toContain("bookingId} != ${excludeBookingId}");
     });
 
-    it("returns true (available) when conflict count is 0", () => {
+    it("returns false when an assignment conflicts, else checks bed_blocks", () => {
       const fnMatch = queriesCode.match(
-        /export async function checkBedAvailability[\s\S]*?return \(conflicts\[0\][\s\S]*?\n\}/
+        /export async function checkBedAvailability[\s\S]*?return \(blocked\[0\][\s\S]*?\n\}/
       );
       expect(fnMatch).not.toBeNull();
       const fn = fnMatch![0];
       expect(fn).toContain("=== 0");
+      expect(fn).toContain("bedBlocks");
     });
   });
 
@@ -73,6 +75,7 @@ describe("Booking Dashboard: Query Logic Verification", () => {
       const fn = fnMatch![0];
       expect(fn).toContain("checkin_date < ${data.checkoutDate}");
       expect(fn).toContain("checkout_date > ${data.checkinDate}");
+      expect(fn).toContain("checkout_date > checkin_date");
     });
 
     it("returns false (not assigned) when no rows written", () => {
@@ -211,7 +214,7 @@ describe("Booking Dashboard: cancelBooking Logic", () => {
       );
       const section = cancelSection![0];
 
-      expect(section).toContain("cancelBedAssignments(assignmentIds)");
+      expect(section).toContain("cancelBedAssignments(ownIds, bookingId)");
     });
 
     it("does NOT set booking status to cancelled", () => {
@@ -252,13 +255,13 @@ describe("Booking Dashboard: markNoShow Logic", () => {
     expect(section).toContain('status: "no_show"');
   });
 
-  it("calls pushNoShow ONLY for booking_com platform with cmBookingId", () => {
+  it("calls pushNoShow for Booking.com channel ids stored as booking.com or booking_com", () => {
     const noShowSection = routeCode.match(
       /action === "markNoShow"[\s\S]*?action === "unassign"/
     );
     const section = noShowSection![0];
 
-    expect(section).toContain('platform === "booking_com"');
+    expect(section).toContain("isBookingDotCom(detail.booking.platform)");
     expect(section).toContain("cmBookingId");
     expect(section).toContain("pushNoShow(aiosellConfig");
   });
@@ -278,9 +281,11 @@ describe("Booking Dashboard: moveRoom assigns the new bed before releasing the o
 
   it("keeps the guest on the old bed if the new bed cannot be assigned", () => {
     const section = routeCode.match(/action === "moveRoom"[\s\S]*?action === "assignGuest"/)![0];
+    const rejectAt = section.indexOf("Assignment not found on this booking");
     const assignAt = section.indexOf("assignTaggedBeds(bookingId, [newBedId]");
-    const cancelAt = section.indexOf("cancelBedAssignments([oldAssignmentId])");
-    expect(assignAt).toBeGreaterThan(0);
+    const cancelAt = section.indexOf("cancelBedAssignments([oldAssignmentId], bookingId)");
+    expect(rejectAt).toBeGreaterThan(0);
+    expect(assignAt).toBeGreaterThan(rejectAt);
     expect(cancelAt).toBeGreaterThan(assignAt);
   });
 });
@@ -296,6 +301,7 @@ describe("Booking Calendar: inclusive last night", () => {
     const fn = queriesCode.match(/export async function getBookingCalendarData[\s\S]*?return \{ bookings/ )![0];
     expect(fn).toContain("checkinDate} <= ${endDate}");
     expect(fn).toContain("checkoutDate} > ${startDate}");
+    expect(fn).toContain("checkoutDate} > ${bookingBedAssignments.checkinDate}");
     expect(fn).not.toMatch(/checkinDate\} < \$\{endDate\}/);
   });
 
@@ -327,6 +333,11 @@ describe("Booking Calendar: sticky dates and row colour", () => {
     expect(adminPage).toMatch(/fillViewport = section === "inventory" \|\| section === "bookings"/);
     expect(adminPage).toMatch(/fillViewport && "flex h-full min-h-0 flex-1 flex-col"/);
     expect(adminPage).not.toMatch(/framer-motion/);
+  });
+
+  it("does not force a 1-day tile when exclusive checkout equals check-in", () => {
+    expect(grid).toContain("if (endIdx <= startIdx) continue");
+    expect(grid).not.toContain("Math.max(1, endIdx - startIdx)");
   });
 
   it("tints weekends, today, dorm groups, and blocked beds", () => {
@@ -361,6 +372,20 @@ describe("Booking API: calendar enrich and rates batch", () => {
     expect(section).toContain("adult1Rate ?? rate.rate");
     expect(section).toContain("pool: b.pool");
     expect(section).toMatch(/if \(rate\) \{\s*dormRates\[mapping\.dormId\] = rate\.adult1Rate \?\? rate\.rate;/);
+  });
+});
+
+describe("Booking calendar UI permissions match the API keys", () => {
+  const dashboard = readFile("src/components/admin/booking-dashboard/index.tsx");
+  const panel = readFile("src/components/admin/booking-dashboard/BookingDetailPanel.tsx");
+
+  it("uses grantable canAddBooking / canDeleteBooking, not orphan UI-only keys", () => {
+    expect(dashboard).toContain('hasPermission(role, permissions, "canAddBooking")');
+    expect(dashboard).not.toContain("canCreateBooking");
+    expect(panel).toContain("canAddBooking");
+    expect(panel).toContain("canDeleteBooking");
+    expect(panel).not.toContain("canCancelBooking");
+    expect(panel).not.toContain("canMarkNoShow");
   });
 });
 

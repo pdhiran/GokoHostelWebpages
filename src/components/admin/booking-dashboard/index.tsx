@@ -129,12 +129,14 @@ export function BookingDashboard({
         if (res.ok) {
           showSuccess("Action completed");
           await loadData(true);
-        } else {
-          const data = await res.json().catch(() => ({ error: "Action failed" }));
-          showError(data.error || "Action failed");
+          return true;
         }
+        const data = await res.json().catch(() => ({ error: "Action failed" }));
+        showError(data.error || "Action failed");
+        return false;
       } catch {
         showError("Network error");
+        return false;
       }
     },
     [apiCall, loadData, showError, showSuccess],
@@ -214,7 +216,7 @@ export function BookingDashboard({
               <span className="hidden sm:inline">Table</span>
             </button>
           </div>
-          {hasPermission(role, permissions, "canCreateBooking") && (
+          {hasPermission(role, permissions, "canAddBooking") && (
             <Button size="sm" onClick={() => setShowCreateModal(true)}>
               <PlusIcon className="size-3.5" />
               <span className="hidden sm:inline">New Booking</span>
@@ -230,9 +232,7 @@ export function BookingDashboard({
             bookings={unassignedBookings}
             dorms={dorms}
             dateRange={dateRange}
-            onAssign={async (bookingId, bedIds) => {
-              await handleBookingAction("assignBeds", bookingId, { bedIds });
-            }}
+            onAssign={async (bookingId, bedIds) => handleBookingAction("assignBeds", bookingId, { bedIds })}
             onClose={() => setShowUnassigned(false)}
             password={password}
             username={username}

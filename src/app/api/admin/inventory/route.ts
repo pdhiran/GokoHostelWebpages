@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { triggerInventoryPush, triggerRatePush, triggerRestrictionPush } from "@/lib/aiosellSync";
-import { stayNights } from "@/lib/inventoryAvailability";
+import { restrictionPatch } from "@/lib/aiosell";
+import { stayNights, inclusiveNights, civilWeekday } from "@/lib/inventoryAvailability";
 import {
   getInventoryGridData, getChannels, upsertChannel, deleteChannel,
   getBedTypeConfigs, upsertBedTypeConfig,
@@ -288,6 +289,11 @@ export async function POST(req: NextRequest) {
     if (action === "bulkSetRestrictions") {
       const { ratePlanIds, startDate, endDate, dayFilter, restrictionType, value } = params;
       if (!ratePlanIds?.length || !startDate || !endDate || !restrictionType) return NextResponse.json({ error: "ratePlanIds, dates, restrictionType required" }, { status: 400 });
+      const patch = restrictionPatch(restrictionType, value);
+      if (!patch) return NextResponse.json({ error: `Unknown restrictionType: ${restrictionType}` }, { status: 400 });
+      if (restrictionType === "minimumStay" && (patch.minimumStay == null || patch.minimumStay < 1)) {
+        return NextResponse.json({ error: "minimumStay must be a number ≥ 1" }, { status: 400 });
+      }
       const allDates = generateDateRange(startDate, endDate);
       const filteredDates = filterByDays(allDates, dayFilter);
       let count = 0;
@@ -312,22 +318,18 @@ export async function POST(req: NextRequest) {
             infantRate: existing?.infantRate ?? null,
             extraPersonRate: existing?.extraPersonRate ?? null,
           };
-
-          switch (restrictionType) {
-            case "stopSell": updateData.stopSell = value ? 1 : 0; break;
-            case "closeOnArrival": updateData.closeOnArrival = value ? 1 : 0; break;
-            case "closeOnDeparture": updateData.closeOnDeparture = value ? 1 : 0; break;
-            case "minimumStay": updateData.minimumStay = value; break;
-            case "maximumStay": updateData.maximumStay = value; break;
-            case "minimumAdvanceReservation": updateData.minimumAdvanceReservation = value; break;
-            case "maximumAdvanceReservation": updateData.maximumAdvanceReservation = value; break;
-            default: return NextResponse.json({ error: `Unknown restrictionType: ${restrictionType}` }, { status: 400 });
-          }
+          if (patch.stopSell !== undefined) updateData.stopSell = patch.stopSell ? 1 : 0;
+          if (patch.closeOnArrival !== undefined) updateData.closeOnArrival = patch.closeOnArrival ? 1 : 0;
+          if (patch.closeOnDeparture !== undefined) updateData.closeOnDeparture = patch.closeOnDeparture ? 1 : 0;
+          if (patch.minimumStay !== undefined) updateData.minimumStay = patch.minimumStay;
+          if (patch.maximumStay !== undefined) updateData.maximumStay = patch.maximumStay;
+          if (patch.minimumAdvanceReservation !== undefined) updateData.minimumAdvanceReservation = patch.minimumAdvanceReservation;
+          if (patch.maximumAdvanceReservation !== undefined) updateData.maximumAdvanceReservation = patch.maximumAdvanceReservation;
           await upsertDailyRate(updateData);
           count++;
         }
       }
-      await triggerRestrictionPush(filteredDates, ratePlanIds).catch(() => {});
+      await triggerRestrictionPush(filteredDates, ratePlanIds, patch).catch(() => {});
       return NextResponse.json({ success: true, updated: count });
     }
 
@@ -339,20 +341,10 @@ export async function POST(req: NextRequest) {
 }
 
 function generateDateRange(startDate: string, endDate: string): string[] {
-  const dates: string[] = [];
-  const current = new Date(startDate + "T00:00:00");
-  const end = new Date(endDate + "T00:00:00");
-  while (current <= end) {
-    dates.push(current.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
-    current.setDate(current.getDate() + 1);
-  }
-  return dates;
+  return inclusiveNights(startDate, endDate);
 }
 
 function filterByDays(dates: string[], dayFilter?: number[]): string[] {
   if (!dayFilter || dayFilter.length === 0 || dayFilter.length === 7) return dates;
-  return dates.filter((d) => {
-    const day = new Date(d + "T00:00:00").getDay();
-    return dayFilter.includes(day);
-  });
+  return dates.filter((d) => dayFilter.includes(civilWeekday(d)));
 }

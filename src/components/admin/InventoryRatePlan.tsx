@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { cn, localDateStr, todayIST } from "@/lib/utils";
+import { cn, todayIST } from "@/lib/utils";
 import {
   RefreshCwIcon, Loader2Icon, ChevronLeftIcon, ChevronRightIcon,
   PackageIcon, BanIcon, EditIcon,
 } from "lucide-react";
-import { computeNightAvailability, pickInventoryOverride, remainingSplit, splitAvailable, ceilingFromRemaining, exclusiveEndFromInclusive, addCalendarDays, type NightAvailability } from "@/lib/inventoryAvailability";
+import { computeNightAvailability, pickInventoryOverride, remainingSplit, splitAvailable, ceilingFromRemaining, exclusiveEndFromInclusive, addCalendarDays, inclusiveNights, civilWeekday, type NightAvailability } from "@/lib/inventoryAvailability";
 import type { Role } from "./types";
 
 type Props = { password: string; username?: string; role: Role; permissions: Record<string, boolean> };
@@ -36,23 +36,22 @@ type GridData = {
 
 function generateDates(start: string, days: number): string[] {
   const dates: string[] = [];
-  const d = new Date(start + "T00:00:00");
+  let current = start;
   for (let i = 0; i < days; i++) {
-    dates.push(localDateStr(d));
-    d.setDate(d.getDate() + 1);
+    dates.push(current);
+    current = addCalendarDays(current, 1);
   }
   return dates;
 }
 
 function formatDateShort(dateStr: string): { day: string; weekday: string; isToday: boolean; isWeekend: boolean } {
-  const d = new Date(dateStr + "T00:00:00");
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const weekdayNum = d.getDay();
+  const weekdayNum = civilWeekday(dateStr);
+  const weekday = new Date(dateStr + "T12:00:00+05:30").toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Kolkata" });
+  const day = dateStr.slice(8, 10).replace(/^0/, "") || dateStr.slice(8);
   return {
-    day: d.getDate().toString(),
-    weekday: d.toLocaleDateString("en-US", { weekday: "short" }),
-    isToday: d.getTime() === today.getTime(),
+    day,
+    weekday,
+    isToday: dateStr === todayIST(),
     isWeekend: weekdayNum === 0 || weekdayNum === 6,
   };
 }
@@ -66,22 +65,14 @@ function dateTint(isWeekend: boolean, isToday: boolean) {
 export function InventoryRatePlan({ password, username, role, permissions }: Props) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<GridData | null>(null);
-  const [rangeStart, setRangeStart] = useState(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return localDateStr(d);
-  });
+  const [rangeStart, setRangeStart] = useState(() => todayIST());
   const [rangeDays, setRangeDays] = useState(14);
   const [editingCell, setEditingCell] = useState<{ dormId: number; date: string } | null>(null);
   const [editingRate, setEditingRate] = useState<{ ratePlanId: number; date: string } | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
 
   const dates = useMemo(() => generateDates(rangeStart, rangeDays), [rangeStart, rangeDays]);
-  const endDate = useMemo(() => {
-    const d = new Date(rangeStart + "T00:00:00");
-    d.setDate(d.getDate() + rangeDays);
-    return localDateStr(d);
-  }, [rangeStart, rangeDays]);
+  const endDate = useMemo(() => addCalendarDays(rangeStart, rangeDays), [rangeStart, rangeDays]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -144,9 +135,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
   }, [data]);
 
   const shiftRange = (days: number) => {
-    const d = new Date(rangeStart + "T00:00:00");
-    d.setDate(d.getDate() + days);
-    setRangeStart(localDateStr(d));
+    setRangeStart(addCalendarDays(rangeStart, days));
   };
 
   const colWidth = rangeDays <= 7 ? 80 : rangeDays <= 14 ? 60 : 48;
@@ -828,10 +817,7 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
     if (!rateRpIds.length || !rateStart || !rateEnd || !rateValue) return;
     setSaving(true);
     try {
-      const dates: string[] = [];
-      const d = new Date(rateStart + "T00:00:00");
-      const end = new Date(rateEnd + "T00:00:00");
-      while (d <= end) { dates.push(localDateStr(d)); d.setDate(d.getDate() + 1); }
+      const dates = inclusiveNights(rateStart, rateEnd);
       const res = await fetch("/api/admin/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

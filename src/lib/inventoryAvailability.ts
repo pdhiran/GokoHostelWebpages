@@ -1,5 +1,3 @@
-import { localDateStr } from "@/lib/utils";
-
 export type InventoryPool = "online" | "offline" | "block";
 
 export type NightAvailability = {
@@ -27,11 +25,10 @@ type OverrideRef = { dormId: number; date: string; onlineAvailable: number | nul
 /** Occupied nights for a stay: [checkin, checkout). IST calendar dates. */
 export function stayNights(checkinDate: string, checkoutDate: string): string[] {
   const dates: string[] = [];
-  const current = new Date(checkinDate + "T00:00:00");
-  const end = new Date(checkoutDate + "T00:00:00");
-  while (current < end) {
-    dates.push(localDateStr(current));
-    current.setDate(current.getDate() + 1);
+  let current = checkinDate;
+  while (current < checkoutDate) {
+    dates.push(current);
+    current = addCalendarDays(current, 1);
   }
   return dates;
 }
@@ -40,9 +37,7 @@ export function stayNights(checkinDate: string, checkoutDate: string): string[] 
 export function occupiedNights(checkinDate: string, checkoutDate?: string | null): string[] {
   if (!checkinDate) return [];
   if (checkoutDate && checkoutDate > checkinDate) return stayNights(checkinDate, checkoutDate);
-  const d = new Date(checkinDate + "T00:00:00");
-  d.setDate(d.getDate() + 1);
-  return stayNights(checkinDate, localDateStr(d));
+  return stayNights(checkinDate, addCalendarDays(checkinDate, 1));
 }
 
 /** Exclusive end date for a stay/block. Missing or equal end → one night (start + 1). */
@@ -50,9 +45,7 @@ export function exclusiveEndDate(startDate: string, endDate?: string | null): st
   if (!startDate) return null;
   if (endDate && endDate < startDate) return null;
   if (endDate && endDate > startDate) return endDate;
-  const d = new Date(startDate + "T00:00:00");
-  d.setDate(d.getDate() + 1);
-  return localDateStr(d);
+  return addCalendarDays(startDate, 1);
 }
 
 export function rangesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
@@ -60,9 +53,29 @@ export function rangesOverlap(startA: string, endA: string, startB: string, endB
 }
 
 export function addCalendarDays(date: string, days: number): string {
-  const d = new Date(date + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return localDateStr(d);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return date;
+  const utc = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + days);
+  return new Date(utc).toISOString().slice(0, 10);
+}
+
+/** Inclusive bulk nights (Set Rates / Restrictions). 1 Sep–2 Sep → both nights. */
+export function inclusiveNights(startDate: string, endDate: string): string[] {
+  if (!startDate || !endDate || endDate < startDate) return [];
+  const dates: string[] = [];
+  let current = startDate;
+  while (current <= endDate) {
+    dates.push(current);
+    current = addCalendarDays(current, 1);
+  }
+  return dates;
+}
+
+/** Weekday of a YYYY-MM-DD civil date (0=Sun). Timezone-independent. */
+export function civilWeekday(date: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return 0;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
 }
 
 /**

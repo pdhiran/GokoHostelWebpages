@@ -4,6 +4,7 @@ import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime, getDirtyI
 import { getDateAwareAvailability } from "@/lib/aiosellSync";
 import { pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
 import { todayIST } from "@/lib/utils";
+import { inclusiveNights } from "@/lib/inventoryAvailability";
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,26 +34,37 @@ export async function POST(req: NextRequest) {
     };
 
     const dirtyEntries = await getDirtyInventory();
-    const useDirty = !fullSync && !startDate && !endDate && dirtyEntries.length > 0;
+    const mappedDormIds = new Set(activeMappings.map((m) => m.dormId));
+    let useDirty = !fullSync && !startDate && !endDate && dirtyEntries.length > 0;
 
-    let updates: InventoryUpdate[];
+    let updates: InventoryUpdate[] = [];
     let mode: string;
 
     if (useDirty) {
-      mode = "incremental";
-      const dormDatePairs = new Map<string, { dormId: number; date: string }>();
-      for (const d of dirtyEntries) {
-        dormDatePairs.set(`${d.dormId}:${d.date}`, { dormId: d.dormId, date: d.date });
-      }
+      const unmappedIds = dirtyEntries.filter((d) => !mappedDormIds.has(d.dormId)).map((d) => d.id);
+      if (unmappedIds.length > 0) await clearDirtyInventory(unmappedIds);
+      const mappedDirty = dirtyEntries.filter((d) => mappedDormIds.has(d.dormId));
+      if (mappedDirty.length === 0) {
+        useDirty = false;
+      } else {
+        mode = "incremental";
+        const dormDatePairs = new Map<string, { dormId: number; date: string }>();
+        for (const d of mappedDirty) {
+          dormDatePairs.set(`${d.dormId}:${d.date}`, { dormId: d.dormId, date: d.date });
+        }
 
-      updates = [];
-      for (const { dormId, date } of dormDatePairs.values()) {
-        const mapping = activeMappings.find((m) => m.dormId === dormId);
-        if (!mapping) continue;
-        const available = await getDateAwareAvailability(dormId, date);
-        updates.push({ startDate: date, endDate: date, rooms: [{ roomCode: mapping.channelRoomCode, available }] });
+        updates = [];
+        for (const { dormId, date } of dormDatePairs.values()) {
+          const mapping = activeMappings.find((m) => m.dormId === dormId);
+          if (!mapping) continue;
+          const available = await getDateAwareAvailability(dormId, date);
+          updates.push({ startDate: date, endDate: date, rooms: [{ roomCode: mapping.channelRoomCode, available }] });
+        }
+        if (updates.length === 0) useDirty = false;
       }
-    } else {
+    }
+
+    if (!useDirty) {
       mode = "full";
       const start = startDate || todayIST();
       const end = endDate || (() => {
@@ -61,13 +73,7 @@ export async function POST(req: NextRequest) {
         return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
       })();
 
-      const dates: string[] = [];
-      const current = new Date(start + "T00:00:00");
-      const endD = new Date(end + "T00:00:00");
-      while (current <= endD) {
-        dates.push(current.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
-        current.setDate(current.getDate() + 1);
-      }
+      const dates = inclusiveNights(start, end);
 
       updates = [];
       for (const date of dates) {
@@ -89,9 +95,16 @@ export async function POST(req: NextRequest) {
     if (result.success) {
       await updateChannelSyncTime();
       if (useDirty) {
-        await clearDirtyInventory(dirtyEntries.map((d) => d.id));
-      } else {
+        const toClear = dirtyEntries.filter((d) => mappedDormIds.has(d.dormId)).map((d) => d.id);
+        if (toClear.length > 0) await clearDirtyInventory(toClear);
+      } else if (fullSync) {
         await clearAllDirtyInventory();
+      } else {
+        const dirty = await getDirtyInventory();
+        const pushedDormIds = new Set(activeMappings.map((m) => m.dormId));
+        const pushedDates = new Set(updates.map((u) => u.startDate));
+        const toClear = dirty.filter((d) => pushedDormIds.has(d.dormId) && pushedDates.has(d.date)).map((d) => d.id);
+        if (toClear.length > 0) await clearDirtyInventory(toClear);
       }
     }
 

@@ -65,12 +65,12 @@ export async function POST(req: NextRequest) {
             rateplanCode: rp.ratePlanCode,
             restrictions: {
               stopSell: dr.stopSell === 1,
-              minimumStay: dr.minimumStay || null,
-              maximumStay: dr.maximumStay || null,
+              minimumStay: dr.minimumStay ?? null,
+              maximumStay: dr.maximumStay ?? null,
               closeOnArrival: dr.closeOnArrival === 1,
               closeOnDeparture: dr.closeOnDeparture === 1,
-              minimumAdvanceReservation: dr.minimumAdvanceReservation || null,
-              maximumAdvanceReservation: dr.maximumAdvanceReservation || null,
+              minimumAdvanceReservation: dr.minimumAdvanceReservation ?? null,
+              maximumAdvanceReservation: dr.maximumAdvanceReservation ?? null,
               // ponytail: these 3 fields aren't in daily_rates schema yet; null is correct for now
               minimumStayArrival: null,
               maximumStayArrival: null,

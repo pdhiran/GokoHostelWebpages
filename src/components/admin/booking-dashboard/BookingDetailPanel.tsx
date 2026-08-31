@@ -255,7 +255,7 @@ export function BookingDetailPanel({
         {/* Actions */}
         <div className="border-t border-border p-4">
           <div className="flex flex-wrap gap-2">
-            {booking.status === "received" && hasPermission(role, permissions, "canCheckIn") && (
+            {booking.status === "received" && (hasPermission(role, permissions, "canAddBooking") || hasPermission(role, permissions, "canCheckIn")) && (
               <Button
                 size="sm"
                 onClick={() => setShowCheckinPopup(true)}
@@ -265,7 +265,7 @@ export function BookingDetailPanel({
                 Check In
               </Button>
             )}
-            {booking.status === "checked_in" && hasPermission(role, permissions, "canCheckOut") && (
+            {booking.status === "checked_in" && (hasPermission(role, permissions, "canAddBooking") || hasPermission(role, permissions, "canCheckOut")) && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -282,7 +282,7 @@ export function BookingDetailPanel({
               </Button>
             )}
             {(booking.status === "received" || booking.status === "hold") &&
-              hasPermission(role, permissions, "canCancelBooking") && (
+              hasPermission(role, permissions, "canDeleteBooking") && (
                 <Button
                   size="sm"
                   variant="destructive"
@@ -298,7 +298,7 @@ export function BookingDetailPanel({
                   Cancel
                 </Button>
               )}
-            {booking.status === "received" && hasPermission(role, permissions, "canMarkNoShow") && (
+            {booking.status === "received" && hasPermission(role, permissions, "canDeleteBooking") && (
               <Button
                 size="sm"
                 variant="outline"

@@ -9,6 +9,8 @@ import {
   exclusiveEndDate,
   exclusiveEndFromInclusive,
   addCalendarDays,
+  inclusiveNights,
+  civilWeekday,
   occupiedNights,
   pickInventoryOverride,
   remainingSplit,
@@ -69,6 +71,13 @@ describe("exclusiveEndFromInclusive: bulk dates include both nights", () => {
     expect(exclusiveEndFromInclusive("2026-09-01", "2026-09-02")).toBe("2026-09-03");
     expect(stayNights("2026-09-01", "2026-09-03")).toEqual(["2026-09-01", "2026-09-02"]);
     expect(addCalendarDays("2026-09-01", 1)).toBe("2026-09-02");
+  });
+
+  it("addCalendarDays and inclusiveNights do not depend on the host timezone", () => {
+    expect(addCalendarDays("2026-08-31", 1)).toBe("2026-09-01");
+    expect(inclusiveNights("2026-08-30", "2026-08-31")).toEqual(["2026-08-30", "2026-08-31"]);
+    expect(civilWeekday("2026-08-30")).toBe(0);
+    expect(civilWeekday("2026-08-31")).toBe(1);
   });
 
   it("same start and end is one night", () => {
@@ -319,11 +328,19 @@ describe("Wiring", () => {
     expect(sync).toContain("getOnlineAssignmentCountForDorm");
     expect(sync).toContain("Math.min(available, Math.max(0, ceiling - onlineAssigned))");
     expect(sync).toContain("if (before !== after) await triggerInventoryPush(dates)");
+    expect(sync).toContain("mappings.some((m) => m.dormId === affectedDormId)");
     expect(queries).toContain("if (nights.length === 0) return []");
     expect(route).toContain("checkoutDate must be after checkinDate");
     expect(route).toContain("pool: b.pool");
     expect(reservations).toContain("occupiedNights(existing.checkinDate, existing.checkoutDate)");
     expect(reservations).not.toContain("function cancelDateRange");
+  });
+
+  it("drains unmapped dirty rows so incremental CM push cannot stick on empty updates", () => {
+    const push = readFileSync("src/app/api/aiosell/push-inventory/route.ts", "utf8");
+    expect(push).toContain("unmappedIds");
+    expect(push).toContain("mappedDirty");
+    expect(push).toContain("if (mappedDirty.length === 0)");
   });
 
   it("clears a block only after the bed assignment succeeds", () => {

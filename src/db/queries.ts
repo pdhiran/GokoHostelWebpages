@@ -1530,6 +1530,7 @@ export async function getBookingCalendarData(startDate: string, endDate: string)
   const assignments = await db.select().from(bookingBedAssignments).where(
     and(
       eq(bookingBedAssignments.status, "assigned"),
+      sql`${bookingBedAssignments.checkoutDate} > ${bookingBedAssignments.checkinDate}`,
       sql`${bookingBedAssignments.checkinDate} <= ${endDate}`,
       sql`${bookingBedAssignments.checkoutDate} > ${startDate}`
     )
@@ -1581,10 +1582,12 @@ export async function getUnassignedBookings() {
 }
 
 export async function checkBedAvailability(bedId: number, checkinDate: string, checkoutDate: string, excludeBookingId?: number): Promise<boolean> {
+  if (!checkinDate || !checkoutDate || checkinDate >= checkoutDate) return true;
   const db = getDb();
   let conditions = and(
     eq(bookingBedAssignments.bedId, bedId),
     eq(bookingBedAssignments.status, "assigned"),
+    sql`${bookingBedAssignments.checkoutDate} > ${bookingBedAssignments.checkinDate}`,
     sql`${bookingBedAssignments.checkinDate} < ${checkoutDate}`,
     sql`${bookingBedAssignments.checkoutDate} > ${checkinDate}`
   );
@@ -1594,7 +1597,17 @@ export async function checkBedAvailability(bedId: number, checkinDate: string, c
   }
 
   const conflicts = await db.select({ count: sql<number>`COUNT(*)` }).from(bookingBedAssignments).where(conditions!);
-  return (conflicts[0]?.count ?? 0) === 0;
+  if ((conflicts[0]?.count ?? 0) > 0) return false;
+
+  const blocked = await db.select({ count: sql<number>`COUNT(*)` }).from(bedBlocks).where(
+    and(
+      eq(bedBlocks.bedId, bedId),
+      eq(bedBlocks.isActive, 1),
+      sql`${bedBlocks.startDate} < ${checkoutDate}`,
+      sql`${bedBlocks.endDate} > ${checkinDate}`
+    )
+  );
+  return (blocked[0]?.count ?? 0) === 0;
 }
 
 async function loadBedsAvailabilityForRange(checkinDate: string, checkoutDate: string, dormId?: number) {
@@ -1606,6 +1619,7 @@ async function loadBedsAvailabilityForRange(checkinDate: string, checkoutDate: s
   const assignments = await db.select().from(bookingBedAssignments).where(
     and(
       eq(bookingBedAssignments.status, "assigned"),
+      sql`${bookingBedAssignments.checkoutDate} > ${bookingBedAssignments.checkinDate}`,
       sql`${bookingBedAssignments.checkinDate} < ${checkoutDate}`,
       sql`${bookingBedAssignments.checkoutDate} > ${checkinDate}`
     )
@@ -1665,6 +1679,7 @@ export async function assignBedToBooking(data: {
   checkinDate: string; checkoutDate: string; assignedBy: string;
   inventoryPool?: string;
 }): Promise<boolean> {
+  if (!data.checkinDate || !data.checkoutDate || data.checkinDate >= data.checkoutDate) return false;
   const db = getDb();
   const now = new Date().toISOString();
   const pool = data.inventoryPool || "online";
@@ -1675,6 +1690,7 @@ export async function assignBedToBooking(data: {
     WHERE NOT EXISTS (
       SELECT 1 FROM booking_bed_assignments
       WHERE bed_id = ${data.bedId} AND status = 'assigned'
+      AND checkout_date > checkin_date
       AND checkin_date < ${data.checkoutDate} AND checkout_date > ${data.checkinDate}
     )
   `);
@@ -1689,11 +1705,23 @@ export async function unassignBookingBeds(bookingId: number) {
     .where(and(eq(bookingBedAssignments.bookingId, bookingId), eq(bookingBedAssignments.status, "assigned")));
 }
 
-export async function cancelBedAssignments(assignmentIds: number[]) {
+export async function shortenAssignedCheckout(bookingId: number, newCheckout: string) {
+  const db = getDb();
+  return db.update(bookingBedAssignments)
+    .set({ checkoutDate: newCheckout })
+    .where(and(eq(bookingBedAssignments.bookingId, bookingId), eq(bookingBedAssignments.status, "assigned")));
+}
+
+export async function cancelBedAssignments(assignmentIds: number[], bookingId?: number) {
+  if (assignmentIds.length === 0) return;
   const db = getDb();
   return db.update(bookingBedAssignments)
     .set({ status: "cancelled" })
-    .where(and(inArray(bookingBedAssignments.id, assignmentIds), eq(bookingBedAssignments.status, "assigned")));
+    .where(and(
+      inArray(bookingBedAssignments.id, assignmentIds),
+      eq(bookingBedAssignments.status, "assigned"),
+      ...(bookingId ? [eq(bookingBedAssignments.bookingId, bookingId)] : []),
+    ));
 }
 
 export async function addBookingHistoryEntry(data: {
@@ -1902,12 +1930,13 @@ export async function upsertChannelRate(data: {
     and(eq(channelRates.ratePlanId, data.ratePlanId), eq(channelRates.channelId, data.channelId), eq(channelRates.date, data.date))
   ).limit(1);
 
+  const existingRow = existing[0];
   const values = {
-    adult1Rate: data.adult1Rate ?? null,
-    adult2Rate: data.adult2Rate ?? null,
-    childRate: data.childRate ?? null,
-    infantRate: data.infantRate ?? null,
-    extraPersonRate: data.extraPersonRate ?? null,
+    adult1Rate: data.adult1Rate !== undefined ? data.adult1Rate : (existingRow?.adult1Rate ?? null),
+    adult2Rate: data.adult2Rate !== undefined ? data.adult2Rate : (existingRow?.adult2Rate ?? null),
+    childRate: data.childRate !== undefined ? data.childRate : (existingRow?.childRate ?? null),
+    infantRate: data.infantRate !== undefined ? data.infantRate : (existingRow?.infantRate ?? null),
+    extraPersonRate: data.extraPersonRate !== undefined ? data.extraPersonRate : (existingRow?.extraPersonRate ?? null),
     updatedBy: data.updatedBy,
     updatedAt: now,
   };

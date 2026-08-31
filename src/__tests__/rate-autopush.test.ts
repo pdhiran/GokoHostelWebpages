@@ -16,23 +16,30 @@ const queryMocks = vi.hoisted(() => ({
 }));
 
 const pushRates = vi.hoisted(() => vi.fn());
+const pushRateRestrictions = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/queries", () => queryMocks);
-vi.mock("@/lib/aiosell", () => ({
-  pushRates,
-  pushInventory: vi.fn(),
-  pushRateRestrictions: vi.fn(),
-  pushInventoryRestrictions: vi.fn(),
-}));
+vi.mock("@/lib/aiosell", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/aiosell")>();
+  return {
+    ...actual,
+    pushRates,
+    pushInventory: vi.fn(),
+    pushRateRestrictions,
+    pushInventoryRestrictions: vi.fn(),
+  };
+});
 vi.mock("@/lib/pmsLog", () => ({
   logPmsCall: vi.fn(),
 }));
 
-import { triggerRatePush } from "@/lib/aiosellSync";
+import { triggerRatePush, triggerRestrictionPush } from "@/lib/aiosellSync";
+import { restrictionPatch } from "@/lib/aiosell";
 
 const CONFIG = {
   isActive: 1,
   autoPushRates: 1,
+  autoPushRateRestrictions: 1,
   hotelCode: "GOKO-001",
   pmsId: "goko-pms",
   apiBaseUrl: "https://live.aiosell.com",
@@ -59,6 +66,7 @@ describe("triggerRatePush after bulk Set Rates", () => {
     queryMocks.getRatePlanMappings.mockResolvedValue(plans);
     queryMocks.updateChannelSyncTime.mockResolvedValue(undefined);
     pushRates.mockResolvedValue({ success: true });
+    pushRateRestrictions.mockResolvedValue({ success: true });
   });
 
   it("pushes only the selected plans, using adult1Rate, and skips the unselected room", async () => {
@@ -130,5 +138,70 @@ describe("triggerRatePush after bulk Set Rates", () => {
     ]);
     await triggerRatePush(["2026-09-01"], [10]);
     expect(pushRates).not.toHaveBeenCalled();
+  });
+});
+
+describe("restrictionPatch", () => {
+  it("maps min stay without stopSell", () => {
+    expect(restrictionPatch("minimumStay", 2)).toEqual({ minimumStay: 2 });
+    expect(restrictionPatch("stopSell", true)).toEqual({ stopSell: true });
+    expect(restrictionPatch("foobar", 1)).toBeNull();
+  });
+});
+
+describe("triggerRestrictionPush after bulk Restrictions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryMocks.getChannelConfig.mockResolvedValue(CONFIG);
+    queryMocks.getRoomTypeMappings.mockResolvedValue(mappings);
+    queryMocks.getRatePlanMappings.mockResolvedValue(plans);
+    queryMocks.updateChannelSyncTime.mockResolvedValue(undefined);
+    pushRateRestrictions.mockResolvedValue({ success: true });
+  });
+
+  it("sends only the patched field, not leftover stopSell from D1", async () => {
+    queryMocks.getAllDailyRates.mockResolvedValue([
+      { ratePlanId: 10, date: "2026-08-30", stopSell: 1, minimumStay: 2, maximumStay: null, closeOnArrival: 0, closeOnDeparture: 0, minimumAdvanceReservation: null, maximumAdvanceReservation: null },
+      { ratePlanId: 10, date: "2026-08-31", stopSell: 0, minimumStay: 2, maximumStay: null, closeOnArrival: 0, closeOnDeparture: 0, minimumAdvanceReservation: null, maximumAdvanceReservation: null },
+    ]);
+
+    await triggerRestrictionPush(["2026-08-30", "2026-08-31"], [10], { minimumStay: 2 });
+
+    expect(queryMocks.getAllDailyRates).not.toHaveBeenCalled();
+    expect(pushRateRestrictions).toHaveBeenCalledTimes(1);
+    const updates = pushRateRestrictions.mock.calls[0][1];
+    expect(updates).toEqual([
+      {
+        startDate: "2026-08-30",
+        endDate: "2026-08-30",
+        rates: [{ roomCode: "executive", rateplanCode: "executive-s-ep", restrictions: { minimumStay: 2 } }],
+      },
+      {
+        startDate: "2026-08-31",
+        endDate: "2026-08-31",
+        rates: [{ roomCode: "executive", rateplanCode: "executive-s-ep", restrictions: { minimumStay: 2 } }],
+      },
+    ]);
+    expect(JSON.stringify(updates)).not.toContain("stopSell");
+  });
+
+  it("full snapshot still includes per-night stopSell when no patch is given", async () => {
+    queryMocks.getAllDailyRates.mockResolvedValue([
+      { ratePlanId: 10, date: "2026-08-30", stopSell: 1, minimumStay: 2, maximumStay: null, closeOnArrival: 0, closeOnDeparture: 0, minimumAdvanceReservation: null, maximumAdvanceReservation: null },
+      { ratePlanId: 10, date: "2026-08-31", stopSell: 0, minimumStay: 2, maximumStay: null, closeOnArrival: 0, closeOnDeparture: 0, minimumAdvanceReservation: null, maximumAdvanceReservation: null },
+    ]);
+
+    await triggerRestrictionPush(["2026-08-30", "2026-08-31"], [10]);
+
+    const updates = pushRateRestrictions.mock.calls[0][1];
+    expect(updates[0].rates[0].restrictions.stopSell).toBe(true);
+    expect(updates[1].rates[0].restrictions.stopSell).toBe(false);
+    expect(updates[0].rates[0].restrictions.minimumStay).toBe(2);
+  });
+
+  it("does not call Aiosell when autoPushRateRestrictions is off", async () => {
+    queryMocks.getChannelConfig.mockResolvedValue({ ...CONFIG, autoPushRateRestrictions: 0 });
+    await triggerRestrictionPush(["2026-08-30"], [10], { minimumStay: 2 });
+    expect(pushRateRestrictions).not.toHaveBeenCalled();
   });
 });

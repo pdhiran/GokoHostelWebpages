@@ -28,6 +28,9 @@ const { captured, queryMocks } = vi.hoisted(() => {
       bulkUpsertDailyRates: vi.fn(),
       getAllDorms: vi.fn(),
       getAllBeds: vi.fn(),
+      getBookingDetail: vi.fn(),
+      checkBedAvailability: vi.fn(),
+      assignBedToBooking: vi.fn(),
     },
   };
 });
@@ -56,7 +59,7 @@ import {
   upsertDailyRate,
 } from "@/db/queries";
 import { authenticateUser } from "@/lib/auth";
-import { triggerRatePush } from "@/lib/aiosellSync";
+import { triggerRatePush, triggerRestrictionPush, triggerInventoryPush } from "@/lib/aiosellSync";
 import { pushInventory, pushRates, pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 import { POST as reservationsPOST } from "@/app/api/aiosell/reservations/route";
 import { POST as channelManagerPOST } from "@/app/api/admin/channel-manager/route";
@@ -251,6 +254,13 @@ describe("PMS inbound webhook workflows", () => {
     vi.mocked(updateBookingFull).mockResolvedValue(undefined as never);
     vi.mocked(unassignBookingBeds).mockResolvedValue(undefined as never);
     vi.mocked(addBookingHistoryEntry).mockResolvedValue(undefined as never);
+    queryMocks.getBookingDetail.mockResolvedValue({ assignments: [] } as never);
+    queryMocks.checkBedAvailability.mockReset();
+    queryMocks.checkBedAvailability.mockResolvedValue(true);
+    queryMocks.assignBedToBooking.mockReset();
+    queryMocks.assignBedToBooking.mockResolvedValue(true);
+    vi.mocked(triggerInventoryPush).mockReset();
+    vi.mocked(triggerInventoryPush).mockResolvedValue(undefined);
   });
 
   it("logs 401 without storing the presented secret", async () => {
@@ -326,6 +336,21 @@ describe("PMS inbound webhook workflows", () => {
     expect(JSON.parse(lastLog().responsePayload as string).message).toMatch(/duplicate/i);
   });
 
+  it("book reuses a cancelled bookingRef instead of treating it as a live duplicate", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9, bookingRef: "BK-100", status: "cancelled",
+    } as never);
+    const res = await reservationsPOST(req(bookPayload, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).not.toHaveBeenCalled();
+    expect(updateBookingFull).toHaveBeenCalledWith(9, expect.objectContaining({
+      status: "received",
+      bookingRef: "BK-100",
+      cancelledAt: "",
+      cancelledBy: "",
+    }));
+  });
+
   it("modify updates an existing booking and logs once", async () => {
     vi.mocked(getBookingByRef).mockResolvedValue({
       id: 9,
@@ -356,8 +381,142 @@ describe("PMS inbound webhook workflows", () => {
     expect(JSON.parse(lastLog().responsePayload as string).message).toMatch(/Modified/i);
   });
 
+  it("modify rewrites assigned bed dates to the new stay", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9,
+      bookingRef: "BK-100",
+      guestName: "Old",
+      contact: "",
+      platform: "booking.com",
+      status: "confirmed",
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-03",
+      roomType: "DORM-6",
+      persons: 1,
+      paymentStatus: "prepaid",
+      specialRequests: "",
+      amountBeforeTax: 0,
+      amountTax: 0,
+      amountTotal: 0,
+      currency: "INR",
+      email: "",
+      cmBookingId: "",
+      ratePlan: "",
+      nightlyRate: 0,
+    } as never);
+    queryMocks.getBookingDetail.mockResolvedValue({
+      assignments: [{
+        status: "assigned", bedId: 4, dormId: 2,
+        checkinDate: "2026-09-01", checkoutDate: "2026-09-03", inventoryPool: "online",
+      }],
+    } as never);
+    queryMocks.checkBedAvailability.mockResolvedValue(true);
+    const res = await reservationsPOST(req({
+      ...bookPayload, action: "modify",
+      checkin: "2026-09-02", checkout: "2026-09-05",
+    }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(unassignBookingBeds).toHaveBeenCalledWith(9);
+    expect(queryMocks.assignBedToBooking).toHaveBeenCalledWith(expect.objectContaining({
+      bookingId: 9,
+      bedId: 4,
+      checkinDate: "2026-09-02",
+      checkoutDate: "2026-09-05",
+    }));
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("modify leaves assignments in place when the new stay conflicts", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9,
+      bookingRef: "BK-100",
+      guestName: "Old",
+      contact: "",
+      platform: "booking.com",
+      status: "confirmed",
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-03",
+      roomType: "DORM-6",
+      persons: 1,
+      paymentStatus: "prepaid",
+      specialRequests: "",
+      amountBeforeTax: 0,
+      amountTax: 0,
+      amountTotal: 0,
+      currency: "INR",
+      email: "",
+      cmBookingId: "",
+      ratePlan: "",
+      nightlyRate: 0,
+    } as never);
+    queryMocks.getBookingDetail.mockResolvedValue({
+      assignments: [{
+        status: "assigned", bedId: 4, dormId: 2,
+        checkinDate: "2026-09-01", checkoutDate: "2026-09-03", inventoryPool: "online",
+      }],
+    } as never);
+    queryMocks.checkBedAvailability.mockResolvedValue(false);
+    const res = await reservationsPOST(req({
+      ...bookPayload, action: "modify",
+      checkin: "2026-09-02", checkout: "2026-09-05",
+    }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(unassignBookingBeds).not.toHaveBeenCalled();
+    expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+  });
+
+  it("modify does not re-occupy beds after calendar checkout", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9,
+      bookingRef: "BK-100",
+      guestName: "Old",
+      contact: "",
+      platform: "booking.com",
+      status: "checked_out",
+      checkinDate: "2026-09-01",
+      checkoutDate: "2026-09-10",
+      roomType: "DORM-6",
+      persons: 1,
+      paymentStatus: "prepaid",
+      specialRequests: "",
+      amountBeforeTax: 0,
+      amountTax: 0,
+      amountTotal: 0,
+      currency: "INR",
+      email: "",
+      cmBookingId: "",
+      ratePlan: "",
+      nightlyRate: 0,
+    } as never);
+    queryMocks.getBookingDetail.mockResolvedValue({
+      booking: { status: "checked_out" },
+      assignments: [{
+        status: "assigned", bedId: 4, dormId: 2,
+        checkinDate: "2026-09-01", checkoutDate: "2026-09-05", inventoryPool: "online",
+      }],
+    } as never);
+    queryMocks.checkBedAvailability.mockResolvedValue(true);
+    const res = await reservationsPOST(req({
+      ...bookPayload, action: "modify",
+      checkin: "2026-09-01", checkout: "2026-09-10",
+    }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(unassignBookingBeds).not.toHaveBeenCalled();
+    expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+    const patch = vi.mocked(updateBookingFull).mock.calls[0][1];
+    expect(patch).not.toHaveProperty("checkinDate");
+    expect(patch).not.toHaveProperty("checkoutDate");
+  });
+
   it("cancel marks cancelled, releases beds, and logs once", async () => {
-    vi.mocked(getBookingByRef).mockResolvedValue({ id: 9, bookingRef: "BK-100", status: "confirmed" } as never);
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9, bookingRef: "BK-100", status: "confirmed",
+      checkinDate: "2026-09-01", checkoutDate: "2026-09-03",
+    } as never);
+    queryMocks.getBookingDetail.mockResolvedValue({
+      assignments: [{ status: "assigned", checkinDate: "2026-09-01", checkoutDate: "2026-09-03" }],
+    } as never);
     const res = await reservationsPOST(req({
       action: "cancel",
       hotelCode: "GOKO-001",
@@ -370,12 +529,37 @@ describe("PMS inbound webhook workflows", () => {
       cancelledBy: "channel_manager",
     }));
     expect(unassignBookingBeds).toHaveBeenCalledWith(9);
+    expect(triggerInventoryPush).toHaveBeenCalledWith(["2026-09-01", "2026-09-02"]);
     expect(addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
       bookingId: 9,
       action: "Cancelled from Channel",
     }));
     expect(captured).toHaveLength(1);
     expect(lastLog().status).toBe("success");
+  });
+
+  it("cancel with no stay dates does not push today's inventory", async () => {
+    vi.mocked(getBookingByRef).mockResolvedValue({
+      id: 9, bookingRef: "BK-100", status: "confirmed", checkinDate: "", checkoutDate: "",
+    } as never);
+    queryMocks.getBookingDetail.mockResolvedValue({ assignments: [] } as never);
+    const res = await reservationsPOST(req({
+      action: "cancel",
+      hotelCode: "GOKO-001",
+      channel: "booking.com",
+      bookingId: "BK-100",
+    }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(triggerInventoryPush).not.toHaveBeenCalled();
+  });
+
+  it("book with rooms missing occupancy does not 500", async () => {
+    const res = await reservationsPOST(req({
+      ...bookPayload,
+      rooms: [{ roomCode: "DORM-6", rateplanCode: "STD", guestName: "Ada" }],
+    }, { authorization: "whsec-test" }));
+    expect(res.status).toBe(200);
+    expect(addBooking).toHaveBeenCalled();
   });
 
   it("processing throw produces one failed log, not two", async () => {
@@ -584,6 +768,8 @@ describe("Restriction and rate adjustment workflows", () => {
     queryMocks.upsertDailyRate.mockResolvedValue(undefined);
     vi.mocked(triggerRatePush).mockReset();
     vi.mocked(triggerRatePush).mockResolvedValue(undefined);
+    vi.mocked(triggerRestrictionPush).mockReset();
+    vi.mocked(triggerRestrictionPush).mockResolvedValue(undefined);
   });
 
   function post(body: unknown) {
@@ -634,6 +820,116 @@ describe("Restriction and rate adjustment workflows", () => {
       minimumStay: 3,
       closeOnArrival: 1,
     }));
+    expect(triggerRestrictionPush).toHaveBeenCalledWith(
+      ["2026-09-01"],
+      [10],
+      { closeOnArrival: true },
+    );
+  });
+
+  it("bulkSetRestrictions min stay pushes only minimumStay, even when a night is already stop-sold", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([
+      {
+        id: 1, ratePlanId: 10, date: "2026-08-30", rate: 550,
+        stopSell: 1, minimumStay: 1, maximumStay: null,
+        closeOnArrival: 0, closeOnDeparture: 0,
+        minimumAdvanceReservation: null, maximumAdvanceReservation: null,
+        adult1Rate: 550, adult2Rate: null, childRate: null, infantRate: null, extraPersonRate: null,
+      },
+      {
+        id: 2, ratePlanId: 10, date: "2026-08-31", rate: 550,
+        stopSell: 0, minimumStay: 1, maximumStay: null,
+        closeOnArrival: 0, closeOnDeparture: 0,
+        minimumAdvanceReservation: null, maximumAdvanceReservation: null,
+        adult1Rate: 550, adult2Rate: null, childRate: null, infantRate: null, extraPersonRate: null,
+      },
+    ]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRestrictions",
+      ratePlanIds: [10],
+      startDate: "2026-08-30",
+      endDate: "2026-08-31",
+      restrictionType: "minimumStay",
+      value: 2,
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toBe(2);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({
+      date: "2026-08-30", stopSell: 1, minimumStay: 2,
+    }));
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({
+      date: "2026-08-31", stopSell: 0, minimumStay: 2,
+    }));
+    expect(triggerRestrictionPush).toHaveBeenCalledWith(
+      ["2026-08-30", "2026-08-31"],
+      [10],
+      { minimumStay: 2 },
+    );
+    const patch = vi.mocked(triggerRestrictionPush).mock.calls[0][2];
+    expect(patch).not.toHaveProperty("stopSell");
+  });
+
+  it("bulkSetRestrictions stopSell Disable pushes false, not a full snapshot", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([{
+      id: 1, ratePlanId: 10, date: "2026-08-30", rate: 550,
+      stopSell: 1, minimumStay: 2, maximumStay: null,
+      closeOnArrival: 0, closeOnDeparture: 0,
+      minimumAdvanceReservation: null, maximumAdvanceReservation: null,
+      adult1Rate: 550, adult2Rate: null, childRate: null, infantRate: null, extraPersonRate: null,
+    }]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRestrictions",
+      ratePlanIds: [10],
+      startDate: "2026-08-30",
+      endDate: "2026-08-30",
+      restrictionType: "stopSell",
+      value: false,
+    });
+    expect(res.status).toBe(200);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({
+      date: "2026-08-30", stopSell: 0, minimumStay: 2,
+    }));
+    expect(triggerRestrictionPush).toHaveBeenCalledWith(
+      ["2026-08-30"],
+      [10],
+      { stopSell: false },
+    );
+  });
+
+  it("bulkSetRestrictions rejects null minimumStay so D1 and Aiosell cannot diverge", async () => {
+    const res = await post({
+      password: "x",
+      action: "bulkSetRestrictions",
+      ratePlanIds: [10],
+      startDate: "2026-08-30",
+      endDate: "2026-08-30",
+      restrictionType: "minimumStay",
+      value: null,
+    });
+    expect(res.status).toBe(400);
+    expect(queryMocks.upsertDailyRate).not.toHaveBeenCalled();
+    expect(triggerRestrictionPush).not.toHaveBeenCalled();
+  });
+
+  it("bulkSetRestrictions dayFilter skips unselected weekdays", async () => {
+    queryMocks.getDailyRates.mockResolvedValue([]);
+    const res = await post({
+      password: "x",
+      action: "bulkSetRestrictions",
+      ratePlanIds: [10],
+      startDate: "2026-08-30",
+      endDate: "2026-09-01",
+      dayFilter: [0],
+      restrictionType: "minimumStay",
+      value: 2,
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toBe(1);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledTimes(1);
+    expect(queryMocks.upsertDailyRate).toHaveBeenCalledWith(expect.objectContaining({ date: "2026-08-30" }));
+    expect(triggerRestrictionPush).toHaveBeenCalledWith(["2026-08-30"], [10], { minimumStay: 2 });
   });
 
   it("bulkSetRestrictions rejects unknown restrictionType", async () => {

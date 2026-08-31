@@ -39,8 +39,11 @@ function computeTilePlacements(
       if (assign.checkoutDate > dates[dates.length - 1]) endIdx = dates.length;
       else continue;
     }
+    // Exclusive checkout: zero nights (same-day checkout) and stays that
+    // ended before the first visible column must not paint a 1-day tile.
+    if (endIdx <= startIdx) continue;
 
-    const spanCols = Math.max(1, endIdx - startIdx);
+    const spanCols = endIdx - startIdx;
 
     placements.push({
       booking,
@@ -253,7 +256,7 @@ export function BookingCalendarGrid({
                       )}
 
                       {/* Booking tiles (positioned absolutely over the grid) */}
-                      {!bed.isBlocked && placements.map((p) => (
+                      {placements.map((p) => (
                         <div
                           key={`${p.booking.id}-${p.startCol}`}
                           className="absolute top-0.5 bottom-0.5 z-10"

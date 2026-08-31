@@ -12,7 +12,7 @@ import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { pushInventory, pushRates, pushRateRestrictions, pushInventoryRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
+import { pushInventory, pushRates, pushRateRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields, type RestrictionPatch } from "@/lib/aiosell";
 
 export async function getDateAwareAvailability(dormId: number, date: string): Promise<number> {
   const db = getDb();
@@ -51,6 +51,7 @@ export async function pushIfOtaChanged(before: string, dormIds: number[], dates:
 
 export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<void> {
   try {
+    if (affectedDates && affectedDates.length === 0) return;
     const dates = affectedDates && affectedDates.length > 0
       ? [...new Set(affectedDates)]
       : [todayIST()];
@@ -59,7 +60,9 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
     const mappings = config ? (await getRoomTypeMappings()).filter((m) => m.isActive) : [];
 
     if (affectedDormId) {
-      await markInventoryDirty(affectedDormId, dates).catch(() => {});
+      if (mappings.some((m) => m.dormId === affectedDormId)) {
+        await markInventoryDirty(affectedDormId, dates).catch(() => {});
+      }
     } else if (mappings.length > 0) {
       for (const m of mappings) {
         await markInventoryDirty(m.dormId, dates).catch(() => {});
@@ -165,14 +168,14 @@ export async function triggerRatePush(affectedDates: string[], affectedRatePlanI
   }
 }
 
-export async function triggerRestrictionPush(affectedDates: string[], affectedRatePlanIds?: number[]): Promise<void> {
+export async function triggerRestrictionPush(affectedDates: string[], affectedRatePlanIds?: number[], patch?: RestrictionPatch): Promise<void> {
   try {
     const config = await getChannelConfig();
     if (!config || !config.isActive || !config.autoPushRateRestrictions) return;
 
-    const dates = [...new Set(affectedDates)];
+    const dates = [...new Set(affectedDates)].sort();
     if (dates.length === 0) return;
-    const start = dates.sort()[0];
+    const start = dates[0];
     const end = dates[dates.length - 1];
 
     const mappings = (await getRoomTypeMappings()).filter((m) => m.isActive);
@@ -180,29 +183,48 @@ export async function triggerRestrictionPush(affectedDates: string[], affectedRa
     if (affectedRatePlanIds?.length) {
       ratePlans = ratePlans.filter((rp) => affectedRatePlanIds.includes(rp.id));
     }
-    const dailyRatesData = await getAllDailyRates(start, end);
 
-    const ratesByPlan = new Map<number, typeof dailyRatesData>();
-    for (const dr of dailyRatesData) {
-      const arr = ratesByPlan.get(dr.ratePlanId) || [];
-      arr.push(dr);
-      ratesByPlan.set(dr.ratePlanId, arr);
-    }
+    const mappedPlans = ratePlans.flatMap((rp) => {
+      const mapping = mappings.find((m) => m.id === rp.roomMappingId);
+      return mapping ? [{ rp, mapping }] : [];
+    });
+    if (mappedPlans.length === 0) return;
 
     const updates: RateRestrictionUpdate[] = [];
-    for (const date of dates) {
-      const rates: Array<{ roomCode: string; rateplanCode: string; restrictions: RestrictionFields }> = [];
-      for (const rp of ratePlans) {
-        const mapping = mappings.find((m) => m.id === rp.roomMappingId);
-        if (!mapping) continue;
-        const dr = (ratesByPlan.get(rp.id) || []).find((r) => r.date === date);
-        if (!dr) continue;
-        rates.push({
-          roomCode: mapping.channelRoomCode, rateplanCode: rp.ratePlanCode,
-          restrictions: { stopSell: dr.stopSell === 1, minimumStay: dr.minimumStay || null, maximumStay: dr.maximumStay || null, closeOnArrival: dr.closeOnArrival === 1, closeOnDeparture: dr.closeOnDeparture === 1, minimumAdvanceReservation: dr.minimumAdvanceReservation || null, maximumAdvanceReservation: dr.maximumAdvanceReservation || null, minimumStayArrival: null, maximumStayArrival: null, exactStayArrival: null },
+    const usePatch = patch && Object.keys(patch).length > 0;
+
+    if (usePatch) {
+      for (const date of dates) {
+        updates.push({
+          startDate: date,
+          endDate: date,
+          rates: mappedPlans.map(({ rp, mapping }) => ({
+            roomCode: mapping.channelRoomCode,
+            rateplanCode: rp.ratePlanCode,
+            restrictions: patch,
+          })),
         });
       }
-      if (rates.length > 0) updates.push({ startDate: date, endDate: date, rates });
+    } else {
+      const dailyRatesData = await getAllDailyRates(start, end);
+      const ratesByPlan = new Map<number, typeof dailyRatesData>();
+      for (const dr of dailyRatesData) {
+        const arr = ratesByPlan.get(dr.ratePlanId) || [];
+        arr.push(dr);
+        ratesByPlan.set(dr.ratePlanId, arr);
+      }
+      for (const date of dates) {
+        const rates: Array<{ roomCode: string; rateplanCode: string; restrictions: RestrictionFields }> = [];
+        for (const { rp, mapping } of mappedPlans) {
+          const dr = (ratesByPlan.get(rp.id) || []).find((r) => r.date === date);
+          if (!dr) continue;
+          rates.push({
+            roomCode: mapping.channelRoomCode, rateplanCode: rp.ratePlanCode,
+            restrictions: { stopSell: dr.stopSell === 1, minimumStay: dr.minimumStay ?? null, maximumStay: dr.maximumStay ?? null, closeOnArrival: dr.closeOnArrival === 1, closeOnDeparture: dr.closeOnDeparture === 1, minimumAdvanceReservation: dr.minimumAdvanceReservation ?? null, maximumAdvanceReservation: dr.maximumAdvanceReservation ?? null, minimumStayArrival: null, maximumStayArrival: null, exactStayArrival: null },
+          });
+        }
+        if (rates.length > 0) updates.push({ startDate: date, endDate: date, rates });
+      }
     }
 
     if (updates.length === 0) return;

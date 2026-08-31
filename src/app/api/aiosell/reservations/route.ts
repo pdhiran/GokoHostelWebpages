@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChannelConfig, addBooking, updateBookingFull, getBookingByRef, unassignBookingBeds, addBookingHistoryEntry } from "@/db/queries";
+import { getChannelConfig, addBooking, updateBookingFull, getBookingByRef, unassignBookingBeds, addBookingHistoryEntry, getBookingDetail, checkBedAvailability, assignBedToBooking } from "@/db/queries";
 import { triggerInventoryPush } from "@/lib/aiosellSync";
 import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell";
-import { occupiedNights } from "@/lib/inventoryAvailability";
+import { occupiedNights, exclusiveEndDate } from "@/lib/inventoryAvailability";
 import { logPmsCall } from "@/lib/pmsLog";
 
 const WEBHOOK_URL = "/api/aiosell/reservations";
@@ -123,7 +123,7 @@ function extractBookingFields(payload: ReservationPayload) {
   const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : "Unknown Guest";
   const contact = guest?.phone || guest?.email || "";
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || "";
-  const persons = payload.rooms?.reduce((sum, r) => sum + r.occupancy.adults + r.occupancy.children, 0) || 1;
+  const persons = payload.rooms?.reduce((sum, r) => sum + (r.occupancy?.adults ?? 0) + (r.occupancy?.children ?? 0), 0) || 1;
   const ratePlan = payload.rooms?.[0]?.rateplanCode || "";
   const nightlyRate = payload.rooms?.[0]?.prices?.[0]?.sellRate || 0;
 
@@ -155,6 +155,21 @@ function extractBookingFields(payload: ReservationPayload) {
 async function handleNewBooking(payload: ReservationPayload) {
   const existing = await getBookingByRef(payload.bookingId);
   if (existing) {
+    if (existing.status === "cancelled" || existing.status === "no_show") {
+      await updateBookingFull(existing.id, {
+        ...extractBookingFields(payload),
+        status: "received",
+        cancelledAt: "",
+        cancelledBy: "",
+      });
+      await addBookingHistoryEntry({
+        bookingId: existing.id,
+        action: "Rebooked from Channel",
+        details: `Cancelled/no-show ref reused via ${payload.channel || "aiosell"}`,
+        performedBy: "channel_manager",
+      });
+      return respondSuccess("Reservation Created Successfully");
+    }
     return respondSuccess("Reservation already exists (duplicate)");
   }
 
@@ -184,16 +199,19 @@ async function handleModifyBooking(payload: ReservationPayload) {
   const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : existing.guestName;
   const contact = guest?.phone || guest?.email || existing.contact;
   const roomInfo = payload.rooms?.map((r) => r.roomCode).join(", ") || existing.roomType;
-  const persons = payload.rooms?.reduce((sum, r) => sum + r.occupancy.adults + r.occupancy.children, 0) || existing.persons;
+  const persons = payload.rooms?.reduce((sum, r) => sum + (r.occupancy?.adults ?? 0) + (r.occupancy?.children ?? 0), 0) || existing.persons;
   const ratePlan = payload.rooms?.[0]?.rateplanCode || existing.ratePlan || "";
   const nightlyRate = payload.rooms?.[0]?.prices?.[0]?.sellRate || existing.nightlyRate || 0;
 
+  const closed = existing.status === "checked_out" || existing.status === "no_show" || existing.status === "cancelled";
   await updateBookingFull(existing.id, {
     guestName,
     contact: contact || "",
     platform: payload.channel || existing.platform,
-    checkinDate: payload.checkin || existing.checkinDate,
-    checkoutDate: payload.checkout || existing.checkoutDate || "",
+    ...(closed ? {} : {
+      checkinDate: payload.checkin || existing.checkinDate,
+      checkoutDate: payload.checkout || existing.checkoutDate || "",
+    }),
     roomType: roomInfo || "",
     persons,
     paymentStatus: payload.pah !== undefined ? (payload.pah ? "pay_at_hotel" : "prepaid") : (existing.paymentStatus || "unknown"),
@@ -209,6 +227,12 @@ async function handleModifyBooking(payload: ReservationPayload) {
     ratePlan,
     nightlyRate,
   });
+
+  const newCheckin = payload.checkin || existing.checkinDate;
+  const newCheckout = exclusiveEndDate(newCheckin, payload.checkout || existing.checkoutDate);
+  if (!closed && newCheckin && newCheckout) {
+    await realignAssignments(existing.id, newCheckin, newCheckout);
+  }
 
   await addBookingHistoryEntry({
     bookingId: existing.id,
@@ -233,6 +257,12 @@ async function handleCancelBooking(payload: ReservationPayload) {
 
   const now = new Date().toISOString();
 
+  const detail = await getBookingDetail(existing.id);
+  const assigned = (detail?.assignments || []).filter((a) => a.status === "assigned");
+  const fromAssignments = assigned.flatMap((a) => occupiedNights(a.checkinDate, a.checkoutDate));
+  const fromBooking = occupiedNights(existing.checkinDate, existing.checkoutDate);
+  const affectedDates = [...new Set(fromAssignments.length ? fromAssignments : fromBooking)];
+
   await updateBookingFull(existing.id, {
     status: "cancelled",
     cancelledAt: now,
@@ -245,8 +275,40 @@ async function handleCancelBooking(payload: ReservationPayload) {
     details: `Cancelled via ${payload.channel || "aiosell"}`,
     performedBy: "channel_manager",
   });
-  const affectedDates = occupiedNights(existing.checkinDate, existing.checkoutDate);
-  await triggerInventoryPush(affectedDates).catch(() => {});
+  if (affectedDates.length > 0) {
+    await triggerInventoryPush(affectedDates).catch(() => {});
+  }
 
   return respondSuccess("Reservation Cancelled Successfully");
+}
+
+async function realignAssignments(bookingId: number, newCheckin: string, newCheckout: string) {
+  const detail = await getBookingDetail(bookingId);
+  const status = detail?.booking?.status;
+  if (status === "checked_out" || status === "no_show" || status === "cancelled") return;
+  const assigned = (detail?.assignments || []).filter((a) => a.status === "assigned");
+  if (assigned.length === 0) return;
+  const same = assigned.every((a) => a.checkinDate === newCheckin && a.checkoutDate === newCheckout);
+  if (same) return;
+
+  let allOk = true;
+  for (const a of assigned) {
+    if (!(await checkBedAvailability(a.bedId, newCheckin, newCheckout, bookingId))) {
+      allOk = false;
+      break;
+    }
+  }
+  if (!allOk) return;
+  await unassignBookingBeds(bookingId);
+  for (const a of assigned) {
+    await assignBedToBooking({
+      bookingId,
+      bedId: a.bedId,
+      dormId: a.dormId,
+      checkinDate: newCheckin,
+      checkoutDate: newCheckout,
+      assignedBy: "channel_manager",
+      inventoryPool: a.inventoryPool || "online",
+    });
+  }
 }

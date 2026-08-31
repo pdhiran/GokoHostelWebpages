@@ -23,7 +23,7 @@ export function UnassignedBookings({
   bookings: DashboardBooking[];
   dorms: CalendarDorm[];
   dateRange: DateRange;
-  onAssign: (bookingId: number, bedIds: number[]) => Promise<void>;
+  onAssign: (bookingId: number, bedIds: number[]) => Promise<boolean>;
   onClose: () => void;
   password: string;
   username?: string;
@@ -33,7 +33,7 @@ export function UnassignedBookings({
   const [busy, setBusy] = useState(false);
   const [rangeBeds, setRangeBeds] = useState<AvailableBed[]>([]);
   const [loadingBeds, setLoadingBeds] = useState(false);
-  const { showError, showSuccess } = useAdminToast();
+  const { showError } = useAdminToast();
 
   useEffect(() => {
     if (!assigningId) {
@@ -105,8 +105,8 @@ export function UnassignedBookings({
     }
     setBusy(true);
     try {
-      await onAssign(bookingId, selectedBeds);
-      showSuccess("Beds assigned");
+      const ok = await onAssign(bookingId, selectedBeds);
+      if (!ok) return;
       setAssigningId(null);
       setSelectedBeds([]);
     } catch {

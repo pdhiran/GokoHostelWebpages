@@ -47,7 +47,7 @@ export type RateRestrictionUpdate = {
   rates: Array<{
     roomCode: string;
     rateplanCode: string;
-    restrictions: RestrictionFields;
+    restrictions: RestrictionFields | RestrictionPatch;
   }>;
 };
 
@@ -63,6 +63,28 @@ export type RestrictionFields = {
   maximumStayArrival: number | null;
   exactStayArrival: number | null;
 };
+
+/** Aiosell restriction fields are optional (merge). Bulk UI sends only the one staff set. */
+export type RestrictionPatch = Partial<RestrictionFields>;
+
+export function restrictionPatch(restrictionType: string, value: unknown): RestrictionPatch | null {
+  switch (restrictionType) {
+    case "stopSell": return { stopSell: Boolean(value) };
+    case "closeOnArrival": return { closeOnArrival: Boolean(value) };
+    case "closeOnDeparture": return { closeOnDeparture: Boolean(value) };
+    case "minimumStay": return { minimumStay: asStayNumber(value) };
+    case "maximumStay": return { maximumStay: asStayNumber(value) };
+    case "minimumAdvanceReservation": return { minimumAdvanceReservation: asStayNumber(value) };
+    case "maximumAdvanceReservation": return { maximumAdvanceReservation: asStayNumber(value) };
+    default: return null;
+  }
+}
+
+function asStayNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
 export type ReservationPayload = {
   action: "book" | "modify" | "cancel";

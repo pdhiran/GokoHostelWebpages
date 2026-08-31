@@ -11,8 +11,9 @@ import {
   addBooking, updateBookingFull, getAllDorms, getAllBeds, getBedById,
   getChannelConfig, getActiveBedBlocks,
   getRoomTypeMappings, getRatePlanMappings, getAllDailyRates,
-  deactivateBedBlocksByBedIds,
+  deactivateBedBlocksByBedIds, shortenAssignedCheckout,
 } from "@/db/queries";
+import { todayIST } from "@/lib/utils";
 
 function bookingDateRange(checkinDate: string, checkoutDate?: string | null): string[] {
   return occupiedNights(checkinDate, checkoutDate);
@@ -20,6 +21,14 @@ function bookingDateRange(checkinDate: string, checkoutDate?: string | null): st
 
 function stayCheckout(checkinDate: string, checkoutDate?: string | null): string | null {
   return exclusiveEndDate(checkinDate, checkoutDate);
+}
+
+function stayClosed(status?: string | null): boolean {
+  return status === "checked_out" || status === "no_show" || status === "cancelled";
+}
+
+function isBookingDotCom(platform?: string | null): boolean {
+  return (platform || "").toLowerCase().replace(/[._\s-]/g, "") === "bookingcom";
 }
 
 function activeAssignmentDormIds(assignments: { dormId: number; status?: string }[] | undefined): number[] {
@@ -316,6 +325,9 @@ export async function POST(req: NextRequest) {
 
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      if (stayClosed(detail.booking.status)) {
+        return NextResponse.json({ error: "Cannot assign beds on a closed booking" }, { status: 409 });
+      }
 
       const checkinDate = detail.booking.checkinDate;
       const checkoutDate = stayCheckout(checkinDate, detail.booking.checkoutDate);
@@ -353,6 +365,12 @@ export async function POST(req: NextRequest) {
       const { bookingId, collectPayment } = body;
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
 
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      if (stayClosed(detail.booking.status)) {
+        return NextResponse.json({ error: "Roll back checkout before checking in" }, { status: 409 });
+      }
+
       const now = new Date().toISOString();
       const updateData: Record<string, any> = {
         status: "checked_in",
@@ -361,10 +379,7 @@ export async function POST(req: NextRequest) {
       };
 
       if (collectPayment) {
-        const detail = await getBookingDetail(bookingId);
-        if (detail) {
-          updateData.amountPaid = detail.booking.amountTotal ?? 0;
-        }
+        updateData.amountPaid = detail.booking.amountTotal ?? 0;
       }
 
       await updateBookingFull(bookingId, updateData);
@@ -384,18 +399,33 @@ export async function POST(req: NextRequest) {
       const { bookingId } = body;
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
 
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
       const now = new Date().toISOString();
-      await updateBookingFull(bookingId, {
+      const today = todayIST();
+      const oldCheckout = stayCheckout(detail.booking.checkinDate, detail.booking.checkoutDate);
+      const dates = oldCheckout ? bookingDateRange(detail.booking.checkinDate, oldCheckout) : [];
+      const dormIds = [...activeAssignmentDormIds(detail.assignments)];
+      const before = dormIds.length && dates.length ? await otaFingerprint(dormIds, dates) : "";
+
+      const updates: Record<string, string> = {
         status: "checked_out",
         checkedOutAt: now,
         checkedOutBy: actingUser,
-      });
+      };
+      if (oldCheckout && today < oldCheckout) {
+        const cut = today <= detail.booking.checkinDate ? detail.booking.checkinDate : today;
+        await shortenAssignedCheckout(bookingId, cut);
+      }
+      await updateBookingFull(bookingId, updates);
       await addBookingHistoryEntry({
         bookingId,
         action: "Checked Out",
         details: `Checked out by ${actingUser}`,
         performedBy: actingUser,
       });
+      if (before) await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
 
       return NextResponse.json({ success: true });
     }
@@ -427,6 +457,25 @@ export async function POST(req: NextRequest) {
       const { bookingId } = body;
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
 
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      const restoreCheckout = stayCheckout(detail.booking.checkinDate, detail.booking.checkoutDate);
+      const assigned = detail.assignments.filter((a) => a.status === "assigned");
+      const dates = restoreCheckout ? bookingDateRange(detail.booking.checkinDate, restoreCheckout) : [];
+      const dormIds = [...activeAssignmentDormIds(assigned)];
+      const before = dormIds.length && dates.length ? await otaFingerprint(dormIds, dates) : "";
+
+      if (restoreCheckout && assigned.length > 0) {
+        for (const a of assigned) {
+          const from = a.checkoutDate || detail.booking.checkinDate;
+          if (from >= restoreCheckout) continue;
+          if (!(await checkBedAvailability(a.bedId, from, restoreCheckout, bookingId))) {
+            return NextResponse.json({ error: "Beds no longer available for remaining nights" }, { status: 409 });
+          }
+        }
+        await shortenAssignedCheckout(bookingId, restoreCheckout);
+      }
+
       await updateBookingFull(bookingId, {
         status: "checked_in",
         checkedOutAt: "",
@@ -438,6 +487,7 @@ export async function POST(req: NextRequest) {
         details: `Rolled back by ${actingUser}`,
         performedBy: actingUser,
       });
+      if (before) await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
 
       return NextResponse.json({ success: true });
     }
@@ -477,11 +527,17 @@ export async function POST(req: NextRequest) {
       const before = await otaFingerprint(dormIds, cancelDates);
 
       if (assignmentIds && Array.isArray(assignmentIds) && assignmentIds.length > 0) {
-        await cancelBedAssignments(assignmentIds);
+        const ownIds = (detail?.assignments ?? [])
+          .filter((a) => assignmentIds.includes(a.id))
+          .map((a) => a.id);
+        if (ownIds.length === 0) {
+          return NextResponse.json({ error: "No matching bed assignments on this booking" }, { status: 400 });
+        }
+        await cancelBedAssignments(ownIds, bookingId);
         await addBookingHistoryEntry({
           bookingId,
           action: "Partial Cancellation",
-          details: `Cancelled ${assignmentIds.length} bed assignment(s) by ${actingUser}`,
+          details: `Cancelled ${ownIds.length} bed assignment(s) by ${actingUser}`,
           performedBy: actingUser,
         });
       } else {
@@ -519,7 +575,7 @@ export async function POST(req: NextRequest) {
       await updateBookingFull(bookingId, { status: "no_show" });
       await unassignBookingBeds(bookingId);
 
-      if (detail.booking.platform === "booking_com" && detail.booking.cmBookingId) {
+      if (isBookingDotCom(detail.booking.platform) && detail.booking.cmBookingId) {
         try {
           const config = await getChannelConfig();
           if (config && config.isActive) {
@@ -578,6 +634,9 @@ export async function POST(req: NextRequest) {
 
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      if (stayClosed(detail.booking.status)) {
+        return NextResponse.json({ error: "Roll back checkout before changing dates" }, { status: 409 });
+      }
 
       const oldCheckin = detail.booking.checkinDate;
       const oldCheckout = stayCheckout(oldCheckin, detail.booking.checkoutDate);
@@ -628,9 +687,11 @@ export async function POST(req: NextRequest) {
             for (const a of currentAssignments) {
               await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: newCheckinDate, checkoutDate: oldCheckout, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
             }
-          } else if (confirmed && selectedBedIds) {
+          } else if (confirmed && selectedBedIds?.length > 0) {
             await unassignBookingBeds(bookingId);
             await assignTaggedBeds(bookingId, selectedBedIds, newCheckinDate, oldCheckout, actingUser);
+          } else if (confirmed) {
+            return NextResponse.json({ error: "Select at least one bed" }, { status: 400 });
           }
         }
       } else {
@@ -651,7 +712,7 @@ export async function POST(req: NextRequest) {
       // Update booking dates and recalculate amounts
       const nights = diffDays(newCheckinDate, oldCheckout);
       const nightlyRate = detail.booking.nightlyRate ?? 0;
-      const bedsCount = Math.max(1, detail.assignments.filter((a) => a.status === "assigned").length);
+      const bedsCount = Math.max(1, selectedBedIds?.length || currentAssignments.length);
       const totalBeforeTax = nightlyRate * nights * bedsCount;
       const tax = Math.round(totalBeforeTax * 0.12);
 
@@ -682,6 +743,9 @@ export async function POST(req: NextRequest) {
 
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      if (stayClosed(detail.booking.status)) {
+        return NextResponse.json({ error: "Roll back checkout before changing dates" }, { status: 409 });
+      }
 
       const oldCheckin = detail.booking.checkinDate;
       const oldCheckout = stayCheckout(oldCheckin, detail.booking.checkoutDate);
@@ -721,15 +785,19 @@ export async function POST(req: NextRequest) {
             for (const a of currentAssignments) {
               await assignBedToBooking({ bookingId, bedId: a.bedId, dormId: a.dormId, checkinDate: a.checkinDate, checkoutDate: newCheckoutDate, assignedBy: actingUser, inventoryPool: a.inventoryPool || "online" });
             }
-          } else if (confirmed && selectedBedIds) {
+          } else if (confirmed && selectedBedIds?.length > 0) {
             await unassignBookingBeds(bookingId);
             await assignTaggedBeds(bookingId, selectedBedIds, oldCheckin, newCheckoutDate, actingUser);
+          } else if (confirmed) {
+            return NextResponse.json({ error: "Select at least one bed" }, { status: 400 });
           }
         } else if (!confirmed) {
           const available = await getAvailableBedsForRange(oldCheckin, newCheckoutDate);
           return NextResponse.json({ needsSelection: true, availableBeds: available, scenario: "CO-1-no-beds" });
-        } else if (confirmed && selectedBedIds) {
+        } else if (confirmed && selectedBedIds?.length > 0) {
           await assignTaggedBeds(bookingId, selectedBedIds, oldCheckin, newCheckoutDate, actingUser);
+        } else if (confirmed) {
+          return NextResponse.json({ error: "Select at least one bed" }, { status: 400 });
         }
       } else {
         // CO-2/3: Shorten stay — just shorten assignments
@@ -744,7 +812,7 @@ export async function POST(req: NextRequest) {
       // Update booking dates and recalculate
       const nights = diffDays(oldCheckin, newCheckoutDate);
       const nightlyRate = detail.booking.nightlyRate ?? 0;
-      const bedsCount = Math.max(1, currentAssignments.length);
+      const bedsCount = Math.max(1, selectedBedIds?.length || currentAssignments.length);
       const totalBeforeTax = nightlyRate * nights * bedsCount;
       const tax = Math.round(totalBeforeTax * 0.12);
 
@@ -774,6 +842,10 @@ export async function POST(req: NextRequest) {
 
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      const bedsChanged = (removeBedIds && removeBedIds.length > 0) || (addBedIds && addBedIds.length > 0);
+      if (bedsChanged && stayClosed(detail.booking.status)) {
+        return NextResponse.json({ error: "Cannot change beds on a closed booking" }, { status: 409 });
+      }
 
       const updates: Record<string, any> = {};
       const changes: string[] = [];
@@ -807,10 +879,6 @@ export async function POST(req: NextRequest) {
         changes.push(`Amount paid → ${amountPaid}`);
       }
 
-      if (Object.keys(updates).length > 0) {
-        await updateBookingFull(bookingId, updates);
-      }
-
       const checkinDate = detail.booking.checkinDate;
       const checkoutDate = stayCheckout(checkinDate, detail.booking.checkoutDate);
       if (!checkoutDate) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
@@ -822,19 +890,29 @@ export async function POST(req: NextRequest) {
           if (bed) dormIds.push(bed.dormId);
         }
       }
-      const bedsChanged = (removeBedIds && removeBedIds.length > 0) || (addBedIds && addBedIds.length > 0);
       const before = bedsChanged ? await otaFingerprint(dormIds, dates) : "";
 
-      // Remove beds
+      // Add beds first so a conflict cannot drop the existing assignment.
+      if (addBedIds && Array.isArray(addBedIds) && addBedIds.length > 0) {
+        const { labels } = await assignTaggedBeds(bookingId, addBedIds, checkinDate, checkoutDate, actingUser);
+        if (labels.length === 0) {
+          return NextResponse.json({ error: "No beds could be assigned (conflicts exist)" }, { status: 409 });
+        }
+        for (const label of labels) changes.push(`Added bed ${label}`);
+      }
+
       if (removeBedIds && Array.isArray(removeBedIds) && removeBedIds.length > 0) {
-        await cancelBedAssignments(removeBedIds);
+        const assigned = detail.assignments.filter((a) => a.status === "assigned");
+        const assignmentIds = [...new Set(removeBedIds.flatMap((id: number) => {
+          if (assigned.some((a) => a.id === id)) return [id];
+          return assigned.filter((a) => a.bedId === id).map((a) => a.id);
+        }))];
+        if (assignmentIds.length > 0) await cancelBedAssignments(assignmentIds, bookingId);
         changes.push(`Removed ${removeBedIds.length} bed(s)`);
       }
 
-      // Add beds
-      if (addBedIds && Array.isArray(addBedIds) && addBedIds.length > 0) {
-        const { labels } = await assignTaggedBeds(bookingId, addBedIds, checkinDate, checkoutDate, actingUser);
-        for (const label of labels) changes.push(`Added bed ${label}`);
+      if (Object.keys(updates).length > 0) {
+        await updateBookingFull(bookingId, updates);
       }
 
       if (changes.length > 0) {
@@ -858,6 +936,9 @@ export async function POST(req: NextRequest) {
 
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      if (stayClosed(detail.booking.status)) {
+        return NextResponse.json({ error: "Cannot move rooms on a closed booking" }, { status: 409 });
+      }
 
       const checkinDate = detail.booking.checkinDate;
       const checkoutDate = stayCheckout(checkinDate, detail.booking.checkoutDate);
@@ -872,13 +953,18 @@ export async function POST(req: NextRequest) {
       ];
       const before = await otaFingerprint(dormIds, dates);
 
+      if (oldAssignmentId) {
+        const own = detail.assignments.find((a) => a.id === oldAssignmentId && a.status === "assigned");
+        if (!own) return NextResponse.json({ error: "Assignment not found on this booking" }, { status: 400 });
+      }
+
       const { labels } = await assignTaggedBeds(bookingId, [newBedId], checkinDate, checkoutDate, actingUser);
       if (labels.length === 0) {
         return NextResponse.json({ error: "Cannot assign bed — conflict exists" }, { status: 409 });
       }
 
       if (oldAssignmentId) {
-        await cancelBedAssignments([oldAssignmentId]);
+        await cancelBedAssignments([oldAssignmentId], bookingId);
       }
 
       await addBookingHistoryEntry({
@@ -897,6 +983,21 @@ export async function POST(req: NextRequest) {
     if (action === "assignGuest") {
       const { bookingId, checkinId } = body;
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+
+      const detail = await getBookingDetail(bookingId);
+      if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      const existingCmId = detail.booking.cmBookingId || "";
+      if (existingCmId && !/^\d+$/.test(existingCmId)) {
+        await addBookingHistoryEntry({
+          bookingId,
+          action: "Guest Linked",
+          details: checkinId
+            ? `Check-in #${checkinId} noted; channel id ${existingCmId} kept`
+            : `Channel id ${existingCmId} kept`,
+          performedBy: actingUser,
+        });
+        return NextResponse.json({ success: true });
+      }
 
       await updateBookingFull(bookingId, { cmBookingId: checkinId ? String(checkinId) : "" });
       await addBookingHistoryEntry({

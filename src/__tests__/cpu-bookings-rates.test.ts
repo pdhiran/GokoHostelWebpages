@@ -27,15 +27,17 @@ const q = vi.hoisted(() => ({
   getAllDailyRates: vi.fn(),
   getDailyRates: vi.fn(),
   deactivateBedBlocksByBedIds: vi.fn(),
+  shortenAssignedCheckout: vi.fn(),
+  pushNoShow: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ authenticateUser: q.authenticateUser }));
 vi.mock("@/lib/aiosellSync", () => ({
-  otaFingerprint: vi.fn(),
-  pushIfOtaChanged: vi.fn(),
+  otaFingerprint: vi.fn(async () => ""),
+  pushIfOtaChanged: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/aiosell", () => ({
-  pushNoShow: vi.fn(),
+  pushNoShow: q.pushNoShow,
 }));
 vi.mock("@/db/queries", () => ({
   getBookingCalendarData: q.getBookingCalendarData,
@@ -61,9 +63,11 @@ vi.mock("@/db/queries", () => ({
   getRatePlanMappings: q.getRatePlanMappings,
   getAllDailyRates: q.getAllDailyRates,
   deactivateBedBlocksByBedIds: q.deactivateBedBlocksByBedIds,
+  shortenAssignedCheckout: q.shortenAssignedCheckout,
 }));
 
 import { POST } from "@/app/api/admin/bookings/route";
+import { todayIST } from "@/lib/utils";
 
 function req(body: unknown) {
   return new NextRequest("http://localhost/api/admin/bookings", {
@@ -171,6 +175,59 @@ describe("Bookings calendar and rates workflows", () => {
     expect(json.dormRates[10]).toBeUndefined();
   });
 
+  it("early checkOut shortens assigned nights to today", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { checkinDate: "2020-01-01", checkoutDate: "2099-01-01" },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    const res = await POST(req({ password: "x", action: "checkOut", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.shortenAssignedCheckout).toHaveBeenCalledWith(5, todayIST());
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({
+      status: "checked_out",
+    }));
+    expect(q.updateBookingFull.mock.calls[0][1]).not.toHaveProperty("checkoutDate");
+    expect(q.unassignBookingBeds).not.toHaveBeenCalled();
+  });
+
+  it("same-day checkOut keeps the assignment and cuts exclusive checkout to check-in (zero nights)", async () => {
+    const today = todayIST();
+    q.getBookingDetail.mockResolvedValue({
+      booking: { checkinDate: today, checkoutDate: "2099-01-01" },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    const res = await POST(req({ password: "x", action: "checkOut", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.unassignBookingBeds).not.toHaveBeenCalled();
+    expect(q.shortenAssignedCheckout).toHaveBeenCalledWith(5, today);
+  });
+
+  it("rollbackCheckOut restores assignment checkout from the booking dates", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { checkinDate: "2026-08-01", checkoutDate: "2026-09-10" },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7, checkoutDate: "2026-08-20" }],
+    });
+    q.checkBedAvailability.mockResolvedValue(true);
+    const res = await POST(req({ password: "x", action: "rollbackCheckOut", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.checkBedAvailability).toHaveBeenCalledWith(7, "2026-08-20", "2026-09-10", 5);
+    expect(q.shortenAssignedCheckout).toHaveBeenCalledWith(5, "2026-09-10");
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({ status: "checked_in" }));
+  });
+
+  it("rollbackCheckOut 409s when nights between shortened checkout and planned checkout were taken", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { checkinDate: "2026-08-01", checkoutDate: "2026-09-10" },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7, checkoutDate: "2026-08-20" }],
+    });
+    q.checkBedAvailability.mockResolvedValue(false);
+    const res = await POST(req({ password: "x", action: "rollbackCheckOut", bookingId: 5 }));
+    expect(res.status).toBe(409);
+    expect(q.checkBedAvailability).toHaveBeenCalledWith(7, "2026-08-20", "2026-09-10", 5);
+    expect(q.shortenAssignedCheckout).not.toHaveBeenCalled();
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
   it("keeps the first daily-rate row per plan when duplicates appear", async () => {
     q.getAvailableBedsForRange.mockResolvedValue([]);
     q.getRoomTypeMappings.mockResolvedValue([{ id: 1, dormId: 9 }]);
@@ -192,5 +249,67 @@ describe("Bookings calendar and rates workflows", () => {
     const res = await POST(req({ password: "x", action: "getAvailableBeds", checkinDate: "2026-09-01" }));
     expect(res.status).toBe(400);
     expect(q.getAllDailyRates).not.toHaveBeenCalled();
+  });
+
+  it("markNoShow notifies Aiosell when the webhook stored platform as booking.com", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { platform: "booking.com", cmBookingId: "CM-1", checkinDate: "2026-09-01", checkoutDate: "2026-09-03" },
+      assignments: [{ status: "assigned", dormId: 3 }],
+    });
+    q.getChannelConfig.mockResolvedValue({
+      isActive: 1, hotelCode: "H", pmsId: "P", apiBaseUrl: "http://x", apiUsername: "u", apiPassword: "p",
+    });
+    q.pushNoShow.mockResolvedValue({ success: true });
+    const res = await POST(req({ password: "x", action: "markNoShow", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.unassignBookingBeds).toHaveBeenCalledWith(5);
+    expect(q.pushNoShow).toHaveBeenCalledWith(expect.objectContaining({ hotelCode: "H" }), "CM-1", "booking_com");
+  });
+
+  it("checkIn 409s on a checked-out booking", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { status: "checked_out", checkinDate: "2026-09-01", checkoutDate: "2026-09-10" },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7, checkoutDate: "2026-09-05" }],
+    });
+    const res = await POST(req({ password: "x", action: "checkIn", bookingId: 5 }));
+    expect(res.status).toBe(409);
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
+  it("modifyCheckin 409s on a checked-out booking", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { status: "checked_out", checkinDate: "2026-09-01", checkoutDate: "2026-09-10" },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7, checkoutDate: "2026-09-05" }],
+    });
+    const res = await POST(req({
+      password: "x", action: "modifyCheckin", bookingId: 5, newCheckinDate: "2026-09-02",
+    }));
+    expect(res.status).toBe(409);
+    expect(q.unassignBookingBeds).not.toHaveBeenCalled();
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
+  it("assignGuest does not overwrite an Aiosell cmBookingId", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { cmBookingId: "CM-99" },
+      assignments: [],
+    });
+    const res = await POST(req({ password: "x", action: "assignGuest", bookingId: 5, checkinId: 42 }));
+    expect(res.status).toBe(200);
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+    expect(q.addBookingHistoryEntry).toHaveBeenCalled();
+  });
+
+  it("partial cancel only releases assignments that belong to the booking", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { checkinDate: "2026-09-01", checkoutDate: "2026-09-03" },
+      assignments: [{ id: 11, status: "assigned", dormId: 3 }],
+    });
+    const res = await POST(req({
+      password: "x", action: "cancelBooking", bookingId: 5, assignmentIds: [11, 999],
+    }));
+    expect(res.status).toBe(200);
+    expect(q.cancelBedAssignments).toHaveBeenCalledWith([11], 5);
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
   });
 });
