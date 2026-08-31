@@ -148,7 +148,9 @@ export async function POST(req: NextRequest) {
       } else {
         return NextResponse.json({ error: "blockIds or (bedIds + dates) required" }, { status: 400 });
       }
-      await triggerInventoryPush(pushDates, pushDormId).catch(() => {});
+      if (pushDates && pushDates.length > 0) {
+        await triggerInventoryPush(pushDates, pushDormId).catch(() => {});
+      }
       return NextResponse.json({ success: true });
     }
 

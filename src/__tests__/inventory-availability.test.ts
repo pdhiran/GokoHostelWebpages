@@ -343,6 +343,11 @@ describe("Wiring", () => {
     expect(push).toContain("if (mappedDirty.length === 0)");
   });
 
+  it("skips inventory push when unblock matches no active blocks", () => {
+    const inv = readFileSync("src/app/api/admin/inventory/route.ts", "utf8");
+    expect(inv).toContain("if (pushDates && pushDates.length > 0)");
+  });
+
   it("clears a block only after the bed assignment succeeds", () => {
     const helper = route.match(/async function assignTaggedBeds[\s\S]*?\nfunction diffDays/)![0];
     expect(helper.indexOf("assignBedToBooking")).toBeLessThan(helper.indexOf("deactivateBedBlocksByBedIds"));

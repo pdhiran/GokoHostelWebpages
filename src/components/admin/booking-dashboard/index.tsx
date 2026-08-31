@@ -236,6 +236,7 @@ export function BookingDashboard({
             onClose={() => setShowUnassigned(false)}
             password={password}
             username={username}
+            canAssign={hasPermission(role, permissions, "canAddBooking")}
           />
         </div>
       )}

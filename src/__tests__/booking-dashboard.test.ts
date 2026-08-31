@@ -382,6 +382,7 @@ describe("Booking calendar UI permissions match the API keys", () => {
   it("uses grantable canAddBooking / canDeleteBooking, not orphan UI-only keys", () => {
     expect(dashboard).toContain('hasPermission(role, permissions, "canAddBooking")');
     expect(dashboard).not.toContain("canCreateBooking");
+    expect(dashboard).toContain("canAssign={hasPermission(role, permissions, \"canAddBooking\")}");
     expect(panel).toContain("canAddBooking");
     expect(panel).toContain("canDeleteBooking");
     expect(panel).not.toContain("canCancelBooking");

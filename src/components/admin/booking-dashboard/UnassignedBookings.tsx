@@ -19,6 +19,7 @@ export function UnassignedBookings({
   onClose,
   password,
   username,
+  canAssign = true,
 }: {
   bookings: DashboardBooking[];
   dorms: CalendarDorm[];
@@ -27,6 +28,7 @@ export function UnassignedBookings({
   onClose: () => void;
   password: string;
   username?: string;
+  canAssign?: boolean;
 }) {
   const [assigningId, setAssigningId] = useState<number | null>(null);
   const [selectedBeds, setSelectedBeds] = useState<number[]>([]);
@@ -155,7 +157,8 @@ export function UnassignedBookings({
                     {booking.checkinDate} - {booking.checkoutDate} | {booking.persons} person{booking.persons !== 1 ? "s" : ""}
                   </div>
                 </div>
-                {!isAssigning ? (
+                {canAssign && (
+                  !isAssigning ? (
                   <Button
                     size="xs"
                     variant="outline"
@@ -163,7 +166,7 @@ export function UnassignedBookings({
                   >
                     Assign
                   </Button>
-                ) : (
+                  ) : (
                   <Button
                     size="xs"
                     variant="ghost"
@@ -171,6 +174,7 @@ export function UnassignedBookings({
                   >
                     <XIcon className="size-3" />
                   </Button>
+                  )
                 )}
               </div>
 

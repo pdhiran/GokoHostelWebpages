@@ -204,14 +204,22 @@ async function handleModifyBooking(payload: ReservationPayload) {
   const nightlyRate = payload.rooms?.[0]?.prices?.[0]?.sellRate || existing.nightlyRate || 0;
 
   const closed = existing.status === "checked_out" || existing.status === "no_show" || existing.status === "cancelled";
+  const newCheckin = payload.checkin || existing.checkinDate;
+  const newCheckout = exclusiveEndDate(newCheckin, payload.checkout || existing.checkoutDate);
+  let moveDates = !closed && !!newCheckin && !!newCheckout;
+  if (moveDates) {
+    const aligned = await realignAssignments(existing.id, newCheckin, newCheckout);
+    if (!aligned) moveDates = false;
+  }
+
   await updateBookingFull(existing.id, {
     guestName,
     contact: contact || "",
     platform: payload.channel || existing.platform,
-    ...(closed ? {} : {
-      checkinDate: payload.checkin || existing.checkinDate,
+    ...(moveDates ? {
+      checkinDate: newCheckin,
       checkoutDate: payload.checkout || existing.checkoutDate || "",
-    }),
+    } : {}),
     roomType: roomInfo || "",
     persons,
     paymentStatus: payload.pah !== undefined ? (payload.pah ? "pay_at_hotel" : "prepaid") : (existing.paymentStatus || "unknown"),
@@ -227,12 +235,6 @@ async function handleModifyBooking(payload: ReservationPayload) {
     ratePlan,
     nightlyRate,
   });
-
-  const newCheckin = payload.checkin || existing.checkinDate;
-  const newCheckout = exclusiveEndDate(newCheckin, payload.checkout || existing.checkoutDate);
-  if (!closed && newCheckin && newCheckout) {
-    await realignAssignments(existing.id, newCheckin, newCheckout);
-  }
 
   await addBookingHistoryEntry({
     bookingId: existing.id,
@@ -282,23 +284,20 @@ async function handleCancelBooking(payload: ReservationPayload) {
   return respondSuccess("Reservation Cancelled Successfully");
 }
 
-async function realignAssignments(bookingId: number, newCheckin: string, newCheckout: string) {
+async function realignAssignments(bookingId: number, newCheckin: string, newCheckout: string): Promise<boolean> {
   const detail = await getBookingDetail(bookingId);
   const status = detail?.booking?.status;
-  if (status === "checked_out" || status === "no_show" || status === "cancelled") return;
+  if (status === "checked_out" || status === "no_show" || status === "cancelled") return false;
   const assigned = (detail?.assignments || []).filter((a) => a.status === "assigned");
-  if (assigned.length === 0) return;
+  if (assigned.length === 0) return true;
   const same = assigned.every((a) => a.checkinDate === newCheckin && a.checkoutDate === newCheckout);
-  if (same) return;
+  if (same) return true;
 
-  let allOk = true;
   for (const a of assigned) {
     if (!(await checkBedAvailability(a.bedId, newCheckin, newCheckout, bookingId))) {
-      allOk = false;
-      break;
+      return false;
     }
   }
-  if (!allOk) return;
   await unassignBookingBeds(bookingId);
   for (const a of assigned) {
     await assignBedToBooking({
@@ -311,4 +310,5 @@ async function realignAssignments(bookingId: number, newCheckin: string, newChec
       inventoryPool: a.inventoryPool || "online",
     });
   }
+  return true;
 }

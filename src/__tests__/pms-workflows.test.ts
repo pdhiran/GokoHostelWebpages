@@ -463,6 +463,9 @@ describe("PMS inbound webhook workflows", () => {
     expect(res.status).toBe(200);
     expect(unassignBookingBeds).not.toHaveBeenCalled();
     expect(queryMocks.assignBedToBooking).not.toHaveBeenCalled();
+    const patch = vi.mocked(updateBookingFull).mock.calls[0][1];
+    expect(patch).not.toHaveProperty("checkinDate");
+    expect(patch).not.toHaveProperty("checkoutDate");
   });
 
   it("modify does not re-occupy beds after calendar checkout", async () => {

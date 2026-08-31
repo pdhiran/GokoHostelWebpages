@@ -401,6 +401,9 @@ export async function POST(req: NextRequest) {
 
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      if (stayClosed(detail.booking.status)) {
+        return NextResponse.json({ error: "Booking is already closed" }, { status: 409 });
+      }
 
       const now = new Date().toISOString();
       const today = todayIST();

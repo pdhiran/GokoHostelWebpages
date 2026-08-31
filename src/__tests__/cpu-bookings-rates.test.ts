@@ -190,6 +190,17 @@ describe("Bookings calendar and rates workflows", () => {
     expect(q.unassignBookingBeds).not.toHaveBeenCalled();
   });
 
+  it("second checkOut on an already checked-out booking 409s and does not extend assignments", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { status: "checked_out", checkinDate: "2026-09-01", checkoutDate: "2026-09-10" },
+      assignments: [{ status: "assigned", dormId: 3, bedId: 7, checkoutDate: "2026-09-03" }],
+    });
+    const res = await POST(req({ password: "x", action: "checkOut", bookingId: 5 }));
+    expect(res.status).toBe(409);
+    expect(q.shortenAssignedCheckout).not.toHaveBeenCalled();
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
+  });
+
   it("same-day checkOut keeps the assignment and cuts exclusive checkout to check-in (zero nights)", async () => {
     const today = todayIST();
     q.getBookingDetail.mockResolvedValue({
