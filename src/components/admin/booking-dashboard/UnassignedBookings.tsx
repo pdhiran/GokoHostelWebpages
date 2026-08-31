@@ -8,13 +8,14 @@ import { XIcon, CheckIcon, Loader2Icon, AlertCircleIcon } from "lucide-react";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { fetchWithRetry } from "@/components/admin/useAdminApi";
 import { exclusiveEndDate } from "@/lib/inventoryAvailability";
-import { platformLogo } from "./utils";
+import { platformLogo, stayOverlapsVisible, formatDateCompact } from "./utils";
 import type { DashboardBooking, CalendarDorm, DateRange } from "./types";
 
 type AvailableBed = { id: number; bedId: string; dormId: number; dormName: string; pool?: "online" | "offline" | "block" };
 
 export function UnassignedBookings({
   bookings,
+  dateRange,
   onAssign,
   onClose,
   password,
@@ -37,6 +38,19 @@ export function UnassignedBookings({
   const [loadingBeds, setLoadingBeds] = useState(false);
   const [bedsError, setBedsError] = useState("");
   const { showError } = useAdminToast();
+
+  const { ordered, offCalendarCount } = useMemo(() => {
+    const inView: DashboardBooking[] = [];
+    const out: DashboardBooking[] = [];
+    for (const b of bookings) {
+      if (stayOverlapsVisible(b.checkinDate, b.checkoutDate, dateRange.startDate, dateRange.endDate)) {
+        inView.push(b);
+      } else {
+        out.push(b);
+      }
+    }
+    return { ordered: [...inView, ...out], offCalendarCount: out.length };
+  }, [bookings, dateRange.startDate, dateRange.endDate]);
 
   useEffect(() => {
     if (!assigningId) {
@@ -142,6 +156,11 @@ export function UnassignedBookings({
           <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300">
             Unassigned Bookings ({bookings.length})
           </h3>
+          {offCalendarCount > 0 && (
+            <span className="text-[11px] font-normal text-orange-700 dark:text-orange-400">
+              {offCalendarCount} outside current dates
+            </span>
+          )}
         </div>
         <Button variant="ghost" size="icon-sm" onClick={onClose}>
           <XIcon className="size-4" />
@@ -149,13 +168,19 @@ export function UnassignedBookings({
       </div>
 
       <div className="divide-y divide-orange-200 dark:divide-orange-800">
-        {bookings.length === 0 ? (
+        {ordered.length === 0 ? (
           <p className="px-4 py-3 text-xs text-muted-foreground">
             No unassigned bookings. Assigned stays appear as bars on the calendar.
           </p>
-        ) : bookings.map((booking) => {
+        ) : ordered.map((booking) => {
           const platform = platformLogo(booking.platform);
           const isAssigning = assigningId === booking.id;
+          const onCalendar = stayOverlapsVisible(
+            booking.checkinDate,
+            booking.checkoutDate,
+            dateRange.startDate,
+            dateRange.endDate,
+          );
           return (
             <div key={booking.id} className="p-3">
               <div className="flex items-start justify-between">
@@ -167,9 +192,14 @@ export function UnassignedBookings({
                       </span>
                     )}
                     <span className="truncate text-sm font-medium text-foreground">{booking.guestName}</span>
+                    {!onCalendar && (
+                      <span className="shrink-0 rounded bg-orange-200 px-1.5 py-0.5 text-[10px] font-medium text-orange-900 dark:bg-orange-800 dark:text-orange-100">
+                        Off this calendar
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    {booking.checkinDate} - {booking.checkoutDate} | {booking.persons} person{booking.persons !== 1 ? "s" : ""}
+                    {formatDateCompact(booking.checkinDate)} – {booking.checkoutDate ? formatDateCompact(booking.checkoutDate) : "—"} | {booking.persons} person{booking.persons !== 1 ? "s" : ""}
                     {booking.bookingRef ? ` | ${booking.bookingRef}` : ""}
                   </div>
                 </div>

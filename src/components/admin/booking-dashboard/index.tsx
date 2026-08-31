@@ -11,7 +11,7 @@ import { BookingDetailPanel } from "./BookingDetailPanel";
 import { CreateBookingModal } from "./CreateBookingModal";
 import { UnassignedBookings } from "./UnassignedBookings";
 import { DateRangeSelector } from "./DateRangeSelector";
-import { getDateRange, getHostelToday } from "./utils";
+import { getDateRange, getHostelToday, rangeCoveringStay } from "./utils";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { AdminLoading } from "../AdminLoading";
 import type { DashboardBooking, BedAssignment, DateRange, CalendarDorm } from "./types";
@@ -135,17 +135,17 @@ export function BookingDashboard({
   }, []);
 
   const handleBookingAction = useCallback(
-    async (action: string, bookingId: number, extra?: Record<string, unknown>) => {
+    async (action: string, bookingId: number, extra?: Record<string, unknown>, reload = true) => {
       try {
         const res = await apiCall({ action, bookingId, ...extra });
         if (res.ok) {
           showSuccess("Action completed");
-          await loadData(true);
+          if (reload) await loadData(true);
           return true;
         }
         const data = await res.json().catch(() => ({ error: "Action failed" }));
         showError(data.error || "Action failed");
-        await loadData(true);
+        if (reload) await loadData(true);
         return false;
       } catch {
         showError("Network error");
@@ -245,7 +245,28 @@ export function BookingDashboard({
             bookings={unassignedBookings}
             dorms={dorms}
             dateRange={dateRange}
-            onAssign={async (bookingId, bedIds) => handleBookingAction("assignBeds", bookingId, { bedIds })}
+            onAssign={async (bookingId, bedIds) => {
+              const booking = unassignedBookings.find((b) => b.id === bookingId);
+              const assignedDormIds = new Set<number>();
+              for (const d of dorms) {
+                for (const bed of d.beds) {
+                  if (bedIds.includes(bed.id)) assignedDormIds.add(d.id);
+                }
+              }
+              const next = booking?.checkinDate
+                ? rangeCoveringStay(booking.checkinDate, booking.checkoutDate, dateRange)
+                : dateRange;
+              const jumping = next.startDate !== dateRange.startDate || next.endDate !== dateRange.endDate;
+              const ok = await handleBookingAction("assignBeds", bookingId, { bedIds }, !jumping);
+              if (!ok) return false;
+              setShowUnassigned(false);
+              setView("calendar");
+              if (assignedDormIds.size > 0) {
+                setDorms((prev) => prev.map((d) => ({ ...d, collapsed: !assignedDormIds.has(d.id) })));
+              }
+              if (jumping) setDateRange(next);
+              return true;
+            }}
             onClose={() => setShowUnassigned(false)}
             password={password}
             username={username}

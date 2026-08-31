@@ -1,4 +1,5 @@
-import { stayNightCount } from "@/lib/inventoryAvailability";
+import { addCalendarDays, exclusiveEndDate, stayNightCount } from "@/lib/inventoryAvailability";
+import type { DateRange } from "./types";
 
 export const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   received: { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-700 dark:text-orange-300", border: "border-orange-300 dark:border-orange-700" },
@@ -104,4 +105,81 @@ export function isToday(dateStr: string): boolean {
 export function isWeekend(dateStr: string): boolean {
   const day = new Date(dateStr + "T12:00:00Z").getUTCDay();
   return day === 0 || day === 6;
+}
+
+/** Stay nights [checkin, checkout) overlap the inclusive calendar window [start, end]. */
+export function stayOverlapsVisible(
+  checkin: string,
+  checkout: string | null | undefined,
+  start: string,
+  end: string,
+): boolean {
+  if (!checkin || !start || !end) return false;
+  const co = exclusiveEndDate(checkin, checkout);
+  if (!co) return false;
+  return checkin <= end && co > start;
+}
+
+/**
+ * Keep the current window if the stay already paints on it.
+ * Otherwise shift to the same length, starting at check-in (custom mode).
+ */
+export function rangeCoveringStay(
+  checkin: string,
+  checkout: string | null | undefined,
+  current: DateRange,
+): DateRange {
+  if (stayOverlapsVisible(checkin, checkout, current.startDate, current.endDate)) return current;
+  const span = Math.max(getDatesArray(current.startDate, current.endDate).length, 10);
+  return {
+    startDate: checkin,
+    endDate: addCalendarDays(checkin, span - 1),
+    mode: "custom",
+  };
+}
+
+export type CalendarTile = {
+  bookingId: number;
+  startCol: number;
+  spanCols: number;
+  isMultiBed: boolean;
+};
+
+/** Place an assigned stay on the inclusive date columns. Exclusive checkout. */
+export function computeTilePlacements(
+  bedId: number,
+  assignments: { bedId: number; bookingId: number; checkinDate: string; checkoutDate: string; status: string }[],
+  dates: string[],
+  bookingIds: Set<number>,
+  multiBedBookings: Set<number>,
+): CalendarTile[] {
+  if (dates.length === 0) return [];
+  const placements: CalendarTile[] = [];
+  const bedAssigns = assignments.filter((a) => a.bedId === bedId && a.status === "assigned");
+
+  for (const assign of bedAssigns) {
+    if (!bookingIds.has(assign.bookingId)) continue;
+
+    let startIdx = dates.indexOf(assign.checkinDate);
+    if (startIdx < 0) {
+      if (assign.checkinDate < dates[0]) startIdx = 0;
+      else continue;
+    }
+
+    let endIdx = dates.indexOf(assign.checkoutDate);
+    if (endIdx < 0) {
+      if (assign.checkoutDate > dates[dates.length - 1]) endIdx = dates.length;
+      else continue;
+    }
+    if (endIdx <= startIdx) continue;
+
+    placements.push({
+      bookingId: assign.bookingId,
+      startCol: startIdx,
+      spanCols: endIdx - startIdx,
+      isMultiBed: multiBedBookings.has(assign.bookingId),
+    });
+  }
+
+  return placements;
 }

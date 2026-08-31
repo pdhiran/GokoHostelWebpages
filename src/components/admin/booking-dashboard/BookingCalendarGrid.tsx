@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDownIcon, ChevronRightIcon, BanIcon } from "lucide-react";
 import { BookingTile } from "./BookingTile";
-import { getDatesArray, formatDateShort, formatDateCompact, isToday, isWeekend } from "./utils";
+import { getDatesArray, formatDateShort, formatDateCompact, isToday, isWeekend, computeTilePlacements } from "./utils";
 import type { DashboardBooking, BedAssignment, CalendarDorm, DateRange } from "./types";
 
 type TilePlacement = {
@@ -13,48 +13,6 @@ type TilePlacement = {
   spanCols: number;
   isMultiBed: boolean;
 };
-
-function computeTilePlacements(
-  bedId: number,
-  assignments: BedAssignment[],
-  bookingMap: Map<number, DashboardBooking>,
-  dates: string[],
-  multiBedBookings: Set<number>,
-): TilePlacement[] {
-  const placements: TilePlacement[] = [];
-  const bedAssigns = assignments.filter((a) => a.bedId === bedId && a.status === "assigned");
-
-  for (const assign of bedAssigns) {
-    const booking = bookingMap.get(assign.bookingId);
-    if (!booking) continue;
-
-    let startIdx = dates.indexOf(assign.checkinDate);
-    if (startIdx < 0) {
-      if (assign.checkinDate < dates[0]) startIdx = 0;
-      else continue;
-    }
-
-    let endIdx = dates.indexOf(assign.checkoutDate);
-    if (endIdx < 0) {
-      if (assign.checkoutDate > dates[dates.length - 1]) endIdx = dates.length;
-      else continue;
-    }
-    // Exclusive checkout: zero nights (same-day checkout) and stays that
-    // ended before the first visible column must not paint a 1-day tile.
-    if (endIdx <= startIdx) continue;
-
-    const spanCols = endIdx - startIdx;
-
-    placements.push({
-      booking,
-      startCol: startIdx,
-      spanCols,
-      isMultiBed: multiBedBookings.has(booking.id),
-    });
-  }
-
-  return placements;
-}
 
 export function BookingCalendarGrid({
   bookings,
@@ -84,6 +42,7 @@ export function BookingCalendarGrid({
     bookings.forEach((b) => m.set(b.id, b));
     return m;
   }, [bookings]);
+  const bookingIds = useMemo(() => new Set(bookingMap.keys()), [bookingMap]);
 
   const multiBedBookings = useMemo(() => {
     const counts = new Map<number, number>();
@@ -223,7 +182,13 @@ export function BookingCalendarGrid({
 
                 {/* Bed rows */}
                 {!dorm.collapsed && dorm.beds.map((bed, bedIdx) => {
-                  const placements = computeTilePlacements(bed.id, assignments, bookingMap, dates, multiBedBookings);
+                  const placements: TilePlacement[] = computeTilePlacements(
+                    bed.id, assignments, dates, bookingIds, multiBedBookings,
+                  ).flatMap((p) => {
+                    const booking = bookingMap.get(p.bookingId);
+                    if (!booking) return [];
+                    return [{ booking, startCol: p.startCol, spanCols: p.spanCols, isMultiBed: p.isMultiBed }];
+                  });
                   const bedRowBg = bed.isBlocked
                     ? ""
                     : bedIdx % 2 === 0

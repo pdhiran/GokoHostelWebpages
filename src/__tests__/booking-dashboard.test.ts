@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
-import { isWeekend, getNights, platformLogo } from "@/components/admin/booking-dashboard/utils";
+import { isWeekend, getNights, platformLogo, stayOverlapsVisible, rangeCoveringStay, computeTilePlacements, getDatesArray } from "@/components/admin/booking-dashboard/utils";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { isRetryableAdminResponse } from "@/components/admin/useAdminApi";
 import { isTransientError } from "@/lib/dbRetry";
@@ -329,8 +329,9 @@ describe("Booking Calendar: sticky dates and row colour", () => {
   });
 
   it("does not force a 1-day tile when exclusive checkout equals check-in", () => {
-    expect(grid).toContain("if (endIdx <= startIdx) continue");
-    expect(grid).not.toContain("Math.max(1, endIdx - startIdx)");
+    expect(utils).toContain("if (endIdx <= startIdx) continue");
+    expect(utils).not.toContain("Math.max(1, endIdx - startIdx)");
+    expect(grid).toContain("computeTilePlacements");
   });
 
   it("tints weekends, today, dorm groups, and blocked beds", () => {
@@ -393,6 +394,92 @@ describe("Booking calendar UI permissions match the API keys", () => {
     const fn = queries.match(/export async function getUnassignedBookings\(\)[\s\S]*?\n\}/)?.[0] ?? "";
     expect(fn).toContain("NOT EXISTS");
     expect(fn).toContain("status} = 'assigned'");
+  });
+
+  it("jumps the calendar after Unassigned assign when the stay is off-screen", () => {
+    expect(dashboard).toContain("rangeCoveringStay");
+    expect(dashboard).toContain("setShowUnassigned(false)");
+    expect(dashboard).toContain("setDateRange(next)");
+    expect(dashboard).toContain("collapsed: !assignedDormIds.has(d.id)");
+    expect(dashboard).toContain("handleBookingAction(\"assignBeds\", bookingId, { bedIds }, !jumping)");
+    const unassigned = readFile("src/components/admin/booking-dashboard/UnassignedBookings.tsx");
+    expect(unassigned).toContain("Off this calendar");
+    expect(unassigned).toContain("stayOverlapsVisible");
+    expect(unassigned).toContain("dateRange,");
+    const selector = readFile("src/components/admin/booking-dashboard/DateRangeSelector.tsx");
+    expect(selector).toContain("[dateRange.startDate, dateRange.endDate]");
+  });
+});
+
+describe("Booking calendar: off-screen stays after Unassigned assign", () => {
+  const sepView = { startDate: "2026-09-02", endDate: "2026-09-28", mode: "30days" as const };
+
+  it("does not treat an August night as overlapping a September calendar", () => {
+    expect(stayOverlapsVisible("2026-08-25", "2026-08-26", sepView.startDate, sepView.endDate)).toBe(false);
+    expect(stayOverlapsVisible("2026-09-05", "2026-09-06", sepView.startDate, sepView.endDate)).toBe(true);
+    expect(stayOverlapsVisible("2026-09-01", "2026-09-03", sepView.startDate, sepView.endDate)).toBe(true);
+    expect(stayOverlapsVisible("2026-09-28", "2026-09-29", sepView.startDate, sepView.endDate)).toBe(true);
+    expect(stayOverlapsVisible("2026-09-29", "2026-09-30", sepView.startDate, sepView.endDate)).toBe(false);
+  });
+
+  it("keeps the current window when the stay already paints on it", () => {
+    expect(rangeCoveringStay("2026-09-05", "2026-09-06", sepView)).toEqual(sepView);
+  });
+
+  it("shifts to check-in with the same span when the stay is off-screen", () => {
+    const next = rangeCoveringStay("2026-08-25", "2026-08-26", sepView);
+    expect(next.startDate).toBe("2026-08-25");
+    expect(next.mode).toBe("custom");
+    expect(stayOverlapsVisible("2026-08-25", "2026-08-26", next.startDate, next.endDate)).toBe(true);
+    expect(next.endDate).not.toBe(sepView.endDate);
+  });
+
+  it("paints a tile after assign only once the calendar covers the stay", () => {
+    const bookingId = 146;
+    const bedId = 12;
+    const assignment = {
+      bedId,
+      bookingId,
+      checkinDate: "2026-08-25",
+      checkoutDate: "2026-08-26",
+      status: "assigned",
+    };
+    const bookingIds = new Set([bookingId]);
+    const none = new Set<number>();
+
+    const hiddenDates = getDatesArray(sepView.startDate, sepView.endDate);
+    expect(computeTilePlacements(bedId, [assignment], hiddenDates, bookingIds, none)).toEqual([]);
+
+    const shown = rangeCoveringStay(assignment.checkinDate, assignment.checkoutDate, sepView);
+    const shownDates = getDatesArray(shown.startDate, shown.endDate);
+    expect(computeTilePlacements(bedId, [assignment], shownDates, bookingIds, none)).toEqual([
+      { bookingId, startCol: 0, spanCols: 1, isMultiBed: false },
+    ]);
+  });
+
+  it("paints an in-window 1-night stay on the check-in column without jumping", () => {
+    const current = { startDate: "2026-09-02", endDate: "2026-09-28", mode: "30days" as const };
+    expect(rangeCoveringStay("2026-09-05", "2026-09-06", current)).toEqual(current);
+    const dates = getDatesArray(current.startDate, current.endDate);
+    const tiles = computeTilePlacements(
+      7,
+      [{ bedId: 7, bookingId: 99, checkinDate: "2026-09-05", checkoutDate: "2026-09-06", status: "assigned" }],
+      dates,
+      new Set([99]),
+      new Set(),
+    );
+    expect(tiles).toEqual([{ bookingId: 99, startCol: dates.indexOf("2026-09-05"), spanCols: 1, isMultiBed: false }]);
+  });
+
+  it("skips a tile when the booking row is missing from the calendar payload", () => {
+    const dates = getDatesArray("2026-08-25", "2026-09-03");
+    expect(computeTilePlacements(
+      7,
+      [{ bedId: 7, bookingId: 1, checkinDate: "2026-08-25", checkoutDate: "2026-08-26", status: "assigned" }],
+      dates,
+      new Set(),
+      new Set(),
+    )).toEqual([]);
   });
 });
 

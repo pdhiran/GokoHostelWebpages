@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,11 @@ export function DateRangeSelector({
 }) {
   const [customStart, setCustomStart] = useState(dateRange.startDate);
   const [customEnd, setCustomEnd] = useState(dateRange.endDate);
+
+  useEffect(() => {
+    setCustomStart(dateRange.startDate);
+    setCustomEnd(dateRange.endDate);
+  }, [dateRange.startDate, dateRange.endDate]);
 
   const handleModeChange = (mode: DateRange["mode"]) => {
     if (mode === "custom") {
