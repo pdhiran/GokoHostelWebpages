@@ -1,9 +1,10 @@
-import { eq, desc, and, sql, inArray, gte, lte, or } from "drizzle-orm";
+import { eq, desc, and, sql, inArray, gte, lte, lt, or } from "drizzle-orm";
 import { getDb } from "./index";
 import { todayIST } from "@/lib/utils";
 import { addCalendarDays, bedsFitInventoryCap, countUnassignedOtaRooms, explodeUnassignedOtaHolds, pickInventoryOverride, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { sqliteLikePrefix } from "@/lib/pmsLog";
+import { clampLogOffset, clampLogPageSize, clampLogSince, LOG_DOWNLOAD_MAX, logRetentionSince } from "@/lib/logRetention";
 import { checkins, dorms, beds, bedHistory, settings, apiStats, users, auditLog, systemLogs, rateScrapes, bookings, menuCategories, menuItems, foodOrders, foodOrderItems, orderModifications, expenses, reviewRequests, reviewFeedback, channelConfig, roomTypeMapping, ratePlanMapping, dailyRates, channelSyncLog, bookingBedAssignments, bookingHistory, bedTypeConfig, channels, channelRates, bedBlocks, inventoryOverrides, inventoryDirty } from "./schema";
 import { dbRead, dbWrite } from "@/lib/dbRetry";
 import { syncInsert, syncUpdate } from "./syncMeta";
@@ -324,7 +325,7 @@ export async function addSystemLog(data: {
     if (messagePriority < configuredPriority) return;
 
     const db = getDb();
-    return db.insert(systemLogs).values({
+    await db.insert(systemLogs).values({
       timestamp: new Date().toISOString(),
       level: data.level,
       source: data.source,
@@ -334,12 +335,44 @@ export async function addSystemLog(data: {
     });
   } catch {
     // Fail silently — logging should never break the app
+    return;
+  }
+  try {
+    await pruneSystemLogs();
+  } catch {
+    // Keep the new row even if cleanup of old rows fails
   }
 }
 
-export async function getSystemLogs(limit = 200) {
+async function pruneSystemLogs() {
   const db = getDb();
-  return db.select().from(systemLogs).orderBy(desc(systemLogs.id)).limit(limit);
+  await db.delete(systemLogs).where(lt(systemLogs.timestamp, logRetentionSince()));
+}
+
+export async function getSystemLogs(
+  limit = 50,
+  filters?: { level?: string; source?: string; since?: string; offset?: number },
+) {
+  await pruneSystemLogs().catch(() => {});
+  const pageSize = clampLogPageSize(limit, LOG_DOWNLOAD_MAX);
+  const since = clampLogSince(filters?.since);
+  const db = getDb();
+  const conditions = [gte(systemLogs.timestamp, since)];
+  if (filters?.level) conditions.push(eq(systemLogs.level, filters.level));
+  if (filters?.source) conditions.push(eq(systemLogs.source, filters.source));
+  const where = and(...conditions);
+  const [countRow] = await db.select({ n: sql<number>`count(*)` }).from(systemLogs).where(where);
+  const total = Number(countRow?.n ?? 0);
+  const offset = clampLogOffset(total, pageSize, filters?.offset ?? 0);
+  const sourceRows = await db.selectDistinct({ source: systemLogs.source })
+    .from(systemLogs)
+    .where(and(gte(systemLogs.timestamp, since), sql`${systemLogs.source} != ''`));
+  const logs = await db.select().from(systemLogs).where(where).orderBy(desc(systemLogs.id)).limit(pageSize).offset(offset);
+  return {
+    logs,
+    total,
+    sources: sourceRows.map((r) => r.source).filter((s): s is string => Boolean(s)),
+  };
 }
 
 // --- Bookings ---
@@ -1479,25 +1512,31 @@ export async function addChannelSyncLog(data: {
       httpStatus: data.httpStatus ?? null,
       durationMs: data.durationMs ?? null,
     });
-    // Keep newest 500. Wrapped subquery: SQLite rejects DELETE ... NOT IN (SELECT same table).
-    await db.run(sql`
-      DELETE FROM channel_sync_log WHERE id NOT IN (
-        SELECT id FROM (SELECT id FROM channel_sync_log ORDER BY id DESC LIMIT 500)
-      )
-    `);
   } catch (err) {
     // Never throw — logging must not break PMS calls. Surface the miss so a missing 0036 is obvious.
     console.error("channel_sync_log write failed:", err instanceof Error ? err.message : err);
+    return;
   }
+  try {
+    await pruneChannelSyncLogs();
+  } catch (err) {
+    console.error("channel_sync_log prune failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+async function pruneChannelSyncLogs() {
+  const db = getDb();
+  await db.delete(channelSyncLog).where(lt(channelSyncLog.createdAt, logRetentionSince()));
 }
 
 export async function getChannelSyncLogs(
   limit = 50,
-  filters?: { direction?: string; type?: string; status?: string; since?: string }
+  filters?: { direction?: string; type?: string; status?: string; since?: string; offset?: number },
 ) {
-  limit = Math.min(Math.max(1, Number(limit) || 50), 200);
+  await pruneChannelSyncLogs().catch(() => {});
+  const pageSize = clampLogPageSize(limit, LOG_DOWNLOAD_MAX);
   const db = getDb();
-  const conditions = [];
+  const conditions = [gte(channelSyncLog.createdAt, clampLogSince(filters?.since))];
   if (filters?.direction) conditions.push(eq(channelSyncLog.direction, filters.direction));
   if (filters?.type) {
     // "inventory" also matches "inventory (auto)"; "fetch" matches "fetch (rates)"
@@ -1508,12 +1547,12 @@ export async function getChannelSyncLogs(
     )!);
   }
   if (filters?.status) conditions.push(eq(channelSyncLog.status, filters.status));
-  if (filters?.since) conditions.push(gte(channelSyncLog.createdAt, filters.since));
-  const q = db.select().from(channelSyncLog);
-  if (conditions.length > 0) {
-    return q.where(and(...conditions)).orderBy(desc(channelSyncLog.id)).limit(limit);
-  }
-  return q.orderBy(desc(channelSyncLog.id)).limit(limit);
+  const where = and(...conditions);
+  const [countRow] = await db.select({ n: sql<number>`count(*)` }).from(channelSyncLog).where(where);
+  const total = Number(countRow?.n ?? 0);
+  const offset = clampLogOffset(total, pageSize, filters?.offset ?? 0);
+  const logs = await db.select().from(channelSyncLog).where(where).orderBy(desc(channelSyncLog.id)).limit(pageSize).offset(offset);
+  return { logs, total };
 }
 
 export async function getAvailableBedsForDorm(dormId: number): Promise<number> {

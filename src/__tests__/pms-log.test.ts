@@ -60,6 +60,8 @@ describe("sqliteLikePrefix", () => {
     const queries = readFileSync(join(process.cwd(), "src/db/queries.ts"), "utf8");
     expect(queries).toContain("sqliteLikePrefix(filters.type)");
     expect(queries).toContain("ESCAPE");
+    expect(queries).toContain("pruneChannelSyncLogs");
+    expect(queries).not.toContain("LIMIT 500");
   });
 });
 
@@ -156,6 +158,9 @@ describe("summarizePmsLog", () => {
     expect(ui).not.toContain('from "@/lib/pmsLog"');
     expect(ui).toContain("summarizePmsLog");
     expect(ui).toContain("previousPmsPayload(logs, i)");
+    expect(ui).toContain("LogPager");
+    expect(ui).not.toContain("Newest 200");
+    expect(ui).not.toContain("pruned after 500");
   });
 
   it("1 adult is the room code, cancel has no inventory remaining", () => {

@@ -1,12 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAdminApi, fetchWithRetry } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { Button } from "@/components/ui/button";
 import { DownloadIcon, AlertCircleIcon, AlertTriangleIcon, InfoIcon, CopyIcon, CheckIcon, ChevronDownIcon } from "lucide-react";
 import { cn, localDateStr } from "@/lib/utils";
 import { previousPmsPayload, summarizePmsLog } from "@/lib/pmsLogSummary";
+import {
+  downloadJsonFile,
+  formatPmsLogsForPdf,
+  formatSystemLogsForPdf,
+  prettyJson,
+  saveTextPdf,
+} from "@/lib/logExport";
+import {
+  DEFAULT_LOG_PAGE_SIZE,
+  LOG_DOWNLOAD_MAX,
+  LOG_PAGE_SIZE_OPTIONS,
+  LOG_RETENTION_DAYS,
+  logPageCount,
+  logPagerItems,
+} from "@/lib/logRetention";
 import type { Role } from "./types";
 
 type LogSubTab = "system" | "pms";
@@ -70,23 +85,45 @@ export function ManagementLogs({ password, username, role }: { password: string;
 function SystemLogsPanel({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { apiCall } = useAdminApi(password, username);
   const [logs, setLogs] = useState<LogEntryData[]>([]);
+  const [total, setTotal] = useState(0);
+  const [sources, setSources] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterLevel, setFilterLevel] = useState("");
   const [filterSource, setFilterSource] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LOG_PAGE_SIZE);
   const [configuredLevel, setConfiguredLevel] = useState("error");
   const [savingLevel, setSavingLevel] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const loadGen = useRef(0);
 
-  useEffect(() => { loadLogs(); loadLogLevel(); }, []);
+  useEffect(() => { loadLogLevel(); }, []);
+  useEffect(() => { loadLogs(); }, [page, pageSize, filterLevel, filterSource]);
 
   const loadLogs = async () => {
+    const gen = ++loadGen.current;
     setLoading(true);
     try {
-      const res = await apiCall({ action: "getSystemLogs" });
+      const res = await apiCall({
+        action: "getSystemLogs",
+        page,
+        pageSize,
+        level: filterLevel || undefined,
+        source: filterSource || undefined,
+      });
+      if (gen !== loadGen.current) return;
       if (res.ok) {
         const data = await res.json();
+        if (gen !== loadGen.current) return;
         setLogs(data.logs || []);
+        setTotal(Number(data.total) || 0);
+        setSources(Array.isArray(data.sources) ? data.sources : []);
+        const applied = Math.min(Number(data.page) || page, logPageCount(Number(data.total) || 0, Number(data.pageSize) || pageSize));
+        if (applied !== page) setPage(applied);
       }
-    } finally { setLoading(false); }
+    } finally {
+      if (gen === loadGen.current) setLoading(false);
+    }
   };
 
   const loadLogLevel = async () => {
@@ -102,19 +139,34 @@ function SystemLogsPanel({ password, username, role }: { password: string; usern
     } finally { setSavingLevel(false); }
   };
 
-  const filtered = logs.filter((l) => {
-    if (filterLevel && l.level !== filterLevel) return false;
-    if (filterSource && l.source !== filterSource) return false;
-    return true;
-  });
+  const fetchDownloadLogs = async (): Promise<LogEntryData[] | null> => {
+    const res = await apiCall({
+      action: "getSystemLogs",
+      page: 1,
+      pageSize: LOG_DOWNLOAD_MAX,
+      download: true,
+      level: filterLevel || undefined,
+      source: filterSource || undefined,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.logs || [];
+  };
 
-  const allSources = [...new Set(logs.map((l) => l.source).filter(Boolean))];
-
-  const downloadLogs = () => {
-    const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `system-logs-${localDateStr(new Date())}.json`; a.click();
-    URL.revokeObjectURL(url);
+  const downloadLogs = async (format: "json" | "pdf") => {
+    setDownloading(true);
+    try {
+      const rows = await fetchDownloadLogs();
+      if (!rows) return;
+      const stamp = localDateStr(new Date());
+      if (format === "json") {
+        downloadJsonFile(`system-logs-${stamp}.json`, rows);
+        return;
+      }
+      await saveTextPdf(`system-logs-${stamp}.pdf`, formatSystemLogsForPdf(rows));
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const levelIcon = (level: string) => {
@@ -123,19 +175,28 @@ function SystemLogsPanel({ password, username, role }: { password: string; usern
     return <InfoIcon className="h-3.5 w-3.5 text-blue-500" />;
   };
 
-  if (loading) return <AdminLoading message="Loading logs..." />;
+  if (loading && logs.length === 0) return <AdminLoading message="Loading logs..." />;
+
+  const pages = logPageCount(total, pageSize);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-brand-green-dark">System Logs</h3>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="ctaOutline" onClick={downloadLogs} disabled={filtered.length === 0}>
-            <DownloadIcon className="mr-1 h-4 w-4" /> Download
-          </Button>
+          <DownloadMenu
+            disabled={total === 0}
+            busy={downloading}
+            onPdf={() => downloadLogs("pdf")}
+            onJson={() => downloadLogs("json")}
+          />
           <Button type="button" variant="ctaOutline" onClick={loadLogs}>Refresh</Button>
         </div>
       </div>
+
+      <p className="text-[11px] text-brand-green-dark/50">
+        Errors and important events from the last {LOG_RETENTION_DAYS} days. Older rows are deleted automatically.
+      </p>
 
       {role === "admin" && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border border-brand-mist bg-white dark:bg-card p-3">
@@ -156,28 +217,38 @@ function SystemLogsPanel({ password, username, role }: { password: string; usern
       )}
 
       <div className="flex flex-wrap gap-3">
-        <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">
+        <select
+          value={filterLevel}
+          onChange={(e) => { setFilterLevel(e.target.value); setPage(1); }}
+          className="rounded-md border border-input bg-background px-3 py-2 text-xs"
+        >
           <option value="">All levels</option>
           <option value="error">Error</option>
           <option value="warn">Warning</option>
           <option value="info">Info</option>
         </select>
-        <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">
+        <select
+          value={filterSource}
+          onChange={(e) => { setFilterSource(e.target.value); setPage(1); }}
+          className="rounded-md border border-input bg-background px-3 py-2 text-xs"
+        >
           <option value="">All sources</option>
-          {allSources.map((s) => <option key={s} value={s}>{s}</option>)}
+          {sources.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span className="ml-auto self-center text-xs text-brand-green-dark/50">{filtered.length} logs</span>
+        <LogPageSize value={pageSize} onChange={(n) => { setPageSize(n); setPage(1); }} />
+        <span className="ml-auto self-center text-xs text-brand-green-dark/50">{total} logs</span>
       </div>
 
       <div className="space-y-2">
-        {filtered.length === 0 ? (
+        {logs.length === 0 ? (
           <p className="py-12 text-center text-sm text-brand-green-dark/50">No logs recorded yet. Logs appear when errors or important events occur.</p>
         ) : (
-          filtered.slice(0, 100).map((l) => (
+          logs.map((l) => (
             <LogEntryCard key={l.id} log={l} levelIcon={levelIcon} />
           ))
         )}
       </div>
+      <LogPager page={page} pageCount={pages} onPage={setPage} disabled={loading} />
     </div>
   );
 }
@@ -233,28 +304,29 @@ function LogEntryCard({ log, levelIcon }: { log: LogEntryData; levelIcon: (level
   );
 }
 
-function prettyJson(raw: string | null | undefined): string {
-  if (!raw) return "";
-  try { return JSON.stringify(JSON.parse(raw), null, 2); }
-  catch { return raw; }
-}
-
 function PmsLogsPanel({ password, username }: { password: string; username?: string }) {
   const [logs, setLogs] = useState<PmsLogRow[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filterDirection, setFilterDirection] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LOG_PAGE_SIZE);
+  const [downloading, setDownloading] = useState(false);
+  const loadGen = useRef(0);
 
   const loadLogs = async () => {
+    const gen = ++loadGen.current;
     setLoading(true);
     setError("");
     try {
       const payload: Record<string, unknown> = {
         password,
         action: "getSyncLogs",
-        limit: 200,
+        page,
+        pageSize,
       };
       if (username) payload.username = username;
       if (filterDirection) payload.direction = filterDirection;
@@ -266,52 +338,105 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
+      if (gen !== loadGen.current) return;
       if (!res.ok) {
         setLogs([]);
+        setTotal(0);
         setError(typeof data.error === "string" ? data.error : `Failed to load logs (${res.status})`);
         return;
       }
       setLogs(data.logs || []);
+      setTotal(Number(data.total) || 0);
+      const applied = Math.min(Number(data.page) || page, logPageCount(Number(data.total) || 0, Number(data.pageSize) || pageSize));
+      if (applied !== page) setPage(applied);
     } catch {
+      if (gen !== loadGen.current) return;
       setLogs([]);
+      setTotal(0);
       setError("Failed to load logs");
-    } finally { setLoading(false); }
+    } finally {
+      if (gen === loadGen.current) setLoading(false);
+    }
   };
 
-  useEffect(() => { loadLogs(); }, [filterDirection, filterType, filterStatus]);
+  useEffect(() => { loadLogs(); }, [page, pageSize, filterDirection, filterType, filterStatus]);
 
-  const downloadLogs = () => {
-    const blob = new Blob([JSON.stringify(logs, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `pms-logs-${localDateStr(new Date())}.json`; a.click();
-    URL.revokeObjectURL(url);
+  const fetchDownloadLogs = async (): Promise<PmsLogRow[] | null> => {
+    const payload: Record<string, unknown> = {
+      password,
+      action: "getSyncLogs",
+      page: 1,
+      pageSize: LOG_DOWNLOAD_MAX,
+      download: true,
+    };
+    if (username) payload.username = username;
+    if (filterDirection) payload.direction = filterDirection;
+    if (filterType) payload.type = filterType;
+    if (filterStatus) payload.status = filterStatus;
+    const res = await fetchWithRetry("/api/admin/channel-manager", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return null;
+    return data.logs || [];
+  };
+
+  const downloadLogs = async (format: "json" | "pdf") => {
+    setDownloading(true);
+    try {
+      const rows = await fetchDownloadLogs();
+      if (!rows) return;
+      const stamp = localDateStr(new Date());
+      if (format === "json") {
+        downloadJsonFile(`pms-logs-${stamp}.json`, rows);
+        return;
+      }
+      await saveTextPdf(`pms-logs-${stamp}.pdf`, formatPmsLogsForPdf(rows));
+    } catch { /* keep the list as-is */ } finally {
+      setDownloading(false);
+    }
   };
 
   if (loading && logs.length === 0) return <AdminLoading message="Loading PMS logs..." />;
+
+  const pages = logPageCount(total, pageSize);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-brand-green-dark">PMS Logs</h3>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="ctaOutline" onClick={downloadLogs} disabled={logs.length === 0}>
-            <DownloadIcon className="mr-1 h-4 w-4" /> Download
-          </Button>
+          <DownloadMenu
+            disabled={total === 0}
+            busy={downloading}
+            onPdf={() => downloadLogs("pdf")}
+            onJson={() => downloadLogs("json")}
+          />
           <Button type="button" variant="ctaOutline" onClick={loadLogs}>Refresh</Button>
         </div>
       </div>
 
       <p className="text-[11px] text-brand-green-dark/50">
-        Every call to and from Aiosell: inbound reservation webhooks (pull), Channel Manager fetch (pull), and outbound inventory / rates / restrictions / no-show (push). Newest 200 shown; older rows are pruned after 500.
+        Every call to and from Aiosell: inbound reservation webhooks (pull), Channel Manager fetch (pull), and outbound inventory / rates / restrictions / no-show (push). Last {LOG_RETENTION_DAYS} days; older rows are deleted automatically.
       </p>
 
       <div className="flex flex-wrap gap-3">
-        <select value={filterDirection} onChange={(e) => setFilterDirection(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">
+        <select
+          value={filterDirection}
+          onChange={(e) => { setFilterDirection(e.target.value); setPage(1); }}
+          className="rounded-md border border-input bg-background px-3 py-2 text-xs"
+        >
           <option value="">All directions</option>
           <option value="push">Push (outbound)</option>
           <option value="pull">Pull (inbound)</option>
         </select>
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">
+        <select
+          value={filterType}
+          onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
+          className="rounded-md border border-input bg-background px-3 py-2 text-xs"
+        >
           <option value="">All types</option>
           <option value="inventory">Inventory</option>
           <option value="rate">Rate</option>
@@ -320,12 +445,17 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
           <option value="fetch">Fetch from Aiosell</option>
           <option value="noshow">No-show</option>
         </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-xs">
+        <select
+          value={filterStatus}
+          onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
+          className="rounded-md border border-input bg-background px-3 py-2 text-xs"
+        >
           <option value="">All statuses</option>
           <option value="success">Success</option>
           <option value="failed">Failed</option>
         </select>
-        <span className="ml-auto self-center text-xs text-brand-green-dark/50">{logs.length} logs</span>
+        <LogPageSize value={pageSize} onChange={(n) => { setPageSize(n); setPage(1); }} />
+        <span className="ml-auto self-center text-xs text-brand-green-dark/50">{total} logs</span>
       </div>
 
       <div className="space-y-2">
@@ -341,7 +471,141 @@ function PmsLogsPanel({ password, username }: { password: string; username?: str
           ))
         )}
       </div>
+      <LogPager page={page} pageCount={pages} onPage={setPage} disabled={loading} />
     </div>
+  );
+}
+
+function DownloadMenu({
+  disabled,
+  busy,
+  onPdf,
+  onJson,
+}: {
+  disabled: boolean;
+  busy?: boolean;
+  onPdf: () => void;
+  onJson: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <Button
+        type="button"
+        variant="ctaOutline"
+        disabled={disabled || busy}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <DownloadIcon className="mr-1 h-4 w-4" />
+        {busy ? "Preparing…" : "Download"}
+        <ChevronDownIcon className="ml-1 h-3.5 w-3.5" />
+      </Button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-md border border-brand-mist bg-white py-1 shadow-md dark:bg-card"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-1.5 text-left text-xs font-medium text-brand-green-dark hover:bg-brand-sand/50"
+            onClick={() => { setOpen(false); onPdf(); }}
+          >
+            PDF
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-1.5 text-left text-xs font-medium text-brand-green-dark hover:bg-brand-sand/50"
+            onClick={() => { setOpen(false); onJson(); }}
+          >
+            JSON
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LogPageSize({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <label className="flex items-center gap-1.5 text-xs text-brand-green-dark/60">
+      Per page
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="rounded-md border border-input bg-background px-2 py-2 text-xs"
+      >
+        {LOG_PAGE_SIZE_OPTIONS.map((n) => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function LogPager({
+  page, pageCount, onPage, disabled,
+}: {
+  page: number;
+  pageCount: number;
+  onPage: (p: number) => void;
+  disabled?: boolean;
+}) {
+  if (pageCount <= 1) return null;
+  return (
+    <nav className="flex flex-wrap items-center justify-center gap-1 pt-2" aria-label="Pagination">
+      <button
+        type="button"
+        disabled={disabled || page <= 1}
+        onClick={() => onPage(page - 1)}
+        className="px-2 py-1 text-xs text-brand-green underline disabled:opacity-40 disabled:no-underline"
+      >
+        Previous
+      </button>
+      {logPagerItems(page, pageCount).map((item, i) =>
+        item === "ellipsis" ? (
+          <span key={`e${i}`} className="px-1 text-xs text-brand-green-dark/40">…</span>
+        ) : (
+          <button
+            key={item}
+            type="button"
+            aria-current={item === page ? "page" : undefined}
+            disabled={disabled}
+            onClick={() => onPage(item)}
+            className={cn(
+              "min-w-7 rounded-full px-2 py-1 text-xs font-medium",
+              item === page
+                ? "bg-brand-green text-white"
+                : "text-brand-green hover:bg-brand-green/10"
+            )}
+          >
+            {item}
+          </button>
+        )
+      )}
+      <button
+        type="button"
+        disabled={disabled || page >= pageCount}
+        onClick={() => onPage(page + 1)}
+        className="px-2 py-1 text-xs text-brand-green underline disabled:opacity-40 disabled:no-underline"
+      >
+        Next
+      </button>
+    </nav>
   );
 }
 

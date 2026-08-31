@@ -1310,9 +1310,9 @@ describe("PMS log list API", () => {
     vi.mocked(getChannelSyncLogs).mockReset();
   });
 
-  it("admin getSyncLogs forwards limit and filters", async () => {
+  it("admin getSyncLogs forwards page size, offset, and filters", async () => {
     vi.mocked(authenticateUser).mockResolvedValue({ role: "admin", displayName: "Admin", permissions: {} } as never);
-    vi.mocked(getChannelSyncLogs).mockResolvedValue([{ id: 1, type: "inventory" }] as never);
+    vi.mocked(getChannelSyncLogs).mockResolvedValue({ logs: [{ id: 1, type: "inventory" }], total: 1 } as never);
     const res = await channelManagerPOST(new NextRequest("http://localhost/api/admin/channel-manager", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1328,10 +1328,15 @@ describe("PMS log list API", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.logs).toHaveLength(1);
-    expect(getChannelSyncLogs).toHaveBeenCalledWith(200, {
+    expect(body.total).toBe(1);
+    expect(body.page).toBe(1);
+    expect(body.pageSize).toBe(100);
+    expect(getChannelSyncLogs).toHaveBeenCalledWith(100, {
       direction: "push",
       type: "inventory",
       status: "failed",
+      since: undefined,
+      offset: 0,
     });
   });
 

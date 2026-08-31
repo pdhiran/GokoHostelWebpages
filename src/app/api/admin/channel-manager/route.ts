@@ -8,6 +8,7 @@ import {
   getAllDorms, getAllBeds, getSetting, setSetting,
 } from "@/db/queries";
 import { BOOKING_TAX_SETTING, bookingTaxPercent } from "@/lib/bookingPricing";
+import { logListQuery, logSafePage } from "@/lib/logRetention";
 
 export async function POST(req: NextRequest) {
   try {
@@ -127,13 +128,15 @@ export async function POST(req: NextRequest) {
       }
 
       case "getSyncLogs": {
-        const logs = await getChannelSyncLogs(body.limit, {
+        const { page, pageSize, offset } = logListQuery(body);
+        const { logs, total } = await getChannelSyncLogs(pageSize, {
           direction: body.direction || undefined,
           type: body.type || undefined,
           status: body.status || undefined,
           since: body.since || undefined,
+          offset,
         });
-        return NextResponse.json({ logs });
+        return NextResponse.json({ logs, total, page: logSafePage(total, pageSize, page), pageSize });
       }
 
       default:

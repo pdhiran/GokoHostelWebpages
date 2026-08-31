@@ -5,6 +5,7 @@ import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser, hashPassword, verifyPassword, type UserRole } from "@/lib/auth";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
+import { logListQuery, logSafePage } from "@/lib/logRetention";
 import { todayIST } from "@/lib/utils";
 import {
   getCheckinsByMonth, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
@@ -885,8 +886,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "getSystemLogs") {
-      const logs = await getSystemLogs();
-      return NextResponse.json({ logs });
+      const { page, pageSize, offset } = logListQuery(rest);
+      const { logs, total, sources } = await getSystemLogs(pageSize, {
+        level: rest.level || undefined,
+        source: rest.source || undefined,
+        offset,
+      });
+      return NextResponse.json({ logs, total, page: logSafePage(total, pageSize, page), pageSize, sources });
     }
 
     if (action === "runBackup") {

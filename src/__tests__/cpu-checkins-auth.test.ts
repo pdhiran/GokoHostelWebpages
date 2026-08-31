@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { authenticateUser, getCheckinsByMonth, getMonthKey } = vi.hoisted(() => ({
+const { authenticateUser, getCheckinsByMonth, getMonthKey, getSystemLogs } = vi.hoisted(() => ({
   authenticateUser: vi.fn(),
   getCheckinsByMonth: vi.fn(),
   getMonthKey: vi.fn(() => "2026-08"),
+  getSystemLogs: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -58,7 +59,7 @@ vi.mock("@/db/queries", () => ({
   addAuditEntry: vi.fn(),
   getAuditEntries: vi.fn(),
   addSystemLog: vi.fn(),
-  getSystemLogs: vi.fn(),
+  getSystemLogs,
   createReviewRequest: vi.fn(),
   getReviewRequestByCheckinId: vi.fn(),
 }));
@@ -84,6 +85,7 @@ describe("Checkins auth-vs-list workflows", () => {
   beforeEach(() => {
     authenticateUser.mockReset();
     getCheckinsByMonth.mockReset();
+    getSystemLogs.mockReset();
     getMonthKey.mockReturnValue("2026-08");
   });
 
@@ -123,6 +125,39 @@ describe("Checkins auth-vs-list workflows", () => {
     const listRes = await POST(req({ password: "x", action: "list", month: "2026-08" }));
     expect(listRes.status).toBe(200);
     expect(getCheckinsByMonth).toHaveBeenCalledWith("2026-08");
+  });
+
+  it("forbids staff from getSystemLogs", async () => {
+    authenticateUser.mockResolvedValue(bookingsOnly);
+    const res = await POST(req({ password: "x", action: "getSystemLogs" }));
+    expect(res.status).toBe(403);
+    expect(getSystemLogs).not.toHaveBeenCalled();
+  });
+
+  it("getSystemLogs paginates with level and source filters", async () => {
+    authenticateUser.mockResolvedValue({ role: "admin", displayName: "Admin", permissions: {} });
+    getSystemLogs.mockResolvedValue({ logs: [{ id: 9, message: "x" }], total: 90, sources: ["checkin"] });
+    const res = await POST(req({
+      password: "x",
+      action: "getSystemLogs",
+      page: 2,
+      pageSize: 50,
+      level: "error",
+      source: "checkin",
+    }));
+    expect(res.status).toBe(200);
+    expect(getSystemLogs).toHaveBeenCalledWith(50, {
+      level: "error",
+      source: "checkin",
+      offset: 50,
+    });
+    expect(await res.json()).toEqual({
+      logs: [{ id: 9, message: "x" }],
+      total: 90,
+      page: 2,
+      pageSize: 50,
+      sources: ["checkin"],
+    });
   });
 });
 

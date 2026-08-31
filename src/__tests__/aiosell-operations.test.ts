@@ -902,17 +902,40 @@ describe("Channel Manager config API", () => {
     expect(await res.json()).toEqual({ rates });
   });
 
-  it("getSyncLogs forwards limit and filters", async () => {
+  it("getSyncLogs forwards page size, offset, and filters", async () => {
     const logs = [{ id: 1, type: "inventory" }];
-    q.getChannelSyncLogs.mockResolvedValue(logs);
+    q.getChannelSyncLogs.mockResolvedValue({ logs, total: 1 });
     const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
       action: "getSyncLogs", limit: 20, direction: "push", type: "inventory", status: "success", since: "2026-09-01",
     })));
     expect(res.status).toBe(200);
     expect(q.getChannelSyncLogs).toHaveBeenCalledWith(20, {
-      direction: "push", type: "inventory", status: "success", since: "2026-09-01",
+      direction: "push", type: "inventory", status: "success", since: "2026-09-01", offset: 0,
     });
-    expect(await res.json()).toEqual({ logs });
+    expect(await res.json()).toEqual({ logs, total: 1, page: 1, pageSize: 20 });
+  });
+
+  it("getSyncLogs paginates with page and pageSize", async () => {
+    const logs = [{ id: 51, type: "rate" }];
+    q.getChannelSyncLogs.mockResolvedValue({ logs, total: 120 });
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "getSyncLogs", page: 3, pageSize: 50,
+    })));
+    expect(res.status).toBe(200);
+    expect(q.getChannelSyncLogs).toHaveBeenCalledWith(50, {
+      direction: undefined, type: undefined, status: undefined, since: undefined, offset: 100,
+    });
+    expect(await res.json()).toEqual({ logs, total: 120, page: 3, pageSize: 50 });
+  });
+
+  it("getSyncLogs reports the last page when the requested page is past the end", async () => {
+    const logs = [{ id: 1, type: "inventory" }];
+    q.getChannelSyncLogs.mockResolvedValue({ logs, total: 10 });
+    const res = await channelManagerPOST(jsonReq("http://localhost/api/admin/channel-manager", adminBody({
+      action: "getSyncLogs", page: 9, pageSize: 50,
+    })));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ logs, total: 10, page: 1, pageSize: 50 });
   });
 
   it("saveDailyRates returns the upsert count", async () => {
