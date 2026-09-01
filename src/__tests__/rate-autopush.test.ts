@@ -17,6 +17,7 @@ const queryMocks = vi.hoisted(() => ({
 
 const pushRates = vi.hoisted(() => vi.fn());
 const pushRateRestrictions = vi.hoisted(() => vi.fn());
+const getAiosellPropertyDetails = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/queries", () => queryMocks);
 vi.mock("@/lib/aiosell", async (importOriginal) => {
@@ -26,6 +27,7 @@ vi.mock("@/lib/aiosell", async (importOriginal) => {
     pushRates,
     pushInventory: vi.fn(),
     pushRateRestrictions,
+    getAiosellPropertyDetails,
     pushInventoryRestrictions: vi.fn(),
   };
 });
@@ -68,6 +70,7 @@ describe("triggerRatePush after bulk Set Rates", () => {
     queryMocks.updateChannelSyncTime.mockResolvedValue(undefined);
     pushRates.mockResolvedValue({ success: true });
     pushRateRestrictions.mockResolvedValue({ success: true });
+    getAiosellPropertyDetails.mockResolvedValue({ success: true, details: { hotel_id: "GOKO-001", rooms: mappings.map((m) => ({ room_id: m.channelRoomCode, active: true, rateplans: plans.filter((p) => p.roomMappingId === m.id).map((p) => ({ rateplan_id: p.ratePlanCode })) })) } });
   });
 
   it("pushes only the selected plans, using adult1Rate, and skips the unselected room", async () => {
@@ -169,6 +172,7 @@ describe("triggerRestrictionPush after bulk Restrictions", () => {
     queryMocks.getRatePlanMappings.mockResolvedValue(plans);
     queryMocks.updateChannelSyncTime.mockResolvedValue(undefined);
     pushRateRestrictions.mockResolvedValue({ success: true });
+    getAiosellPropertyDetails.mockResolvedValue({ success: true, details: { hotel_id: "GOKO-001", rooms: mappings.map((m) => ({ room_id: m.channelRoomCode, active: true, rateplans: plans.filter((p) => p.roomMappingId === m.id).map((p) => ({ rateplan_id: p.ratePlanCode })) })) } });
   });
 
   it("sends only the patched field, not leftover stopSell from D1", async () => {

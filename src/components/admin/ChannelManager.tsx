@@ -12,7 +12,6 @@ import {
   CheckCircleIcon, XCircleIcon, Loader2Icon, SendIcon,
   EyeIcon, EyeOffIcon,
 } from "lucide-react";
-import { suggestAiosellRoomCode } from "@/lib/channelMapping";
 import { bookingTaxPercent, DEFAULT_BOOKING_TAX_PERCENT } from "@/lib/bookingPricing";
 import type { Role } from "./types";
 
@@ -285,6 +284,8 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
   const { showError } = useAdminToast();
   const [mappings, setMappings] = useState<RoomMapping[]>([]);
   const [dorms, setDorms] = useState<Array<{ id: number; name: string; bedCount: number }>>([]);
+  const [remoteRooms, setRemoteRooms] = useState<Array<{ room_id: string; room_name?: string; active?: boolean; count?: number }>>([]);
+  const [propertyError, setPropertyError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingDormId, setSavingDormId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -296,6 +297,8 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
       const res = await apiCall("/api/admin/channel-manager", { action: "getRoomMappings" });
       setMappings(res.mappings || []);
       setDorms(res.dorms || []);
+      setRemoteRooms(res.remoteRooms || []);
+      setPropertyError(res.propertyError || null);
     } catch (e: any) { showError(e.message); }
     if (!silent) setLoading(false);
   };
@@ -360,7 +363,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
         <div>
           <h3 className="text-sm font-semibold">Room mapping</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Every Goko dorm (Management → Dorms) is listed here. New dorms show up on their own as unmapped. Aiosell only understands the room code you set — inventory and rates are pushed with that code, not the dorm name.
+            Choose an exact room code returned by Aiosell. Invalid or inactive mappings are blocked before a push.
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => load(true)} title="Refresh dorms">
@@ -375,13 +378,17 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
         </div>
         <div>
           <dt className="font-medium text-foreground">Aiosell room code</dt>
-          <dd>Exact room-type code in Aiosell (e.g. <code className="text-[10px]">dorm-1</code>, <code className="text-[10px]">shiva-dorm</code>, <code className="text-[10px]">executive</code>). Must match their setup.</dd>
+          <dd>Exact code from Aiosell Property Details; local dorm names are never guessed.</dd>
         </div>
         <div>
           <dt className="font-medium text-foreground">Total beds</dt>
           <dd>Sellable inventory for that room type. Defaults to the dorm’s current bed count.</dd>
         </div>
       </dl>
+      {propertyError && <p className="text-xs text-red-600">Could not load Aiosell room codes: {propertyError}</p>}
+      <datalist id="aiosell-room-codes">
+        {remoteRooms.filter((r) => r.active !== false).map((r) => <option key={r.room_id} value={r.room_id}>{r.room_name || r.room_id}</option>)}
+      </datalist>
 
       <div className="space-y-2">
         {dorms.length === 0 && (
@@ -389,7 +396,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
         )}
         {dorms.map((d) => {
           const mapping = mappedByDorm.get(d.id);
-          const suggested = suggestAiosellRoomCode(d.name, d.id);
+          const suggested = "";
           if (!mapping) {
             const draft = draftFor(d.id, suggested, d.bedCount);
             return (
@@ -400,6 +407,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
                 </div>
                 <Input
                   className="sm:w-40"
+                  list="aiosell-room-codes"
                   placeholder="Aiosell room code"
                   value={draft.code}
                   onChange={(e) => setDraft(d.id, { code: e.target.value }, suggested, d.bedCount)}
@@ -432,6 +440,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
                 <>
                   <Input
                     className="sm:w-40"
+                    list="aiosell-room-codes"
                     value={draft.code}
                     onChange={(e) => setDraft(d.id, { code: e.target.value }, mapping.channelRoomCode, mapping.totalInventory)}
                   />
@@ -450,6 +459,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
               ) : (
                 <>
                   <code className="text-xs bg-background px-2 py-0.5 rounded">{mapping.channelRoomCode}</code>
+                  {!remoteRooms.some((r) => r.room_id === mapping.channelRoomCode && r.active !== false) && <span className="text-[10px] text-red-600">Invalid / inactive</span>}
                   <span className="text-xs text-muted-foreground">{mapping.totalInventory} beds</span>
                   <Button variant="ghost" size="sm" onClick={() => setEditingId(mapping.id!)} className="h-7 w-7 p-0" title="Edit">
                     <PencilIcon className="h-3.5 w-3.5" />
@@ -639,7 +649,7 @@ function SyncTab({ password, username }: { password: string; username?: string }
           <input type="date" min={today} className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={pushStartDate} onChange={(e) => {
             const start = e.target.value;
             setPushStartDate(start);
-            if (start) setPushEndDate(addCalendarDays(start, 1));
+            if (start) setPushEndDate(start);
           }} />
         </div>
         <div>
@@ -716,7 +726,7 @@ function SyncTab({ password, username }: { password: string; username?: string }
           <input type="date" className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchStart} onChange={(e) => {
             const start = e.target.value;
             setFetchStart(start);
-            if (start) setFetchEnd(addCalendarDays(start, 1));
+            if (start) setFetchEnd(start);
           }} />
           <input type="date" min={fetchStart || undefined} className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={fetchEnd} onChange={(e) => setFetchEnd(e.target.value)} />
         </div>

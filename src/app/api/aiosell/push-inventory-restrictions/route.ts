@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime } from "@/db/queries";
-import { pushInventoryRestrictions, type AiosellConfig, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
+import { getAiosellPropertyDetails, pushInventoryRestrictions, type AiosellConfig, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
+import { invalidRoomCodes, thirtyDayRange, validDateRange } from "@/lib/aiosellValidation";
 import { todayIST } from "@/lib/utils";
 import { inclusiveNights } from "@/lib/inventoryAvailability";
 
@@ -18,8 +19,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Channel manager not configured or inactive" }, { status: 400 });
     }
 
-    const start = startDate || todayIST();
-    const end = endDate || (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); })();
+    const defaults = thirtyDayRange(todayIST());
+    const start = startDate || defaults.start;
+    const end = endDate || defaults.end;
+    if (!validDateRange(start, end)) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
 
     const roomMappings = await getRoomTypeMappings();
     const activeMappings = roomMappings.filter((m) => m.isActive);
@@ -85,6 +88,10 @@ export async function POST(req: NextRequest) {
       endDate: date,
       rooms,
     }));
+    const property = await getAiosellPropertyDetails(aiosellConfig);
+    if (!property.success) return NextResponse.json({ error: property.message }, { status: 502 });
+    const invalid = invalidRoomCodes(property.details, updates.flatMap((u) => u.rooms.map((r) => r.roomCode)));
+    if (invalid.length) return NextResponse.json({ success: false, error: `Invalid Aiosell room mappings: ${invalid.join(", ")}`, invalidRoomCodes: invalid }, { status: 409 });
 
     const totalRestrictions = updates.reduce((sum, u) => sum + u.rooms.length, 0);
     const result = await pushInventoryRestrictions(aiosellConfig, updates);

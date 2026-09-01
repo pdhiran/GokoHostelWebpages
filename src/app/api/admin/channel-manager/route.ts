@@ -9,6 +9,11 @@ import {
 } from "@/db/queries";
 import { BOOKING_TAX_SETTING, bookingTaxPercent } from "@/lib/bookingPricing";
 import { logListQuery, logSafePage } from "@/lib/logRetention";
+import { getAiosellPropertyDetails, type AiosellConfig } from "@/lib/aiosell";
+
+function clientConfig(config: NonNullable<Awaited<ReturnType<typeof getChannelConfig>>>): AiosellConfig {
+  return { hotelCode: config.hotelCode, pmsId: config.pmsId, apiBaseUrl: config.apiBaseUrl, apiUsername: config.apiUsername, apiPassword: config.apiPassword };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,9 +56,13 @@ export async function POST(req: NextRequest) {
             name: d.name,
             bedCount: allBeds.filter((b) => b.dormId === d.id).length,
           }));
+        const config = await getChannelConfig();
+        const property = config ? await getAiosellPropertyDetails(clientConfig(config)) : null;
         return NextResponse.json({
           mappings: mappings.map((m) => ({ ...m, dormName: nameById.get(m.dormId) ?? m.dormName })),
           dorms: dormsWithCounts,
+          remoteRooms: property?.success ? property.details.rooms : [],
+          propertyError: property && !property.success ? property.message : null,
         });
       }
 
@@ -65,12 +74,21 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Dorm and Aiosell room code are required" }, { status: 400 });
         }
         const mappingId = Number(mapping?.id);
+        const isActive = mapping?.isActive !== 0 && mapping?.isActive !== false;
+        if (isActive) {
+          const config = await getChannelConfig();
+          if (!config) return NextResponse.json({ error: "Channel manager is not configured" }, { status: 400 });
+          const property = await getAiosellPropertyDetails(clientConfig(config));
+          if (!property.success) return NextResponse.json({ error: property.message }, { status: 502 });
+          const remote = property.details.rooms.find((r) => r.room_id === code && r.active !== false);
+          if (!remote) return NextResponse.json({ error: `Aiosell room code is invalid or inactive: ${code}` }, { status: 409 });
+        }
         await upsertRoomTypeMapping({
           id: Number.isInteger(mappingId) && mappingId > 0 ? mappingId : undefined,
           dormId,
           channelRoomCode: code,
           totalInventory: mapping?.totalInventory,
-          isActive: mapping?.isActive,
+          isActive: isActive ? 1 : 0,
         });
         return NextResponse.json({ success: true });
       }

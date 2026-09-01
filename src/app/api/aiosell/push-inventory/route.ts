@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime, getDirtyInventory, clearDirtyInventory, clearAllDirtyInventory } from "@/db/queries";
 import { getDateAwareAvailability } from "@/lib/aiosellSync";
-import { pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
+import { getAiosellPropertyDetails, pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
+import { invalidRoomCodes, thirtyDayRange, validDateRange, warningRoomCodes } from "@/lib/aiosellValidation";
 import { todayIST } from "@/lib/utils";
 import { inclusiveNights } from "@/lib/inventoryAvailability";
 
@@ -66,12 +67,10 @@ export async function POST(req: NextRequest) {
 
     if (!useDirty) {
       mode = "full";
-      const start = startDate || todayIST();
-      const end = endDate || (() => {
-        const d = new Date();
-        d.setDate(d.getDate() + 30);
-        return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-      })();
+      const defaults = thirtyDayRange(todayIST());
+      const start = startDate || defaults.start;
+      const end = endDate || defaults.end;
+      if (!validDateRange(start, end)) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
 
       const dates = inclusiveNights(start, end);
 
@@ -89,6 +88,11 @@ export async function POST(req: NextRequest) {
     if (updates.length === 0) {
       return NextResponse.json({ success: true, message: "Nothing to push", inventoryPushed: 0, mode });
     }
+
+    const property = await getAiosellPropertyDetails(aiosellConfig);
+    if (!property.success) return NextResponse.json({ error: property.message }, { status: 502 });
+    const invalid = invalidRoomCodes(property.details, updates.flatMap((u) => u.rooms.map((r) => r.roomCode)));
+    if (invalid.length) return NextResponse.json({ success: false, error: `Invalid Aiosell room mappings: ${invalid.join(", ")}`, invalidRoomCodes: invalid }, { status: 409 });
 
     const result = await pushInventory(aiosellConfig, updates);
 
@@ -116,6 +120,7 @@ export async function POST(req: NextRequest) {
         success: false,
         message: result.warnings?.join("; ") || result.message || "Aiosell did not confirm the inventory update",
         warnings: result.warnings,
+        invalidRoomCodes: warningRoomCodes(result.warnings),
       }, { status: 502 });
     }
 

@@ -49,6 +49,7 @@ const pushRateRestrictions = vi.hoisted(() => vi.fn());
 const pushInventoryRestrictions = vi.hoisted(() => vi.fn());
 const pushNoShow = vi.hoisted(() => vi.fn());
 const fetchFromAiosell = vi.hoisted(() => vi.fn());
+const getAiosellPropertyDetails = vi.hoisted(() => vi.fn());
 const getDateAwareAvailability = vi.hoisted(() => vi.fn());
 const triggerInventoryPush = vi.hoisted(() => vi.fn());
 
@@ -74,6 +75,7 @@ vi.mock("@/lib/aiosell", async (importOriginal) => {
     pushInventoryRestrictions,
     pushNoShow,
     fetchFromAiosell,
+    getAiosellPropertyDetails,
   };
 });
 
@@ -121,6 +123,10 @@ const plans = [
   { id: 10, roomMappingId: 1, ratePlanCode: "executive-s-ep", ratePlanName: "EP", isActive: 1 },
   { id: 11, roomMappingId: 1, ratePlanCode: "executive-s-map", ratePlanName: "MAP", isActive: 1 },
 ];
+const propertyDetails = { success: true, details: { hotel_id: "GOKO-001", rooms: [
+  { room_id: "executive", active: true, rateplans: [{ rateplan_id: "executive-s-ep" }, { rateplan_id: "executive-s-map" }] },
+  { room_id: "dorm-6", active: true, rateplans: [] },
+] } };
 
 function bookPayload(over: Record<string, unknown> = {}) {
   return {
@@ -980,6 +986,8 @@ describe("Push inventory route modes", () => {
     getDateAwareAvailability.mockResolvedValue(4);
     pushInventory.mockReset();
     pushInventory.mockResolvedValue({ success: true, message: "ok" });
+    getAiosellPropertyDetails.mockReset();
+    getAiosellPropertyDetails.mockResolvedValue(propertyDetails);
   });
 
   it("401s non-admin", async () => {
@@ -1146,6 +1154,8 @@ describe("Push rates and fetch routes", () => {
     pushRateRestrictions.mockReset();
     fetchFromAiosell.mockReset();
     pushRates.mockResolvedValue({ success: true, message: "ok" });
+    getAiosellPropertyDetails.mockReset();
+    getAiosellPropertyDetails.mockResolvedValue(propertyDetails);
     pushRateRestrictions.mockResolvedValue({ success: true });
     fetchFromAiosell.mockResolvedValue({ success: true, data: [] });
   });
@@ -1301,6 +1311,8 @@ describe("No-show and inventory-restriction routes", () => {
     pushInventoryRestrictions.mockReset();
     pushNoShow.mockResolvedValue({ success: true });
     pushInventoryRestrictions.mockResolvedValue({ success: true, message: "ok" });
+    getAiosellPropertyDetails.mockReset();
+    getAiosellPropertyDetails.mockResolvedValue(propertyDetails);
   });
 
   it("noshow requires bookingId", async () => {

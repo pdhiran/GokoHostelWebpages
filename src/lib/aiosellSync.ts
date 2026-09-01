@@ -13,7 +13,8 @@ import { getDb } from "@/db";
 import { beds } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { otaCeiling, remainingSplit } from "@/lib/inventoryAvailability";
-import { pushInventory, pushRates, pushRateRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields, type RestrictionPatch } from "@/lib/aiosell";
+import { getAiosellPropertyDetails, pushInventory, pushRates, pushRateRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields, type RestrictionPatch } from "@/lib/aiosell";
+import { invalidRatePlans, invalidRoomCodes } from "@/lib/aiosellValidation";
 
 export type InventorySyncResult = {
   attempted: boolean;
@@ -107,6 +108,14 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       apiPassword: config.apiPassword,
     };
 
+    const property = await getAiosellPropertyDetails(aiosellConfig);
+    if (!property.success) return { attempted: true, accepted: false, message: property.message };
+    const invalid = invalidRoomCodes(property.details, updates.flatMap((u) => u.rooms.map((r) => r.roomCode)));
+    if (invalid.length) {
+      const message = `Invalid Aiosell room mappings: ${invalid.join(", ")}`;
+      await logPmsCall({ direction: "push", type: "inventory (auto)", status: "failed", errorMessage: message, recordsAffected: 0 });
+      return { attempted: true, accepted: false, message };
+    }
     const result = await pushInventory(aiosellConfig, updates, undefined, "auto");
 
     const warning = result.warnings?.filter(Boolean).join("; ");
@@ -119,7 +128,7 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       const toClear = dirty.filter((d) => pushedDormIds.has(d.dormId) && pushedDates.has(d.date)).map((d) => d.id);
       if (toClear.length > 0) await clearDirtyInventory(toClear);
     }
-    return { attempted: true, accepted, message: accepted ? undefined : (result.message || warning || "Aiosell did not confirm the inventory update") };
+    return { attempted: true, accepted, message: accepted ? undefined : (warning || result.message || "Aiosell did not confirm the inventory update") };
   } catch (error: any) {
     console.error("Auto inventory push failed:", error?.message);
     await logPmsCall({
@@ -174,7 +183,15 @@ export async function triggerRatePush(affectedDates: string[], affectedRatePlanI
     }
 
     if (updates.length === 0) return;
-    const result = await pushRates(buildAiosellConfig(config), updates, "auto");
+    const aiosellConfig = buildAiosellConfig(config);
+    const property = await getAiosellPropertyDetails(aiosellConfig);
+    if (!property.success) return;
+    const invalid = invalidRatePlans(property.details, updates.flatMap((u) => u.rates));
+    if (invalid.length) {
+      await logPmsCall({ direction: "push", type: "rate (auto)", status: "failed", errorMessage: `Invalid Aiosell room/rate plan mappings: ${invalid.map((p) => `${p.roomCode}/${p.rateplanCode}`).join(", ")}`, recordsAffected: 0 });
+      return;
+    }
+    const result = await pushRates(aiosellConfig, updates, "auto");
     if (result.success) await updateChannelSyncTime();
   } catch (error: any) {
     console.error("Auto rate push failed:", error?.message);
@@ -242,7 +259,15 @@ export async function triggerRestrictionPush(affectedDates: string[], affectedRa
     }
 
     if (updates.length === 0) return;
-    const result = await pushRateRestrictions(buildAiosellConfig(config), updates, undefined, "auto");
+    const aiosellConfig = buildAiosellConfig(config);
+    const property = await getAiosellPropertyDetails(aiosellConfig);
+    if (!property.success) return;
+    const invalid = invalidRatePlans(property.details, updates.flatMap((u) => u.rates));
+    if (invalid.length) {
+      await logPmsCall({ direction: "push", type: "restriction (auto)", status: "failed", errorMessage: `Invalid Aiosell room/rate plan mappings: ${invalid.map((p) => `${p.roomCode}/${p.rateplanCode}`).join(", ")}`, recordsAffected: 0 });
+      return;
+    }
+    const result = await pushRateRestrictions(aiosellConfig, updates, undefined, "auto");
     if (result.success) await updateChannelSyncTime();
   } catch (error: any) {
     console.error("Auto restriction push failed:", error?.message);

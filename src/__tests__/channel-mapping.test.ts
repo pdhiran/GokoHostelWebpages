@@ -1,23 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { suggestAiosellRoomCode } from "@/lib/channelMapping";
 
 const queries = readFileSync("src/db/queries.ts", "utf8");
 const ui = readFileSync("src/components/admin/ChannelManager.tsx", "utf8");
 const route = readFileSync("src/app/api/admin/channel-manager/route.ts", "utf8");
-
-describe("suggestAiosellRoomCode", () => {
-  it("slugs dorm names the way existing mappings are named", () => {
-    expect(suggestAiosellRoomCode("Dorm 1", 5)).toBe("dorm-1");
-    expect(suggestAiosellRoomCode("Female dorm", 7)).toBe("female-dorm");
-    expect(suggestAiosellRoomCode("Shiva dorm", 8)).toBe("shiva-dorm");
-    expect(suggestAiosellRoomCode("EXECUTIVE", 9)).toBe("executive");
-  });
-
-  it("falls back to dorm-{id} when the name has no letters or digits", () => {
-    expect(suggestAiosellRoomCode("!!!", 8)).toBe("dorm-8");
-  });
-});
 
 describe("room type mapping insert", () => {
   it("does not let Drizzle send id=null on D1 AUTOINCREMENT insert", () => {
@@ -45,9 +31,10 @@ describe("room mapping UI", () => {
     expect(route).toMatch(/dormsWithCounts/);
     expect(route).toMatch(/nameById\.get\(m\.dormId\)/);
     expect(ui).toMatch(/Not mapped/);
-    expect(ui).toMatch(/suggestAiosellRoomCode/);
+    expect(ui).toMatch(/remoteRooms/);
+    expect(route).toMatch(/getAiosellPropertyDetails/);
     expect(ui).toMatch(/PencilIcon/);
-    expect(ui).toMatch(/New dorms show up on their own as unmapped/);
+    expect(ui).toMatch(/local dorm names are never guessed/);
     expect(ui).not.toMatch(/placeholder="Dorm ID"/);
     expect(ui).not.toMatch(/Select dorm/);
   });

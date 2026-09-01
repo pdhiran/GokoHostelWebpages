@@ -17,6 +17,7 @@ const queryMocks = vi.hoisted(() => ({
 }));
 
 const pushInventory = vi.hoisted(() => vi.fn());
+const getAiosellPropertyDetails = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/queries", () => queryMocks);
 vi.mock("@/db", () => ({
@@ -33,6 +34,7 @@ vi.mock("@/lib/aiosell", async (importOriginal) => {
   return {
     ...actual,
     pushInventory,
+    getAiosellPropertyDetails,
     pushRates: vi.fn(),
     pushRateRestrictions: vi.fn(),
     pushInventoryRestrictions: vi.fn(),
@@ -113,6 +115,7 @@ describe("getDateAwareAvailability", () => {
 describe("triggerInventoryPush", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getAiosellPropertyDetails.mockResolvedValue({ success: true, details: { hotel_id: "GOKO-001", rooms: mappings.map((m) => ({ room_id: m.channelRoomCode, active: true })) } });
     queryMocks.getChannelConfig.mockResolvedValue(CONFIG);
     queryMocks.getRoomTypeMappings.mockResolvedValue(mappings);
     queryMocks.markInventoryDirty.mockResolvedValue(undefined);
@@ -163,6 +166,14 @@ describe("triggerInventoryPush", () => {
     expect(pushInventory.mock.calls[0][3]).toBe("auto");
   });
 
+  it("blocks an auto push when Property Details rejects the mapped code", async () => {
+    getAiosellPropertyDetails.mockResolvedValue({ success: true, details: { hotel_id: "GOKO-001", rooms: [{ room_id: "suite", active: true }] } });
+    const result = await triggerInventoryPush(["2026-09-05"], 8);
+    expect(result).toMatchObject({ attempted: true, accepted: false, message: "Invalid Aiosell room mappings: executive" });
+    expect(pushInventory).not.toHaveBeenCalled();
+    expect(queryMocks.clearDirtyInventory).not.toHaveBeenCalled();
+  });
+
   it("does not push an unmapped dorm", async () => {
     await triggerInventoryPush(["2026-09-05"], 99);
     expect(pushInventory).not.toHaveBeenCalled();
@@ -192,6 +203,7 @@ describe("triggerInventoryPush", () => {
 describe("pushIfOtaChanged", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getAiosellPropertyDetails.mockResolvedValue({ success: true, details: { hotel_id: "GOKO-001", rooms: mappings.map((m) => ({ room_id: m.channelRoomCode, active: true })) } });
     queryMocks.getChannelConfig.mockResolvedValue(CONFIG);
     queryMocks.getRoomTypeMappings.mockResolvedValue(mappings);
     queryMocks.markInventoryDirty.mockResolvedValue(undefined);

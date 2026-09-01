@@ -21,6 +21,16 @@ export type AiosellResponse = {
   warnings?: string[];
 };
 
+export type AiosellPropertyRoom = {
+  room_id: string;
+  room_name?: string;
+  active?: boolean;
+  count?: number;
+  rateplans?: Array<{ rateplan_id: string; rateplan_name?: string }>;
+};
+
+export type AiosellPropertyDetails = { hotel_id: string; hotel_name?: string; rooms: AiosellPropertyRoom[] };
+
 export type InventoryUpdate = {
   startDate: string;
   endDate: string;
@@ -254,7 +264,7 @@ async function aiosellFetch(
       status: accepted ? "success" : "failed",
       request: body,
       response: data,
-      errorMessage: accepted ? "" : (data.message || warningMessage),
+      errorMessage: accepted ? "" : (warningMessage || data.message),
       recordsAffected,
       httpMethod: "POST",
       url,
@@ -265,6 +275,25 @@ async function aiosellFetch(
   } catch (error: any) {
     const message = error?.message || "Network error";
     await log({ status: "failed", httpStatus: 0, errorMessage: message });
+    return { success: false, message };
+  }
+}
+
+export async function getAiosellPropertyDetails(config: AiosellConfig): Promise<
+  { success: true; details: AiosellPropertyDetails } | { success: false; message: string }
+> {
+  const url = `${config.apiBaseUrl}/api/v2/cm/property_details/${encodeURIComponent(config.hotelCode)}?partnerId=${encodeURIComponent(config.pmsId)}`;
+  const started = Date.now();
+  try {
+    const response = await fetch(url, { headers: { Authorization: buildAuthHeader(config) } });
+    const data = await response.json().catch(() => null) as AiosellPropertyDetails | null;
+    const valid = response.ok && data && Array.isArray(data.rooms);
+    const message = valid ? "" : `Property Details failed (HTTP ${response.status})`;
+    await logPmsCall({ direction: "pull", type: "fetch (mapping)", status: valid ? "success" : "failed", request: {}, response: data, errorMessage: message, recordsAffected: data?.rooms?.length, httpMethod: "GET", url, httpStatus: response.status, durationMs: Date.now() - started }).catch(() => {});
+    return valid ? { success: true, details: data } : { success: false, message };
+  } catch (error: any) {
+    const message = error?.message || "Network error";
+    await logPmsCall({ direction: "pull", type: "fetch (mapping)", status: "failed", request: {}, errorMessage: message, httpMethod: "GET", url, httpStatus: 0, durationMs: Date.now() - started }).catch(() => {});
     return { success: false, message };
   }
 }
