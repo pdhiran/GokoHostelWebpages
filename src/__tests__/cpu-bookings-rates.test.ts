@@ -398,6 +398,39 @@ describe("Bookings calendar and rates workflows", () => {
     expect(q.unassignBookingBeds).toHaveBeenCalledWith(5);
     expect(q.pushNoShow).toHaveBeenCalledWith(expect.objectContaining({ hotelCode: "H" }), "CM-1");
     expect(pushIfOtaChanged).toHaveBeenCalled();
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({ noShowPmsStatus: "sent", noShowPmsError: "" }));
+    expect(q.addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({ bookingId: 5, action: "Marked No-Show" }));
+  });
+
+  it("keeps the local release and records a retry when Aiosell rejects the no-show", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { platform: "booking.com", cmBookingId: "CM-FAIL", checkinDate: "2026-09-01", checkoutDate: "2026-09-03" },
+      assignments: [{ status: "assigned", dormId: 3 }],
+    });
+    q.getChannelConfig.mockResolvedValue({ isActive: 1, hotelCode: "H", pmsId: "P", apiBaseUrl: "http://x", apiUsername: "u", apiPassword: "p" });
+    q.pushNoShow.mockResolvedValue({ success: false, message: "unknown booking" });
+    const res = await POST(req({ password: "x", action: "markNoShow", bookingId: 5 }));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.warning).toContain("unknown booking");
+    expect(q.unassignBookingBeds).toHaveBeenCalledWith(5);
+    expect(pushIfOtaChanged).toHaveBeenCalledTimes(1);
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({ noShowPmsStatus: "failed", noShowPmsError: "unknown booking" }));
+  });
+
+  it("retries only the failed Aiosell notification without releasing inventory again", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { status: "no_show", noShowPmsStatus: "failed", platform: "booking.com", cmBookingId: "CM-RETRY" },
+      assignments: [],
+    });
+    q.getChannelConfig.mockResolvedValue({ isActive: 1, hotelCode: "H", pmsId: "P", apiBaseUrl: "http://x", apiUsername: "u", apiPassword: "p" });
+    q.pushNoShow.mockResolvedValue({ success: true });
+    const res = await POST(req({ password: "x", action: "retryNoShow", bookingId: 5 }));
+    expect(res.status).toBe(200);
+    expect(q.pushNoShow).toHaveBeenCalledWith(expect.anything(), "CM-RETRY");
+    expect(q.unassignBookingBeds).not.toHaveBeenCalled();
+    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+    expect(q.updateBookingFull).toHaveBeenCalledWith(5, expect.objectContaining({ noShowPmsStatus: "sent" }));
   });
 
   it("markNoShow on a channel_manager stay still pushes occupancy (Aiosell already got noshow)", async () => {

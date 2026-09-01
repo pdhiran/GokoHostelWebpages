@@ -56,11 +56,11 @@ export async function otaFingerprint(dormIds: number[], dates: string[]): Promis
 export async function pushIfOtaChanged(before: string, dormIds: number[], dates: string[]): Promise<InventorySyncResult | void> {
   if (dates.length === 0 || dormIds.length === 0) return { attempted: false, accepted: true };
   const after = await otaFingerprint(dormIds, dates);
-  if (before !== after) return await triggerInventoryPush(dates);
+  if (before !== after) return await triggerInventoryPush(dates, dormIds);
   return { attempted: false, accepted: true };
 }
 
-export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<InventorySyncResult | void> {
+export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number | number[]): Promise<InventorySyncResult | void> {
   try {
     if (affectedDates && affectedDates.length === 0) return { attempted: false, accepted: true };
     const dates = affectedDates && affectedDates.length > 0
@@ -70,9 +70,15 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
     const config = await getChannelConfig();
     const mappings = config ? (await getRoomTypeMappings()).filter((m) => m.isActive) : [];
 
-    if (affectedDormId) {
-      if (mappings.some((m) => m.dormId === affectedDormId)) {
-        await markInventoryDirty(affectedDormId, dates).catch(() => {});
+    const affectedDormIds = affectedDormId == null
+      ? []
+      : [...new Set(Array.isArray(affectedDormId) ? affectedDormId : [affectedDormId])];
+
+    if (affectedDormIds.length > 0) {
+      for (const dormId of affectedDormIds) {
+        if (mappings.some((m) => m.dormId === dormId)) {
+          await markInventoryDirty(dormId, dates).catch(() => {});
+        }
       }
     } else if (mappings.length > 0) {
       for (const m of mappings) {
@@ -85,8 +91,8 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
     if (mappings.length === 0) return { attempted: false, accepted: false, message: "No active Aiosell room mappings" };
 
     let activeMappings = mappings;
-    if (affectedDormId) {
-      activeMappings = activeMappings.filter((m) => m.dormId === affectedDormId);
+    if (affectedDormIds.length > 0) {
+      activeMappings = activeMappings.filter((m) => affectedDormIds.includes(m.dormId));
       if (activeMappings.length === 0) return { attempted: false, accepted: false, message: "No active Aiosell mapping for this dorm" };
     }
 

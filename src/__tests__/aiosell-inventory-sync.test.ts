@@ -227,6 +227,16 @@ describe("pushIfOtaChanged", () => {
     queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(4);
     await pushIfOtaChanged(before, [8], ["2026-09-05"]);
     expect(pushInventory).toHaveBeenCalled();
+    expect(pushInventory.mock.calls[0][1][0].rooms).toEqual([{ roomCode: "executive", available: 8 }]);
+  });
+
+  it("does not let unrelated invalid mappings block an affected valid dorm", async () => {
+    getAiosellPropertyDetails.mockResolvedValue({ success: true, details: { hotel_id: "GOKO-001", rooms: [{ room_id: "executive", active: true }] } });
+    const before = await otaFingerprint([8], ["2026-09-05"]);
+    queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(1);
+    const result = await pushIfOtaChanged(before, [8], ["2026-09-05"]);
+    expect(result).toMatchObject({ attempted: true, accepted: true });
+    expect(pushInventory.mock.calls[0][1][0].rooms).toEqual([{ roomCode: "executive", available: 11 }]);
   });
 
   it("releases two cancelled beds in one inventory request with the final availability", async () => {
