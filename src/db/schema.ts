@@ -401,6 +401,7 @@ export const dailyIncome = sqliteTable("daily_income", {
   type: text("type").notNull().default("cash"),
   amount: integer("amount").notNull(),
   source: text("source").notNull().default("stay"),
+  sourceDetail: text("source_detail").default(""),
   description: text("description").default(""),
   foodRevenueAuto: integer("food_revenue_auto").notNull().default(0),
   createdBy: text("created_by").notNull(),

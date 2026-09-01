@@ -2,8 +2,10 @@
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { PlusCircleIcon, FileTextIcon, IndianRupeeIcon, BedDoubleIcon, BookOpenIcon, ScaleIcon } from "lucide-react";
+import { PlusCircleIcon, FileTextIcon, IndianRupeeIcon, BedDoubleIcon, BookOpenIcon, ScaleIcon, HandCoinsIcon } from "lucide-react";
 import { AdminAddExpense } from "./AdminAddExpense";
+import { AdminAddIncome } from "./AdminAddIncome";
+import { AdminIncomeRecords } from "./AdminIncomeRecords";
 import { AdminBillRecords } from "./AdminBillRecords";
 import { AdminFoodBill } from "./AdminFoodBill";
 import { AdminRoomRevenue } from "./AdminRoomRevenue";
@@ -12,12 +14,14 @@ import { DailyReconcile } from "./DailyReconcile";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role } from "./types";
 
-type AccountsTab = "addExpense" | "dailyLedger" | "billRecords" | "foodBill" | "roomBill" | "reconcile";
+type AccountsTab = "addExpense" | "addIncome" | "dailyLedger" | "billRecords" | "incomeRecords" | "foodBill" | "roomBill" | "reconcile";
 
 const TABS: { id: AccountsTab; label: string; icon: React.ReactNode; permission?: string }[] = [
   { id: "addExpense", label: "Add Expense", icon: <PlusCircleIcon className="h-3.5 w-3.5" />, permission: "canAddExpense" },
-  { id: "dailyLedger", label: "Daily Ledger", icon: <BookOpenIcon className="h-3.5 w-3.5" />, permission: "canAddIncome" },
-  { id: "billRecords", label: "Records", icon: <FileTextIcon className="h-3.5 w-3.5" />, permission: "canViewExpenses" },
+  { id: "addIncome", label: "Add Income", icon: <HandCoinsIcon className="h-3.5 w-3.5" />, permission: "canAddIncome" },
+  { id: "dailyLedger", label: "Daily Ledger", icon: <BookOpenIcon className="h-3.5 w-3.5" />, permission: "canViewAccounts" },
+  { id: "billRecords", label: "Expense Records", icon: <FileTextIcon className="h-3.5 w-3.5" />, permission: "canViewExpenses" },
+  { id: "incomeRecords", label: "Income Records", icon: <HandCoinsIcon className="h-3.5 w-3.5" />, permission: "canViewAccounts" },
   { id: "foodBill", label: "Food Revenue", icon: <IndianRupeeIcon className="h-3.5 w-3.5" />, permission: "canViewFoodBills" },
   { id: "roomBill", label: "Room Revenue", icon: <BedDoubleIcon className="h-3.5 w-3.5" />, permission: "canViewFoodBills" },
   { id: "reconcile", label: "Reconcile", icon: <ScaleIcon className="h-3.5 w-3.5" />, permission: "canReconcile" },
@@ -75,8 +79,10 @@ export function AdminExpenditure({
 
       <div className="mt-6">
         {tab === "addExpense" && <AdminAddExpense password={password} username={username} role={role} permissions={permissions} />}
+        {tab === "addIncome" && <AdminAddIncome password={password} username={username} />}
         {tab === "dailyLedger" && <DailyLedger password={password} username={username} role={role} permissions={permissions} />}
         {tab === "billRecords" && <AdminBillRecords password={password} username={username} role={role} permissions={permissions} />}
+        {tab === "incomeRecords" && <AdminIncomeRecords password={password} username={username} role={role} permissions={permissions} />}
         {tab === "foodBill" && <AdminFoodBill password={password} username={username} role={role} permissions={permissions} />}
         {tab === "roomBill" && <AdminRoomRevenue password={password} username={username} role={role} permissions={permissions} />}
         {tab === "reconcile" && <DailyReconcile password={password} username={username} role={role} permissions={permissions} />}

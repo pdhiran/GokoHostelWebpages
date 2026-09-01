@@ -21,7 +21,8 @@ const EXPENSE_COLUMNS = [
 const INCOME_COLUMNS = [
   { header: "date", description: "Date (required) YYYY-MM-DD or DD/MM/YYYY" },
   { header: "amount", description: "Amount in ₹ (required) e.g. 1000" },
-  { header: "source", description: "stay / food / other (default: stay)" },
+  { header: "source", description: "stay / food / refund / other (default: stay)" },
+  { header: "source_detail", description: "Required when source is other" },
   { header: "type", description: "cash or online (default: cash)" },
   { header: "account_name", description: "Account name or nickname (optional, for online payments)" },
   { header: "description", description: "Description / notes (optional)" },
@@ -34,7 +35,7 @@ const VALID_CATEGORIES = [
 
 const VALID_MAIN_CATEGORIES = ["stay_expense", "food_expense"];
 const VALID_PAYMENT_METHODS = ["cash", "online"];
-const VALID_INCOME_SOURCES = ["stay", "food", "other"];
+const VALID_INCOME_SOURCES = ["stay", "food", "refund", "other"];
 
 function cellToString(val: unknown): string {
   if (val === null || val === undefined) return "";
@@ -298,7 +299,20 @@ async function importIncome(
 
         const source = cellToString(row.source).toLowerCase() || "stay";
         if (!VALID_INCOME_SOURCES.includes(source)) {
-          results.failed.push({ row: rowIndex, reason: `Invalid source: "${source}". Use: stay, food, or other` });
+          results.failed.push({ row: rowIndex, reason: `Invalid source: "${source}". Use: stay, food, refund, or other` });
+          continue;
+        }
+        const sourceDetail = cellToString(row.source_detail);
+        if (source === "other" && !sourceDetail) {
+          results.failed.push({ row: rowIndex, reason: "source_detail is required when source is other" });
+          continue;
+        }
+        if (source !== "other" && sourceDetail) {
+          results.failed.push({ row: rowIndex, reason: "source_detail is only valid when source is other" });
+          continue;
+        }
+        if (sourceDetail.length > 100) {
+          results.failed.push({ row: rowIndex, reason: "source_detail must be 100 characters or fewer" });
           continue;
         }
 
@@ -318,9 +332,25 @@ async function importIncome(
           }
           accountId = foundId;
         }
+        if (type === "cash" && accountId !== null) {
+          results.failed.push({ row: rowIndex, reason: "Cash income must not specify an account_name" });
+          continue;
+        }
+        if (type === "online" && accountId === null) {
+          results.failed.push({ row: rowIndex, reason: "Online income requires an account_name" });
+          continue;
+        }
 
         const description = cellToString(row.description);
         const amountPaise = Math.round(amountNum * 100);
+        if (description.length > 500) {
+          results.failed.push({ row: rowIndex, reason: "description must be 500 characters or fewer" });
+          continue;
+        }
+        if (amountPaise <= 0) {
+          results.failed.push({ row: rowIndex, reason: "Amount must be at least ₹0.01" });
+          continue;
+        }
 
         // Duplicate check: same date + amount + source + description
         const existing = await db
@@ -331,6 +361,7 @@ async function importIncome(
               eq(dailyIncome.date, dateStr),
               eq(dailyIncome.amount, amountPaise),
               eq(dailyIncome.source, source),
+              sql`LOWER(COALESCE(${dailyIncome.sourceDetail}, '')) = LOWER(${source === "other" ? sourceDetail : ""})`,
               sql`LOWER(${dailyIncome.description}) = LOWER(${description})`
             )
           )
@@ -347,6 +378,7 @@ async function importIncome(
           type,
           amount: amountPaise,
           source,
+          sourceDetail: source === "other" ? sourceDetail : "",
           description,
           createdBy: actorName,
           createdAt: new Date().toISOString(),

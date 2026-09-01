@@ -49,8 +49,8 @@ const EXPENSES_PERMISSIONS: Record<string, ActionPerm> = {
   addExpense: "canAddExpense", updateExpense: "canEditExpense", deleteExpense: "canDeleteExpense",
   getFoodRevenue: "canViewFoodBills",
   getRoomRevenue: "canViewFoodBills",
-  getDailyLedger: "canViewAccounts", getReconciliation: "canViewAccounts",
-  addDailyIncome: "canAddIncome", deleteDailyIncome: "canAddIncome",
+  getDailyLedger: "canViewAccounts", listIncomeRecords: "canViewAccounts", getReconciliation: "canViewAccounts",
+  getIncomeAccounts: "canAddIncome", addDailyIncome: "canAddIncome", deleteDailyIncome: "canDeleteExpense",
   saveReconciliation: "canManageAccounts", undoReconciliation: "canManageAccounts",
   adjustOpeningBalance: "canManageAccounts",
 };
@@ -178,6 +178,14 @@ describe("RBAC: Staff with specific permissions", () => {
     const permissions = { canViewFoodOrders: true, canMarkPaid: true };
     expect(checkPermission(role, permissions, FOOD_ORDERS_PERMISSIONS, "listOrders")).toBe("allowed");
     expect(checkPermission(role, permissions, FOOD_ORDERS_PERMISSIONS, "markOrderPaid")).toBe("allowed");
+  });
+
+  it("income entry, viewing, and deletion stay independently permissioned", () => {
+    expect(checkPermission(role, { canAddIncome: true }, EXPENSES_PERMISSIONS, "getIncomeAccounts")).toBe("allowed");
+    expect(checkPermission(role, { canAddIncome: true }, EXPENSES_PERMISSIONS, "addDailyIncome")).toBe("allowed");
+    expect(checkPermission(role, { canAddIncome: true }, EXPENSES_PERMISSIONS, "listIncomeRecords")).toBe("forbidden");
+    expect(checkPermission(role, { canViewAccounts: true }, EXPENSES_PERMISSIONS, "listIncomeRecords")).toBe("allowed");
+    expect(checkPermission(role, { canDeleteExpense: true }, EXPENSES_PERMISSIONS, "deleteDailyIncome")).toBe("allowed");
   });
 
   it("staff can never access admin-only regardless of permissions", () => {

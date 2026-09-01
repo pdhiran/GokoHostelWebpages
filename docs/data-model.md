@@ -55,7 +55,7 @@ Sync columns on operational tables: `sync_id`, `sync_updated_at`, `sync_source`,
 | `employees` | Salary paise + frequency. |
 | `salary_payments` | Plus auto `expenses` row. |
 | `expenses` | Bills. Drive links. `created_month`. |
-| `daily_income` | Manual + `food_revenue_auto`. |
+| `daily_income` | Manual income; `source_detail` labels Other entries. Also retains legacy `food_revenue_auto`. |
 | `daily_ledger` | Unique `(date, account_id)`. |
 
 ### Channel / inventory

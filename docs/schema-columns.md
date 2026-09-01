@@ -27,7 +27,7 @@ Source of truth if this file lags: `src/db/schema.ts`. Role of each table: [data
 | `vendors` | 11 |
 | `employees` | 13 |
 | `salary_payments` | 12 |
-| `daily_income` | 14 |
+| `daily_income` | 15 |
 | `daily_ledger` | 15 |
 | `expenses` | 20 |
 | `push_subscriptions` | 6 |
@@ -476,6 +476,7 @@ Source of truth if this file lags: `src/db/schema.ts`. Role of each table: [data
 | `type` | text | NOT NULL default "cash" |
 | `amount` | integer | NOT NULL |
 | `source` | text | NOT NULL default "stay" |
+| `source_detail` | text | default "" |
 | `description` | text | default "" |
 | `food_revenue_auto` | integer | NOT NULL default 0 |
 | `created_by` | text | NOT NULL |

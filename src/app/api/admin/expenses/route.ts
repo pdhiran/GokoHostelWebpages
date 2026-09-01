@@ -12,13 +12,14 @@ import {
 } from "@/db/queries";
 import { getDb } from "@/db";
 import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors, bookings, guestReceipts } from "@/db/schema";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, isNull } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
 import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser } from "@/lib/auth";
 import { actionAllowed } from "@/lib/actionPermissions";
 import { hostelExpenseIsLinked } from "@/db/splitQueries";
 import { stayDueAtHotel, cashCollected, onlineCollected, cashRefunded, onlineRefunded, occupiedForRoomRevenue, isPrepaidStatus } from "@/lib/stayPayment";
+import { validateManualIncome } from "@/lib/income";
 
 function extractDriveFileId(link: string): string | null {
   const match = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -56,8 +57,8 @@ export async function POST(req: NextRequest) {
       addExpense: "canAddExpense", updateExpense: "canEditExpense", deleteExpense: "canDeleteExpense",
       getFoodRevenue: "canViewFoodBills",
       getRoomRevenue: "canViewFoodBills",
-      getDailyLedger: "canViewAccounts", getReconciliation: "canViewAccounts",
-      addDailyIncome: "canAddIncome", deleteDailyIncome: "canAddIncome",
+      getDailyLedger: "canViewAccounts", listIncomeRecords: "canViewAccounts", getReconciliation: "canViewAccounts",
+      getIncomeAccounts: "canAddIncome", addDailyIncome: "canAddIncome", deleteDailyIncome: "canDeleteExpense",
       saveReconciliation: "canManageAccounts", undoReconciliation: "canManageAccounts",
       adjustOpeningBalance: "canManageAccounts",
     };
@@ -439,7 +440,7 @@ export async function POST(req: NextRequest) {
         if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
 
         const db = getDb();
-        const allAccounts = await db.select({ id: accounts.id, name: accounts.name, nickname: accounts.nickname }).from(accounts).where(eq(accounts.isActive, 1));
+        const allAccounts = await db.select({ id: accounts.id, name: accounts.name, nickname: accounts.nickname, isDefault: accounts.isDefault }).from(accounts).where(eq(accounts.isActive, 1));
 
         const incomeEntries = await db.select().from(dailyIncome).where(eq(dailyIncome.date, date)).orderBy(desc(dailyIncome.createdAt));
 
@@ -495,26 +496,70 @@ export async function POST(req: NextRequest) {
       }
 
       case "addDailyIncome": {
-        const { date, accountId, type, amount, source, description } = rest;
-        if (!date || !amount) return NextResponse.json({ error: "date and amount required" }, { status: 400 });
+        const validation = validateManualIncome(rest);
+        if ("error" in validation) return NextResponse.json({ error: validation.error }, { status: 400 });
+        const income = validation.value;
         const db = getDb();
+        if (income.type === "online") {
+          const activeAccount = await db.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, income.accountId!), eq(accounts.isActive, 1))).limit(1);
+          if (!activeAccount.length) return NextResponse.json({ error: "The selected online account is not active" }, { status: 400 });
+        }
+        const reconciled = await db.select({ id: dailyLedger.id }).from(dailyLedger).where(and(
+          eq(dailyLedger.date, income.date),
+          income.accountId === null ? isNull(dailyLedger.accountId) : eq(dailyLedger.accountId, income.accountId),
+          eq(dailyLedger.isReconciled, 1),
+        )).limit(1);
+        if (reconciled.length) return NextResponse.json({ error: "This account is already reconciled for the selected date. Undo reconciliation before adding income." }, { status: 400 });
         await db.insert(dailyIncome).values({
-          date,
-          accountId: accountId || null,
-          type: type || "cash",
-          amount,
-          source: source || "stay",
-          description: description || "",
+          ...income,
           createdBy: username || displayName,
           createdAt: new Date().toISOString(),
         });
         return NextResponse.json({ success: true });
       }
 
+      case "getIncomeAccounts": {
+        const db = getDb();
+        const activeAccounts = await db.select({ id: accounts.id, name: accounts.name, nickname: accounts.nickname, isDefault: accounts.isDefault })
+          .from(accounts).where(eq(accounts.isActive, 1)).orderBy(desc(accounts.isDefault), accounts.name);
+        return NextResponse.json({ accounts: activeAccounts });
+      }
+
+      case "listIncomeRecords": {
+        const month = typeof rest.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(rest.month) ? rest.month : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }).slice(0, 7);
+        const db = getDb();
+        const [rows, monthRows, allAccounts] = await Promise.all([
+          db.select({
+            id: dailyIncome.id, date: dailyIncome.date, accountId: dailyIncome.accountId, type: dailyIncome.type,
+            amount: dailyIncome.amount, source: dailyIncome.source, sourceDetail: dailyIncome.sourceDetail,
+            description: dailyIncome.description, createdBy: dailyIncome.createdBy, createdAt: dailyIncome.createdAt,
+            accountName: sql<string>`COALESCE(NULLIF(${accounts.nickname}, ''), ${accounts.name})`,
+          }).from(dailyIncome).leftJoin(accounts, eq(dailyIncome.accountId, accounts.id))
+            .where(sql`${dailyIncome.date} >= ${month + "-01"} AND ${dailyIncome.date} < date(${month + "-01"}, '+1 month')`)
+            .orderBy(desc(dailyIncome.date), desc(dailyIncome.createdAt)),
+          db.selectDistinct({ month: sql<string>`substr(${dailyIncome.date}, 1, 7)` }).from(dailyIncome).orderBy(desc(sql`substr(${dailyIncome.date}, 1, 7)`)),
+          db.select({ id: accounts.id, name: accounts.name, nickname: accounts.nickname }).from(accounts).orderBy(accounts.name),
+        ]);
+        return NextResponse.json({
+          incomeEntries: rows.map((row) => ({ ...row, accountName: row.accountId == null ? "Cash" : row.accountName || "Account" })),
+          months: Array.from(new Set([month, ...monthRows.map((row) => row.month).filter(Boolean)])).sort().reverse(),
+          currentMonth: month,
+          accounts: allAccounts,
+        });
+      }
+
       case "deleteDailyIncome": {
         const { id } = rest;
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
         const db = getDb();
+        const entry = await db.select({ date: dailyIncome.date, accountId: dailyIncome.accountId }).from(dailyIncome).where(eq(dailyIncome.id, id)).limit(1);
+        if (!entry.length) return NextResponse.json({ error: "Income entry not found" }, { status: 404 });
+        const reconciled = await db.select({ ledgerId: dailyLedger.id }).from(dailyLedger).where(and(
+          eq(dailyLedger.date, entry[0].date),
+          entry[0].accountId === null ? isNull(dailyLedger.accountId) : eq(dailyLedger.accountId, entry[0].accountId),
+          eq(dailyLedger.isReconciled, 1),
+        )).limit(1);
+        if (reconciled.length) return NextResponse.json({ error: "This account is already reconciled for the entry date. Undo reconciliation before deleting income." }, { status: 400 });
         await db.delete(dailyIncome).where(eq(dailyIncome.id, id));
         return NextResponse.json({ success: true });
       }
