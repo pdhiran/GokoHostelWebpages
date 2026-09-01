@@ -522,7 +522,8 @@ export function AdminDashboard({
           guestName={stayPay.name}
           amountUnit="rupees"
           zClass="z-[70]"
-          onConfirm={async (method, cashReceived, changeGiven) => {
+          password={password} username={username} receiptKind="room"
+          onConfirm={async (method, cashReceived, changeGiven, onlineAccountId, receiptId) => {
             setStayPayBusy(true);
             try {
               const res = await bookingsApiCall({
@@ -531,6 +532,8 @@ export function AdminDashboard({
                 paymentMethod: method,
                 cashReceived,
                 changeGiven,
+                onlineAccountId,
+                receiptId,
               });
               if (res.ok) {
                 setStayPay(null);

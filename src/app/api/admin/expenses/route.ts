@@ -11,7 +11,7 @@ import {
   addSystemLog,
 } from "@/db/queries";
 import { getDb } from "@/db";
-import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors, bookings } from "@/db/schema";
+import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors, bookings, guestReceipts } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
 import { isOfflineMode } from "@/lib/runtime";
@@ -530,6 +530,7 @@ export async function POST(req: NextRequest) {
 
         // Get income/expense totals for the day
         const incomeEntries = await db.select().from(dailyIncome).where(eq(dailyIncome.date, date));
+        const automaticReceipts = await db.select().from(guestReceipts).where(eq(guestReceipts.businessDate, date));
         const dayExpenses = await db.select().from(expenses).where(
           and(sql`${expenses.createdAt} >= ${date}`, sql`${expenses.createdAt} <= ${date + "T23:59:59"}`)
         );
@@ -546,7 +547,9 @@ export async function POST(req: NextRequest) {
           ...allAccounts.map((a) => ({ accountId: a.id as number, accountName: (a.nickname || a.name) as string })),
         ].map((acc) => {
           const ledgerEntry = ledgerEntries.find((l) => l.accountId === acc.accountId);
-          const totalIncome = incomeEntries.filter((i) => i.accountId === acc.accountId).reduce((s, i) => s + i.amount, 0);
+          const manualIncome = incomeEntries.filter((i) => i.accountId === acc.accountId).reduce((s, i) => s + i.amount, 0);
+          const receiptIncome = automaticReceipts.filter((r) => r.accountId === acc.accountId).reduce((s, r) => s + r.amount, 0);
+          const totalIncome = manualIncome + receiptIncome;
           const totalExpense = dayExpenses.filter((e) => e.accountId === acc.accountId).reduce((s, e) => s + e.amount, 0);
 
           // Opening balance priority: today's ledger entry > previous day's actual closing > previous day's expected closing > account seed
@@ -570,6 +573,8 @@ export async function POST(req: NextRequest) {
             accountName: acc.accountName,
             openingBalance,
             totalIncome,
+            manualIncome,
+            automaticGuestReceipts: receiptIncome,
             totalExpense,
             expectedClosing,
             actualClosing: ledgerEntry?.actualClosing ?? null,
@@ -582,7 +587,7 @@ export async function POST(req: NextRequest) {
         const reconciledBy = ledgerEntries[0]?.reconciledBy || "";
         const reconciledAt = ledgerEntries[0]?.reconciledAt || "";
 
-        return NextResponse.json({ balances, isReconciled, notes, reconciledBy, reconciledAt });
+        return NextResponse.json({ balances, automaticReceipts, isReconciled, notes, reconciledBy, reconciledAt });
       }
 
       case "saveReconciliation": {
@@ -591,6 +596,7 @@ export async function POST(req: NextRequest) {
 
         const db = getDb();
         const incomeEntries = await db.select().from(dailyIncome).where(eq(dailyIncome.date, date));
+        const automaticReceipts = await db.select().from(guestReceipts).where(eq(guestReceipts.businessDate, date));
         const dayExpenses = await db.select().from(expenses).where(
           and(sql`${expenses.createdAt} >= ${date}`, sql`${expenses.createdAt} <= ${date + "T23:59:59"}`)
         );
@@ -604,7 +610,8 @@ export async function POST(req: NextRequest) {
         const existingLedger = await db.select().from(dailyLedger).where(eq(dailyLedger.date, date));
 
         for (const entry of entries as { accountId: number | null; actualClosing: number | null }[]) {
-          const totalIncome = incomeEntries.filter((i) => i.accountId === entry.accountId).reduce((s, i) => s + i.amount, 0);
+          const totalIncome = incomeEntries.filter((i) => i.accountId === entry.accountId).reduce((s, i) => s + i.amount, 0)
+            + automaticReceipts.filter((r) => r.accountId === entry.accountId).reduce((s, r) => s + r.amount, 0);
           const totalExpense = dayExpenses.filter((e) => e.accountId === entry.accountId).reduce((s, e) => s + e.amount, 0);
 
           // Determine opening balance same way as getReconciliation

@@ -12,10 +12,14 @@ import type { DashboardBooking } from "./types";
 
 export function CheckInPopup({
   booking,
+  password,
+  username,
   onConfirm,
   onCancel,
 }: {
   booking: DashboardBooking;
+  password: string;
+  username?: string;
   onConfirm: (collectPayment: boolean, extra?: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -115,9 +119,10 @@ export function CheckInPopup({
           guestName={booking.guestName}
           amountUnit="rupees"
           zClass="z-[70]"
-          onConfirm={(method, cashReceived, changeGiven) => {
+          password={password} username={username} receiptKind="room"
+          onConfirm={(method, cashReceived, changeGiven, onlineAccountId, receiptId) => {
             setShowPay(false);
-            void onConfirm(true, { paymentMethod: method, cashReceived, changeGiven });
+            void onConfirm(true, { paymentMethod: method, cashReceived, changeGiven, onlineAccountId, receiptId });
           }}
           onClose={() => setShowPay(false)}
         />

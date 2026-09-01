@@ -23,6 +23,8 @@ type AccountBalance = {
   accountName: string;
   openingBalance: number;
   totalIncome: number;
+  manualIncome?: number;
+  automaticGuestReceipts?: number;
   totalExpense: number;
   expectedClosing: number;
   actualClosing: number | null;
@@ -230,6 +232,7 @@ export function DailyReconcile({ password, username, role, permissions }: { pass
                     <div>
                       <p className="text-[10px] uppercase text-brand-green-dark/50">+ Income</p>
                       <p className="text-sm font-medium text-emerald-600">₹{(b.totalIncome / 100).toFixed(0)}</p>
+                      {(b.automaticGuestReceipts || 0) !== 0 && <p className="text-[10px] text-blue-600">Guest online ₹{((b.automaticGuestReceipts || 0) / 100).toFixed(0)}</p>}
                     </div>
                     <div>
                       <p className="text-[10px] uppercase text-brand-green-dark/50">- Expense</p>

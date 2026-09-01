@@ -24,6 +24,7 @@ import {
 } from "@/db/queries";
 import { todayIST } from "@/lib/utils";
 import { isStayPayMethod, stayDueAtHotel, mergeStayCollect, stayRefundCap, stayRefundWrite, prepaidCheckInWrite, prepaidCheckInRollback } from "@/lib/stayPayment";
+import { createGuestReceipt, latestReceiptAccount, resolveReceiptAccount } from "@/lib/guestReceipts";
 import { getPendingFoodTab } from "@/lib/foodTabDb";
 import {
   BOOKING_TAX_SETTING,
@@ -587,8 +588,9 @@ export async function POST(req: NextRequest) {
       let collectedAtCheckIn = false;
       let collectedMethod = "";
       let prepaidRecorded = 0;
+      let receiptData: { receiptId: string; kind: "stay" | "ota_prepaid"; accountId: number; amount: number; notes: string } | null = null;
       if (collectPayment && dueAtCheckIn > 0) {
-        const { paymentMethod, cashReceived, changeGiven } = body;
+        const { paymentMethod, cashReceived, changeGiven, onlineAccountId, receiptId } = body;
         if (!isStayPayMethod(paymentMethod)) {
           return NextResponse.json({ error: "paymentMethod required (cash, online, or split)" }, { status: 400 });
         }
@@ -603,6 +605,11 @@ export async function POST(req: NextRequest) {
           newChangeGiven: Number(changeGiven) || 0,
         });
         Object.assign(updateData, merged);
+        const onlineAmount = paymentMethod === "online" ? dueAtCheckIn : paymentMethod === "split" ? Math.max(0, dueAtCheckIn - (Number(cashReceived) || 0)) : 0;
+        if (onlineAmount > 0) {
+          const accountId = await resolveReceiptAccount("room", onlineAccountId);
+          receiptData = { receiptId: receiptId || crypto.randomUUID(), kind: "stay", accountId, amount: onlineAmount, notes: `Stay payment for ${detail.booking.guestName}` };
+        }
         collectedAtCheckIn = true;
         collectedMethod = merged.paymentMethod;
       } else {
@@ -614,10 +621,13 @@ export async function POST(req: NextRequest) {
         if (prepaid) {
           Object.assign(updateData, prepaid);
           prepaidRecorded = prepaid.amountPaid;
+          const accountId = await resolveReceiptAccount("room", body.onlineAccountId);
+          receiptData = { receiptId: body.receiptId || `ota-prepaid-${bookingId}`, kind: "ota_prepaid", accountId, amount: prepaid.amountPaid, notes: `OTA prepaid stay for ${detail.booking.guestName}` };
         }
       }
 
       await updateBookingFull(bookingId, updateData);
+      if (receiptData) await createGuestReceipt({ ...receiptData, sourceType: "booking", sourceId: bookingId, createdBy: actingUser });
       await addBookingHistoryEntry({
         bookingId,
         action: "Checked In",
@@ -635,7 +645,7 @@ export async function POST(req: NextRequest) {
     // --- Collect stay payment (after Later, or remaining due) ---
 
     if (action === "collectStayPayment") {
-      const { bookingId, paymentMethod, cashReceived, changeGiven } = body;
+      const { bookingId, paymentMethod, cashReceived, changeGiven, onlineAccountId, receiptId } = body;
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
       if (!isStayPayMethod(paymentMethod)) {
         return NextResponse.json({ error: "paymentMethod required (cash, online, or split)" }, { status: 400 });
@@ -662,7 +672,14 @@ export async function POST(req: NextRequest) {
         newCashReceived: Number(cashReceived) || 0,
         newChangeGiven: Number(changeGiven) || 0,
       });
+      const onlineAmount = paymentMethod === "online" ? due : paymentMethod === "split" ? Math.max(0, due - (Number(cashReceived) || 0)) : 0;
+      let receiptData: { receiptId: string; accountId: number; amount: number } | null = null;
+      if (onlineAmount > 0) {
+        const accountId = await resolveReceiptAccount("room", onlineAccountId);
+        receiptData = { receiptId: receiptId || crypto.randomUUID(), accountId, amount: onlineAmount };
+      }
       await updateBookingFull(bookingId, merged);
+      if (receiptData) await createGuestReceipt({ ...receiptData, sourceType: "booking", sourceId: bookingId, kind: "stay", createdBy: actingUser, notes: `Stay payment for ${detail.booking.guestName}` });
       await addBookingHistoryEntry({
         bookingId,
         action: "Payment Collected",
@@ -727,6 +744,15 @@ export async function POST(req: NextRequest) {
       const reversePrepaid = prepaidCheckInRollback(detail?.booking);
       if (reversePrepaid) Object.assign(updateData, reversePrepaid);
       await updateBookingFull(bookingId, updateData);
+      if (reversePrepaid && detail?.booking) {
+        const accountId = await latestReceiptAccount("booking", bookingId);
+        if (accountId) await createGuestReceipt({
+          receiptId: `ota-prepaid-rollback-${bookingId}-${detail.booking.checkedInAt || "original"}`,
+          sourceType: "booking", sourceId: bookingId, kind: "reversal", accountId,
+          amount: -reversePrepaid.amountPaid, createdBy: actingUser,
+          notes: `Rolled back OTA prepaid stay for ${detail.booking.guestName}`,
+        });
+      }
       await addBookingHistoryEntry({
         bookingId,
         action: "Check-in Rolled Back",
@@ -801,7 +827,7 @@ export async function POST(req: NextRequest) {
     // --- Cancel Booking ---
 
     if (action === "cancelBooking") {
-      const { bookingId, assignmentIds, refundAmount, refundMethod, refundCash } = body;
+      const { bookingId, assignmentIds, refundAmount, refundMethod, refundCash, onlineAccountId, receiptId } = body;
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
 
       const detail = await getBookingDetail(bookingId);
@@ -857,6 +883,12 @@ export async function POST(req: NextRequest) {
             cancelUpdate.refundedAt = now;
             cancelUpdate.refundedBy = actingUser;
             refundNote = `, refund ₹${refundAmt} ${written.refundMethod}`;
+            const onlineRefund = written.refundMethod === "online" ? refundAmt : written.refundMethod === "split" ? Math.max(0, refundAmt - written.refundCash) : 0;
+            if (onlineRefund > 0) {
+              const previousAccount = await latestReceiptAccount("booking", bookingId);
+              const accountId = await resolveReceiptAccount("room", onlineAccountId ?? previousAccount);
+              await createGuestReceipt({ receiptId: receiptId || crypto.randomUUID(), sourceType: "booking", sourceId: bookingId, kind: "refund", accountId, amount: -onlineRefund, createdBy: actingUser, notes: `Stay refund for ${detail.booking.guestName}` });
+            }
           }
         }
         await updateBookingFull(bookingId, cancelUpdate);
@@ -1372,7 +1404,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e: any) {
     console.error("Booking API error:", e);
-    const msg = e?.message?.includes("D1") ? "Database error. Please try again." : "Internal server error";
+    const raw = e?.message || "Internal server error";
+    if (/Receiving bank|Selected receiving bank/.test(raw)) return NextResponse.json({ error: raw }, { status: 400 });
+    const msg = raw.includes("D1") ? "Database error. Please try again." : "Internal server error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -408,6 +408,25 @@ export const dailyIncome = sqliteTable("daily_income", {
   index("idx_daily_income_account").on(table.accountId),
 ]);
 
+/** Immutable automatic online guest-receipt journal. Amounts are paise. */
+export const guestReceipts = sqliteTable("guest_receipts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  receiptId: text("receipt_id").notNull().unique(),
+  sourceType: text("source_type").notNull(), // food_order | booking
+  sourceId: integer("source_id").notNull(),
+  kind: text("kind").notNull(), // food | stay | ota_prepaid | refund | reversal
+  accountId: integer("account_id").notNull().references(() => accounts.id),
+  amount: integer("amount").notNull(), // positive receipt, negative reversal/refund
+  businessDate: text("business_date").notNull(),
+  notes: text("notes").notNull().default(""),
+  createdBy: text("created_by").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+  ...syncColumns,
+}, (table) => [
+  index("idx_guest_receipts_date_account").on(table.businessDate, table.accountId),
+  index("idx_guest_receipts_source").on(table.sourceType, table.sourceId),
+]);
+
 export const dailyLedger = sqliteTable("daily_ledger", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   date: text("date").notNull(),

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { accounts, vendors, employees, salaryPayments, expenses } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { accounts, vendors, employees, salaryPayments, expenses, guestReceipts } from "@/db/schema";
+import { getSetting, setSetting } from "@/db/queries";
+import { eq, desc, and } from "drizzle-orm";
 import { authenticateUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -25,7 +26,25 @@ export async function POST(req: NextRequest) {
       // --- Accounts ---
       case "listAccounts": {
         const items = await db.select().from(accounts).orderBy(desc(accounts.createdAt));
-        return NextResponse.json({ accounts: items });
+        const [foodOnlineReceiptAccountId, roomOnlineReceiptAccountId] = await Promise.all([
+          getSetting("food_online_receipt_account_id"), getSetting("room_online_receipt_account_id"),
+        ]);
+        return NextResponse.json({ accounts: items, foodOnlineReceiptAccountId, roomOnlineReceiptAccountId });
+      }
+      case "saveReceiptDefaults": {
+        const validate = async (raw: unknown) => {
+          const id = Number(raw);
+          if (!Number.isInteger(id) || id <= 0) throw new Error("Select an active account for each online receipt default");
+          const found = await db.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, id), eq(accounts.isActive, 1))).limit(1);
+          if (!found[0]) throw new Error("Selected receipt account no longer exists");
+          return id;
+        };
+        const [foodId, roomId] = await Promise.all([validate(rest.foodOnlineReceiptAccountId), validate(rest.roomOnlineReceiptAccountId)]);
+        await Promise.all([
+          setSetting("food_online_receipt_account_id", String(foodId)),
+          setSetting("room_online_receipt_account_id", String(roomId)),
+        ]);
+        return NextResponse.json({ success: true });
       }
       case "addAccount": {
         const { name, nickname, bankName, accountType, accountNumber, ifscCode, openingBalance, isDefault } = rest;
@@ -67,6 +86,10 @@ export async function POST(req: NextRequest) {
       case "deleteAccount": {
         const { id } = rest;
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+        const usedByReceipt = await db.select({ id: guestReceipts.id }).from(guestReceipts).where(eq(guestReceipts.accountId, id)).limit(1);
+        if (usedByReceipt[0]) return NextResponse.json({ error: "This account is used by guest receipts and cannot be deleted" }, { status: 400 });
+        const [foodDefault, roomDefault] = await Promise.all([getSetting("food_online_receipt_account_id"), getSetting("room_online_receipt_account_id")]);
+        if (String(id) === foodDefault || String(id) === roomDefault) return NextResponse.json({ error: "Choose another guest receipt default before deleting this account" }, { status: 400 });
         await db.delete(accounts).where(eq(accounts.id, id));
         return NextResponse.json({ success: true });
       }

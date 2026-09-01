@@ -13,7 +13,7 @@ const SYNCED_TABLES_WITH_DELETE = [
 
 const SYNCED_TABLES_APPEND = [
   "bed_history", "food_order_items", "order_modifications", "salary_payments",
-  "daily_ledger", "qr_history",
+  "daily_ledger", "qr_history", "guest_receipts",
 ] as const;
 
 const SYNCABLE_SETTINGS = [
@@ -21,6 +21,7 @@ const SYNCABLE_SETTINGS = [
   "log_level", "food_tax_rate", "booking_tax_rate", "food_kitchen_hours", "food_tab_limit",
   "food_kitchen_busy", "food_confirm_with_guest", "food_kannada_labels",
   "food_cafe_tables", "primary_server",
+  "food_online_receipt_account_id", "room_online_receipt_account_id",
 ] as const;
 
 // --- Table Name to Drizzle Schema Mapping ---
@@ -45,6 +46,7 @@ const TABLE_MAP: Record<string, any> = {
   salary_payments: schema.salaryPayments,
   daily_ledger: schema.dailyLedger,
   qr_history: schema.qrHistory,
+  guest_receipts: schema.guestReceipts,
   settings: schema.settings,
 };
 
@@ -59,6 +61,7 @@ const FK_REMAP: Record<string, Record<string, string>> = {
   daily_income: { accountId: "accounts" },
   daily_ledger: { accountId: "accounts" },
   expenses: { vendorId: "vendors", accountId: "accounts" },
+  guest_receipts: { accountId: "accounts" },
 };
 
 /** Parse an FK integer from a sync payload. null/"" must not become 0. */

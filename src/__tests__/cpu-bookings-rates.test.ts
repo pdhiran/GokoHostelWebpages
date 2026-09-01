@@ -31,6 +31,9 @@ const q = vi.hoisted(() => ({
   deactivateBedBlocksByBedIds: vi.fn(),
   shortenAssignedCheckout: vi.fn(),
   pushNoShow: vi.fn(),
+  createGuestReceipt: vi.fn(),
+  resolveReceiptAccount: vi.fn(),
+  latestReceiptAccount: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ authenticateUser: q.authenticateUser }));
@@ -40,6 +43,11 @@ vi.mock("@/lib/aiosellSync", () => ({
 }));
 vi.mock("@/lib/aiosell", () => ({
   pushNoShow: q.pushNoShow,
+}));
+vi.mock("@/lib/guestReceipts", () => ({
+  createGuestReceipt: q.createGuestReceipt,
+  resolveReceiptAccount: q.resolveReceiptAccount,
+  latestReceiptAccount: q.latestReceiptAccount,
 }));
 vi.mock("@/db/queries", () => ({
   getBookingCalendarData: q.getBookingCalendarData,
@@ -88,6 +96,9 @@ describe("Bookings calendar and rates workflows", () => {
   beforeEach(() => {
     for (const fn of Object.values(q)) fn.mockReset();
     q.authenticateUser.mockResolvedValue(admin);
+    q.resolveReceiptAccount.mockResolvedValue(1);
+    q.createGuestReceipt.mockResolvedValue({ id: 1, duplicate: false });
+    q.latestReceiptAccount.mockResolvedValue(1);
     vi.mocked(pushIfOtaChanged).mockReset();
     vi.mocked(pushIfOtaChanged).mockResolvedValue(undefined);
   });

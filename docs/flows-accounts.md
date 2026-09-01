@@ -49,7 +49,7 @@ flowchart TD
 
 Unique `(date, account_id)`. Mismatch highlight if |diff| > ₹0.50. `adjustOpeningBalance` without reconciling (manage accounts). `undoReconciliation` clears the lock.
 
-Food revenue on the ledger is **paid non-cancelled food orders** for that date (not the same as `daily_income` unless auto-posted).
+Food and room **online** receipts are automatically recorded in `guest_receipts` against the selected receiving bank and included in reconciliation; manual `daily_income` remains separate. Cash remains manual. Food revenue is still based on paid non-cancelled food orders.
 
 ---
 

@@ -6,6 +6,7 @@ import { BanknoteIcon, SmartphoneIcon, XIcon } from "lucide-react";
 
 type PaymentTab = "cash" | "online" | "split";
 type AmountUnit = "paise" | "rupees";
+type ReceiptAccount = { id: number; name: string; nickname: string; isActive: number };
 
 export function RecordPaymentModal({
   totalAmount,
@@ -17,17 +18,23 @@ export function RecordPaymentModal({
   mode = "collect",
   zClass = "z-[60]",
   amountUnit = "paise",
+  password,
+  username,
+  receiptKind,
 }: {
   totalAmount: number;
   guestName: string;
   initialMethod?: string;
   initialCash?: number;
-  onConfirm: (method: string, cashReceived: number, changeGiven: number) => void | Promise<void>;
+  onConfirm: (method: string, cashReceived: number, changeGiven: number, onlineAccountId?: number, receiptId?: string) => void | Promise<void>;
   onClose: () => void;
   mode?: "collect" | "refund";
   zClass?: string;
   /** Food orders are paise. Bookings calendar amounts are rupees. */
   amountUnit?: AmountUnit;
+  password?: string;
+  username?: string;
+  receiptKind?: "food" | "room";
 }) {
   const refund = mode === "refund";
   const scale = amountUnit === "rupees" ? 1 : 100;
@@ -39,6 +46,20 @@ export function RecordPaymentModal({
   const [splitCash, setSplitCash] = useState("");
   const [splitOnline, setSplitOnline] = useState((totalAmount / scale).toString());
   const [saving, setSaving] = useState(false);
+  const [accounts, setAccounts] = useState<ReceiptAccount[]>([]);
+  const [onlineAccountId, setOnlineAccountId] = useState("");
+
+  useEffect(() => {
+    if (!password || !receiptKind) return;
+    const payload: Record<string, string> = { password, action: "listAccounts" };
+    if (username) payload.username = username;
+    void fetch("/api/admin/account-settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then((r) => r.ok ? r.json() : null).then((data) => {
+        if (!data) return;
+        setAccounts((data.accounts || []).filter((a: ReceiptAccount) => a.isActive));
+        setOnlineAccountId(String(receiptKind === "food" ? data.foodOnlineReceiptAccountId || "" : data.roomOnlineReceiptAccountId || ""));
+      }).catch(() => {});
+  }, [password, username, receiptKind]);
 
   const totalRupees = totalAmount / scale;
   const cashValue = Number(cashInput) || 0;
@@ -66,9 +87,9 @@ export function RecordPaymentModal({
           await onConfirm("cash", received, change);
         }
       } else if (activeTab === "online") {
-        await onConfirm("online", 0, 0);
+        await onConfirm("online", 0, 0, Number(onlineAccountId) || undefined, crypto.randomUUID());
       } else {
-        await onConfirm("split", toStored(splitCashVal), 0);
+        await onConfirm("split", toStored(splitCashVal), 0, Number(onlineAccountId) || undefined, crypto.randomUUID());
       }
     } finally {
       setSaving(false);
@@ -78,10 +99,10 @@ export function RecordPaymentModal({
   const canSave = (() => {
     if (saving) return false;
     if (activeTab === "cash") return refund ? true : cashValue >= totalRupees;
-    if (activeTab === "online") return true;
+    if (activeTab === "online") return !receiptKind || !!onlineAccountId;
     if (activeTab === "split") {
       if (!(splitCashVal > 0 && splitOnlineVal > 0)) return false;
-      return refund ? splitExact : splitTotal >= totalRupees;
+      return (refund ? splitExact : splitTotal >= totalRupees) && (!receiptKind || !!onlineAccountId);
     }
     return false;
   })();
@@ -173,13 +194,16 @@ export function RecordPaymentModal({
           )}
 
           {activeTab === "online" && (
-            <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-4 text-center">
+            <div className="space-y-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-4 text-center">
               <SmartphoneIcon className="mx-auto mb-2 h-8 w-8 text-blue-500" />
               <p className="text-sm text-blue-800 dark:text-blue-300">
                 {refund ? "Mark " : "Mark "}
                 <span className="font-bold">₹{totalRupees.toFixed(0)}</span>
                 {refund ? " as refunded online?" : " as paid online?"}
               </p>
+              {receiptKind && <label className="block text-left text-xs font-medium text-blue-900 dark:text-blue-200">Received in
+                <select value={onlineAccountId} onChange={(e) => setOnlineAccountId(e.target.value)} className="mt-1 w-full rounded border border-blue-200 bg-white px-2 py-2 text-sm text-brand-green-dark"><option value="">Select bank…</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.nickname || a.name}</option>)}</select>
+              </label>}
             </div>
           )}
 
@@ -217,6 +241,9 @@ export function RecordPaymentModal({
                 Total: ₹{splitTotal.toFixed(0)} / ₹{totalRupees.toFixed(0)}
                 {splitTotal < totalRupees && <span className="ml-1 text-xs">(₹{(totalRupees - splitTotal).toFixed(0)} short)</span>}
               </div>
+              {receiptKind && <label className="block text-xs font-medium text-brand-green-dark/70">Online amount received in
+                <select value={onlineAccountId} onChange={(e) => setOnlineAccountId(e.target.value)} className="mt-1 w-full rounded border border-input bg-white px-2 py-2 text-sm"><option value="">Select bank…</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.nickname || a.name}</option>)}</select>
+              </label>}
             </div>
           )}
         </div>

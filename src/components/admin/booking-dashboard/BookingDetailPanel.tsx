@@ -470,6 +470,8 @@ export function BookingDetailPanel({
       {showCheckinPopup && (
         <CheckInPopup
           booking={booking}
+          password={password}
+          username={username}
           onConfirm={async (collectPayment, extra) => {
             setShowCheckinPopup(false);
             await handleAction("checkIn", { collectPayment, ...extra });
@@ -484,9 +486,10 @@ export function BookingDetailPanel({
           guestName={booking.guestName}
           amountUnit="rupees"
           zClass="z-[70]"
-          onConfirm={async (method, cashReceived, changeGiven) => {
+          password={password} username={username} receiptKind="room"
+          onConfirm={async (method, cashReceived, changeGiven, onlineAccountId, receiptId) => {
             setShowCollect(false);
-            await handleAction("collectStayPayment", { paymentMethod: method, cashReceived, changeGiven });
+            await handleAction("collectStayPayment", { paymentMethod: method, cashReceived, changeGiven, onlineAccountId, receiptId });
           }}
           onClose={() => setShowCollect(false)}
         />

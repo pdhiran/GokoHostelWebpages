@@ -184,9 +184,9 @@ export function AdminFoodOrders({ password, username, role, permissions = {} }: 
         </div>
       )}
       {tab === "place" && <PlaceOrder apiCall={apiCall} prefillGuest={prefillGuest} onPrefillConsumed={() => setPrefillGuest(null)} onOrderPlaced={() => setTab("summary")} />}
-      {tab === "summary" && <OrderSummary apiCall={apiCall} onOrderMore={(guest) => { setPrefillGuest(guest); setTab("place"); }} onAddNewOrder={() => setTab("place")} role={role} permissions={permissions} />}
+      {tab === "summary" && <OrderSummary apiCall={apiCall} password={password} username={username} onOrderMore={(guest) => { setPrefillGuest(guest); setTab("place"); }} onAddNewOrder={() => setTab("place")} role={role} permissions={permissions} />}
       {tab === "combined" && <CombinedBill apiCall={apiCall} />}
-      {tab === "payment" && <PaymentSummary apiCall={apiCall} />}
+      {tab === "payment" && <PaymentSummary apiCall={apiCall} password={password} username={username} />}
     </div>
   );
 }
@@ -740,7 +740,7 @@ interface SummaryGroup {
   hasModifications: boolean;
 }
 
-function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }: { apiCall: (body: any) => Promise<Response>; onOrderMore: (guest: PrefillGuest) => void; onAddNewOrder?: () => void; role?: Role; permissions?: Record<string, boolean> }) {
+function OrderSummary({ apiCall, password, username, onOrderMore, onAddNewOrder, role, permissions }: { apiCall: (body: any) => Promise<Response>; password: string; username?: string; onOrderMore: (guest: PrefillGuest) => void; onAddNewOrder?: () => void; role?: Role; permissions?: Record<string, boolean> }) {
   const { showError, showSuccess } = useAdminToast();
   const [hostelGuests, setHostelGuests] = useState<GuestWithTab[]>([]);
   const [walkinOrders, setWalkinOrders] = useState<Order[]>([]);
@@ -1016,13 +1016,13 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
     ? selectedGroupOrders.reduce((sum, o) => sum + o.total, 0)
     : selectedGroup?.totalAmount || 0;
 
-  const markGroupPaid = async (group: SummaryGroup, paymentMethod: string, cashReceived: number = 0, changeGiven: number = 0) => {
+  const markGroupPaid = async (group: SummaryGroup, paymentMethod: string, cashReceived: number = 0, changeGiven: number = 0, onlineAccountId?: number, receiptId?: string) => {
     const orders = getGroupOrders(group);
     const orderIds = orders.map((o) => o.id);
     if (orderIds.length === 0) return;
     setBusy(group.key);
     try {
-      const res = await apiCall({ action: "markOrderPaid", orderIds, paymentMethod, cashReceived, changeGiven });
+      const res = await apiCall({ action: "markOrderPaid", orderIds, paymentMethod, cashReceived, changeGiven, onlineAccountId, receiptId });
       if (res.ok) {
         await load();
         setSelectedGroupKey(null);
@@ -1570,8 +1570,9 @@ function OrderSummary({ apiCall, onOrderMore, onAddNewOrder, role, permissions }
           totalAmount={actualGroupTotal}
           guestName={paymentModalGroup.guestName}
           initialMethod={paymentModalMethod}
-          onConfirm={(method, cashReceived, changeGiven) => {
-            markGroupPaid(paymentModalGroup, method, cashReceived, changeGiven);
+          password={password} username={username} receiptKind="food"
+          onConfirm={(method, cashReceived, changeGiven, onlineAccountId, receiptId) => {
+            markGroupPaid(paymentModalGroup, method, cashReceived, changeGiven, onlineAccountId, receiptId);
             setPaymentModalGroup(null);
           }}
           onClose={() => setPaymentModalGroup(null)}
@@ -1965,7 +1966,7 @@ interface PaymentGroup {
   latestOrderTime: string;
 }
 
-function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response> }) {
+function PaymentSummary({ apiCall, password, username }: { apiCall: (body: any) => Promise<Response>; password: string; username?: string }) {
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [hostelGuestInfo, setHostelGuestInfo] = useState<Map<number, GuestWithTab>>(new Map());
   const [detailOrders, setDetailOrders] = useState<Record<string, Order[]>>({});
@@ -2153,7 +2154,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
     }
   }, [apiCall]);
 
-  const handleMarkPaid = async (order: Order, method: string, cashReceived: number = 0, changeGiven: number = 0) => {
+  const handleMarkPaid = async (order: Order, method: string, cashReceived: number = 0, changeGiven: number = 0, onlineAccountId?: number, receiptId?: string) => {
     setBusy(true);
     try {
       const res = await apiCall({
@@ -2163,6 +2164,8 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
         paymentMethod: method,
         cashReceived,
         changeGiven,
+        onlineAccountId,
+        receiptId,
       });
       if (res.ok && selectedGroup) {
         setPaymentEditOrder(null);
@@ -2193,7 +2196,7 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
     }
   };
 
-  const handleUpdatePayment = async (order: Order, updates: { paymentMethod?: string; cashReceived?: number; changeGiven?: number }) => {
+  const handleUpdatePayment = async (order: Order, updates: { paymentMethod?: string; cashReceived?: number; changeGiven?: number; onlineAccountId?: number; receiptId?: string }) => {
     setBusy(true);
     try {
       const res = await apiCall({
@@ -2505,11 +2508,12 @@ function PaymentSummary({ apiCall }: { apiCall: (body: any) => Promise<Response>
           guestName={selectedGroup?.guestName || ""}
           initialMethod={paymentEditOrder.paymentStatus === "paid" ? (paymentEditOrder.paymentMethod || "online") : "online"}
           initialCash={paymentEditOrder.paymentStatus === "paid" ? paymentEditOrder.cashReceived : 0}
-          onConfirm={(method, cashReceived, changeGiven) => {
+          password={password} username={username} receiptKind="food"
+          onConfirm={(method, cashReceived, changeGiven, onlineAccountId, receiptId) => {
             if (paymentEditOrder.paymentStatus === "paid") {
-              handleUpdatePayment(paymentEditOrder, { paymentMethod: method, cashReceived, changeGiven });
+              handleUpdatePayment(paymentEditOrder, { paymentMethod: method, cashReceived, changeGiven, onlineAccountId, receiptId });
             } else {
-              handleMarkPaid(paymentEditOrder, method, cashReceived, changeGiven);
+              handleMarkPaid(paymentEditOrder, method, cashReceived, changeGiven, onlineAccountId, receiptId);
             }
             setPaymentEditOrder(null);
           }}
@@ -3436,4 +3440,3 @@ export function PaymentBadge({ status }: { status: string }) {
   };
   return <span className={cn("font-medium", colors[status] || "text-gray-600 dark:text-gray-400")}>{status.replace("_", " ")}</span>;
 }
-

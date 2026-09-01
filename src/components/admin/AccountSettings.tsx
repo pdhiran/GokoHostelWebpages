@@ -57,6 +57,8 @@ export function AccountSettings({ password, username, role }: { password: string
   const [loading, setLoading] = useState(false);
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [foodOnlineReceiptAccountId, setFoodOnlineReceiptAccountId] = useState("");
+  const [roomOnlineReceiptAccountId, setRoomOnlineReceiptAccountId] = useState("");
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
@@ -100,7 +102,7 @@ export function AccountSettings({ password, username, role }: { password: string
         apiCall({ action: "listVendors" }),
         apiCall({ action: "listEmployees" }),
       ]);
-      if (accRes.ok) { const d = await accRes.json(); setAccounts(d.accounts || []); }
+      if (accRes.ok) { const d = await accRes.json(); setAccounts(d.accounts || []); setFoodOnlineReceiptAccountId(d.foodOnlineReceiptAccountId || ""); setRoomOnlineReceiptAccountId(d.roomOnlineReceiptAccountId || ""); }
       if (venRes.ok) { const d = await venRes.json(); setVendors(d.vendors || []); }
       if (empRes.ok) { const d = await empRes.json(); setEmployees(d.employees || []); }
     } finally {
@@ -173,6 +175,11 @@ export function AccountSettings({ password, username, role }: { password: string
     const action = section === "accounts" ? "deleteAccount" : section === "vendors" ? "deleteVendor" : "deleteEmployee";
     await apiCall({ action, id });
     loadData();
+  };
+
+  const saveReceiptDefaults = async () => {
+    const res = await apiCall({ action: "saveReceiptDefaults", foodOnlineReceiptAccountId, roomOnlineReceiptAccountId });
+    if (!res.ok) showError((await res.json().catch(() => ({}))).error || "Could not save receipt defaults");
   };
 
   const updateField = (key: string, value: string) => {
@@ -256,6 +263,22 @@ export function AccountSettings({ password, username, role }: { password: string
           <PlusIcon className="h-3 w-3" /> Add
         </Button>
       </div>
+
+      {section === "accounts" && (
+        <div className="rounded-xl border border-brand-mist bg-white dark:bg-card p-4">
+          <h4 className="text-sm font-semibold text-brand-green-dark">Online guest receipt defaults</h4>
+          <p className="mt-1 text-xs text-brand-green-dark/60">These banks are preselected when staff record online Food or Room payments. They may be the same account.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="text-xs text-brand-green-dark/70">Food online receipts
+              <select value={foodOnlineReceiptAccountId} onChange={(e) => setFoodOnlineReceiptAccountId(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select account…</option>{accounts.filter((a) => a.isActive).map((a) => <option key={a.id} value={a.id}>{a.nickname || a.name}</option>)}</select>
+            </label>
+            <label className="text-xs text-brand-green-dark/70">Room online receipts
+              <select value={roomOnlineReceiptAccountId} onChange={(e) => setRoomOnlineReceiptAccountId(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select account…</option>{accounts.filter((a) => a.isActive).map((a) => <option key={a.id} value={a.id}>{a.nickname || a.name}</option>)}</select>
+            </label>
+          </div>
+          <Button type="button" className="mt-3 h-8 text-xs" onClick={saveReceiptDefaults} disabled={!foodOnlineReceiptAccountId || !roomOnlineReceiptAccountId}>Save receipt defaults</Button>
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (

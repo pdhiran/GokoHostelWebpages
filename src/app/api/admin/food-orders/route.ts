@@ -43,6 +43,7 @@ import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { getDb } from "@/db";
 import { foodOrders, foodOrderItems, checkins, orderModifications } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { createGuestReceipt, latestReceiptAccount, resolveReceiptAccount } from "@/lib/guestReceipts";
 
 export async function POST(req: NextRequest) {
   try {
@@ -302,13 +303,15 @@ export async function POST(req: NextRequest) {
       }
 
       case "markOrderPaid": {
-        const { orderIds, paymentMethod, paidBy, cashReceived, changeGiven } = rest;
+        const { orderIds, paymentMethod, paidBy, cashReceived, changeGiven, onlineAccountId, receiptId } = rest;
         if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
           return NextResponse.json({ error: "orderIds required" }, { status: 400 });
         }
         if (!paymentMethod) return NextResponse.json({ error: "paymentMethod required" }, { status: 400 });
 
         for (const oid of orderIds) {
+          const order = await getFoodOrderById(oid);
+          if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
           await updateFoodOrderPayment(oid, {
             paymentStatus: "paid",
             paymentMethod,
@@ -316,6 +319,11 @@ export async function POST(req: NextRequest) {
             cashReceived: cashReceived ?? 0,
             changeGiven: changeGiven ?? 0,
           });
+          const onlineAmount = paymentMethod === "online" ? order.total : paymentMethod === "split" ? Math.max(0, order.total - (Number(cashReceived) || 0)) : 0;
+          if (onlineAmount > 0) {
+            const accountId = await resolveReceiptAccount("food", onlineAccountId);
+            await createGuestReceipt({ receiptId: `${receiptId || crypto.randomUUID()}:food:${oid}`, sourceType: "food_order", sourceId: oid, kind: "food", accountId, amount: onlineAmount, createdBy: paidBy || actorName, notes: `Food order ${order.orderNumber}` });
+          }
         }
         await addAuditEntry({
           username: actorName,
@@ -782,7 +790,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "updatePaymentDetails": {
-        const { orderId, paymentStatus: newPaymentStatus, paymentMethod: newPaymentMethod, cashReceived: newCashReceived, changeGiven: newChangeGiven } = rest;
+        const { orderId, paymentStatus: newPaymentStatus, paymentMethod: newPaymentMethod, cashReceived: newCashReceived, changeGiven: newChangeGiven, onlineAccountId, receiptId } = rest;
         if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
 
         const order = await getFoodOrderById(orderId);
@@ -818,6 +826,20 @@ export async function POST(req: NextRequest) {
 
         const db = getDb();
         await db.update(foodOrders).set(updateData).where(eq(foodOrders.id, orderId));
+        const nextStatus = newPaymentStatus ?? order.paymentStatus;
+        const method = newPaymentMethod ?? order.paymentMethod;
+        const cash = Number(newCashReceived ?? order.cashReceived) || 0;
+        const onlineAmount = method === "online" ? order.total : method === "split" ? Math.max(0, order.total - cash) : 0;
+        const oldOnlineAmount = order.paymentStatus === "paid" ? (order.paymentMethod === "online" ? order.total : order.paymentMethod === "split" ? Math.max(0, order.total - (order.cashReceived || 0)) : 0) : 0;
+        const changedAllocation = order.paymentStatus === "paid" && (nextStatus !== "paid" || oldOnlineAmount !== onlineAmount || (onlineAmount > 0 && onlineAccountId != null));
+        if (changedAllocation && oldOnlineAmount > 0) {
+          const oldAccountId = await latestReceiptAccount("food_order", orderId);
+          if (oldAccountId) await createGuestReceipt({ receiptId: `${receiptId || crypto.randomUUID()}:reverse`, sourceType: "food_order", sourceId: orderId, kind: "reversal", accountId: oldAccountId, amount: -oldOnlineAmount, createdBy: actorName, notes: `Correction for food order ${order.orderNumber}` });
+        }
+        if (nextStatus === "paid" && onlineAmount > 0 && (order.paymentStatus !== "paid" || changedAllocation)) {
+          const accountId = await resolveReceiptAccount("food", onlineAccountId);
+          await createGuestReceipt({ receiptId: receiptId || crypto.randomUUID(), sourceType: "food_order", sourceId: orderId, kind: "food", accountId, amount: onlineAmount, createdBy: actorName, notes: `Food order ${order.orderNumber}` });
+        }
 
         await addAuditEntry({
           username: actorName,
@@ -838,6 +860,6 @@ export async function POST(req: NextRequest) {
     const userMessage = raw.includes("Failed query") || raw.includes("D1_ERROR")
       ? "Database temporarily unavailable. Please try again."
       : raw;
-    return NextResponse.json({ error: userMessage }, { status: 500 });
+    return NextResponse.json({ error: userMessage }, { status: /Receiving bank|Selected receiving bank/.test(raw) ? 400 : 500 });
   }
 }

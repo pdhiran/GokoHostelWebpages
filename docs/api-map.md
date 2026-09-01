@@ -78,7 +78,7 @@ Almost every admin route is `POST` + JSON `{ password, username?, action, ... }`
 
 **Food admin (admin only):** `getCategories`, `addCategory`, `updateCategory`, `deleteCategory`, `getMenuItems`, `getMenuItemsByCategory`, `addMenuItem`, `updateMenuItem`, `deleteMenuItem`, `toggleItemAvailability`, `bulkToggleAvailability`, `addStock`, `getLowStockItems`, `getFoodSettings`, `updateFoodSettings`.
 
-**Food orders:** `listOrders`, `getOrderDetails`, `getOrderModifications`, `getActiveGuests`, `getGuestsWithTabs`, `getGuestTab`, `getGuestAllOrders`, `getWalkinOrders`, `getCombinedBill`, `getMenu`, `updateOrderStatus`, `placeOrderForGuest`, `voidItem`, `updateItemQuantity`, `reassignOrder`, `markOrderPaid`, `updatePaymentDetails`, `applyDiscount`, `removeDiscount`, `cleanupOldOrders`.
+**Food orders:** `listOrders`, `getOrderDetails`, `getOrderModifications`, `getActiveGuests`, `getGuestsWithTabs`, `getGuestTab`, `getGuestAllOrders`, `getWalkinOrders`, `getCombinedBill`, `getMenu`, `updateOrderStatus`, `placeOrderForGuest`, `voidItem`, `updateItemQuantity`, `reassignOrder`, `markOrderPaid`, `updatePaymentDetails`, `applyDiscount`, `removeDiscount`, `cleanupOldOrders`. Online/split payments accept `onlineAccountId` and `receiptId`; their online portion creates an automatic bank receipt for reconciliation.
 
 **Kitchen:** `listOrders`, `updateStatus`, `toggleItemAvailability`, `rejectItem`, `updateItemQuantity`, `addItemToOrder`, `toggleBusy`, `getMenuItems`, `getOrderModifications`.
 
