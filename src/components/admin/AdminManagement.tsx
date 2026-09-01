@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon, WifiIcon, GlobeIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, DatabaseIcon, ShieldCheckIcon, FileTextIcon, HeartPulseIcon, HistoryIcon, IndianRupeeIcon, UtensilsIcon, SettingsIcon, UploadIcon, QrCodeIcon, ChevronDownIcon, WalletIcon, ServerIcon, WifiIcon, GlobeIcon, UserRoundCheckIcon } from "lucide-react";
 import { useTabWithHistory } from "@/hooks/useTabWithHistory";
 import type { Role, ManagementTab } from "./types";
 
@@ -23,6 +23,7 @@ const AdminFoodSettings = dynamic(() => import("./AdminFoodSettings").then((m) =
 const AdminBulkImport = dynamic(() => import("./AdminBulkImport").then((m) => m.AdminBulkImport), { loading: tabLoader, ssr: false });
 const QRGenerator = dynamic(() => import("./qr-generator").then((m) => m.QRGenerator), { loading: tabLoader, ssr: false });
 const AccountSettings = dynamic(() => import("./AccountSettings").then((m) => m.AccountSettings), { loading: tabLoader, ssr: false });
+const ManagementAttendance = dynamic(() => import("./ManagementAttendance").then((m) => m.ManagementAttendance), { loading: tabLoader, ssr: false });
 const ServerSync = dynamic(() => import("./ServerSync").then((m) => m.ServerSync), { loading: tabLoader, ssr: false });
 const ChannelManager = dynamic(() => import("./ChannelManager").then((m) => m.ChannelManager), { loading: tabLoader, ssr: false });
 const AdminWebsite = dynamic(() => import("./AdminWebsite").then((m) => m.AdminWebsite), { loading: tabLoader, ssr: false });
@@ -42,6 +43,7 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "bulkUpload", label: "Bulk Upload", icon: <UploadIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "qrGenerator", label: "QR Codes", icon: <QrCodeIcon className="h-3.5 w-3.5" />, permission: "canUseQRGenerator" },
   { id: "accountSettings", label: "Account Settings", icon: <WalletIcon className="h-3.5 w-3.5" />, permission: "canManageAccounts" },
+  { id: "attendance", label: "Attendance", icon: <UserRoundCheckIcon className="h-3.5 w-3.5" />, permission: "canManageAttendance" },
   { id: "serverSync", label: "Server Sync", icon: <ServerIcon className="h-3.5 w-3.5" />, adminOnly: true },
   { id: "channelManager", label: "Channel Manager", icon: <WifiIcon className="h-3.5 w-3.5" />, adminOnly: true },
 ];
@@ -159,6 +161,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         {tab === "bulkUpload" && <AdminBulkImport password={password} username={username} role={role} />}
         {tab === "qrGenerator" && <QRGenerator password={password} username={username} role={role} />}
         {tab === "accountSettings" && <AccountSettings password={password} username={username} role={role} />}
+        {tab === "attendance" && <ManagementAttendance password={password} username={username} />}
         {tab === "serverSync" && <ServerSync password={password} username={username} role={role} />}
         {tab === "channelManager" && <ChannelManager password={password} username={username} role={role} />}
       </div>

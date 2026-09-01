@@ -36,6 +36,7 @@ type Vendor = {
 type Employee = {
   id: number; name: string; role: string; phone: string;
   salary: number; salaryFrequency: string; bankAccount: string;
+  attendanceStartDate: string; employmentEndDate: string;
   isActive: number; createdAt: string;
 };
 
@@ -84,6 +85,8 @@ export function AccountSettings({ password, username, role }: { password: string
   const [salaryNotes, setSalaryNotes] = useState("");
   const [salaryPayType, setSalaryPayType] = useState("salary");
   const [payingSalary, setPayingSalary] = useState(false);
+  const [salaryRequestId, setSalaryRequestId] = useState("");
+  const [payrollSummary, setPayrollSummary] = useState<{ grossAmount: number; attendanceDeduction: number; netPayable: number; salaryPaid: number; remainingPayable: number; paidLeaveUnits: number; unpaidLeaveUnits: number; isProjected: boolean } | null>(null);
 
   const apiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -93,6 +96,16 @@ export function AccountSettings({ password, username, role }: { password: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+  }, [password, username]);
+
+  const loadPayroll = useCallback(async (employeeId: number, month: string) => {
+    const payload: Record<string, unknown> = { password, action: "getPayroll", employeeId, month };
+    if (username) payload.username = username;
+    const res = await fetch("/api/admin/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (!res.ok) return;
+    const data = await res.json();
+    setPayrollSummary(data.summary || null);
+    if (data.summary) setSalaryAmount((data.summary.remainingPayable / 100).toFixed(0));
   }, [password, username]);
 
   const loadData = useCallback(async () => {
@@ -203,9 +216,16 @@ export function AccountSettings({ password, username, role }: { password: string
     setSalaryAmount((emp.salary / 100).toFixed(0));
     setSalaryNotes("");
     setSalaryPayType("salary");
+    setSalaryRequestId(crypto.randomUUID());
+    setPayrollSummary(null);
+    void loadPayroll(emp.id, salaryMonth);
     const defaultAcc = accounts.find((a) => a.isDefault);
     if (defaultAcc) setSalaryAccountId(String(defaultAcc.id));
   };
+
+  useEffect(() => {
+    if (payingEmployee && (salaryPayType === "salary" || salaryPayType === "advance")) void loadPayroll(payingEmployee.id, salaryMonth);
+  }, [payingEmployee, salaryMonth, salaryPayType, loadPayroll]);
 
   const submitSalaryPayment = async () => {
     if (!payingEmployee) return;
@@ -223,6 +243,7 @@ export function AccountSettings({ password, username, role }: { password: string
         paymentMethod: salaryMethod,
         payType: salaryPayType,
         notes: salaryNotes,
+        requestId: salaryRequestId,
       });
       setPayingEmployee(null);
       loadData();
@@ -392,6 +413,14 @@ export function AccountSettings({ password, username, role }: { password: string
                 <Label className="text-xs">Bank Account (for reference)</Label>
                 <Input value={formData.bankAccount || ""} onChange={(e) => updateField("bankAccount", e.target.value)} className="mt-1 h-8 text-xs" placeholder="Optional" />
               </div>
+              <div>
+                <Label className="text-xs">Attendance start date</Label>
+                <Input type="date" value={formData.attendanceStartDate || ""} onChange={(e) => updateField("attendanceStartDate", e.target.value)} className="mt-1 h-8 text-xs" />
+              </div>
+              {editing && <div>
+                <Label className="text-xs">Salary effective month</Label>
+                <Input type="month" value={formData.compensationEffectiveMonth || new Date().toISOString().slice(0, 7)} onChange={(e) => updateField("compensationEffectiveMonth", e.target.value)} className="mt-1 h-8 text-xs" />
+              </div>}
             </div>
           )}
 
@@ -446,7 +475,7 @@ export function AccountSettings({ password, username, role }: { password: string
             <div>
               <p className="text-sm font-medium text-brand-green-dark">{e.name}</p>
               <p className="text-[10px] text-brand-green-dark/50">
-                {e.role && `${e.role} · `}₹{(e.salary / 100).toFixed(0)}/{e.salaryFrequency}{e.phone && ` · ${e.phone}`}
+                {e.role && `${e.role} · `}₹{(e.salary / 100).toFixed(0)}/{e.salaryFrequency}{e.phone && ` · ${e.phone}`}{!e.isActive && " · Inactive"}
               </p>
             </div>
             <div className="flex gap-1">
@@ -454,7 +483,7 @@ export function AccountSettings({ password, username, role }: { password: string
                 <IndianRupeeIcon className="inline h-3 w-3" /> Pay
               </button>
               <button type="button" onClick={() => startEdit(e)} className="rounded-md p-1.5 text-brand-green-dark/40 hover:bg-brand-sand hover:text-brand-green"><PencilIcon className="h-3.5 w-3.5" /></button>
-              <button type="button" onClick={() => deleteItem(e.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button>
+              {e.isActive ? <button type="button" title="Deactivate employee" onClick={() => deleteItem(e.id)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600"><Trash2Icon className="h-3.5 w-3.5" /></button> : null}
             </div>
           </div>
         ))}
@@ -474,6 +503,12 @@ export function AccountSettings({ password, username, role }: { password: string
               {payingEmployee.name} · {payingEmployee.role || "Staff"}
             </p>
             <div className="mt-4 space-y-3">
+              {payrollSummary && (salaryPayType === "salary" || salaryPayType === "advance") && <div className="rounded-lg bg-brand-sand/60 p-3 text-xs">
+                <div className="flex justify-between"><span>Gross salary</span><strong>₹{(payrollSummary.grossAmount / 100).toFixed(0)}</strong></div>
+                <div className="mt-1 flex justify-between text-red-600"><span>Attendance deduction ({payrollSummary.unpaidLeaveUnits / 2}d unpaid)</span><strong>-₹{(payrollSummary.attendanceDeduction / 100).toFixed(0)}</strong></div>
+                <div className="mt-1 flex justify-between"><span>Already paid</span><strong>₹{(payrollSummary.salaryPaid / 100).toFixed(0)}</strong></div>
+                <div className="mt-2 flex justify-between border-t border-brand-mist pt-2"><span>{payrollSummary.isProjected ? "Projected remaining" : "Remaining payable"}</span><strong>₹{(payrollSummary.remainingPayable / 100).toFixed(0)}</strong></div>
+              </div>}
               <div>
                 <Label className="text-xs">Payment Type</Label>
                 <select value={salaryPayType} onChange={(e) => setSalaryPayType(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs">

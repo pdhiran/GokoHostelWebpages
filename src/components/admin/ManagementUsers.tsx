@@ -74,6 +74,7 @@ const EXPENSE_PERMISSION_OPTIONS = [
 
 const TOOLS_PERMISSION_OPTIONS = [
   { key: "canUseQRGenerator", label: "Use QR code generator" },
+  { key: "canManageAttendance", label: "Manage staff attendance" },
 ];
 
 const SPLITS_PERMISSION_OPTIONS = [

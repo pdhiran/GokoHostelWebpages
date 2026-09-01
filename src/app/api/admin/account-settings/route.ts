@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { accounts, vendors, employees, salaryPayments, expenses, guestReceipts } from "@/db/schema";
+import { accounts, vendors, employees, salaryPayments, expenses, guestReceipts, employeeCompensationHistory } from "@/db/schema";
 import { getSetting, setSetting } from "@/db/queries";
 import { eq, desc, and } from "drizzle-orm";
 import { authenticateUser } from "@/lib/auth";
+import { syncInsert, syncUpdate } from "@/db/syncMeta";
+import { calculateEmployeePayroll } from "@/lib/employeeAttendance";
+import { todayIST } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -135,42 +138,54 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ employees: items });
       }
       case "addEmployee": {
-        const { name, role: empRole, phone, salary, salaryFrequency, bankAccount } = rest;
+        const { name, role: empRole, phone, salary, salaryFrequency, bankAccount, attendanceStartDate } = rest;
         if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
-        await db.insert(employees).values({
+        const now = new Date().toISOString();
+        const [created] = await db.insert(employees).values(syncInsert({
           name,
           role: empRole || "",
           phone: phone || "",
           salary: salary || 0,
           salaryFrequency: salaryFrequency || "monthly",
           bankAccount: bankAccount || "",
-          createdAt: new Date().toISOString(),
-        });
+          attendanceStartDate: attendanceStartDate || todayIST(),
+          createdAt: now,
+        })).returning({ id: employees.id });
+        await db.insert(employeeCompensationHistory).values(syncInsert({ employeeId: created.id, effectiveMonth: (attendanceStartDate || todayIST()).slice(0, 7), salary: salary || 0, salaryFrequency: salaryFrequency || "monthly", createdBy: username || "admin", createdAt: now }));
         return NextResponse.json({ success: true });
       }
       case "updateEmployee": {
-        const { id, name, role: empRole, phone, salary, salaryFrequency, bankAccount } = rest;
+        const { id, name, role: empRole, phone, salary, salaryFrequency, bankAccount, attendanceStartDate, employmentEndDate, compensationEffectiveMonth } = rest;
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
-        await db.update(employees).set({
+        await db.update(employees).set(syncUpdate({
           ...(name && { name }),
           role: empRole ?? undefined,
           phone: phone ?? undefined,
           salary: salary ?? undefined,
           salaryFrequency: salaryFrequency ?? undefined,
           bankAccount: bankAccount ?? undefined,
-        }).where(eq(employees.id, id));
+          attendanceStartDate: attendanceStartDate ?? undefined,
+          employmentEndDate: employmentEndDate ?? undefined,
+        })).where(eq(employees.id, id));
+        if (salary != null || salaryFrequency != null) {
+          const month = compensationEffectiveMonth || todayIST().slice(0, 7);
+          const [existing] = await db.select().from(employeeCompensationHistory).where(and(eq(employeeCompensationHistory.employeeId, id), eq(employeeCompensationHistory.effectiveMonth, month))).limit(1);
+          const values = { salary: salary ?? 0, salaryFrequency: salaryFrequency || "monthly", createdBy: username || "admin", createdAt: new Date().toISOString(), deletedAt: null };
+          if (existing) await db.update(employeeCompensationHistory).set(syncUpdate(values)).where(eq(employeeCompensationHistory.id, existing.id));
+          else await db.insert(employeeCompensationHistory).values(syncInsert({ employeeId: id, effectiveMonth: month, ...values }));
+        }
         return NextResponse.json({ success: true });
       }
       case "deleteEmployee": {
         const { id } = rest;
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
-        await db.delete(employees).where(eq(employees.id, id));
+        await db.update(employees).set(syncUpdate({ isActive: 0, employmentEndDate: todayIST() })).where(eq(employees.id, id));
         return NextResponse.json({ success: true });
       }
 
       // --- Salary Payments ---
       case "paySalary": {
-        const { employeeId, amount, month, accountId, paymentMethod, payType, notes } = rest;
+        const { employeeId, amount, month, accountId, paymentMethod, payType, notes, requestId } = rest;
         if (!employeeId || !amount || !month) {
           return NextResponse.json({ error: "employeeId, amount, and month required" }, { status: 400 });
         }
@@ -181,9 +196,14 @@ export async function POST(req: NextRequest) {
         const now = new Date().toISOString();
         const actorName = username || "admin";
         const type = payType || "salary";
+        if (requestId) {
+          const [existing] = await db.select({ id: salaryPayments.id }).from(salaryPayments).where(eq(salaryPayments.requestId, requestId)).limit(1);
+          if (existing) return NextResponse.json({ success: true, duplicate: true });
+        }
+        const payroll = await calculateEmployeePayroll(employeeId, month);
         const typeLabel = type === "salary" ? "Salary" : type === "bonus" ? "Bonus" : type === "advance" ? "Advance" : type === "loan" ? "Loan" : type === "reimbursement" ? "Reimbursement" : "Payment";
 
-        await db.insert(salaryPayments).values({
+        await db.insert(salaryPayments).values(syncInsert({
           employeeId,
           amount,
           month,
@@ -191,8 +211,16 @@ export async function POST(req: NextRequest) {
           paymentMethod: paymentMethod || "cash",
           paidAt: now,
           notes: `[${typeLabel}] ${notes || ""}`.trim(),
+          payType: type,
+          requestId: requestId || crypto.randomUUID(),
+          grossAmount: payroll?.grossAmount || 0,
+          attendanceDeduction: payroll?.attendanceDeduction || 0,
+          netPayable: payroll?.netPayable || 0,
+          paidLeaveUnits: payroll?.paidLeaveUnits || 0,
+          unpaidLeaveUnits: payroll?.unpaidLeaveUnits || 0,
+          calculationSnapshot: payroll ? JSON.stringify(payroll) : "",
           createdBy: actorName,
-        });
+        }));
 
         // Use selected month for expense record (e.g. "2026-06" -> "JUNE-2026")
         const [yr, mo] = month.split("-");

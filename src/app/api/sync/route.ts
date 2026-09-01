@@ -492,6 +492,7 @@ export async function POST(request: NextRequest) {
         const SYNCED_TABLES = [
           "order_modifications", "food_order_items", "food_orders",
           "salary_payments", "daily_income", "daily_ledger",
+          "employee_attendance_history", "employee_attendance", "employee_leave_policy", "employee_compensation_history",
           "expenses", "bed_history", "beds", "bookings",
           "menu_items", "menu_categories",
           "accounts", "vendors", "employees",

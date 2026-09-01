@@ -9,11 +9,13 @@ import { getRuntimeName, getBuildVersion } from "@/lib/runtime";
 const SYNCED_TABLES_WITH_DELETE = [
   "checkins", "dorms", "beds", "bookings", "menu_categories", "menu_items",
   "food_orders", "accounts", "vendors", "employees", "expenses", "daily_income", "users",
+  "employee_attendance", "employee_leave_policy", "employee_compensation_history",
 ] as const;
 
 const SYNCED_TABLES_APPEND = [
   "bed_history", "food_order_items", "order_modifications", "salary_payments",
   "daily_ledger", "qr_history", "guest_receipts",
+  "employee_attendance_history",
 ] as const;
 
 const SYNCABLE_SETTINGS = [
@@ -37,6 +39,10 @@ const TABLE_MAP: Record<string, any> = {
   accounts: schema.accounts,
   vendors: schema.vendors,
   employees: schema.employees,
+  employee_attendance: schema.employeeAttendance,
+  employee_attendance_history: schema.employeeAttendanceHistory,
+  employee_leave_policy: schema.employeeLeavePolicy,
+  employee_compensation_history: schema.employeeCompensationHistory,
   expenses: schema.expenses,
   daily_income: schema.dailyIncome,
   users: schema.users,
@@ -58,6 +64,10 @@ const FK_REMAP: Record<string, Record<string, string>> = {
   food_order_items: { orderId: "food_orders", menuItemId: "menu_items" },
   order_modifications: { orderId: "food_orders" },
   salary_payments: { employeeId: "employees", accountId: "accounts" },
+  employee_attendance: { employeeId: "employees" },
+  employee_attendance_history: { employeeId: "employees" },
+  employee_leave_policy: { employeeId: "employees" },
+  employee_compensation_history: { employeeId: "employees" },
   daily_income: { accountId: "accounts" },
   daily_ledger: { accountId: "accounts" },
   expenses: { vendorId: "vendors", accountId: "accounts" },

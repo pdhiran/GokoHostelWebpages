@@ -371,6 +371,8 @@ export const employees = sqliteTable("employees", {
   salary: integer("salary").notNull().default(0),
   salaryFrequency: text("salary_frequency").notNull().default("monthly"),
   bankAccount: text("bank_account").default(""),
+  attendanceStartDate: text("attendance_start_date").notNull().default(""),
+  employmentEndDate: text("employment_end_date").notNull().default(""),
   isActive: integer("is_active").notNull().default(1),
   createdAt: text("created_at").notNull(),
   ...syncColumnsWithDelete,
@@ -387,11 +389,79 @@ export const salaryPayments = sqliteTable("salary_payments", {
   paymentMethod: text("payment_method").notNull().default("cash"),
   paidAt: text("paid_at").notNull(),
   notes: text("notes").default(""),
+  payType: text("pay_type").notNull().default("salary"),
+  requestId: text("request_id").notNull().default(""),
+  grossAmount: integer("gross_amount").notNull().default(0),
+  attendanceDeduction: integer("attendance_deduction").notNull().default(0),
+  netPayable: integer("net_payable").notNull().default(0),
+  paidLeaveUnits: integer("paid_leave_units").notNull().default(0),
+  unpaidLeaveUnits: integer("unpaid_leave_units").notNull().default(0),
+  calculationSnapshot: text("calculation_snapshot").notNull().default(""),
   createdBy: text("created_by").notNull(),
   ...syncColumns,
 }, (table) => [
   index("idx_salary_employee").on(table.employeeId),
   index("idx_salary_month").on(table.month),
+]);
+
+export const employeeAttendance = sqliteTable("employee_attendance", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  date: text("date").notNull(),
+  status: text("status").notNull().default("present"),
+  comment: text("comment").notNull().default(""),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedBy: text("updated_by").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  ...syncColumnsWithDelete,
+}, (table) => [
+  uniqueIndex("idx_employee_attendance_day").on(table.employeeId, table.date),
+  index("idx_employee_attendance_date").on(table.date),
+]);
+
+export const employeeAttendanceHistory = sqliteTable("employee_attendance_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  date: text("date").notNull(),
+  oldStatus: text("old_status").notNull().default("present"),
+  newStatus: text("new_status").notNull(),
+  oldComment: text("old_comment").notNull().default(""),
+  newComment: text("new_comment").notNull().default(""),
+  action: text("action").notNull(),
+  performedBy: text("performed_by").notNull(),
+  performedAt: text("performed_at").notNull(),
+  ...syncColumns,
+}, (table) => [
+  index("idx_employee_attendance_history_employee").on(table.employeeId),
+  index("idx_employee_attendance_history_date").on(table.date),
+]);
+
+export const employeeLeavePolicy = sqliteTable("employee_leave_policy", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  employeeId: integer("employee_id").references(() => employees.id),
+  effectiveMonth: text("effective_month").notNull(),
+  monthlyCreditUnits: integer("monthly_credit_units").notNull().default(4),
+  carryCapUnits: integer("carry_cap_units").notNull().default(24),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  ...syncColumnsWithDelete,
+}, (table) => [
+  index("idx_employee_leave_policy_month").on(table.effectiveMonth),
+  index("idx_employee_leave_policy_employee").on(table.employeeId),
+]);
+
+export const employeeCompensationHistory = sqliteTable("employee_compensation_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  effectiveMonth: text("effective_month").notNull(),
+  salary: integer("salary").notNull(),
+  salaryFrequency: text("salary_frequency").notNull().default("monthly"),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  ...syncColumnsWithDelete,
+}, (table) => [
+  uniqueIndex("idx_employee_comp_month").on(table.employeeId, table.effectiveMonth),
 ]);
 
 export const dailyIncome = sqliteTable("daily_income", {
