@@ -52,13 +52,14 @@ const ACCOUNT_TYPES = [
 type SettingsSection = "accounts" | "employees" | "vendors" | "bulkExpenses" | "bulkIncome";
 
 export function AccountSettings({ password, username, role }: { password: string; username?: string; role: Role }) {
-  const { showError } = useAdminToast();
+  const { showError, showSuccess } = useAdminToast();
   const [section, setSection] = useState<SettingsSection>("accounts");
   const [loading, setLoading] = useState(false);
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [foodOnlineReceiptAccountId, setFoodOnlineReceiptAccountId] = useState("");
   const [roomOnlineReceiptAccountId, setRoomOnlineReceiptAccountId] = useState("");
+  const [savingReceiptDefaults, setSavingReceiptDefaults] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
@@ -178,8 +179,19 @@ export function AccountSettings({ password, username, role }: { password: string
   };
 
   const saveReceiptDefaults = async () => {
-    const res = await apiCall({ action: "saveReceiptDefaults", foodOnlineReceiptAccountId, roomOnlineReceiptAccountId });
-    if (!res.ok) showError((await res.json().catch(() => ({}))).error || "Could not save receipt defaults");
+    setSavingReceiptDefaults(true);
+    try {
+      const res = await apiCall({ action: "saveReceiptDefaults", foodOnlineReceiptAccountId, roomOnlineReceiptAccountId });
+      if (!res.ok) {
+        showError((await res.json().catch(() => ({}))).error || "Could not save receipt defaults");
+        return;
+      }
+      showSuccess("Online receipt defaults saved");
+    } catch {
+      showError("Could not save receipt defaults. Check your connection and try again.");
+    } finally {
+      setSavingReceiptDefaults(false);
+    }
   };
 
   const updateField = (key: string, value: string) => {
@@ -276,7 +288,9 @@ export function AccountSettings({ password, username, role }: { password: string
               <select value={roomOnlineReceiptAccountId} onChange={(e) => setRoomOnlineReceiptAccountId(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select account…</option>{accounts.filter((a) => a.isActive).map((a) => <option key={a.id} value={a.id}>{a.nickname || a.name}</option>)}</select>
             </label>
           </div>
-          <Button type="button" className="mt-3 h-8 text-xs" onClick={saveReceiptDefaults} disabled={!foodOnlineReceiptAccountId || !roomOnlineReceiptAccountId}>Save receipt defaults</Button>
+          <Button type="button" className="mt-3 h-8 text-xs" onClick={saveReceiptDefaults} disabled={savingReceiptDefaults || !foodOnlineReceiptAccountId || !roomOnlineReceiptAccountId}>
+            {savingReceiptDefaults ? <><Loader2Icon className="mr-1 h-3 w-3 animate-spin" /> Saving...</> : "Save receipt defaults"}
+          </Button>
         </div>
       )}
 
