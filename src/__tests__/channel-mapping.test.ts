@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const queries = readFileSync("src/db/queries.ts", "utf8");
 const ui = readFileSync("src/components/admin/ChannelManager.tsx", "utf8");
 const route = readFileSync("src/app/api/admin/channel-manager/route.ts", "utf8");
+const management = readFileSync("src/components/admin/AdminManagement.tsx", "utf8");
 
 describe("room type mapping insert", () => {
   it("does not let Drizzle send id=null on D1 AUTOINCREMENT insert", () => {
@@ -37,6 +38,17 @@ describe("room mapping UI", () => {
     expect(ui).toMatch(/local dorm names are never guessed/);
     expect(ui).not.toMatch(/placeholder="Dorm ID"/);
     expect(ui).not.toMatch(/Select dorm/);
+  });
+});
+
+describe("Channel Manager navigation", () => {
+  it("owns Sales Channels and Bed Config instead of duplicating them in Management", () => {
+    expect(ui).toMatch(/sales: "Sales Channels"/);
+    expect(ui).toMatch(/beds: "Bed Config"/);
+    expect(ui).toMatch(/<ManagementSalesChannels/);
+    expect(ui).toMatch(/<ManagementBedConfig/);
+    expect(management).not.toMatch(/id: "salesChannels"/);
+    expect(management).not.toMatch(/id: "bedConfig"/);
   });
 });
 

@@ -85,8 +85,6 @@ Most `adminOnly: true`. Website hidden when `NEXT_PUBLIC_GOKO_RUNTIME === "pi"`.
 | `accountSettings` | `AccountSettings` | `canManageAccounts` |
 | `serverSync` | `ServerSync` | `/api/sync` |
 | `channelManager` | `ChannelManager` | Aiosell config |
-| `salesChannels` | `ManagementSalesChannels` | |
-| `bedConfig` | `ManagementBedConfig` | |
 
 ---
 

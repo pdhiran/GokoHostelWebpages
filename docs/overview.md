@@ -121,7 +121,7 @@ Top-level sections (`src/lib/adminNav.ts`), lazy-loaded with `next/dynamic`:
 | Reviews | `AdminReviews` | `canViewReviews` |
 | Management | `AdminManagement` | `canViewManagement` |
 
-Management sub-tabs (`AdminManagement.tsx`): Dorms, Users, Backup, Audit, Logs, Health & Stats, History, Rates, Menu, **Website**, Food Settings, Bulk Upload, QR Codes, Account Settings, Server Sync, Channel Manager, Sales Channels, Bed Config.
+Management sub-tabs (`AdminManagement.tsx`): Dorms, Users, Backup, Audit, Logs, Health & Stats, History, Rates, Menu, **Website**, Food Settings, Bulk Upload, QR Codes, Account Settings, Server Sync, Channel Manager. Channel Manager contains Configuration, Room Mapping, Rate Plans, Sales Channels, Bed Config, and Sync & Logs.
 
 Website tab is **hidden on Pi builds** (`NEXT_PUBLIC_GOKO_RUNTIME === "pi"`).
 

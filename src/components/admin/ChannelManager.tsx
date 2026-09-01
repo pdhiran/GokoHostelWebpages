@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { bookingTaxPercent, DEFAULT_BOOKING_TAX_PERCENT } from "@/lib/bookingPricing";
 import type { Role } from "./types";
+import { ManagementSalesChannels } from "./ManagementSalesChannels";
+import { ManagementBedConfig } from "./ManagementBedConfig";
 
 function useChannelApi(password: string, username?: string) {
   const call = async (url: string, body: Record<string, any> = {}) => {
@@ -82,12 +84,14 @@ type SyncLog = {
   createdAt: string;
 };
 
-const TABS = ["config", "rooms", "rates", "sync"] as const;
+const TABS = ["config", "rooms", "rates", "sales", "beds", "sync"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABELS: Record<Tab, string> = {
   config: "Configuration",
   rooms: "Room Mapping",
   rates: "Rate Plans",
+  sales: "Sales Channels",
+  beds: "Bed Config",
   sync: "Sync & Logs",
 };
 
@@ -131,6 +135,8 @@ export function ChannelManager({ password, username, role }: { password: string;
       {tab === "config" && <ConfigTab password={password} username={username} />}
       {tab === "rooms" && <RoomMappingTab password={password} username={username} />}
       {tab === "rates" && <RatePlansTab password={password} username={username} />}
+      {tab === "sales" && <ManagementSalesChannels password={password} username={username} />}
+      {tab === "beds" && <ManagementBedConfig password={password} username={username} />}
       {tab === "sync" && <SyncTab password={password} username={username} />}
     </div>
   );
