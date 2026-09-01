@@ -39,6 +39,9 @@ export type DashboardBooking = {
   checkedInBy: string;
   checkedOutAt: string;
   checkedOutBy: string;
+  noShowPmsStatus?: "not_required" | "sent" | "failed";
+  noShowPmsError?: string;
+  noShowPmsAttemptedAt?: string;
   createdAt: string;
   nights: number;
   balance: number;

@@ -18,6 +18,7 @@ const q = vi.hoisted(() => ({
   getBookingHistoryEntries: vi.fn(),
   addBooking: vi.fn(),
   updateBookingFull: vi.fn(),
+  transitionBookingStatus: vi.fn(),
   getAllDorms: vi.fn(),
   getAllBeds: vi.fn(),
   getBedById: vi.fn(),
@@ -65,6 +66,7 @@ vi.mock("@/db/queries", () => ({
   getBookingHistoryEntries: q.getBookingHistoryEntries,
   addBooking: q.addBooking,
   updateBookingFull: q.updateBookingFull,
+  transitionBookingStatus: q.transitionBookingStatus,
   getAllDorms: q.getAllDorms,
   getAllBeds: q.getAllBeds,
   getBedById: q.getBedById,
@@ -96,6 +98,11 @@ describe("Bookings calendar and rates workflows", () => {
   beforeEach(() => {
     for (const fn of Object.values(q)) fn.mockReset();
     q.authenticateUser.mockResolvedValue(admin);
+    q.transitionBookingStatus.mockImplementation(async (id, _from, data) => {
+      await q.updateBookingFull(id, data);
+      return true;
+    });
+    q.cancelBedAssignments.mockResolvedValue(true);
     q.resolveReceiptAccount.mockResolvedValue(1);
     q.createGuestReceipt.mockResolvedValue({ id: 1, duplicate: false });
     q.latestReceiptAccount.mockResolvedValue(1);
@@ -389,7 +396,7 @@ describe("Bookings calendar and rates workflows", () => {
     const res = await POST(req({ password: "x", action: "markNoShow", bookingId: 5 }));
     expect(res.status).toBe(200);
     expect(q.unassignBookingBeds).toHaveBeenCalledWith(5);
-    expect(q.pushNoShow).toHaveBeenCalledWith(expect.objectContaining({ hotelCode: "H" }), "CM-1", "booking_com");
+    expect(q.pushNoShow).toHaveBeenCalledWith(expect.objectContaining({ hotelCode: "H" }), "CM-1");
     expect(pushIfOtaChanged).toHaveBeenCalled();
   });
 
@@ -410,7 +417,7 @@ describe("Bookings calendar and rates workflows", () => {
     q.pushNoShow.mockResolvedValue({ success: true });
     const res = await POST(req({ password: "x", action: "markNoShow", bookingId: 5 }));
     expect(res.status).toBe(200);
-    expect(q.pushNoShow).toHaveBeenCalledWith(expect.anything(), "CM-9", "booking_com");
+    expect(q.pushNoShow).toHaveBeenCalledWith(expect.anything(), "CM-9");
     expect(pushIfOtaChanged).toHaveBeenCalled();
   });
 
@@ -678,7 +685,7 @@ describe("Bookings calendar and rates workflows", () => {
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });
 
-  it("unassign and cancel on a channel_manager booking do not push Aiosell", async () => {
+  it("unassign does not push but cancel on a channel_manager booking releases Aiosell inventory", async () => {
     const cm = {
       booking: {
         checkinDate: "2026-09-05",
@@ -695,7 +702,41 @@ describe("Bookings calendar and rates workflows", () => {
     vi.mocked(pushIfOtaChanged).mockClear();
     q.getBookingDetail.mockResolvedValue(cm);
     expect((await POST(req({ password: "x", action: "cancelBooking", bookingId: 42 }))).status).toBe(200);
-    expect(pushIfOtaChanged).not.toHaveBeenCalled();
+    expect(pushIfOtaChanged).toHaveBeenCalled();
+  });
+
+  it("claims a full cancellation once, so a concurrent retry cannot release or push twice", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { checkinDate: "2026-09-05", checkoutDate: "2026-09-06", status: "received", source: "manual" },
+      assignments: [{ id: 11, status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    q.transitionBookingStatus.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    const results = await Promise.all([
+      POST(req({ password: "x", action: "cancelBooking", bookingId: 42 })),
+      POST(req({ password: "x", action: "cancelBooking", bookingId: 42 })),
+    ]);
+
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(q.unassignBookingBeds).toHaveBeenCalledTimes(1);
+    expect(pushIfOtaChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("claims a no-show once, so a concurrent retry cannot release or push twice", async () => {
+    q.getBookingDetail.mockResolvedValue({
+      booking: { checkinDate: "2026-09-01", checkoutDate: "2026-09-02", status: "received", source: "manual" },
+      assignments: [{ id: 11, status: "assigned", dormId: 3, bedId: 7 }],
+    });
+    q.transitionBookingStatus.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    const results = await Promise.all([
+      POST(req({ password: "x", action: "markNoShow", bookingId: 42 })),
+      POST(req({ password: "x", action: "markNoShow", bookingId: 42 })),
+    ]);
+
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(q.unassignBookingBeds).toHaveBeenCalledTimes(1);
+    expect(pushIfOtaChanged).toHaveBeenCalledTimes(1);
   });
 
   it("staff cannot Reject an unassigned stay even with canDeleteBooking", async () => {

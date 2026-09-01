@@ -1061,6 +1061,15 @@ describe("Push inventory route modes", () => {
     expect(q.updateChannelSyncTime).not.toHaveBeenCalled();
   });
 
+  it("keeps dirty inventory when Aiosell returns room-code warnings", async () => {
+    q.getDirtyInventory.mockResolvedValue([{ id: 9, dormId: 8, date: "2026-09-05" }]);
+    pushInventory.mockResolvedValue({ success: true, message: "Accepted with warnings", warnings: ["INVALID_ROOM_CODE"] });
+    const res = await pushInventoryPOST(jsonReq("http://localhost/api/aiosell/push-inventory", adminBody()));
+    expect(res.status).toBe(502);
+    expect(q.updateChannelSyncTime).not.toHaveBeenCalled();
+    expect(q.clearDirtyInventory).not.toHaveBeenCalled();
+  });
+
   it("skips inactive room mappings", async () => {
     q.getRoomTypeMappings.mockResolvedValue([
       ...mappings,
@@ -1294,13 +1303,13 @@ describe("No-show and inventory-restriction routes", () => {
     pushInventoryRestrictions.mockResolvedValue({ success: true, message: "ok" });
   });
 
-  it("noshow requires bookingId and partner", async () => {
+  it("noshow requires bookingId", async () => {
     const res = await pushNoShowPOST(jsonReq("http://localhost/api/aiosell/push-noshow", adminBody({ bookingId: "CM-1" })));
-    expect(res.status).toBe(400);
-    expect(pushNoShow).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(pushNoShow).toHaveBeenCalledWith(expect.anything(), "CM-1");
   });
 
-  it("noshow 200s and forwards bookingId plus partner", async () => {
+  it("noshow 200s and forwards bookingId", async () => {
     const res = await pushNoShowPOST(jsonReq("http://localhost/api/aiosell/push-noshow", adminBody({
       bookingId: "CM-1", partner: "booking_com",
     })));
@@ -1308,7 +1317,6 @@ describe("No-show and inventory-restriction routes", () => {
     expect(pushNoShow).toHaveBeenCalledWith(
       expect.objectContaining({ hotelCode: "GOKO-001", pmsId: "goko-pms" }),
       "CM-1",
-      "booking_com",
     );
   });
 

@@ -246,13 +246,15 @@ async function aiosellFetch(
     }
 
     const recordsAffected = meta.recordsAffected ?? countFetchedRecords(data);
+    const warningMessage = data.warnings?.filter(Boolean).join("; ") || "";
+    const accepted = data.success !== false && !(meta.type === "inventory" && warningMessage);
     await logPmsCall({
       direction: meta.direction ?? "push",
       type: meta.source ? `${meta.type} (${meta.source})` : meta.type,
-      status: data.success === false ? "failed" : "success",
+      status: accepted ? "success" : "failed",
       request: body,
       response: data,
-      errorMessage: data.success === false ? (data.message || "") : "",
+      errorMessage: accepted ? "" : (data.message || warningMessage),
       recordsAffected,
       httpMethod: "POST",
       url,
@@ -330,13 +332,13 @@ export async function pushRateRestrictions(
 export async function pushNoShow(
   config: AiosellConfig,
   bookingId: string,
-  partner: string
+  _partner?: string,
 ): Promise<AiosellResponse> {
   const url = `${config.apiBaseUrl}/api/v2/cm/noshow`;
   return aiosellFetch(url, config, {
-    hotelCode: config.hotelCode,
+    hotelId: config.hotelCode,
     bookingId,
-    partner,
+    partner: "booking.com",
   }, { type: "noshow", recordsAffected: 1 });
 }
 
@@ -366,4 +368,3 @@ export function parseReservationPayload(body: unknown): ReservationPayload | nul
 
   return data as unknown as ReservationPayload;
 }
-

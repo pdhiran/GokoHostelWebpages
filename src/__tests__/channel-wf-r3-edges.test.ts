@@ -7,6 +7,7 @@ const q = vi.hoisted(() => ({
   getSetting: vi.fn(),
   addBooking: vi.fn(),
   updateBookingFull: vi.fn(),
+  transitionBookingStatus: vi.fn(),
   getBookingByRef: vi.fn(),
   unassignBookingBeds: vi.fn(),
   addBookingHistoryEntry: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock("@/db/queries", () => ({
   getSetting: q.getSetting,
   addBooking: q.addBooking,
   updateBookingFull: q.updateBookingFull,
+  transitionBookingStatus: q.transitionBookingStatus,
   getBookingByRef: q.getBookingByRef,
   unassignBookingBeds: q.unassignBookingBeds,
   addBookingHistoryEntry: q.addBookingHistoryEntry,
@@ -191,6 +193,10 @@ describe("Round 3 edges: closed-stay modify / duplicate book / cancelled rebook"
     q.getBookingByRef.mockResolvedValue(null);
     q.addBooking.mockResolvedValue(42);
     q.updateBookingFull.mockResolvedValue(undefined);
+    q.transitionBookingStatus.mockImplementation(async (id, _from, data) => {
+      await q.updateBookingFull(id, data);
+      return true;
+    });
     q.unassignBookingBeds.mockResolvedValue(undefined);
     q.addBookingHistoryEntry.mockResolvedValue(undefined);
     q.getBookingDetail.mockResolvedValue({ assignments: [] });
@@ -446,6 +452,10 @@ describe("Round 3 edges: markNoShow Unassigned fingerprint", () => {
       isActive: 1, hotelCode: "H", pmsId: "P", apiBaseUrl: "http://x", apiUsername: "u", apiPassword: "p",
     });
     q.updateBookingFull.mockResolvedValue(undefined);
+    q.transitionBookingStatus.mockImplementation(async (id, _from, data) => {
+      await q.updateBookingFull(id, data);
+      return true;
+    });
     q.unassignBookingBeds.mockResolvedValue(undefined);
     q.addBookingHistoryEntry.mockResolvedValue(undefined);
     otaFingerprint.mockReset();
@@ -462,8 +472,8 @@ describe("Round 3 edges: markNoShow Unassigned fingerprint", () => {
         platform: "booking.com",
         cmBookingId: "CM-UA",
         source: "channel_manager",
-        checkinDate: "2026-09-05",
-        checkoutDate: "2026-09-08",
+        checkinDate: "2026-09-01",
+        checkoutDate: "2026-09-04",
         roomType: "executive",
         rawData: JSON.stringify({
           rooms: [{ roomCode: "executive", occupancy: { adults: 2, children: 0 } }],
@@ -475,9 +485,9 @@ describe("Round 3 edges: markNoShow Unassigned fingerprint", () => {
     expect(res.status).toBe(200);
     expect(q.updateBookingFull).toHaveBeenCalledWith(5, { status: "no_show" });
     expect(q.unassignBookingBeds).toHaveBeenCalledWith(5);
-    expect(pushNoShow).toHaveBeenCalledWith(expect.objectContaining({ hotelCode: "H" }), "CM-UA", "booking_com");
-    expect(otaFp).toHaveBeenCalledWith([8], ["2026-09-05", "2026-09-06", "2026-09-07"]);
-    expect(pushOta).toHaveBeenCalledWith("fp-before", [8], ["2026-09-05", "2026-09-06", "2026-09-07"]);
+    expect(pushNoShow).toHaveBeenCalledWith(expect.objectContaining({ hotelCode: "H" }), "CM-UA");
+    expect(otaFp).toHaveBeenCalledWith([8], ["2026-09-01", "2026-09-02", "2026-09-03"]);
+    expect(pushOta).toHaveBeenCalledWith("fp-before", [8], ["2026-09-01", "2026-09-02", "2026-09-03"]);
   });
 
   it("Unassigned mixed-type CM fingerprints both mapped dorms", async () => {
@@ -486,8 +496,8 @@ describe("Round 3 edges: markNoShow Unassigned fingerprint", () => {
         platform: "hostelworld",
         cmBookingId: "HW-MIX",
         source: "channel_manager",
-        checkinDate: "2026-09-05",
-        checkoutDate: "2026-09-07",
+        checkinDate: "2026-09-01",
+        checkoutDate: "2026-09-03",
         roomType: "executive, dorm-6",
         rawData: JSON.stringify({
           rooms: [
@@ -501,8 +511,8 @@ describe("Round 3 edges: markNoShow Unassigned fingerprint", () => {
     const res = await bookingsPOST(adminReq({ password: "x", action: "markNoShow", bookingId: 5 }));
     expect(res.status).toBe(200);
     expect(pushNoShow).not.toHaveBeenCalled();
-    expect(otaFp).toHaveBeenCalledWith([8, 9], ["2026-09-05", "2026-09-06"]);
-    expect(pushOta).toHaveBeenCalledWith("fp-before", [8, 9], ["2026-09-05", "2026-09-06"]);
+    expect(otaFp).toHaveBeenCalledWith([8, 9], ["2026-09-01", "2026-09-02"]);
+    expect(pushOta).toHaveBeenCalledWith("fp-before", [8, 9], ["2026-09-01", "2026-09-02"]);
   });
 
   it("Unassigned walk-in (not CM) does not map dorms from room type", async () => {
@@ -510,8 +520,8 @@ describe("Round 3 edges: markNoShow Unassigned fingerprint", () => {
       booking: {
         platform: "walk-in",
         source: "manual",
-        checkinDate: "2026-09-05",
-        checkoutDate: "2026-09-07",
+        checkinDate: "2026-09-01",
+        checkoutDate: "2026-09-03",
         roomType: "executive",
       },
       assignments: [],
@@ -519,11 +529,11 @@ describe("Round 3 edges: markNoShow Unassigned fingerprint", () => {
     const res = await bookingsPOST(adminReq({ password: "x", action: "markNoShow", bookingId: 5 }));
     expect(res.status).toBe(200);
     expect(q.getRoomTypeMappings).not.toHaveBeenCalled();
-    expect(otaFp).toHaveBeenCalledWith([], ["2026-09-05", "2026-09-06"]);
-    expect(pushOta).toHaveBeenCalledWith("fp-before", [], ["2026-09-05", "2026-09-06"]);
+    expect(otaFp).toHaveBeenCalledWith([], ["2026-09-01", "2026-09-02"]);
+    expect(pushOta).toHaveBeenCalledWith("fp-before", [], ["2026-09-01", "2026-09-02"]);
   });
 
-  it("admin cancel of a CM stay does not push occupancy (webhook cancel still does)", async () => {
+  it("admin cancel of a CM stay releases occupancy (webhook cancel still does)", async () => {
     q.getBookingDetail.mockResolvedValue({
       booking: {
         source: "channel_manager",
@@ -534,7 +544,7 @@ describe("Round 3 edges: markNoShow Unassigned fingerprint", () => {
     });
     const res = await bookingsPOST(adminReq({ password: "x", action: "cancelBooking", bookingId: 9 }));
     expect(res.status).toBe(200);
-    expect(pushOta).not.toHaveBeenCalled();
+    expect(pushOta).toHaveBeenCalled();
 
     q.getChannelConfig.mockResolvedValue(activeConfig);
     q.getBookingByRef.mockResolvedValue(existingRow({ status: "confirmed", persons: 1 }));

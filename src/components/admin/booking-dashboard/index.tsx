@@ -51,7 +51,7 @@ export function BookingDashboard({
   permissions?: Record<string, boolean>;
 }) {
   const { apiCall } = useBookingApi(password, username);
-  const { showError, showSuccess } = useAdminToast();
+  const { showError, showSuccess, showInfo } = useAdminToast();
 
   const [view, setView] = useState<"calendar" | "table">("calendar");
   const [dateRange, setDateRange] = useState<DateRange>(() => {
@@ -139,7 +139,9 @@ export function BookingDashboard({
       try {
         const res = await apiCall({ action, bookingId, ...extra });
         if (res.ok) {
-          showSuccess("Action completed");
+          const data = await res.json().catch(() => ({}));
+          showSuccess(data.message || "Action completed");
+          if (data.warning) showInfo(data.warning);
           if (reload) await loadData(true);
           return true;
         }

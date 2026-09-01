@@ -201,6 +201,9 @@ export const bookings = sqliteTable("bookings", {
   checkedInBy: text("checked_in_by").default(""),
   checkedOutAt: text("checked_out_at").default(""),
   checkedOutBy: text("checked_out_by").default(""),
+  noShowPmsStatus: text("no_show_pms_status").notNull().default("not_required"),
+  noShowPmsError: text("no_show_pms_error").notNull().default(""),
+  noShowPmsAttemptedAt: text("no_show_pms_attempted_at").notNull().default(""),
   ...syncColumnsWithDelete,
 }, (table) => [
   index("idx_bookings_checkin").on(table.checkinDate),

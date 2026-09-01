@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
-import { otaFingerprint, pushIfOtaChanged } from "@/lib/aiosellSync";
+import { otaFingerprint, pushIfOtaChanged, type InventorySyncResult } from "@/lib/aiosellSync";
 import { occupiedNights, exclusiveEndDate, type InventoryPool } from "@/lib/inventoryAvailability";
 import {
   assignedBedsMatchNeeds,
@@ -11,13 +11,13 @@ import {
   requestedDormsForCodes,
   roomCodesFromChannelBooking,
 } from "@/lib/channelAutoAssign";
-import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
+import { pushNoShow } from "@/lib/aiosell";
 import {
   getBookingCalendarData, getBookingDetail, searchBookings, getUnassignedBookings,
   checkBedAvailability, getAvailableBedsForRange, validateBedsForRange, assignBedToBooking, unassignBookingBeds,
   unassignBookingBedsByBedIds,
   cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
-  addBooking, updateBookingFull, getAllDorms, getAllBeds, getBedById,
+  addBooking, updateBookingFull, transitionBookingStatus, getAllDorms, getAllBeds, getBedById,
   getChannelConfig, getActiveBedBlocks, getSetting,
   getRoomTypeMappings, getRatePlanMappings, getAllDailyRates,
   deactivateBedBlocksByBedIds, shortenAssignedCheckout,
@@ -127,6 +127,52 @@ async function pushIfGokoOccupancy(
   await pushIfOtaChanged(before, dormIds, dates).catch(() => {});
 }
 
+async function affectedDormIds(
+  detail: Awaited<ReturnType<typeof getBookingDetail>> | null | undefined,
+  assignmentIds?: number[],
+): Promise<number[]> {
+  const assignments = detail?.assignments ?? [];
+  const assigned = assignmentIds?.length
+    ? assignments.filter((a) => assignmentIds.includes(a.id))
+    : assignments.filter((a) => a.status === "assigned");
+  const dormIds = assigned.map((a) => a.dormId);
+  if (dormIds.length || !channelSource(detail?.booking.source)) return dormIds;
+  const mappings = (await getRoomTypeMappings()) || [];
+  const codes = roomCodesFromChannelBooking(null, detail!.booking.roomType, detail!.booking.rawData);
+  return requestedDormsForCodes(codes, mappings).dormIds;
+}
+
+function inventoryWarning(result: InventorySyncResult | void): string | undefined {
+  if (!result) return;
+  return result.accepted ? undefined : result.message || "Aiosell did not confirm the inventory update";
+}
+
+async function syncBookingNoShow(bookingId: number, booking: { platform?: string | null; cmBookingId?: string | null }): Promise<string | undefined> {
+  const attemptedAt = new Date().toISOString();
+  if (!isBookingDotCom(booking.platform) || !booking.cmBookingId) {
+    await updateBookingFull(bookingId, { noShowPmsStatus: "not_required", noShowPmsError: "", noShowPmsAttemptedAt: attemptedAt });
+    return;
+  }
+  try {
+    const config = await getChannelConfig();
+    if (!config || !config.isActive) throw new Error("Aiosell channel manager is not active");
+    const result = await pushNoShow({
+      hotelCode: config.hotelCode,
+      pmsId: config.pmsId,
+      apiBaseUrl: config.apiBaseUrl,
+      apiUsername: config.apiUsername,
+      apiPassword: config.apiPassword,
+    }, booking.cmBookingId);
+    if (!result.success) throw new Error(result.message || "Aiosell rejected the no-show update");
+    await updateBookingFull(bookingId, { noShowPmsStatus: "sent", noShowPmsError: "", noShowPmsAttemptedAt: attemptedAt });
+    return;
+  } catch (error: any) {
+    const message = error?.message || "Aiosell no-show update failed";
+    await updateBookingFull(bookingId, { noShowPmsStatus: "failed", noShowPmsError: message, noShowPmsAttemptedAt: attemptedAt });
+    return message;
+  }
+}
+
 async function assignTaggedBeds(
   bookingId: number,
   bedIds: number[],
@@ -211,6 +257,7 @@ const ACTION_PERMISSIONS: Record<string, ActionPerm> = {
   assignGuest: "canAddBooking",
   cancelBooking: "canDeleteBooking",
   markNoShow: "canDeleteBooking",
+  retryNoShow: "canDeleteBooking",
   hold: "canDeleteBooking",
   unassign: "canDeleteBooking",
   rollbackCheckIn: "admin_only",
@@ -843,9 +890,8 @@ export async function POST(req: NextRequest) {
       }
       const now = new Date().toISOString();
       const cancelDates = detail ? bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate) : [];
-      const dormIds = assignmentIds && Array.isArray(assignmentIds) && assignmentIds.length > 0
-        ? (detail?.assignments ?? []).filter((a) => assignmentIds.includes(a.id)).map((a) => a.dormId)
-        : activeAssignmentDormIds(detail?.assignments);
+      const selectedAssignmentIds = assignmentIds && Array.isArray(assignmentIds) && assignmentIds.length > 0 ? assignmentIds : undefined;
+      const dormIds = await affectedDormIds(detail, selectedAssignmentIds);
       const before = await otaFingerprint(dormIds, cancelDates);
 
       if (assignmentIds && Array.isArray(assignmentIds) && assignmentIds.length > 0) {
@@ -855,7 +901,9 @@ export async function POST(req: NextRequest) {
         if (ownIds.length === 0) {
           return NextResponse.json({ error: "No matching bed assignments on this booking" }, { status: 400 });
         }
-        await cancelBedAssignments(ownIds, bookingId);
+        if (!(await cancelBedAssignments(ownIds, bookingId))) {
+          return NextResponse.json({ error: "These bed assignments were already cancelled" }, { status: 409 });
+        }
         await addBookingHistoryEntry({
           bookingId,
           action: "Partial Cancellation",
@@ -891,7 +939,8 @@ export async function POST(req: NextRequest) {
             }
           }
         }
-        await updateBookingFull(bookingId, cancelUpdate);
+        const cancelled = await transitionBookingStatus(bookingId, ["received", "hold", "checked_in"], cancelUpdate);
+        if (!cancelled) return NextResponse.json({ error: "Booking was already closed or changed by another user" }, { status: 409 });
         await unassignBookingBeds(bookingId);
         await addBookingHistoryEntry({
           bookingId,
@@ -901,11 +950,22 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      await pushIfGokoOccupancy(detail?.booking.source, before, dormIds, cancelDates);
-      return NextResponse.json({ success: true });
+      const inventory = await pushIfOtaChanged(before, dormIds, cancelDates).catch((error) => ({ attempted: true, accepted: false, message: error?.message || "Aiosell inventory push failed" }));
+      return NextResponse.json({ success: true, warning: inventoryWarning(inventory) });
     }
 
     // --- No Show ---
+
+    if (action === "retryNoShow") {
+      const { bookingId } = body;
+      if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
+      const detail = await getBookingDetail(bookingId);
+      if (!detail || detail.booking.status !== "no_show" || detail.booking.noShowPmsStatus !== "failed" || !isBookingDotCom(detail.booking.platform) || !detail.booking.cmBookingId) {
+        return NextResponse.json({ error: "No failed Booking.com no-show update to retry" }, { status: 409 });
+      }
+      const warning = await syncBookingNoShow(bookingId, detail.booking);
+      return NextResponse.json({ success: true, message: warning ? "No-show remains pending" : "Aiosell no-show updated", warning });
+    }
 
     if (action === "markNoShow") {
       const { bookingId } = body;
@@ -913,36 +973,17 @@ export async function POST(req: NextRequest) {
 
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      if ((detail.booking.status || "received") !== "received") return NextResponse.json({ error: "Only received bookings can be marked no-show" }, { status: 409 });
+      if (detail.booking.checkinDate > todayIST()) return NextResponse.json({ error: "A booking can be marked no-show on its check-in date or later" }, { status: 409 });
 
       const dates = bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate);
-      let dormIds = activeAssignmentDormIds(detail.assignments);
-      if (dormIds.length === 0 && channelSource(detail.booking.source)) {
-        const mappings = await getRoomTypeMappings();
-        const codes = roomCodesFromChannelBooking(null, detail.booking.roomType, detail.booking.rawData);
-        dormIds = requestedDormsForCodes(codes, mappings).dormIds;
-      }
+      const dormIds = await affectedDormIds(detail);
       const before = await otaFingerprint(dormIds, dates);
 
-      await updateBookingFull(bookingId, { status: "no_show" });
+      const claimed = await transitionBookingStatus(bookingId, ["received"], { status: "no_show" });
+      if (!claimed) return NextResponse.json({ error: "Booking was already changed by another user" }, { status: 409 });
       await unassignBookingBeds(bookingId);
-
-      if (isBookingDotCom(detail.booking.platform) && detail.booking.cmBookingId) {
-        try {
-          const config = await getChannelConfig();
-          if (config && config.isActive) {
-            const aiosellConfig: AiosellConfig = {
-              hotelCode: config.hotelCode,
-              pmsId: config.pmsId,
-              apiBaseUrl: config.apiBaseUrl,
-              apiUsername: config.apiUsername,
-              apiPassword: config.apiPassword,
-            };
-            await pushNoShow(aiosellConfig, detail.booking.cmBookingId, "booking_com");
-          }
-        } catch (e) {
-          console.error("pushNoShow failed:", e);
-        }
-      }
+      const noShowWarning = await syncBookingNoShow(bookingId, detail.booking);
 
       await addBookingHistoryEntry({
         bookingId,
@@ -951,8 +992,9 @@ export async function POST(req: NextRequest) {
         performedBy: actingUser,
       });
 
-      await pushIfOtaChanged(before, dormIds, bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate)).catch(() => {});
-      return NextResponse.json({ success: true });
+      const inventory = await pushIfOtaChanged(before, dormIds, dates).catch((error) => ({ attempted: true, accepted: false, message: error?.message || "Aiosell inventory push failed" }));
+      const warning = [noShowWarning, inventoryWarning(inventory)].filter(Boolean).join(". ");
+      return NextResponse.json({ success: true, message: "Marked no-show", warning: warning || undefined });
     }
 
     // --- Unassign ---

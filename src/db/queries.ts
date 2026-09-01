@@ -461,6 +461,21 @@ export async function updateBookingFull(id: number, data: Partial<typeof booking
   return db.update(bookings).set(syncUpdate(data)).where(eq(bookings.id, id));
 }
 
+/** Atomically claim a one-way booking transition before releasing inventory. */
+export async function transitionBookingStatus(
+  id: number,
+  from: string[],
+  data: Partial<typeof bookings.$inferInsert>,
+): Promise<boolean> {
+  if (from.length === 0) return false;
+  const db = getDb();
+  const rows = await db.update(bookings)
+    .set(syncUpdate(data))
+    .where(and(eq(bookings.id, id), inArray(bookings.status, from)))
+    .returning({ id: bookings.id });
+  return rows.length > 0;
+}
+
 export async function getActiveAssignmentCountForDorm(dormId: number, date: string): Promise<number> {
   const db = getDb();
   const rows = await db.select({ count: sql<number>`COUNT(*)` })
@@ -1886,15 +1901,17 @@ export async function shortenAssignedCheckout(bookingId: number, newCheckout: st
 }
 
 export async function cancelBedAssignments(assignmentIds: number[], bookingId?: number) {
-  if (assignmentIds.length === 0) return;
+  if (assignmentIds.length === 0) return false;
   const db = getDb();
-  return db.update(bookingBedAssignments)
+  const rows = await db.update(bookingBedAssignments)
     .set({ status: "cancelled" })
     .where(and(
       inArray(bookingBedAssignments.id, assignmentIds),
       eq(bookingBedAssignments.status, "assigned"),
       ...(bookingId ? [eq(bookingBedAssignments.bookingId, bookingId)] : []),
-    ));
+    ))
+    .returning({ id: bookingBedAssignments.id });
+  return rows.length > 0;
 }
 
 export async function addBookingHistoryEntry(data: {

@@ -8,6 +8,7 @@ const q = vi.hoisted(() => ({
   getSetting: vi.fn(),
   addBooking: vi.fn(),
   updateBookingFull: vi.fn(),
+  transitionBookingStatus: vi.fn(),
   getBookingByRef: vi.fn(),
   unassignBookingBeds: vi.fn(),
   addBookingHistoryEntry: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock("@/db/queries", () => ({
   getSetting: q.getSetting,
   addBooking: q.addBooking,
   updateBookingFull: q.updateBookingFull,
+  transitionBookingStatus: q.transitionBookingStatus,
   getBookingByRef: q.getBookingByRef,
   unassignBookingBeds: q.unassignBookingBeds,
   addBookingHistoryEntry: q.addBookingHistoryEntry,
@@ -331,6 +333,10 @@ describe("Round 4 edges: occupancy grow + date conflict", () => {
     for (const fn of Object.values(q)) fn.mockReset();
     q.getChannelConfig.mockResolvedValue(activeConfig);
     q.updateBookingFull.mockResolvedValue(undefined);
+    q.transitionBookingStatus.mockImplementation(async (id, _from, data) => {
+      await q.updateBookingFull(id, data);
+      return true;
+    });
     q.unassignBookingBeds.mockResolvedValue(undefined);
     q.addBookingHistoryEntry.mockResolvedValue(undefined);
     q.assignBedToBooking.mockResolvedValue(true);
@@ -431,6 +437,10 @@ describe("Round 4 edges: Reject then webhook cancel / checkOut unassigned CM", (
     q.getRoomTypeMappings.mockResolvedValue(mappings);
     q.getChannelConfig.mockResolvedValue(activeConfig);
     q.updateBookingFull.mockResolvedValue(undefined);
+    q.transitionBookingStatus.mockImplementation(async (id, _from, data) => {
+      await q.updateBookingFull(id, data);
+      return true;
+    });
     q.unassignBookingBeds.mockResolvedValue(undefined);
     q.addBookingHistoryEntry.mockResolvedValue(undefined);
     q.addChannelSyncLog.mockResolvedValue(undefined);
@@ -457,7 +467,7 @@ describe("Round 4 edges: Reject then webhook cancel / checkOut unassigned CM", (
     expect(reject.status).toBe(200);
     expect(q.updateBookingFull).toHaveBeenCalledWith(9, expect.objectContaining({ status: "cancelled" }));
     expect(q.unassignBookingBeds).toHaveBeenCalledWith(9);
-    expect(pushOta).not.toHaveBeenCalled();
+    expect(pushOta).toHaveBeenCalled();
     expect(triggerInventoryPush).not.toHaveBeenCalled();
 
     q.updateBookingFull.mockClear();
@@ -503,8 +513,7 @@ describe("Round 4 edges: Reject then webhook cancel / checkOut unassigned CM", (
     expect(checkOutAction).toContain("activeAssignmentDormIds(detail.assignments)");
     expect(checkOutAction).not.toContain("requestedDormsForCodes");
     expect(checkOutAction).toContain("pushIfGokoOccupancy");
-    expect(markNoShowAction).toContain("dormIds.length === 0 && channelSource(detail.booking.source)");
-    expect(markNoShowAction).toContain("requestedDormsForCodes");
+    expect(markNoShowAction).toContain("affectedDormIds(detail)");
     expect(markNoShowAction).toContain("pushIfOtaChanged");
   });
 });

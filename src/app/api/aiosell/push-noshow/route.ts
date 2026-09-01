@@ -5,14 +5,14 @@ import { pushNoShow, type AiosellConfig } from "@/lib/aiosell";
 
 export async function POST(req: NextRequest) {
   try {
-    const { password, username, bookingId, partner } = await req.json();
+    const { password, username, bookingId } = await req.json();
     const auth = await authenticateUser(password, username);
     if (!auth || auth.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!bookingId || !partner) {
-      return NextResponse.json({ error: "bookingId and partner are required" }, { status: 400 });
+    if (!bookingId) {
+      return NextResponse.json({ error: "bookingId is required" }, { status: 400 });
     }
 
     const config = await getChannelConfig();
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       apiPassword: config.apiPassword,
     };
 
-    const result = await pushNoShow(aiosellConfig, bookingId, partner);
+    const result = await pushNoShow(aiosellConfig, bookingId);
 
     return NextResponse.json(result, { status: result.success ? 200 : 502 });
   } catch (error: any) {

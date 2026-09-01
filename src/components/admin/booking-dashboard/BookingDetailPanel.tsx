@@ -20,8 +20,9 @@ import {
   BanIcon,
   EditIcon,
   BanknoteIcon,
+  RefreshCwIcon,
 } from "lucide-react";
-import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getNights, collectionCopy, displayedStayPayment } from "./utils";
+import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getHostelToday, getNights, collectionCopy, displayedStayPayment } from "./utils";
 import { parseGokoWalkin, walkinDiscountOnGross } from "@/lib/bookingPricing";
 import { stayDueAtHotel, stayRefundCap } from "@/lib/stayPayment";
 import { CheckInPopup } from "./CheckInPopup";
@@ -427,7 +428,7 @@ export function BookingDetailPanel({
                   onClick={() => setConfirmAction({
                     action: "cancelBooking",
                     title: "Cancel Booking",
-                    description: `Cancel booking for ${booking.guestName}? This cannot be undone.`,
+                    description: `Cancel booking for ${booking.guestName} in Goko? Beds will be released online; cancel the OTA reservation separately.`,
                     variant: "destructive",
                   })}
                   disabled={busy}
@@ -447,7 +448,7 @@ export function BookingDetailPanel({
                 Cancel
               </Button>
             )}
-            {booking.status === "received" && hasPermission(role, permissions, "canDeleteBooking") && (
+            {booking.status === "received" && booking.checkinDate <= getHostelToday() && hasPermission(role, permissions, "canDeleteBooking") && (
               <Button
                 size="sm"
                 variant="outline"
@@ -460,6 +461,11 @@ export function BookingDetailPanel({
                 disabled={busy}
               >
                 No Show
+              </Button>
+            )}
+            {booking.status === "no_show" && booking.noShowPmsStatus === "failed" && hasPermission(role, permissions, "canDeleteBooking") && (
+              <Button size="sm" variant="outline" onClick={() => void handleAction("retryNoShow")} disabled={busy}>
+                <RefreshCwIcon className="size-3.5" /> Retry Aiosell no-show
               </Button>
             )}
           </div>

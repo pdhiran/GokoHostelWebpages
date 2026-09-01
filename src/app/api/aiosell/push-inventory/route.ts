@@ -92,7 +92,10 @@ export async function POST(req: NextRequest) {
 
     const result = await pushInventory(aiosellConfig, updates);
 
-    if (result.success) {
+    // Aiosell can return HTTP success while rejecting one or more room codes.
+    // Keep the dirty entries so staff can correct the mapping and retry.
+    const accepted = result.success && !(result.warnings?.length);
+    if (accepted) {
       await updateChannelSyncTime();
       if (useDirty) {
         const toClear = dirtyEntries.filter((d) => mappedDormIds.has(d.dormId)).map((d) => d.id);
@@ -108,8 +111,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!result.success) {
-      return NextResponse.json({ success: false, message: result.message, warnings: result.warnings }, { status: 502 });
+    if (!accepted) {
+      return NextResponse.json({
+        success: false,
+        message: result.warnings?.join("; ") || result.message || "Aiosell did not confirm the inventory update",
+        warnings: result.warnings,
+      }, { status: 502 });
     }
 
     return NextResponse.json({

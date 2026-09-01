@@ -15,6 +15,12 @@ import { eq, sql } from "drizzle-orm";
 import { otaCeiling, remainingSplit } from "@/lib/inventoryAvailability";
 import { pushInventory, pushRates, pushRateRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields, type RestrictionPatch } from "@/lib/aiosell";
 
+export type InventorySyncResult = {
+  attempted: boolean;
+  accepted: boolean;
+  message?: string;
+};
+
 export async function getDateAwareAvailability(dormId: number, date: string): Promise<number> {
   const db = getDb();
   const totalRows = await db.select({ count: sql<number>`COUNT(*)` })
@@ -46,15 +52,16 @@ export async function otaFingerprint(dormIds: number[], dates: string[]): Promis
   return parts.sort().join("|");
 }
 
-export async function pushIfOtaChanged(before: string, dormIds: number[], dates: string[]): Promise<void> {
-  if (dates.length === 0 || dormIds.length === 0) return;
+export async function pushIfOtaChanged(before: string, dormIds: number[], dates: string[]): Promise<InventorySyncResult | void> {
+  if (dates.length === 0 || dormIds.length === 0) return { attempted: false, accepted: true };
   const after = await otaFingerprint(dormIds, dates);
-  if (before !== after) await triggerInventoryPush(dates);
+  if (before !== after) return await triggerInventoryPush(dates);
+  return { attempted: false, accepted: true };
 }
 
-export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<void> {
+export async function triggerInventoryPush(affectedDates?: string[], affectedDormId?: number): Promise<InventorySyncResult | void> {
   try {
-    if (affectedDates && affectedDates.length === 0) return;
+    if (affectedDates && affectedDates.length === 0) return { attempted: false, accepted: true };
     const dates = affectedDates && affectedDates.length > 0
       ? [...new Set(affectedDates)]
       : [todayIST()];
@@ -72,14 +79,14 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       }
     }
 
-    if (!config || !config.isActive) return;
-    if (!config.autoPushInventory) return;
-    if (mappings.length === 0) return;
+    if (!config || !config.isActive) return { attempted: false, accepted: false, message: "Aiosell inventory sync is not active" };
+    if (!config.autoPushInventory) return { attempted: false, accepted: false, message: "Aiosell automatic inventory sync is disabled" };
+    if (mappings.length === 0) return { attempted: false, accepted: false, message: "No active Aiosell room mappings" };
 
     let activeMappings = mappings;
     if (affectedDormId) {
       activeMappings = activeMappings.filter((m) => m.dormId === affectedDormId);
-      if (activeMappings.length === 0) return;
+      if (activeMappings.length === 0) return { attempted: false, accepted: false, message: "No active Aiosell mapping for this dorm" };
     }
 
     const updates: InventoryUpdate[] = [];
@@ -102,7 +109,9 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
 
     const result = await pushInventory(aiosellConfig, updates, undefined, "auto");
 
-    if (result.success) {
+    const warning = result.warnings?.filter(Boolean).join("; ");
+    const accepted = result.success && !warning;
+    if (accepted) {
       await updateChannelSyncTime();
       const dirty = await getDirtyInventory();
       const pushedDormIds = new Set(activeMappings.map((m) => m.dormId));
@@ -110,6 +119,7 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       const toClear = dirty.filter((d) => pushedDormIds.has(d.dormId) && pushedDates.has(d.date)).map((d) => d.id);
       if (toClear.length > 0) await clearDirtyInventory(toClear);
     }
+    return { attempted: true, accepted, message: accepted ? undefined : (result.message || warning || "Aiosell did not confirm the inventory update") };
   } catch (error: any) {
     console.error("Auto inventory push failed:", error?.message);
     await logPmsCall({
@@ -118,6 +128,7 @@ export async function triggerInventoryPush(affectedDates?: string[], affectedDor
       status: "failed",
       errorMessage: `Auto-push error: ${error?.message || "Unknown"}`,
     });
+    return { attempted: true, accepted: false, message: error?.message || "Aiosell inventory push failed" };
   }
 }
 

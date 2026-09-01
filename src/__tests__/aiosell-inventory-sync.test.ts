@@ -217,6 +217,23 @@ describe("pushIfOtaChanged", () => {
     expect(pushInventory).toHaveBeenCalled();
   });
 
+  it("releases two cancelled beds in one inventory request with the final availability", async () => {
+    queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(4);
+    queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(4);
+    const before = await otaFingerprint([8], ["2026-09-05"]);
+
+    queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(2);
+    queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(2);
+    await pushIfOtaChanged(before, [8], ["2026-09-05"]);
+
+    expect(pushInventory).toHaveBeenCalledTimes(1);
+    expect(pushInventory.mock.calls[0][1]).toEqual([{
+      startDate: "2026-09-05",
+      endDate: "2026-09-05",
+      rooms: expect.arrayContaining([{ roomCode: "executive", available: 10 }]),
+    }]);
+  });
+
   it("skips empty dates or dorms", async () => {
     await pushIfOtaChanged("x", [], ["2026-09-05"]);
     await pushIfOtaChanged("x", [8], []);

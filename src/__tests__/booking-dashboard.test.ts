@@ -195,7 +195,7 @@ describe("Booking Dashboard: cancelBooking Logic", () => {
       );
       const section = cancelSection![0];
 
-      expect(section).toContain("pushIfGokoOccupancy(detail?.booking.source, before, dormIds, cancelDates)");
+      expect(section).toContain("pushIfOtaChanged(before, dormIds, cancelDates)");
     });
   });
 
@@ -253,9 +253,7 @@ describe("Booking Dashboard: markNoShow Logic", () => {
     );
     const section = noShowSection![0];
 
-    expect(section).toContain("isBookingDotCom(detail.booking.platform)");
-    expect(section).toContain("cmBookingId");
-    expect(section).toContain("pushNoShow(aiosellConfig");
+    expect(section).toContain("syncBookingNoShow(bookingId, detail.booking)");
   });
 
   it("triggers inventory push", () => {
@@ -264,7 +262,7 @@ describe("Booking Dashboard: markNoShow Logic", () => {
     );
     const section = noShowSection![0];
 
-    expect(section).toContain("pushIfOtaChanged(before, dormIds, bookingDateRange(detail.booking.checkinDate, detail.booking.checkoutDate))");
+    expect(section).toContain("pushIfOtaChanged(before, dormIds, dates)");
   });
 });
 
