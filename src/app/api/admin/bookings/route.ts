@@ -344,7 +344,23 @@ export async function POST(req: NextRequest) {
       if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });
       const detail = await getBookingDetail(bookingId);
       if (!detail) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-      return NextResponse.json(detail);
+      const allBeds = await getAllBeds();
+      const bedById = new Map(allBeds.map((b) => [b.id, b]));
+      const checkout = stayCheckout(detail.booking.checkinDate, detail.booking.checkoutDate);
+      const nights = checkout ? diffDays(detail.booking.checkinDate, checkout) : 0;
+      return NextResponse.json({
+        ...detail,
+        booking: {
+          ...detail.booking,
+          nights,
+          balance: (detail.booking.amountTotal ?? 0) - (detail.booking.amountPaid ?? 0),
+        },
+        assignments: detail.assignments.map((assignment) => ({
+          ...assignment,
+          dormName: bedById.get(assignment.bedId)?.dormName || "",
+          bedLabel: bedById.get(assignment.bedId)?.bedId || "",
+        })),
+      });
     }
 
     if (action === "getPendingFoodTab") {

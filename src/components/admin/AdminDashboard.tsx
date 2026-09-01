@@ -6,7 +6,7 @@ import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
 import { cn, localDateStr } from "@/lib/utils";
 import { staggerContainer, staggerItem, overlayVariants, modalVariants } from "@/lib/animations";
-import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon, CheckCircleIcon, UtensilsIcon } from "lucide-react";
+import { BedDoubleIcon, UsersIcon, CalendarCheckIcon, AlertTriangleIcon, LogOutIcon, Loader2Icon, ExternalLinkIcon, BanknoteIcon, SmartphoneIcon, XIcon, CheckCircleIcon, UtensilsIcon, BookOpenIcon, CalendarPlusIcon, BanIcon } from "lucide-react";
 import { getAgeFromDob, dobsMatch } from "@/lib/parseDob";
 import { RecordPaymentModal } from "@/components/admin/RecordPaymentModal";
 import { useAdminToast } from "@/components/admin/AdminToast";
@@ -23,7 +23,7 @@ export function AdminDashboard({
   password: string;
   username?: string;
   role: Role;
-  onNavigate: (section: AdminSection, opts?: { assignGuestContact?: string }) => void;
+  onNavigate: (section: AdminSection, opts?: { assignGuestContact?: string; bookingId?: number }) => void;
   permissions?: Record<string, boolean>;
 }) {
   const { apiCall } = useAdminApi(password, username);
@@ -33,6 +33,12 @@ export function AdminDashboard({
     name: string; contact: string; bedId: string; dorm: string; bedIdx: number; expectedCheckout: string;
     pendingTab: number; paidTotal: number; totalOrders: number; pendingOrders: number; checkinId: number | null;
   }[]>([]);
+  const [todayBookings, setTodayBookings] = useState<{
+    id: number; guestName: string; platform: string; bookingRef: string; checkinDate: string; checkoutDate: string;
+    persons: number; status: string; createdAt: string;
+  }[]>([]);
+  const [todayBookingCount, setTodayBookingCount] = useState(0);
+  const [todayCancellationCount, setTodayCancellationCount] = useState(0);
   const [stats, setStats] = useState({ total: 0, occupied: 0, available: 0, cleanup: 0 });
   const [validationOn, setValidationOn] = useState(true);
   const [togglingValidation, setTogglingValidation] = useState(false);
@@ -56,6 +62,9 @@ export function AdminDashboard({
         const data = await res.json();
         setTodayCheckins(data.todayCheckins || []);
         setTodayCheckouts(data.todayCheckouts || []);
+        setTodayBookings(data.todayBookings || []);
+        setTodayBookingCount(Number(data.todayBookingCount) || 0);
+        setTodayCancellationCount(Number(data.todayCancellationCount) || 0);
         setUnpaidStays(data.unpaidStays || []);
         setStats(data.stats || { total: 0, occupied: 0, available: 0, cleanup: 0 });
         setValidationOn(data.validationEnabled !== false);
@@ -87,6 +96,7 @@ export function AdminDashboard({
   }, [password, username]);
 
   const canCollectStay = hasPermission(role, permissions || {}, "canCheckIn") || hasPermission(role, permissions || {}, "canAddBooking");
+  const canViewBookings = hasPermission(role, permissions || {}, "canViewBookings");
 
   const foodApiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -193,26 +203,58 @@ export function AdminDashboard({
       <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Dashboard</h2>
       <p className="mt-1 text-sm text-brand-green-dark/60 dark:text-zinc-500">{today}</p>
 
-      {/* Food Orders quick access */}
-      <button type="button" onClick={() => onNavigate("foodOrders")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-card dark:shadow-none transition-all hover:shadow-soft dark:hover:bg-zinc-800/70">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10"><UtensilsIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" /></div>
-          <div>
-            <p className="font-semibold text-brand-green-dark dark:text-zinc-100">Food Orders</p>
-            <p className="text-xs text-brand-green-dark/50 dark:text-zinc-500">Manage orders & payments</p>
+      {/* Quick access */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <button type="button" onClick={() => onNavigate("foodOrders")} className="flex w-full items-center justify-between rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-card dark:shadow-none transition-all hover:shadow-soft dark:hover:bg-zinc-800/70">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10"><UtensilsIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" /></div>
+            <div className="text-left">
+              <p className="font-semibold text-brand-green-dark dark:text-zinc-100">Food Orders</p>
+              <p className="text-xs text-brand-green-dark/50 dark:text-zinc-500">Manage orders & payments</p>
+            </div>
           </div>
-        </div>
-        <span className="text-brand-green-dark/30 dark:text-zinc-600">→</span>
-      </button>
+          <span className="text-brand-green-dark/30 dark:text-zinc-600">→</span>
+        </button>
+        {canViewBookings && (
+          <button type="button" onClick={() => onNavigate("bookings")} className="flex w-full items-center justify-between rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-card dark:shadow-none transition-all hover:shadow-soft dark:hover:bg-zinc-800/70">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10"><BookOpenIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" /></div>
+              <div className="text-left">
+                <p className="font-semibold text-brand-green-dark dark:text-zinc-100">Bookings</p>
+                <p className="text-xs text-brand-green-dark/50 dark:text-zinc-500">View booking calendar</p>
+              </div>
+            </div>
+            <span className="text-brand-green-dark/30 dark:text-zinc-600">→</span>
+          </button>
+        )}
+      </div>
 
-      {/* Stats cards — compact 2x2 grid on mobile */}
-      <motion.div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4" variants={staggerContainer} initial="hidden" animate="visible">
+      {/* Stats cards */}
+      <motion.div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6" variants={staggerContainer} initial="hidden" animate="visible">
         <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10"><UsersIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" /></div>
             <div className="min-w-0">
               <p className="text-lg font-bold text-brand-green-dark dark:text-zinc-100 leading-tight">{todayCheckins.length}</p>
               <p className="text-[10px] text-brand-green-dark/60 dark:text-zinc-500 leading-tight">Check-ins today</p>
+            </div>
+          </div>
+        </motion.div>
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-500/10"><CalendarPlusIcon className="h-4 w-4 text-violet-600 dark:text-violet-400" /></div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-brand-green-dark dark:text-zinc-100 leading-tight">{todayBookingCount}</p>
+              <p className="text-[10px] text-brand-green-dark/60 dark:text-zinc-500 leading-tight">Bookings today</p>
+            </div>
+          </div>
+        </motion.div>
+        <motion.div variants={staggerItem} className="rounded-xl border border-brand-mist dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-4 transition-all duration-200 hover:shadow-lift dark:hover:shadow-none hover:-translate-y-0.5">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-500/10"><BanIcon className="h-4 w-4 text-rose-600 dark:text-rose-400" /></div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-brand-green-dark dark:text-zinc-100 leading-tight">{todayCancellationCount}</p>
+              <p className="text-[10px] text-brand-green-dark/60 dark:text-zinc-500 leading-tight">Cancellations today</p>
             </div>
           </div>
         </motion.div>
@@ -425,6 +467,53 @@ export function AdminDashboard({
               </motion.div>
               );
             })}
+          </motion.div>
+        )}
+      </div>
+
+      {/* Today's bookings */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-display text-lg font-bold text-brand-green-dark dark:text-zinc-100">Today&apos;s Bookings</h3>
+          {canViewBookings && todayBookings.length > 0 && (
+            <button type="button" onClick={() => onNavigate("bookings")} className="text-xs font-medium text-brand-green hover:underline">View calendar</button>
+          )}
+        </div>
+        {todayBookings.length === 0 ? (
+          <p className="mt-2 text-sm text-brand-green-dark/50 dark:text-zinc-500">No bookings received today yet</p>
+        ) : (
+          <motion.div className="mt-3 max-h-80 space-y-2.5 overflow-y-auto pr-1" variants={staggerContainer} initial="hidden" animate="visible">
+            {todayBookings.map((booking) => (
+              <motion.button
+                key={booking.id}
+                type="button"
+                variants={staggerItem}
+                disabled={!canViewBookings}
+                onClick={() => onNavigate("bookings", { bookingId: booking.id })}
+                className="flex w-full items-start justify-between gap-3 rounded-xl border border-gray-100 bg-white p-3 text-left shadow-sm transition-colors hover:bg-brand-sand/50 disabled:cursor-default dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-none dark:hover:bg-zinc-800/50"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-[15px] font-semibold text-brand-green-dark dark:text-zinc-100">{booking.guestName}</p>
+                    <span className={cn(
+                      "rounded-md px-1.5 py-0.5 text-[10px] font-semibold capitalize",
+                      booking.status === "cancelled" || booking.status === "no_show"
+                        ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400"
+                        : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400",
+                    )}>{booking.status.replaceAll("_", " ")}</span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-brand-green-dark/60 dark:text-zinc-500">
+                    {booking.checkinDate} → {booking.checkoutDate} · {booking.persons} person{booking.persons !== 1 ? "s" : ""}
+                  </p>
+                  <p className="mt-1 text-[11px] text-brand-green-dark/40 dark:text-zinc-600">
+                    {booking.platform.replaceAll("_", " ")}{booking.bookingRef ? ` · #${booking.bookingRef}` : ""}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[11px] text-brand-green-dark/40 dark:text-zinc-600">
+                  {new Date(booking.createdAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </motion.button>
+            ))}
           </motion.div>
         )}
       </div>

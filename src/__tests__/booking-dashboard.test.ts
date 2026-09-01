@@ -266,6 +266,27 @@ describe("Booking Dashboard: markNoShow Logic", () => {
   });
 });
 
+describe("Dashboard booking activity", () => {
+  const dashboardRoute = readFile("src/app/api/admin/checkins/route.ts");
+  const dashboard = readFile("src/components/admin/AdminDashboard.tsx");
+  const bookingDashboard = readFile("src/components/admin/booking-dashboard/index.tsx");
+
+  it("uses IST day boundaries and counts only explicit cancellation events", () => {
+    expect(dashboardRoute).toContain('T00:00:00+05:30');
+    expect(dashboardRoute).toContain('sql`${bookings.createdAt} >= ${todayStart}`');
+    expect(dashboardRoute).toContain('sql`${bookings.createdAt} < ${tomorrowStart}`');
+    expect(dashboardRoute).toContain('["Cancelled", "Cancelled from Channel", "Partial Cancellation"]');
+    expect(dashboardRoute).not.toMatch(/inArray\(bookingHistory\.action,[\s\S]{0,120}"Beds Unassigned"/);
+  });
+
+  it("links dashboard rows to direct booking details outside the calendar range", () => {
+    expect(dashboard).toContain('onNavigate("bookings", { bookingId: booking.id })');
+    expect(bookingDashboard).toContain('action: "getDetail", bookingId');
+    expect(bookingDashboard).toContain('externalDetail?.booking.id === selectedBookingId');
+    expect(bookingDashboard).toContain('setExternalDetail({ booking: detail.booking, assignments: detail.assignments || [] })');
+  });
+});
+
 describe("Booking Dashboard: moveRoom assigns the new bed before releasing the old one", () => {
   const routeCode = readFile("src/app/api/admin/bookings/route.ts");
 

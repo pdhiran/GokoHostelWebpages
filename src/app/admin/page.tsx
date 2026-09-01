@@ -55,6 +55,7 @@ function AdminPageInner() {
   });
   const [managementTab, setManagementTab] = useState<ManagementTab | undefined>();
   const [pendingAssignGuest, setPendingAssignGuest] = useState<string | null>(null);
+  const [pendingBookingId, setPendingBookingId] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<"admin" | "manager" | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
@@ -412,8 +413,8 @@ function AdminPageInner() {
         fillViewport && "flex min-h-0 flex-1 flex-col",
       )}>
         <div className={cn(fillViewport && "flex h-full min-h-0 flex-1 flex-col")}>
-            {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); setSection(s); }} permissions={permissions} />}
-            {section === "bookings" && <BookingDashboard password={password} username={username} role={role} permissions={permissions} />}
+            {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); if (opts?.bookingId) setPendingBookingId(opts.bookingId); setSection(s); }} permissions={permissions} />}
+            {section === "bookings" && <BookingDashboard password={password} username={username} role={role} permissions={permissions} initialBookingId={pendingBookingId} onInitialBookingConsumed={() => setPendingBookingId(null)} />}
             {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} pendingAssignGuest={pendingAssignGuest} onPendingAssignConsumed={() => setPendingAssignGuest(null)} />}
             {section === "timeline" && <AdminTimeline password={password} username={username} role={role} permissions={permissions} />}
             {section === "inventory" && <InventoryRatePlan password={password} username={username} role={role} permissions={permissions} />}

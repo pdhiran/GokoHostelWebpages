@@ -24,8 +24,8 @@ import {
   addSystemLog, getSystemLogs,
   createReviewRequest, getReviewRequestByCheckinId,
 } from "@/db/queries";
-import { beds, checkins, foodOrders, bookings } from "@/db/schema";
-import { eq, and, sql, inArray, or } from "drizzle-orm";
+import { beds, checkins, foodOrders, bookings, bookingHistory } from "@/db/schema";
+import { eq, and, sql, inArray, or, desc } from "drizzle-orm";
 
 async function triggerGithubScrape(scrapeId: number, city: string, startDate: string, endDate: string, propertyType: string, proxyUrl: string = "") {
   const token = process.env.GITHUB_TOKEN;
@@ -569,19 +569,42 @@ export async function POST(req: NextRequest) {
 
       const db = getDb();
       const unpaidCheckoutFrom = addCalendarDays(todayIST(), -14);
-      const inHouse = await db.select({
-        id: bookings.id,
-        guestName: bookings.guestName,
-        contact: bookings.contact,
-        checkinDate: bookings.checkinDate,
-        checkoutDate: bookings.checkoutDate,
-        amountTotal: bookings.amountTotal,
-        amountPaid: bookings.amountPaid,
-        paymentStatus: bookings.paymentStatus,
-      }).from(bookings).where(or(
-        eq(bookings.status, "checked_in"),
-        and(eq(bookings.status, "checked_out"), sql`${bookings.checkoutDate} >= ${unpaidCheckoutFrom}`),
-      ));
+      const tomorrow = addCalendarDays(today, 1);
+      const todayStart = new Date(`${today}T00:00:00+05:30`).toISOString();
+      const tomorrowStart = new Date(`${tomorrow}T00:00:00+05:30`).toISOString();
+      const [inHouse, todayBookings, cancellationRows] = await Promise.all([
+        db.select({
+          id: bookings.id,
+          guestName: bookings.guestName,
+          contact: bookings.contact,
+          checkinDate: bookings.checkinDate,
+          checkoutDate: bookings.checkoutDate,
+          amountTotal: bookings.amountTotal,
+          amountPaid: bookings.amountPaid,
+          paymentStatus: bookings.paymentStatus,
+        }).from(bookings).where(or(
+          eq(bookings.status, "checked_in"),
+          and(eq(bookings.status, "checked_out"), sql`${bookings.checkoutDate} >= ${unpaidCheckoutFrom}`),
+        )),
+        db.select({
+          id: bookings.id,
+          guestName: bookings.guestName,
+          platform: bookings.platform,
+          bookingRef: bookings.bookingRef,
+          checkinDate: bookings.checkinDate,
+          checkoutDate: bookings.checkoutDate,
+          persons: bookings.persons,
+          status: bookings.status,
+          createdAt: bookings.createdAt,
+        }).from(bookings)
+          .where(and(sql`${bookings.createdAt} >= ${todayStart}`, sql`${bookings.createdAt} < ${tomorrowStart}`))
+          .orderBy(desc(bookings.createdAt)),
+        db.select({ count: sql<number>`COUNT(*)` }).from(bookingHistory).where(and(
+          inArray(bookingHistory.action, ["Cancelled", "Cancelled from Channel", "Partial Cancellation"]),
+          sql`${bookingHistory.performedAt} >= ${todayStart}`,
+          sql`${bookingHistory.performedAt} < ${tomorrowStart}`,
+        )),
+      ]);
       const unpaidStays = inHouse
         .map((b) => {
           const due = stayDueAtHotel(b.paymentStatus, b.amountTotal, b.amountPaid);
@@ -592,6 +615,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         todayCheckins: todayCheckinsWithBed,
         todayCheckouts: todayCheckoutBeds,
+        todayBookings,
+        todayBookingCount: todayBookings.length,
+        todayCancellationCount: Number(cancellationRows[0]?.count) || 0,
         unpaidStays,
         stats: { total, occupied, available, cleanup },
         validationEnabled,

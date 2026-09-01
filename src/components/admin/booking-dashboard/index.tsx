@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PlusIcon, TableIcon, CalendarIcon, AlertCircleIcon, RefreshCwIcon, Loader2Icon } from "lucide-react";
@@ -44,11 +44,15 @@ export function BookingDashboard({
   username,
   role,
   permissions = {},
+  initialBookingId,
+  onInitialBookingConsumed,
 }: {
   password: string;
   username?: string;
   role: Role;
   permissions?: Record<string, boolean>;
+  initialBookingId?: number | null;
+  onInitialBookingConsumed?: () => void;
 }) {
   const { apiCall } = useBookingApi(password, username);
   const { showError, showSuccess, showInfo } = useAdminToast();
@@ -63,15 +67,45 @@ export function BookingDashboard({
   const [dorms, setDorms] = useState<CalendarDorm[]>([]);
   const [unassignedBookings, setUnassignedBookings] = useState<DashboardBooking[]>([]);
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [externalDetail, setExternalDetail] = useState<{ booking: DashboardBooking; assignments: BedAssignment[] } | null>(null);
+  const openingInitialBookingId = useRef<number | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const selectedBooking = useMemo(
-    () => bookings.find((b) => b.id === selectedBookingId) ?? null,
-    [bookings, selectedBookingId],
+    () => bookings.find((b) => b.id === selectedBookingId) ?? (externalDetail?.booking.id === selectedBookingId ? externalDetail.booking : null),
+    [bookings, externalDetail, selectedBookingId],
   );
+
+  const openBooking = useCallback(async (bookingId: number) => {
+    const visible = bookings.find((booking) => booking.id === bookingId);
+    if (visible) {
+      setExternalDetail(null);
+      setSelectedBookingId(bookingId);
+      return;
+    }
+    try {
+      const res = await apiCall({ action: "getDetail", bookingId });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Booking not found" }));
+        showError(data.error || "Booking not found");
+        return;
+      }
+      const detail = await res.json();
+      setExternalDetail({ booking: detail.booking, assignments: detail.assignments || [] });
+      setSelectedBookingId(bookingId);
+    } catch {
+      showError("Network error loading booking details");
+    }
+  }, [apiCall, bookings, showError]);
+
+  useEffect(() => {
+    if (!initialBookingId || openingInitialBookingId.current === initialBookingId) return;
+    openingInitialBookingId.current = initialBookingId;
+    void openBooking(initialBookingId).finally(() => onInitialBookingConsumed?.());
+  }, [initialBookingId, onInitialBookingConsumed, openBooking]);
 
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -143,6 +177,13 @@ export function BookingDashboard({
           showSuccess(data.message || "Action completed");
           if (data.warning) showInfo(data.warning);
           if (reload) await loadData(true);
+          if (externalDetail?.booking.id === bookingId) {
+            const detailRes = await apiCall({ action: "getDetail", bookingId });
+            if (detailRes.ok) {
+              const detail = await detailRes.json();
+              setExternalDetail({ booking: detail.booking, assignments: detail.assignments || [] });
+            }
+          }
           return true;
         }
         const data = await res.json().catch(() => ({ error: "Action failed" }));
@@ -154,7 +195,7 @@ export function BookingDashboard({
         return false;
       }
     },
-    [apiCall, loadData, showError, showSuccess],
+    [apiCall, externalDetail, loadData, showError, showInfo, showSuccess],
   );
 
   if (loading && bookings.length === 0) {
@@ -173,7 +214,7 @@ export function BookingDashboard({
         <div className="flex flex-wrap items-center gap-2">
           <BookingSearchBar
             bookings={bookings}
-            onSelect={(id) => setSelectedBookingId(id)}
+            onSelect={openBooking}
           />
           <Button
             variant="outline"
@@ -287,7 +328,7 @@ export function BookingDashboard({
           dorms={dorms}
           dateRange={dateRange}
           today={getHostelToday()}
-          onSelectBooking={setSelectedBookingId}
+          onSelectBooking={openBooking}
           selectedBookingId={selectedBookingId}
           onToggleDorm={handleToggleDorm}
         />
@@ -296,7 +337,7 @@ export function BookingDashboard({
           <BookingTableView
             bookings={bookings}
             assignments={assignments}
-            onSelectBooking={setSelectedBookingId}
+            onSelectBooking={openBooking}
             selectedBookingId={selectedBookingId}
           />
         </div>
@@ -306,8 +347,8 @@ export function BookingDashboard({
       {selectedBooking && (
         <BookingDetailPanel
           booking={selectedBooking}
-          assignments={assignments.filter((a) => a.bookingId === selectedBooking.id)}
-          onClose={() => setSelectedBookingId(null)}
+          assignments={externalDetail?.booking.id === selectedBooking.id ? externalDetail.assignments : assignments.filter((a) => a.bookingId === selectedBooking.id)}
+          onClose={() => { setSelectedBookingId(null); setExternalDetail(null); }}
           onAction={handleBookingAction}
           role={role}
           permissions={permissions}
