@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { DownloadIcon, BellIcon, SmartphoneIcon, XIcon, CheckCircleIcon, Loader2Icon, SendIcon, BellOffIcon } from "lucide-react";
-import { PUSH_SUBSCRIBED_AT_KEY, pushSubscriptionNeedsRenewal } from "@/lib/pushSubscription";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -59,15 +58,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
         if ("PushManager" in window) {
           setPushSupported(true);
           let sub = await reg.pushManager.getSubscription();
-          const subscribedAt = Number(localStorage.getItem(PUSH_SUBSCRIBED_AT_KEY));
-          const needsRenewal = !!sub && pushSubscriptionNeedsRenewal(subscribedAt);
-          if (sub && needsRenewal && Notification.permission === "granted" && VAPID_PUBLIC_KEY) {
-            await fetch("/api/push", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "unsubscribe", password, username, endpoint: sub.endpoint }),
-            }).catch(() => {});
-            await sub.unsubscribe();
+          if (!sub && Notification.permission === "granted" && VAPID_PUBLIC_KEY) {
             sub = await reg.pushManager.subscribe({
               userVisibleOnly: true,
               applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -84,7 +75,6 @@ export function PwaInstallBanner({ password, username }: { password: string; use
             }).then(async (res) => {
               if (res.ok) {
                 setPushSubscribed(true);
-                if (needsRenewal || !subscribedAt) localStorage.setItem(PUSH_SUBSCRIBED_AT_KEY, String(Date.now()));
               } else {
                 setPushSubscribed(false);
                 setPushError((await res.json()).error || "Notification subscription needs attention");
@@ -142,7 +132,6 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
       if (res.ok) {
         setPushSubscribed(true);
-        localStorage.setItem(PUSH_SUBSCRIBED_AT_KEY, String(Date.now()));
       } else {
         setPushError((await res.json()).error || "Could not enable notifications");
       }
@@ -175,7 +164,6 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     });
     if (!res.ok) return setPushError((await res.json()).error || "Could not disable notifications");
     await subscription.unsubscribe();
-    localStorage.removeItem(PUSH_SUBSCRIBED_AT_KEY);
     setPushSubscribed(false);
   }, [swRegistration, password, username]);
 
@@ -233,14 +221,15 @@ export function PwaInstallBanner({ password, username }: { password: string; use
             ) : (
               <BellIcon className="h-3.5 w-3.5" />
             )}
-            <span className="hidden sm:inline">Notifications</span>
+            <span>Enable notifications</span>
           </Button>
         )}
 
         {/* Push subscribed indicator */}
         {pushSubscribed && (
-          <span className="hidden items-center gap-1 text-[10px] text-green-600 sm:flex" title="Push notifications enabled">
+          <span className="flex items-center gap-1 text-[10px] text-green-600" title="Push notifications enabled">
             <CheckCircleIcon className="h-3 w-3" />
+            <span>Notifications on</span>
           </span>
         )}
 
@@ -255,7 +244,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
           </>
         )}
 
-        {pushError && <span className="hidden text-[10px] text-red-600 xl:inline">{pushError}</span>}
+        {pushError && <span className="text-[10px] text-red-600">{pushError}</span>}
 
       </div>
 
