@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { DownloadIcon, BellIcon, SmartphoneIcon, XIcon, CheckCircleIcon, Loader2Icon, SendIcon, BellOffIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DownloadIcon, BellIcon, SmartphoneIcon, CheckCircleIcon, CircleAlertIcon, Loader2Icon, SendIcon, BellOffIcon, Volume2Icon } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -24,11 +25,12 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIos, setIsIos] = useState(false);
-  const [showIosModal, setShowIosModal] = useState(false);
   const [vapidPublicKey, setVapidPublicKey] = useState("");
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [pushError, setPushError] = useState("");
+  const [pushMessage, setPushMessage] = useState("");
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [installed, setInstalled] = useState(false);
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
@@ -47,6 +49,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
     const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIos(ios);
+    if (typeof Notification !== "undefined") setNotificationPermission(Notification.permission);
 
     const handlePrompt = (e: Event) => {
       e.preventDefault();
@@ -113,12 +116,14 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     if (!vapidPublicKey || subscribing) return;
     setSubscribing(true);
     setPushError("");
+    setPushMessage("");
     try {
       if (!("serviceWorker" in navigator) || typeof Notification === "undefined") {
         throw new Error("Push notifications are not supported by this browser");
       }
 
       const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
       if (permission !== "granted") {
         setPushError("Notifications are blocked in browser settings");
         return;
@@ -146,6 +151,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
       if (res.ok) {
         setPushSubscribed(true);
+        setPushMessage("Notifications are enabled on this device.");
       } else {
         setPushError((await res.json()).error || "Could not enable notifications");
       }
@@ -158,13 +164,18 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
   const handleTestPush = useCallback(async () => {
     setPushError("");
+    setPushMessage("");
     const res = await fetch("/api/push", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "test", password, username }),
     });
     const data = await res.json();
-    if (!res.ok || data.delivery?.delivered === 0) setPushError(data.error || "No subscribed device accepted the test");
+    if (!res.ok || data.delivery?.delivered === 0) {
+      setPushError(data.error || "No subscribed device accepted the test");
+    } else {
+      setPushMessage(`Test notification sent to ${data.delivery.delivered} device(s).`);
+    }
   }, [password, username]);
 
   const handleUnsubscribePush = useCallback(async () => {
@@ -179,136 +190,86 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     if (!res.ok) return setPushError((await res.json()).error || "Could not disable notifications");
     await subscription.unsubscribe();
     setPushSubscribed(false);
+    setPushMessage("Notifications are disabled on this device.");
   }, [swRegistration, password, username]);
 
   const showInstallButton = installPrompt && !isStandalone && !installed;
-  const showIosInstall = isIos && !isStandalone && !installed;
-  const showPushButton = !pushSubscribed;
   const pushUnavailable = !vapidPublicKey;
+  const statusLabel = pushSubscribed
+    ? "Enabled on this device"
+    : notificationPermission === "denied"
+      ? "Blocked in browser settings"
+      : pushUnavailable
+        ? "Configuration unavailable"
+        : "Not enabled";
 
   return (
-    <>
-      <div className="flex items-center gap-1.5" title={pushError || undefined}>
-        {/* Android install */}
-        {showInstallButton && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleInstall}
-            className="gap-1 text-xs text-brand-green"
-          >
-            <DownloadIcon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Install App</span>
-          </Button>
-        )}
+    <Dialog>
+      <DialogTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="relative" aria-label="Notification settings" title={`Notifications: ${statusLabel}`} />}>
+        <BellIcon className="h-4 w-4" />
+        <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${pushSubscribed ? "bg-emerald-500" : pushError || notificationPermission === "denied" ? "bg-red-500" : "bg-amber-400"}`} />
+      </DialogTrigger>
 
-        {/* iOS install */}
-        {showIosInstall && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowIosModal(true)}
-            className="gap-1 text-xs text-brand-green"
-          >
-            <SmartphoneIcon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Install App</span>
-          </Button>
-        )}
+      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-brand-green-dark">
+            <BellIcon className="h-5 w-5" /> Notification settings
+          </DialogTitle>
+          <DialogDescription>
+            Receive alerts for bookings, changes, cancellations, food orders, and check-ins.
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Push subscribe */}
-        {showPushButton && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleSubscribePush}
-            disabled={subscribing || pushUnavailable}
-            className="gap-1 text-xs"
-            title={pushError || (pushUnavailable ? "Notifications are not configured" : "Enable booking, food order, and check-in notifications")}
-          >
-            {subscribing ? (
-              <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <BellIcon className="h-3.5 w-3.5" />
-            )}
-            <span>{pushUnavailable ? "Notifications not configured" : "Enable notifications"}</span>
-          </Button>
-        )}
-
-        {/* Push subscribed indicator */}
-        {pushSubscribed && (
-          <span className="flex items-center gap-1 text-[10px] text-green-600" title="Push notifications enabled">
-            <CheckCircleIcon className="h-3 w-3" />
-            <span>Notifications on</span>
-          </span>
-        )}
-
-        {pushSubscribed && (
-          <>
-            <Button type="button" variant="ghost" size="icon" onClick={handleTestPush} className="h-7 w-7" title="Send test notification">
-              <SendIcon className="h-3.5 w-3.5" />
-            </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={handleUnsubscribePush} className="h-7 w-7" title="Disable notifications">
-              <BellOffIcon className="h-3.5 w-3.5" />
-            </Button>
-          </>
-        )}
-
-        {pushError && <span className="text-[10px] text-red-600">{pushError}</span>}
-
-      </div>
-
-      {/* iOS instructions modal */}
-      {showIosModal && (
-        <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/50" onClick={() => setShowIosModal(false)}>
-          <div className="flex min-h-full items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-brand-mist bg-white dark:bg-card p-5 shadow-2xl dark:shadow-none" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green/10">
-                  <SmartphoneIcon className="h-4 w-4 text-brand-green" />
-                </div>
-                <h4 className="font-display text-base font-bold text-brand-green-dark">Install Goko App</h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowIosModal(false)}
-                className="rounded-lg p-1.5 text-brand-green-dark/40 hover:bg-brand-sand"
-              >
-                <XIcon className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="mt-5 space-y-4 text-sm text-brand-green-dark/80">
-              <p className="font-medium">To install on your iPhone / iPad:</p>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-green text-xs font-bold text-white">1</span>
-                  <p>Tap the <strong>Share</strong> button <span className="inline-block rounded bg-brand-sand px-1.5 py-0.5 text-xs font-medium">⬆</span> at the bottom of Safari</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-green text-xs font-bold text-white">2</span>
-                  <p>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-green text-xs font-bold text-white">3</span>
-                  <p>Tap <strong>&quot;Add&quot;</strong> in the top right</p>
-                </div>
-              </div>
-              <p className="rounded-lg bg-brand-sand/60 px-3 py-2 text-xs text-brand-green-dark/50">
-                The app will appear on your home screen and open in full-screen mode. Push notifications require iOS 16.4+.
-              </p>
-            </div>
-            <div className="mt-5">
-              <Button type="button" onClick={() => setShowIosModal(false)} className="w-full">
-                Got it
-              </Button>
+        <div className="space-y-4">
+          <div className={`flex items-center gap-3 rounded-xl border p-3 ${pushSubscribed ? "border-emerald-200 bg-emerald-50" : notificationPermission === "denied" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+            {pushSubscribed ? <CheckCircleIcon className="h-5 w-5 text-emerald-600" /> : <CircleAlertIcon className={`h-5 w-5 ${notificationPermission === "denied" ? "text-red-600" : "text-amber-600"}`} />}
+            <div>
+              <p className="font-medium text-brand-green-dark">{statusLabel}</p>
+              <p className="text-xs text-brand-green-dark/60">This setting applies only to this device and browser.</p>
             </div>
           </div>
+
+          {pushError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{pushError}</p>}
+          {pushMessage && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{pushMessage}</p>}
+
+          <div className="flex flex-wrap gap-2">
+            {!pushSubscribed ? (
+              <Button type="button" onClick={handleSubscribePush} disabled={subscribing || pushUnavailable}>
+                {subscribing ? <Loader2Icon className="animate-spin" /> : <BellIcon />}
+                Enable notifications
+              </Button>
+            ) : (
+              <>
+                <Button type="button" onClick={handleTestPush}><SendIcon /> Send test</Button>
+                <Button type="button" variant="outline" onClick={handleUnsubscribePush}><BellOffIcon /> Disable</Button>
+              </>
+            )}
+            {showInstallButton && (
+              <Button type="button" variant="outline" onClick={handleInstall}><DownloadIcon /> Install app</Button>
+            )}
+          </div>
+
+          <div className="border-t pt-4">
+            <div className="mb-3 flex items-center gap-2">
+              <SmartphoneIcon className="h-4 w-4 text-brand-green" />
+              <h3 className="font-medium text-brand-green-dark">{isIos ? "iPhone and iPad setup" : "Android setup"}</h3>
+            </div>
+            {isIos ? (
+              <ol className="space-y-2 text-xs leading-relaxed text-brand-green-dark/70">
+                {!isStandalone && <li><strong>1.</strong> In Safari, tap Share → Add to Home Screen, then open Goko from the Home Screen. Push requires iOS/iPadOS 16.4 or later.</li>}
+                <li><strong>{isStandalone ? "1" : "2"}.</strong> Open this dialog in the installed Goko app and tap Enable notifications.</li>
+                <li><strong>{isStandalone ? "2" : "3"}.</strong> If blocked or silent, open Settings → Notifications → Goko and enable Allow Notifications, Sounds, and the preferred alert style.</li>
+              </ol>
+            ) : (
+              <ol className="space-y-2 text-xs leading-relaxed text-brand-green-dark/70">
+                <li><strong>1.</strong> Tap Enable notifications and choose Allow when Chrome asks.</li>
+                <li><strong>2.</strong> If blocked, open Chrome → Settings → Site settings → Notifications → gokohostel.com and choose Allow.</li>
+                <li className="flex gap-2"><Volume2Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>For sound, open Android Settings → Apps → Chrome → Notifications → Goko/site notifications, then enable Sound and vibration.</span></li>
+              </ol>
+            )}
           </div>
         </div>
-      )}
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }
