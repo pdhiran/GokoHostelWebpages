@@ -14,6 +14,7 @@ const q = vi.hoisted(() => ({
   assignBedToBooking: vi.fn(),
   getRoomTypeMappings: vi.fn(),
   getAvailableBedsForRange: vi.fn(),
+  dispatchPush: vi.fn(),
 }));
 
 const triggerInventoryPush = vi.hoisted(() => vi.fn());
@@ -23,6 +24,10 @@ vi.mock("@/lib/aiosellSync", () => ({
   triggerInventoryPush,
   triggerRatePush: vi.fn(),
   triggerRestrictionPush: vi.fn(),
+}));
+vi.mock("@/lib/pushNotify", () => ({
+  dispatchPush: q.dispatchPush,
+  notificationFirstName: (name?: string) => name?.trim().split(/\s+/)[0] || "Guest",
 }));
 
 import { POST as reservationsPOST } from "@/app/api/aiosell/reservations/route";
@@ -129,6 +134,7 @@ describe("Round 3 webhook modify shrink / 0+0 / overflow / retry skip-list / can
     q.getAvailableBedsForRange.mockResolvedValue([]);
     q.getRoomTypeMappings.mockResolvedValue(mappings);
     q.addChannelSyncLog.mockResolvedValue(undefined);
+    q.dispatchPush.mockResolvedValue(undefined);
     triggerInventoryPush.mockReset();
     triggerInventoryPush.mockResolvedValue(undefined);
   });
@@ -170,6 +176,7 @@ describe("Round 3 webhook modify shrink / 0+0 / overflow / retry skip-list / can
       action: "Beds Auto-Assigned",
     }));
     expect(triggerInventoryPush).not.toHaveBeenCalled();
+    expect(q.dispatchPush).toHaveBeenCalledWith(expect.objectContaining({ title: "Booking Modified", category: "booking" }));
   });
 
   it("modify occupancy 0+0 with existing.persons 2 uses 2 beds and does not shrink to 1", async () => {
@@ -261,6 +268,7 @@ describe("Round 3 webhook modify shrink / 0+0 / overflow / retry skip-list / can
     expect(q.addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({
       action: "Beds Auto-Assigned",
     }));
+    expect(q.dispatchPush).toHaveBeenCalledWith(expect.objectContaining({ title: "New Booking", category: "booking" }));
     expect(triggerInventoryPush).not.toHaveBeenCalled();
   });
 
@@ -280,6 +288,7 @@ describe("Round 3 webhook modify shrink / 0+0 / overflow / retry skip-list / can
       status: "cancelled",
       cancelledBy: "channel_manager",
     }));
+    expect(q.dispatchPush).toHaveBeenCalledWith(expect.objectContaining({ title: "Booking Cancelled", category: "booking" }));
     expect(q.unassignBookingBeds).toHaveBeenCalledWith(9);
     expect(triggerInventoryPush).toHaveBeenCalledWith(["2026-09-05", "2026-09-06", "2026-09-07"]);
     expect(q.addBookingHistoryEntry).toHaveBeenCalledWith(expect.objectContaining({

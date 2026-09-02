@@ -32,7 +32,7 @@ vi.mock("@/lib/googleApiFetch", () => ({
   driveGetOrCreateFolder: vi.fn(),
   visionAnalyze: vi.fn(),
 }));
-vi.mock("@/lib/pushNotify", () => ({ sendPushToAll: vi.fn() }));
+vi.mock("@/lib/pushNotify", () => ({ dispatchPush: vi.fn() }));
 vi.mock("@/lib/runtime", () => ({ isOfflineMode: () => true }));
 
 import { GET as lookupGET } from "@/app/api/food/lookup/route";

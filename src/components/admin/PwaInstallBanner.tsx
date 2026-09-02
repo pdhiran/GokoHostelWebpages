@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { DownloadIcon, BellIcon, SmartphoneIcon, XIcon, CheckCircleIcon, Loader2Icon } from "lucide-react";
+import { DownloadIcon, BellIcon, SmartphoneIcon, XIcon, CheckCircleIcon, Loader2Icon, SendIcon, BellOffIcon } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -30,6 +30,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
+  const [pushError, setPushError] = useState("");
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [installed, setInstalled] = useState(false);
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
@@ -52,13 +53,25 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     window.addEventListener("beforeinstallprompt", handlePrompt);
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((reg) => {
+      navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then(async (reg) => {
+        reg.update().catch(() => {});
         setSwRegistration(reg);
         if ("PushManager" in window) {
           setPushSupported(true);
-          reg.pushManager.getSubscription().then((sub) => {
-            if (sub) setPushSubscribed(true);
-          });
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            setPushSubscribed(true);
+            fetch("/api/push", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "subscribe", password, username,
+                subscription: sub.toJSON(), userLabel: username || "admin",
+              }),
+            }).then(async (res) => {
+              if (!res.ok) setPushError((await res.json()).error || "Notification subscription needs attention");
+            }).catch(() => setPushError("Notification subscription needs attention"));
+          }
         }
       }).catch(() => {});
     }
@@ -66,7 +79,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     return () => {
       window.removeEventListener("beforeinstallprompt", handlePrompt);
     };
-  }, []);
+  }, [password, username]);
 
   const handleInstall = useCallback(async () => {
     const prompt = promptRef.current;
@@ -83,10 +96,11 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   const handleSubscribePush = useCallback(async () => {
     if (!swRegistration || !VAPID_PUBLIC_KEY || subscribing) return;
     setSubscribing(true);
+    setPushError("");
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setSubscribing(false);
+        setPushError("Notifications are blocked in browser settings");
         return;
       }
 
@@ -101,6 +115,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
         body: JSON.stringify({
           action: "subscribe",
           password,
+          username,
           subscription: subscription.toJSON(),
           userLabel: username || "admin",
         }),
@@ -108,13 +123,40 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
       if (res.ok) {
         setPushSubscribed(true);
+      } else {
+        setPushError((await res.json()).error || "Could not enable notifications");
       }
     } catch {
-      // Subscription failed silently
+      setPushError("Could not enable notifications");
     } finally {
       setSubscribing(false);
     }
   }, [swRegistration, password, username, subscribing]);
+
+  const handleTestPush = useCallback(async () => {
+    setPushError("");
+    const res = await fetch("/api/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "test", password, username }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.delivery?.delivered === 0) setPushError(data.error || "No subscribed device accepted the test");
+  }, [password, username]);
+
+  const handleUnsubscribePush = useCallback(async () => {
+    if (!swRegistration) return;
+    const subscription = await swRegistration.pushManager.getSubscription();
+    if (!subscription) return setPushSubscribed(false);
+    const res = await fetch("/api/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "unsubscribe", password, username, endpoint: subscription.endpoint }),
+    });
+    if (!res.ok) return setPushError((await res.json()).error || "Could not disable notifications");
+    await subscription.unsubscribe();
+    setPushSubscribed(false);
+  }, [swRegistration, password, username]);
 
   const showInstallButton = installPrompt && !isStandalone && !installed;
   const showIosInstall = isIos && !isStandalone && !installed;
@@ -126,7 +168,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
   return (
     <>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5" title={pushError || undefined}>
         {/* Android install */}
         {showInstallButton && (
           <Button
@@ -180,6 +222,19 @@ export function PwaInstallBanner({ password, username }: { password: string; use
             <CheckCircleIcon className="h-3 w-3" />
           </span>
         )}
+
+        {pushSubscribed && (
+          <>
+            <Button type="button" variant="ghost" size="icon" onClick={handleTestPush} className="h-7 w-7" title="Send test notification">
+              <SendIcon className="h-3.5 w-3.5" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon" onClick={handleUnsubscribePush} className="h-7 w-7" title="Disable notifications">
+              <BellOffIcon className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
+
+        {pushError && <span className="hidden text-[10px] text-red-600 xl:inline">{pushError}</span>}
 
       </div>
 

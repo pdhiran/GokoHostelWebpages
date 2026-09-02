@@ -15,7 +15,7 @@ import {
 import { parseFoodCheckoutGraceDays, foodTaxPercent } from "@/lib/foodLookup";
 import { normalizePhone, phonesMatch } from "@/lib/phoneUtils";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
-import { sendPushToAll } from "@/lib/pushNotify";
+import { dispatchPush } from "@/lib/pushNotify";
 
 export async function POST(req: NextRequest) {
   try {
@@ -232,12 +232,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 9. Push notification
-    sendPushToAll({
+    await dispatchPush({
       title: "New Food Order",
-      body: `Order #${order.orderNumber} from ${guestName || "Guest"}`,
-      url: "/admin",
-      tag: "food-order",
-    }).catch(() => {});
+      body: `#${order.orderNumber} · ${(guestName || "Guest").split(/\s+/)[0]} · ${validatedItems.reduce((sum, item) => sum + item.quantity, 0)} item(s) · ₹${(total / 100).toFixed(0)}${requireApproval ? " · Approval needed" : ""}`,
+      url: "/admin?section=foodOrders",
+      eventId: `food-order-${order.id}`,
+      category: "food",
+    });
 
     // 10. Return success
     return NextResponse.json({

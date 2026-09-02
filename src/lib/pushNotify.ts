@@ -9,34 +9,66 @@ type PushPayload = {
   body: string;
   url?: string;
   tag?: string;
+  eventId?: string;
+  category?: "booking" | "food" | "checkin" | "operations" | "test";
+  renotify?: boolean;
 };
 
-export async function sendPushToAll(payload: PushPayload) {
-  if (isOfflineMode()) return;
+export type PushDeliverySummary = {
+  attempted: number;
+  delivered: number;
+  expired: number;
+  failed: number;
+};
+
+function clean(value: string, max: number) {
+  return value.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+export function notificationFirstName(name?: string | null) {
+  return clean(name || "Guest", 80).split(/\s+/)[0] || "Guest";
+}
+
+export function buildPushPayload(payload: PushPayload) {
+  const category = payload.category || "operations";
+  const eventId = clean(payload.eventId || payload.tag || crypto.randomUUID(), 120);
+  return {
+    title: clean(payload.title || "Goko", 80) || "Goko",
+    body: clean(payload.body || "You have a new update", 240) || "You have a new update",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    url: payload.url?.startsWith("/admin") ? payload.url : "/admin",
+    tag: clean(payload.tag || `${category}-${eventId}`, 120),
+    category,
+    eventId,
+    renotify: payload.renotify ?? category !== "operations",
+    timestamp: Date.now(),
+  };
+}
+
+export async function sendPushToAll(payload: PushPayload): Promise<PushDeliverySummary> {
+  const summary: PushDeliverySummary = { attempted: 0, delivered: 0, expired: 0, failed: 0 };
+  if (isOfflineMode()) return summary;
 
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!vapidPrivateKey) return;
+  if (!vapidPrivateKey) return summary;
 
   let privateJWK: object;
   try {
     privateJWK = JSON.parse(vapidPrivateKey);
   } catch {
-    return;
+    console.error("Push delivery disabled: VAPID_PRIVATE_KEY is not valid JSON");
+    return summary;
   }
 
   const db = getDb();
   const subs = await db.select().from(pushSubscriptions);
-  if (subs.length === 0) return;
+  summary.attempted = subs.length;
+  if (subs.length === 0) return summary;
 
-  const pushPayload = {
-    title: payload.title,
-    body: payload.body,
-    icon: "/icons/icon-192.png",
-    url: payload.url || "/admin",
-    tag: payload.tag || "goko-notification",
-  };
+  const pushPayload = buildPushPayload(payload);
 
-  const results = await Promise.allSettled(
+  await Promise.allSettled(
     subs.map(async (sub) => {
       try {
         const subscription = {
@@ -58,16 +90,36 @@ export async function sendPushToAll(payload: PushPayload) {
 
         if (res.status === 410 || res.status === 404) {
           await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
+          summary.expired++;
+          return;
         }
 
-        if (!res.ok && res.status !== 201) {
-          console.error(`Push delivery failed: ${res.status} ${res.statusText} for ${sub.endpoint.slice(0, 60)}...`);
+        if (res.ok || res.status === 201) {
+          summary.delivered++;
+        } else {
+          summary.failed++;
+          console.error(`Push delivery failed: ${res.status} ${res.statusText}`);
         }
       } catch (err) {
+        summary.failed++;
         console.error("Push send error:", err instanceof Error ? err.message : err);
       }
     })
   );
 
-  return results;
+  return summary;
+}
+
+/** Keep Cloudflare requests fast without letting the Worker terminate delivery. */
+export async function dispatchPush(payload: PushPayload) {
+  const delivery = sendPushToAll(payload).catch((error) => {
+    console.error("Push dispatch failed:", error instanceof Error ? error.message : error);
+    return { attempted: 0, delivered: 0, expired: 0, failed: 1 };
+  });
+  try {
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    getCloudflareContext().ctx.waitUntil(delivery);
+  } catch {
+    await delivery;
+  }
 }

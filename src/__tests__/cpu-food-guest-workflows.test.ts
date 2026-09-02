@@ -22,7 +22,7 @@ const q = vi.hoisted(() => ({
   getFoodOrderItems: vi.fn(),
   getFoodOrderItemsBatch: vi.fn(),
   getGuestAllFoodOrders: vi.fn(),
-  sendPushToAll: vi.fn(),
+  dispatchPush: vi.fn(),
 }));
 
 vi.mock("@/db/queries", () => ({
@@ -46,7 +46,7 @@ vi.mock("@/db/queries", () => ({
   getGuestAllFoodOrders: q.getGuestAllFoodOrders,
 }));
 
-vi.mock("@/lib/pushNotify", () => ({ sendPushToAll: q.sendPushToAll }));
+vi.mock("@/lib/pushNotify", () => ({ dispatchPush: q.dispatchPush }));
 
 import { GET as getMenu } from "@/app/api/food/menu/route";
 import { POST as postOrder } from "@/app/api/food/order/route";
@@ -98,7 +98,7 @@ const validOrder = {
 describe("GET /api/food/menu", () => {
   beforeEach(() => {
     for (const fn of Object.values(q)) fn.mockReset();
-    q.sendPushToAll.mockResolvedValue(undefined);
+    q.dispatchPush.mockResolvedValue(undefined);
     q.getActiveMenuCategories.mockResolvedValue([{ id: 1, name: "South" }]);
     q.getAvailableMenuItems.mockResolvedValue([{ id: 1, name: "Dosa", isAvailable: 1 }]);
     q.getAllMenuItems.mockResolvedValue([
@@ -156,7 +156,7 @@ describe("GET /api/food/menu", () => {
 describe("POST /api/food/order", () => {
   beforeEach(() => {
     for (const fn of Object.values(q)) fn.mockReset();
-    q.sendPushToAll.mockResolvedValue(undefined);
+    q.dispatchPush.mockResolvedValue(undefined);
     q.getFoodOrderByIdempotencyKey.mockResolvedValue(null);
     q.getActiveCheckins.mockResolvedValue([]);
     q.getRecentlyCheckedOutGuests.mockResolvedValue([]);
@@ -266,14 +266,14 @@ describe("POST /api/food/order", () => {
     });
     expect(q.getFoodOrderByIdempotencyKey).toHaveBeenCalledWith("guest-key-1");
     expect(q.createFoodOrder).not.toHaveBeenCalled();
-    expect(q.sendPushToAll).not.toHaveBeenCalled();
+    expect(q.dispatchPush).not.toHaveBeenCalled();
   });
 });
 
 describe("GET /api/food/status", () => {
   beforeEach(() => {
     for (const fn of Object.values(q)) fn.mockReset();
-    q.sendPushToAll.mockResolvedValue(undefined);
+    q.dispatchPush.mockResolvedValue(undefined);
     q.getActiveCheckins.mockResolvedValue([]);
     q.getFoodOrderItemsBatch.mockResolvedValue(new Map());
     mockSettings();

@@ -11,6 +11,7 @@ import { addCalendarDays } from "@/lib/inventoryAvailability";
 import { stayDueAtHotel } from "@/lib/stayPayment";
 import { checkinIdsMatchingContact } from "@/lib/foodTab";
 import { activeCheckinIdsForContact, getPendingFoodTab } from "@/lib/foodTabDb";
+import { dispatchPush } from "@/lib/pushNotify";
 import {
   getCheckinsByMonth, getActiveCheckins, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
   getAllBeds, getBedById, updateBedStatus, getAllDorms, getDormByName, addDorm, addBed, deleteBed, deleteDormAndBeds,
@@ -164,6 +165,13 @@ export async function POST(req: NextRequest) {
       }
       await addAuditEntry({ username: actingUser, action: "checkin_add", target: e[3] || "unknown" });
       addSystemLog({ level: "info", source: "admin-api", message: `Check-in added: ${e[3] || "unknown"} by ${actingUser}` }).catch(() => {});
+      await dispatchPush({
+        title: "New Check-in",
+        body: `${String(e[3] || "Guest").split(/\s+/)[0]} · ${e[4] || 1} guest(s) · ${finalBookingId || platform || "Walk-in"}`,
+        url: "/admin?section=dashboard",
+        eventId: `admin-checkin-${finalBookingId || addData.submittedAt}`,
+        category: "checkin",
+      });
       return NextResponse.json({ success: true });
     }
 

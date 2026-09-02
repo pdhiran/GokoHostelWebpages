@@ -1,4 +1,4 @@
-const CACHE_NAME = "goko-admin-v3";
+const CACHE_NAME = "goko-admin-v4";
 const OFFLINE_URL = "/admin";
 
 // --- Failover State ---
@@ -159,6 +159,9 @@ self.addEventListener("push", (event) => {
     let icon = "/icons/icon-192.png";
     let url = "/admin";
     let tag = "goko-notification";
+    let badge = "/icons/icon-192.png";
+    let renotify = true;
+    let timestamp = Date.now();
 
     try {
       if (event.data) {
@@ -175,6 +178,9 @@ self.addEventListener("push", (event) => {
           if (data.icon) icon = String(data.icon);
           if (data.url) url = String(data.url);
           if (data.tag) tag = String(data.tag);
+          if (data.badge) badge = String(data.badge);
+          if (typeof data.renotify === "boolean") renotify = data.renotify;
+          if (Number.isFinite(data.timestamp)) timestamp = data.timestamp;
         } else if (!data) {
           const text = event.data.text();
           if (text && text.length > 0 && text.length < 500) {
@@ -189,11 +195,12 @@ self.addEventListener("push", (event) => {
     return self.registration.showNotification(title, {
       body,
       icon,
-      badge: "/icons/icon-192.png",
+      badge,
       data: { url },
       vibrate: [200, 100, 200],
       tag,
-      renotify: true,
+      renotify,
+      timestamp,
     });
   };
 
@@ -206,31 +213,14 @@ self.addEventListener("notificationclick", (event) => {
   const targetUrl = event.notification.data?.url || "/admin";
 
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windowClients) => {
       for (const client of windowClients) {
         if (client.url.includes("/admin") && "focus" in client) {
+          if ("navigate" in client) await client.navigate(targetUrl);
           return client.focus();
         }
       }
       return self.clients.openWindow(targetUrl);
     })
-  );
-});
-
-self.addEventListener("pushsubscriptionchange", (event) => {
-  event.waitUntil(
-    self.registration.pushManager
-      .subscribe(event.oldSubscription?.options || { userVisibleOnly: true })
-      .then((newSubscription) => {
-        return fetch("/api/push", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "resubscribe",
-            oldEndpoint: event.oldSubscription?.endpoint,
-            subscription: newSubscription.toJSON(),
-          }),
-        });
-      })
   );
 });
