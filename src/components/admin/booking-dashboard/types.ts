@@ -18,6 +18,7 @@ export type DashboardBooking = {
   persons: number;
   status: BookingStatus;
   source: string;
+  property: string;
   specialRequests: string;
   amountBeforeTax: number;
   amountTax: number;

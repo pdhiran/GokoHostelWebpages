@@ -21,6 +21,8 @@ import {
   EditIcon,
   BanknoteIcon,
   RefreshCwIcon,
+  MessageCircleIcon,
+  SendIcon,
 } from "lucide-react";
 import { STATUS_COLORS, platformLogo, STATUS_LABELS, formatCurrency, getHostelToday, getNights, collectionCopy, displayedStayPayment } from "./utils";
 import { parseGokoWalkin, walkinDiscountOnGross } from "@/lib/bookingPricing";
@@ -34,6 +36,7 @@ import { canLookupFoodTab, foodTabUncheckedMessage, unpaidFoodCheckoutMessage } 
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { hasPermission, type Role } from "../types";
 import type { DashboardBooking, BedAssignment, BookingHistoryEntry } from "./types";
+import { bookingWhatsAppNumber, bookingWhatsAppReference, fillBookingWhatsAppTemplate, type BookingWhatsAppTemplate } from "@/lib/bookingWhatsApp";
 
 export function BookingDetailPanel({
   booking,
@@ -44,6 +47,7 @@ export function BookingDetailPanel({
   permissions,
   password,
   username,
+  whatsAppTemplates,
 }: {
   booking: DashboardBooking;
   assignments: BedAssignment[];
@@ -53,6 +57,7 @@ export function BookingDetailPanel({
   permissions: Record<string, boolean>;
   password: string;
   username?: string;
+  whatsAppTemplates: BookingWhatsAppTemplate[];
 }) {
   const { showError } = useAdminToast();
   const [history, setHistory] = useState<BookingHistoryEntry[]>([]);
@@ -63,6 +68,7 @@ export function BookingDetailPanel({
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundRupees, setRefundRupees] = useState("0");
   const [refundPay, setRefundPay] = useState<{ amount: number } | null>(null);
+  const [showWhatsAppTemplates, setShowWhatsAppTemplates] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     action: string;
     title: string;
@@ -181,6 +187,25 @@ export function BookingDetailPanel({
   const dueAtHotel = due > 0;
   // Prepaid: Paid = total / Balance = ₹0. Check-in copies amountPaid as online; status stays prepaid.
   const shownPay = displayedStayPayment(booking.paymentStatus, booking.amountTotal, booking.amountPaid);
+  const whatsAppNumber = bookingWhatsAppNumber(booking.contact || "");
+  const propertyName = booking.property === "sunnys_paradise" ? "Sunny's Paradise" : "Goko Hostel";
+  const bookingId = bookingWhatsAppReference(booking);
+  const balanceText = booking.currency && booking.currency !== "INR"
+    ? `${booking.currency} ${shownPay.balance.toLocaleString("en-IN")}`
+    : formatCurrency(shownPay.balance);
+
+  const openWhatsApp = (template: BookingWhatsAppTemplate) => {
+    const message = fillBookingWhatsAppTemplate(template.message, {
+      "{GUEST_NAME}": booking.guestName,
+      "{CHECK_IN}": booking.checkinDate,
+      "{CHECK_OUT}": booking.checkoutDate || "-",
+      "{BOOKING_ID}": bookingId,
+      "{BALANCE}": balanceText,
+      "{PROPERTY_NAME}": propertyName,
+    });
+    window.open(`https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    setShowWhatsAppTemplates(false);
+  };
   const hasAssignedBed = assignments.some((a) => a.status === "assigned");
   const canCancelStay = hasAssignedBed
     ? hasPermission(role, permissions, "canDeleteBooking")
@@ -332,6 +357,18 @@ export function BookingDetailPanel({
                   <div className="flex items-center gap-2 text-xs">
                     <PhoneIcon className="size-3 text-muted-foreground" />
                     <span className="text-foreground">{booking.contact}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="ml-auto text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/30"
+                      onClick={() => setShowWhatsAppTemplates(true)}
+                      disabled={!whatsAppNumber}
+                      title={whatsAppNumber ? "Send WhatsApp message" : "A valid phone number is required"}
+                    >
+                      <MessageCircleIcon className="size-4" />
+                      <span className="sr-only">Send WhatsApp message</span>
+                    </Button>
                   </div>
                 )}
                 {booking.email && (
@@ -471,6 +508,30 @@ export function BookingDetailPanel({
           </div>
         </div>
       </motion.div>
+
+      {showWhatsAppTemplates && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={() => setShowWhatsAppTemplates(false)}>
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-popover p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-foreground">Message {booking.guestName}</h3>
+                <p className="text-xs text-muted-foreground">Choose a template to open in WhatsApp.</p>
+              </div>
+              <Button variant="ghost" size="icon-sm" onClick={() => setShowWhatsAppTemplates(false)}><XIcon className="size-4" /><span className="sr-only">Close</span></Button>
+            </div>
+            <div className="mt-4 max-h-80 space-y-2 overflow-y-auto">
+              {whatsAppTemplates.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No message templates are saved. An admin or manager can add them from the Bookings toolbar.</p>
+              ) : whatsAppTemplates.map((template) => (
+                <button key={template.id} type="button" onClick={() => openWhatsApp(template)} className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-muted/50">
+                  <SendIcon className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                  <span className="min-w-0"><span className="block text-sm font-medium text-foreground">{template.name}</span><span className="mt-1 line-clamp-2 block whitespace-pre-wrap text-xs text-muted-foreground">{template.message}</span></span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Check-in popup */}
       {showCheckinPopup && (

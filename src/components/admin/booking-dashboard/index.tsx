@@ -18,6 +18,8 @@ import type { DashboardBooking, BedAssignment, DateRange, CalendarDorm } from ".
 import type { Role } from "../types";
 import { hasPermission } from "../types";
 import { fetchWithRetry } from "@/components/admin/useAdminApi";
+import { WhatsAppTemplateManager, MessageTemplatesIcon } from "./WhatsAppTemplateManager";
+import type { BookingWhatsAppTemplate } from "@/lib/bookingWhatsApp";
 
 function useBookingApi(password: string, username?: string) {
   const apiCall = useCallback(
@@ -71,6 +73,8 @@ export function BookingDashboard({
   const openingInitialBookingId = useRef<number | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [whatsAppTemplates, setWhatsAppTemplates] = useState<BookingWhatsAppTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -160,6 +164,12 @@ export function BookingDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange.startDate, dateRange.endDate]);
 
+  useEffect(() => {
+    void apiCall({ action: "getWhatsAppTemplates" }).then(async (res) => {
+      if (res.ok) setWhatsAppTemplates((await res.json()).templates || []);
+    }).catch(() => {});
+  }, [apiCall]);
+
   const handleDateRangeChange = useCallback((newRange: DateRange) => {
     setDateRange(newRange);
   }, []);
@@ -216,6 +226,12 @@ export function BookingDashboard({
             bookings={bookings}
             onSelect={openBooking}
           />
+          {(role === "admin" || role === "manager") && (
+            <Button variant="outline" size="sm" onClick={() => setShowTemplateManager(true)}>
+              <MessageTemplatesIcon />
+              <span className="hidden sm:inline">Message Templates</span>
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -354,6 +370,15 @@ export function BookingDashboard({
           permissions={permissions}
           password={password}
           username={username}
+          whatsAppTemplates={whatsAppTemplates}
+        />
+      )}
+
+      {showTemplateManager && (
+        <WhatsAppTemplateManager
+          apiCall={apiCall}
+          onClose={() => setShowTemplateManager(false)}
+          onSaved={setWhatsAppTemplates}
         />
       )}
 

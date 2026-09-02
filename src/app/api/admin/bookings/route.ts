@@ -18,7 +18,7 @@ import {
   unassignBookingBedsByBedIds,
   cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
   addBooking, updateBookingFull, transitionBookingStatus, getAllDorms, getAllBeds, getBedById,
-  getChannelConfig, getActiveBedBlocks, getSetting,
+  getChannelConfig, getActiveBedBlocks, getSetting, setSetting,
   getRoomTypeMappings, getRatePlanMappings, getAllDailyRates,
   deactivateBedBlocksByBedIds, shortenAssignedCheckout,
 } from "@/db/queries";
@@ -37,6 +37,11 @@ import {
   walkinDiscountOnGross,
   nextGokoWalkinRaw,
 } from "@/lib/bookingPricing";
+import {
+  BOOKING_WHATSAPP_SETTING,
+  parseBookingWhatsAppTemplates,
+  validateBookingWhatsAppTemplates,
+} from "@/lib/bookingWhatsApp";
 
 function bookingDateRange(checkinDate: string, checkoutDate?: string | null): string[] {
   return occupiedNights(checkinDate, checkoutDate);
@@ -254,6 +259,8 @@ const ACTION_PERMISSIONS: Record<string, ActionPerm> = {
   checkAvailability: "canViewBookings",
   getAvailableBeds: "canViewBookings",
   getBookingHistory: "canViewBookings",
+  getWhatsAppTemplates: "canViewBookings",
+  saveWhatsAppTemplates: "canViewBookings",
   createBooking: "canAddBooking",
   assignBeds: "canAddBooking",
   checkIn: ["canCheckIn", "canAddBooking"],
@@ -295,6 +302,9 @@ export async function POST(req: NextRequest) {
     if (gate === "forbidden" && action === "cancelBooking" && role === "manager") {
       gate = "allowed";
     }
+    if (gate === "forbidden" && role === "manager" && (action === "getWhatsAppTemplates" || action === "saveWhatsAppTemplates")) {
+      gate = "allowed";
+    }
     if (gate === "admin_required") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
@@ -303,6 +313,21 @@ export async function POST(req: NextRequest) {
     }
 
     // --- View Actions ---
+
+    if (action === "getWhatsAppTemplates") {
+      const templates = parseBookingWhatsAppTemplates(await getSetting(BOOKING_WHATSAPP_SETTING));
+      return NextResponse.json({ templates });
+    }
+
+    if (action === "saveWhatsAppTemplates") {
+      if (role !== "admin" && role !== "manager") {
+        return NextResponse.json({ error: "Admin or manager access required" }, { status: 403 });
+      }
+      const templates = validateBookingWhatsAppTemplates(body.templates);
+      if (!templates) return NextResponse.json({ error: "Invalid templates (maximum 10)" }, { status: 400 });
+      await setSetting(BOOKING_WHATSAPP_SETTING, JSON.stringify(templates));
+      return NextResponse.json({ success: true, templates });
+    }
 
     if (action === "getCalendarData") {
       const { startDate, endDate } = body;
