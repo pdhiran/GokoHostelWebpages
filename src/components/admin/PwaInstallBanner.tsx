@@ -9,7 +9,6 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -26,12 +25,20 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIos, setIsIos] = useState(false);
   const [showIosModal, setShowIosModal] = useState(false);
+  const [vapidPublicKey, setVapidPublicKey] = useState("");
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [pushError, setPushError] = useState("");
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [installed, setInstalled] = useState(false);
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
+
+  useEffect(() => {
+    fetch("/api/push", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setVapidPublicKey(data.publicKey || ""))
+      .catch(() => setPushError("Could not load notification configuration"));
+  }, []);
 
   useEffect(() => {
     const standalone = window.matchMedia("(display-mode: standalone)").matches
@@ -56,10 +63,10 @@ export function PwaInstallBanner({ password, username }: { password: string; use
         setSwRegistration(reg);
         if (reg.pushManager) {
           let sub = await reg.pushManager.getSubscription();
-          if (!sub && Notification.permission === "granted" && VAPID_PUBLIC_KEY) {
+          if (!sub && Notification.permission === "granted" && vapidPublicKey) {
             sub = await reg.pushManager.subscribe({
               userVisibleOnly: true,
-              applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+              applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
             });
           }
           if (sub) {
@@ -88,7 +95,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     return () => {
       window.removeEventListener("beforeinstallprompt", handlePrompt);
     };
-  }, [password, username]);
+  }, [password, username, vapidPublicKey]);
 
   const handleInstall = useCallback(async () => {
     const prompt = promptRef.current;
@@ -103,7 +110,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   }, []);
 
   const handleSubscribePush = useCallback(async () => {
-    if (!VAPID_PUBLIC_KEY || subscribing) return;
+    if (!vapidPublicKey || subscribing) return;
     setSubscribing(true);
     setPushError("");
     try {
@@ -122,7 +129,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
       const subscription = await registration.pushManager.getSubscription()
         || await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
         });
 
       const res = await fetch("/api/push", {
@@ -147,7 +154,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     } finally {
       setSubscribing(false);
     }
-  }, [swRegistration, password, username, subscribing]);
+  }, [swRegistration, vapidPublicKey, password, username, subscribing]);
 
   const handleTestPush = useCallback(async () => {
     setPushError("");
@@ -177,7 +184,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   const showInstallButton = installPrompt && !isStandalone && !installed;
   const showIosInstall = isIos && !isStandalone && !installed;
   const showPushButton = !pushSubscribed;
-  const pushUnavailable = !VAPID_PUBLIC_KEY;
+  const pushUnavailable = !vapidPublicKey;
 
   return (
     <>

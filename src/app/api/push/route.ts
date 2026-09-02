@@ -11,6 +11,13 @@ async function authenticate(password: string, username?: string): Promise<boolea
   return authenticateSimple(password, username);
 }
 
+export async function GET() {
+  return NextResponse.json(
+    { publicKey: process.env["NEXT_PUBLIC_VAPID_PUBLIC_KEY"] || "" },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 export async function POST(req: NextRequest) {
   if (isOfflineMode()) {
     return NextResponse.json({ error: "Push notifications require internet" }, { status: 503 });
