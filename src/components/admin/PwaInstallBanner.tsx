@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { DownloadIcon, BellIcon, SmartphoneIcon, XIcon, CheckCircleIcon, Loader2Icon, SendIcon, BellOffIcon } from "lucide-react";
+import { PUSH_SUBSCRIBED_AT_KEY, pushSubscriptionNeedsRenewal } from "@/lib/pushSubscription";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -10,7 +11,6 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -58,9 +58,22 @@ export function PwaInstallBanner({ password, username }: { password: string; use
         setSwRegistration(reg);
         if ("PushManager" in window) {
           setPushSupported(true);
-          const sub = await reg.pushManager.getSubscription();
+          let sub = await reg.pushManager.getSubscription();
+          const subscribedAt = Number(localStorage.getItem(PUSH_SUBSCRIBED_AT_KEY));
+          const needsRenewal = !!sub && pushSubscriptionNeedsRenewal(subscribedAt);
+          if (sub && needsRenewal && Notification.permission === "granted" && VAPID_PUBLIC_KEY) {
+            await fetch("/api/push", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "unsubscribe", password, username, endpoint: sub.endpoint }),
+            }).catch(() => {});
+            await sub.unsubscribe();
+            sub = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+            });
+          }
           if (sub) {
-            setPushSubscribed(true);
             fetch("/api/push", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -69,7 +82,13 @@ export function PwaInstallBanner({ password, username }: { password: string; use
                 subscription: sub.toJSON(), userLabel: username || "admin",
               }),
             }).then(async (res) => {
-              if (!res.ok) setPushError((await res.json()).error || "Notification subscription needs attention");
+              if (res.ok) {
+                setPushSubscribed(true);
+                if (needsRenewal || !subscribedAt) localStorage.setItem(PUSH_SUBSCRIBED_AT_KEY, String(Date.now()));
+              } else {
+                setPushSubscribed(false);
+                setPushError((await res.json()).error || "Notification subscription needs attention");
+              }
             }).catch(() => setPushError("Notification subscription needs attention"));
           }
         }
@@ -123,6 +142,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
       if (res.ok) {
         setPushSubscribed(true);
+        localStorage.setItem(PUSH_SUBSCRIBED_AT_KEY, String(Date.now()));
       } else {
         setPushError((await res.json()).error || "Could not enable notifications");
       }
@@ -155,6 +175,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
     });
     if (!res.ok) return setPushError((await res.json()).error || "Could not disable notifications");
     await subscription.unsubscribe();
+    localStorage.removeItem(PUSH_SUBSCRIBED_AT_KEY);
     setPushSubscribed(false);
   }, [swRegistration, password, username]);
 
