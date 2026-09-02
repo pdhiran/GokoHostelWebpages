@@ -192,16 +192,22 @@ self.addEventListener("push", (event) => {
       // Parsing failed entirely — fall through with defaults
     }
 
-    return self.registration.showNotification(title, {
-      body,
-      icon,
-      badge,
-      data: { url },
-      vibrate: [200, 100, 200],
-      tag,
-      renotify,
-      timestamp,
-    });
+    try {
+      await self.registration.showNotification(title, {
+        body,
+        icon,
+        badge,
+        data: { url },
+        vibrate: [200, 100, 200],
+        tag,
+        renotify,
+        timestamp,
+      });
+    } catch {
+      // Some browser/OS versions reject optional notification fields.
+      // Retrying with the portable core prevents Chrome's blank fallback card.
+      await self.registration.showNotification(title, { body, data: { url } });
+    }
   };
 
   event.waitUntil(showNotif());

@@ -44,6 +44,7 @@ import { getDb } from "@/db";
 import { foodOrders, foodOrderItems, checkins, orderModifications } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { createGuestReceipt, latestReceiptAccount, resolveReceiptAccount } from "@/lib/guestReceipts";
+import { dispatchPush, notificationFirstName } from "@/lib/pushNotify";
 
 export async function POST(req: NextRequest) {
   try {
@@ -280,6 +281,13 @@ export async function POST(req: NextRequest) {
           action: "food_order_placed",
           target: `order:${order.id}`,
           details: `Placed for ${guestName} (${guestType}), total ₹${(total / 100).toFixed(0)}`,
+        });
+        await dispatchPush({
+          title: "New Food Order",
+          body: `#${order.orderNumber} · ${notificationFirstName(guestName)} · ${validatedItems.reduce((sum, item) => sum + item.quantity, 0)} item(s) · ₹${(total / 100).toFixed(0)}`,
+          url: "/admin?section=foodOrders",
+          eventId: `admin-food-order-${order.id}`,
+          category: "food",
         });
         return NextResponse.json({ success: true, role, orderId: order.id, orderNumber: order.orderNumber, total });
       }

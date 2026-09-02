@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import * as fs from "fs";
+import * as path from "path";
 import { buildPushPayload, notificationFirstName } from "@/lib/pushNotify";
+
+const ROOT = path.resolve(__dirname, "../..");
 
 describe("push notification payloads", () => {
   it("keeps useful content, safe admin links, and unique event identity", () => {
@@ -35,5 +39,13 @@ describe("push notification payloads", () => {
   it("limits lock-screen names to a first name", () => {
     expect(notificationFirstName("Ada Lovelace")).toBe("Ada");
     expect(notificationFirstName("")).toBe("Guest");
+  });
+
+  it("notifies for admin-created food orders and retries portable display options", () => {
+    const adminOrders = fs.readFileSync(path.join(ROOT, "src/app/api/admin/food-orders/route.ts"), "utf8");
+    const worker = fs.readFileSync(path.join(ROOT, "public/sw.js"), "utf8");
+    expect(adminOrders).toContain('eventId: `admin-food-order-${order.id}`');
+    expect(adminOrders).toContain('title: "New Food Order"');
+    expect(worker).toContain("await self.registration.showNotification(title, { body, data: { url } })");
   });
 });
