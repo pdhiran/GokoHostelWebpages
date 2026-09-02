@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import type { Role } from "./types";
 import { useAdminToast } from "@/components/admin/AdminToast";
+import { SiteImageField } from "./SiteImageField";
+import { foodImageSrc } from "@/lib/foodImage";
 
 type Category = {
   id: number;
@@ -74,6 +76,7 @@ type ItemForm = {
   tagGokoSpecial: boolean;
   customTags: string[];
   ingredients: string;
+  imageUrl: string;
   displayOrder: string;
   trackInventory: boolean;
   stockQuantity: string;
@@ -86,7 +89,7 @@ const emptyItemForm: ItemForm = {
   priceDisplay: "", priceText: "", tagVeg: false, tagNonVeg: false, tagSpicy: false,
   tagSeafood: false, tagChicken: false, tagMutton: false, tagEgg: false,
   tagChefSpecial: false, tagGokoSpecial: false, customTags: [],
-  ingredients: "", displayOrder: "0",
+  ingredients: "", imageUrl: "", displayOrder: "0",
   trackInventory: false, stockQuantity: "0", lowStockThreshold: "5",
 };
 
@@ -110,6 +113,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
 
@@ -281,6 +285,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
       tagGokoSpecial: tags.includes("goko-special"),
       customTags: custom,
       ingredients: parseIngredients(item.ingredients).join(", "),
+      imageUrl: item.imageUrl || "",
       displayOrder: String(item.displayOrder),
       trackInventory: !!item.trackInventory,
       stockQuantity: String(item.stockQuantity || 0),
@@ -325,6 +330,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
         priceText: itemForm.priceText.trim(),
         tags: JSON.stringify(tags),
         ingredients: JSON.stringify(ingredientsArr),
+        imageUrl: itemForm.imageUrl,
         displayOrder: parseInt(itemForm.displayOrder) || 0,
         trackInventory: itemForm.trackInventory ? 1 : 0,
         stockQuantity: parseInt(itemForm.stockQuantity) || 0,
@@ -623,6 +629,19 @@ export function AdminMenuManagement({ password, username, role }: { password: st
                 <Input value={itemForm.priceText} onChange={(e) => setItemForm({ ...itemForm, priceText: e.target.value })} placeholder="e.g. per plate" className="mt-1" />
               </div>
               <div className="sm:col-span-2 md:col-span-3">
+                <SiteImageField
+                  label="Item photo"
+                  value={foodImageSrc(itemForm.imageUrl)}
+                  kind="food"
+                  folder="menu"
+                  password={password}
+                  username={username}
+                  onChange={(imageUrl) => setItemForm((current) => ({ ...current, imageUrl }))}
+                  onBusy={setImageBusy}
+                  disabled={saving}
+                />
+              </div>
+              <div className="sm:col-span-2 md:col-span-3">
                 <Label className="text-xs">Tags</Label>
                 <div className="mt-2 flex flex-wrap gap-3">
                   <label className="flex items-center gap-1.5 text-xs">
@@ -729,7 +748,7 @@ export function AdminMenuManagement({ password, username, role }: { password: st
               </div>
             </div>
             <div className="mt-4 flex gap-2">
-              <Button type="button" size="sm" onClick={saveItem} disabled={saving}>
+              <Button type="button" size="sm" onClick={saveItem} disabled={saving || imageBusy}>
                 <CheckIcon className="mr-1 h-3.5 w-3.5" /> {editingItemId ? "Update" : "Add"}
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => setShowItemForm(false)}>

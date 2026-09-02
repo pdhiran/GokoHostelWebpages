@@ -2,11 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getAllMenuCategories, addMenuCategory, updateMenuCategory, deleteMenuCategory,
   getAllMenuItems, addMenuItem, updateMenuItem, deleteMenuItem,
+  getMenuItemById,
   toggleMenuItemAvailability, getMenuItemsByCategory,
   getSetting, setSetting,
   addStock as addStockQuery, getLowStockItems as getLowStockItemsQuery,
 } from "@/db/queries";
 import { authenticateUser } from "@/lib/auth";
+import { sanitizeFoodImageUrl } from "@/lib/foodImage";
+import { mediaUrlToKey } from "@/lib/mediaKeys";
+import { deleteMediaKeys } from "@/lib/mediaR2";
+
+async function deleteMenuPhotos(urls: Array<string | null | undefined>) {
+  const keys = urls
+    .map((url) => mediaUrlToKey(String(url || "")))
+    .filter((key): key is string => Boolean(key?.startsWith("menu/")));
+  if (!keys.length) return;
+  try {
+    await deleteMediaKeys(keys);
+  } catch (error) {
+    console.error("Could not delete replaced menu photo:", error);
+  }
+}
 
 const FOOD_SETTINGS_KEYS = [
   "food_kitchen_whatsapp",
@@ -79,7 +95,9 @@ export async function POST(req: NextRequest) {
       case "deleteCategory": {
         const { id } = params;
         if (!id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
+        const categoryItems = await getMenuItemsByCategory(id);
         await deleteMenuCategory(id);
+        await deleteMenuPhotos(categoryItems.map((item) => item.imageUrl));
         return NextResponse.json({ ok: true });
       }
 
@@ -108,6 +126,8 @@ export async function POST(req: NextRequest) {
         const { categoryId, name, nameKannada, description, price, priceText, tags, ingredients, imageUrl, displayOrder, trackInventory, stockQuantity, lowStockThreshold } = params;
         if (!categoryId || !name?.trim()) return NextResponse.json({ error: "categoryId and name are required" }, { status: 400 });
         if (typeof price !== "number" || price < 0) return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
+        const safeImageUrl = sanitizeFoodImageUrl(imageUrl);
+        if (imageUrl && !safeImageUrl) return NextResponse.json({ error: "Invalid item photo" }, { status: 400 });
         await addMenuItem({
           categoryId,
           name: name.trim(),
@@ -117,7 +137,7 @@ export async function POST(req: NextRequest) {
           priceText: priceText || "",
           tags: typeof tags === "string" ? tags : JSON.stringify(tags || []),
           ingredients: typeof ingredients === "string" ? ingredients : JSON.stringify(ingredients || []),
-          imageUrl: imageUrl || "",
+          imageUrl: safeImageUrl,
           displayOrder: displayOrder ?? 0,
           trackInventory: trackInventory ?? 0,
           stockQuantity: stockQuantity ?? 0,
@@ -129,16 +149,28 @@ export async function POST(req: NextRequest) {
       case "updateMenuItem": {
         const { id, ...data } = params;
         if (!id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
+        const previous = await getMenuItemById(id);
+        if (!previous) return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
         if (data.tags && typeof data.tags !== "string") data.tags = JSON.stringify(data.tags);
         if (data.ingredients && typeof data.ingredients !== "string") data.ingredients = JSON.stringify(data.ingredients);
+        if (Object.prototype.hasOwnProperty.call(data, "imageUrl")) {
+          const safeImageUrl = sanitizeFoodImageUrl(data.imageUrl);
+          if (data.imageUrl && !safeImageUrl) return NextResponse.json({ error: "Invalid item photo" }, { status: 400 });
+          data.imageUrl = safeImageUrl;
+        }
         await updateMenuItem(id, data);
+        if (Object.prototype.hasOwnProperty.call(data, "imageUrl") && previous.imageUrl !== data.imageUrl) {
+          await deleteMenuPhotos([previous.imageUrl]);
+        }
         return NextResponse.json({ ok: true });
       }
 
       case "deleteMenuItem": {
         const { id } = params;
         if (!id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
+        const previous = await getMenuItemById(id);
         await deleteMenuItem(id);
+        await deleteMenuPhotos([previous?.imageUrl]);
         return NextResponse.json({ ok: true });
       }
 

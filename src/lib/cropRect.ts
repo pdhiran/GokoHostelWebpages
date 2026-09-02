@@ -20,6 +20,7 @@ export function cropRect(
 
 export const SITE_IMAGE_TARGETS = {
   card: { width: 1600, height: 1000 },
+  food: { width: 1200, height: 1200 },
   hero: { width: 1920, height: 1080 },
 } as const;
 

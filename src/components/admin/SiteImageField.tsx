@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 type UploadOpts = {
   kind: SiteImageKind;
-  folder: "events" | "community" | "heroes";
+  folder: "events" | "community" | "heroes" | "menu";
   password: string;
   username?: string;
 };
@@ -54,7 +54,7 @@ export function SiteImageField({
   label: string;
   value: string;
   kind: SiteImageKind;
-  folder: "events" | "community" | "heroes";
+  folder: "events" | "community" | "heroes" | "menu";
   password: string;
   username?: string;
   onChange: (url: string) => void;
@@ -132,7 +132,7 @@ export function SiteImageField({
           </div>
         ) : (
           <div className="flex h-24 w-40 shrink-0 items-center justify-center rounded-xl border border-dashed border-brand-mist bg-brand-sand/40 text-xs text-brand-green-dark/50">
-            {kind === "hero" ? "16:9" : "16:10"}
+            {kind === "hero" ? "16:9" : kind === "food" ? "1:1" : "16:10"}
           </div>
         )}
         <label className={cn(
@@ -176,7 +176,7 @@ export function SiteImageGallery({
   label: string;
   values: string[];
   kind: SiteImageKind;
-  folder: "events" | "community" | "heroes";
+  folder: "events" | "community" | "heroes" | "menu";
   password: string;
   username?: string;
   onChange: (urls: string[]) => void;

@@ -4,7 +4,7 @@ import { isPiRuntime } from "@/lib/runtime";
 import { getMediaBucket, putMediaObject } from "@/lib/mediaR2";
 import { isSafeMediaKey, keyToMediaUrl } from "@/lib/mediaKeys";
 
-const FOLDERS = new Set(["events", "community", "heroes"]);
+const FOLDERS = new Set(["events", "community", "heroes", "menu"]);
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {

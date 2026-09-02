@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { foodImageSrc } from "@/lib/foodImage";
 
 interface Category {
   id: number;
@@ -312,6 +313,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
               const isUnavailable = item.isAvailable !== 1 || item.price <= 0;
               const qty = getCartQuantity(item.id);
               const showLowStock = !isUnavailable && item.trackInventory && item.stockQuantity != null && item.lowStockThreshold != null && item.stockQuantity <= item.lowStockThreshold && item.stockQuantity > 0;
+              const imageSrc = foodImageSrc(item.imageUrl);
 
               return (
                 <motion.div
@@ -329,9 +331,9 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                 >
                   {/* Image */}
                   <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100 dark:bg-[#1c1c1c]">
-                    {item.imageUrl ? (
+                    {imageSrc ? (
                       <img
-                        src={`/images/food/${item.imageUrl}`}
+                        src={imageSrc}
                         alt={item.name}
                         className="h-full w-full object-cover"
                         loading="lazy"
@@ -345,7 +347,7 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
                     ) : null}
                     <div
                       className="flex h-full w-full items-center justify-center text-2xl text-gray-400"
-                      style={{ display: item.imageUrl ? "none" : "flex" }}
+                      style={{ display: imageSrc ? "none" : "flex" }}
                     >
                       {currentCategory?.icon || "🍽️"}
                     </div>
