@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateIdDocument, validateMultipleFiles } from "@/lib/validateIdDocument";
 import { driveUploadFile, driveGetOrCreateFolder } from "@/lib/googleApiFetch";
 import { addCheckin, incrementStat, getSetting, getMonthKey, addAuditEntry, addSystemLog } from "@/db/queries";
-import { dispatchPush } from "@/lib/pushNotify";
+import { dispatchPush, notificationFirstName } from "@/lib/pushNotify";
 import { isOfflineMode } from "@/lib/runtime";
 
 function generateBookingId(): string {
@@ -309,7 +309,7 @@ export async function POST(req: NextRequest) {
     if (!isOfflineMode()) {
       await dispatchPush({
         title: "New Check-in",
-        body: `${name.split(/\s+/)[0]} · ${numberOfPersons} guest(s) · ${finalBookingId || bookingPlatform || "Walk-in"}`,
+        body: `${notificationFirstName(name)} · ${numberOfPersons} ${Number(numberOfPersons) === 1 ? "guest" : "guests"} · ${finalBookingId ? `Booking ${finalBookingId}` : bookingPlatform || "Walk-in"}`,
         url: "/admin?section=dashboard",
         eventId: `self-checkin-${finalBookingId || submittedAt}`,
         category: "checkin",

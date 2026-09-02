@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
-import { buildPushPayload, notificationFirstName } from "@/lib/pushNotify";
+import { buildPushPayload, notificationDate, notificationFirstName, notificationFoodItems, notificationStayDates } from "@/lib/pushNotify";
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -39,6 +39,16 @@ describe("push notification payloads", () => {
   it("limits lock-screen names to a first name", () => {
     expect(notificationFirstName("Ada Lovelace")).toBe("Ada");
     expect(notificationFirstName("")).toBe("Guest");
+  });
+
+  it("formats operational details for a small lock screen", () => {
+    expect(notificationFoodItems([
+      { itemName: "Masala Dosa", quantity: 2 },
+      { itemName: "Chai", quantity: 1 },
+    ])).toBe("2× Masala Dosa, 1× Chai");
+    expect(notificationDate("2026-09-03")).toBe("3 Sept");
+    expect(notificationStayDates("2026-09-03", "2026-09-04")).toBe("3 Sept → 4 Sept");
+    expect(buildPushPayload({ title: "Order", body: "x".repeat(500) }).body).toHaveLength(500);
   });
 
   it("notifies for admin-created food orders and retries portable display options", () => {

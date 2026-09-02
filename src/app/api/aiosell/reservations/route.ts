@@ -5,7 +5,7 @@ import { parseReservationPayload, type ReservationPayload } from "@/lib/aiosell"
 import { occupiedNights, exclusiveEndDate } from "@/lib/inventoryAvailability";
 import { autoAssignOnlineChannelBeds, channelAssignmentNeedsReseat, channelBedNeeds, channelPersonCount } from "@/lib/channelAutoAssign";
 import { logPmsCall } from "@/lib/pmsLog";
-import { dispatchPush, notificationFirstName } from "@/lib/pushNotify";
+import { dispatchPush, notificationFirstName, notificationDate, notificationStayDates } from "@/lib/pushNotify";
 
 const WEBHOOK_URL = "/api/aiosell/reservations";
 
@@ -327,7 +327,7 @@ async function handleNewBooking(payload: ReservationPayload) {
       );
       await dispatchPush({
         title: "Booking Rebooked",
-        body: `${notificationFirstName(channelGuestName(payload.guest))} · ${payload.channel || "Channel"} · ${payload.checkin || existing.checkinDate}`,
+        body: `${notificationFirstName(channelGuestName(payload.guest))} · ${payload.channel || "Channel"} · Check-in ${notificationDate(payload.checkin || existing.checkinDate)}`,
         url: "/admin?section=bookings",
         eventId: `booking-rebooked-${existing.id}-${payload.bookingId}`,
         category: "booking",
@@ -350,7 +350,7 @@ async function handleNewBooking(payload: ReservationPayload) {
     await tryAutoAssignChannelBeds(bookingId, payload, fields.checkinDate, fields.checkoutDate);
     await dispatchPush({
       title: "New Booking",
-      body: `${notificationFirstName(fields.guestName)} · ${fields.platform} · ${fields.checkinDate}–${fields.checkoutDate}`,
+      body: `${notificationFirstName(fields.guestName)} · ${fields.platform} · ${notificationStayDates(fields.checkinDate, fields.checkoutDate)}`,
       url: "/admin?section=bookings",
       eventId: `booking-created-${bookingId}-${payload.bookingId}`,
       category: "booking",
@@ -453,7 +453,7 @@ async function handleModifyBooking(payload: ReservationPayload) {
 
   await dispatchPush({
     title: "Booking Modified",
-    body: `${notificationFirstName(guestName)} · ${payload.channel || "Channel"} · ${newCheckin}–${newCheckout || existing.checkoutDate}`,
+    body: `${notificationFirstName(guestName)} · ${payload.channel || "Channel"} · ${notificationStayDates(newCheckin, newCheckout || existing.checkoutDate)}`,
     url: "/admin?section=bookings",
     eventId: `booking-modified-${existing.id}-${Date.now()}`,
     category: "booking",
@@ -510,7 +510,7 @@ async function handleCancelBooking(payload: ReservationPayload) {
   }
   await dispatchPush({
     title: "Booking Cancelled",
-    body: `${notificationFirstName(existing.guestName)} · ${payload.channel || existing.platform || "Channel"} · ${existing.checkinDate || "Unknown date"}–${existing.checkoutDate || "Unknown date"}`,
+    body: `${notificationFirstName(existing.guestName)} · ${payload.channel || existing.platform || "Channel"} · ${notificationStayDates(existing.checkinDate, existing.checkoutDate)}`,
     url: "/admin?section=bookings",
     eventId: `booking-cancelled-${existing.id}-${payload.bookingId}`,
     category: "booking",

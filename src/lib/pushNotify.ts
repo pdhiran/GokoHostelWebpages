@@ -29,12 +29,28 @@ export function notificationFirstName(name?: string | null) {
   return clean(name || "Guest", 80).split(/\s+/)[0] || "Guest";
 }
 
+export function notificationDate(date?: string | null) {
+  if (!date) return "Unknown date";
+  const parsed = new Date(`${date.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime())
+    ? clean(date, 40)
+    : new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "UTC" }).format(parsed);
+}
+
+export function notificationStayDates(checkin?: string | null, checkout?: string | null) {
+  return `${notificationDate(checkin)} → ${notificationDate(checkout)}`;
+}
+
+export function notificationFoodItems(items: Array<{ itemName: string; quantity: number }>) {
+  return items.map((item) => `${item.quantity}× ${clean(item.itemName, 60)}`).join(", ");
+}
+
 export function buildPushPayload(payload: PushPayload) {
   const category = payload.category || "operations";
   const eventId = clean(payload.eventId || payload.tag || crypto.randomUUID(), 120);
   return {
     title: clean(payload.title || "Goko", 80) || "Goko",
-    body: clean(payload.body || "You have a new update", 240) || "You have a new update",
+    body: clean(payload.body || "You have a new update", 1000) || "You have a new update",
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
     url: payload.url?.startsWith("/admin") ? payload.url : "/admin",

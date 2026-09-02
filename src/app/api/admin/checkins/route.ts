@@ -11,7 +11,7 @@ import { addCalendarDays } from "@/lib/inventoryAvailability";
 import { stayDueAtHotel } from "@/lib/stayPayment";
 import { checkinIdsMatchingContact } from "@/lib/foodTab";
 import { activeCheckinIdsForContact, getPendingFoodTab } from "@/lib/foodTabDb";
-import { dispatchPush } from "@/lib/pushNotify";
+import { dispatchPush, notificationFirstName } from "@/lib/pushNotify";
 import {
   getCheckinsByMonth, getActiveCheckins, addCheckin, updateCheckin, deleteCheckin, getCheckinMonths, markVibeMatched,
   getAllBeds, getBedById, updateBedStatus, getAllDorms, getDormByName, addDorm, addBed, deleteBed, deleteDormAndBeds,
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
       addSystemLog({ level: "info", source: "admin-api", message: `Check-in added: ${e[3] || "unknown"} by ${actingUser}` }).catch(() => {});
       await dispatchPush({
         title: "New Check-in",
-        body: `${String(e[3] || "Guest").split(/\s+/)[0]} · ${e[4] || 1} guest(s) · ${finalBookingId || platform || "Walk-in"}`,
+        body: `${notificationFirstName(String(e[3] || "Guest"))} · ${e[4] || 1} ${Number(e[4] || 1) === 1 ? "guest" : "guests"} · ${finalBookingId ? `Booking ${finalBookingId}` : platform || "Walk-in"}`,
         url: "/admin?section=dashboard",
         eventId: `admin-checkin-${finalBookingId || addData.submittedAt}`,
         category: "checkin",

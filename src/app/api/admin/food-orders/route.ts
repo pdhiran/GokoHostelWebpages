@@ -44,7 +44,7 @@ import { getDb } from "@/db";
 import { foodOrders, foodOrderItems, checkins, orderModifications } from "@/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { createGuestReceipt, latestReceiptAccount, resolveReceiptAccount } from "@/lib/guestReceipts";
-import { dispatchPush, notificationFirstName } from "@/lib/pushNotify";
+import { dispatchPush, notificationFirstName, notificationFoodItems } from "@/lib/pushNotify";
 
 export async function POST(req: NextRequest) {
   try {
@@ -284,7 +284,7 @@ export async function POST(req: NextRequest) {
         });
         await dispatchPush({
           title: "New Food Order",
-          body: `#${order.orderNumber} · ${notificationFirstName(guestName)} · ${validatedItems.reduce((sum, item) => sum + item.quantity, 0)} item(s) · ₹${(total / 100).toFixed(0)}`,
+          body: `${notificationFoodItems(validatedItems)} · ${roomInfo || notificationFirstName(guestName)} · ₹${(total / 100).toFixed(0)}`,
           url: "/admin?section=foodOrders",
           eventId: `admin-food-order-${order.id}`,
           category: "food",

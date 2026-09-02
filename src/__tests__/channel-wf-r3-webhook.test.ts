@@ -28,6 +28,8 @@ vi.mock("@/lib/aiosellSync", () => ({
 vi.mock("@/lib/pushNotify", () => ({
   dispatchPush: q.dispatchPush,
   notificationFirstName: (name?: string) => name?.trim().split(/\s+/)[0] || "Guest",
+  notificationDate: (date?: string) => date || "Unknown date",
+  notificationStayDates: (checkin?: string, checkout?: string) => `${checkin || "Unknown date"} → ${checkout || "Unknown date"}`,
 }));
 
 import { POST as reservationsPOST } from "@/app/api/aiosell/reservations/route";
