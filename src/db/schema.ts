@@ -506,6 +506,7 @@ export const dailyLedger = sqliteTable("daily_ledger", {
   date: text("date").notNull(),
   accountId: integer("account_id").references(() => accounts.id),
   openingBalance: integer("opening_balance").notNull().default(0),
+  openingAdjusted: integer("opening_adjusted").notNull().default(0),
   totalIncome: integer("total_income").notNull().default(0),
   totalExpense: integer("total_expense").notNull().default(0),
   expectedClosing: integer("expected_closing").notNull().default(0),

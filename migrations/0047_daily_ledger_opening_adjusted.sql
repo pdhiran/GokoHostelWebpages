@@ -1,0 +1,1 @@
+ALTER TABLE daily_ledger ADD COLUMN opening_adjusted INTEGER NOT NULL DEFAULT 0;

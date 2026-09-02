@@ -12,7 +12,7 @@ import {
 } from "@/db/queries";
 import { getDb } from "@/db";
 import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors, bookings, guestReceipts } from "@/db/schema";
-import { eq, and, sql, desc, inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, isNull, lt } from "drizzle-orm";
 import { driveUploadFile, driveGetOrCreateFolder, driveDeleteFile } from "@/lib/googleApiFetch";
 import { isOfflineMode } from "@/lib/runtime";
 import { authenticateUser } from "@/lib/auth";
@@ -20,6 +20,7 @@ import { actionAllowed } from "@/lib/actionPermissions";
 import { hostelExpenseIsLinked } from "@/db/splitQueries";
 import { stayDueAtHotel, cashCollected, onlineCollected, cashRefunded, onlineRefunded, occupiedForRoomRevenue, isPrepaidStatus } from "@/lib/stayPayment";
 import { validateManualIncome } from "@/lib/income";
+import { resolveOpeningBalance } from "@/lib/reconciliation";
 
 function extractDriveFileId(link: string): string | null {
   const match = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -580,11 +581,8 @@ export async function POST(req: NextRequest) {
           and(sql`${expenses.createdAt} >= ${date}`, sql`${expenses.createdAt} <= ${date + "T23:59:59"}`)
         );
 
-        // Get previous day's ledger for rolling balances (use date arithmetic to avoid timezone issues)
-        const [year, month, day] = date.split("-").map(Number);
-        const prevDateObj = new Date(year, month - 1, day - 1);
-        const prevDateStr = `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, "0")}-${String(prevDateObj.getDate()).padStart(2, "0")}`;
-        const prevLedgerEntries = await db.select().from(dailyLedger).where(eq(dailyLedger.date, prevDateStr));
+        const priorLedgerEntries = await db.select().from(dailyLedger)
+          .where(lt(dailyLedger.date, date)).orderBy(desc(dailyLedger.date));
 
         // Build balance for each account + cash
         const balances = [
@@ -597,19 +595,9 @@ export async function POST(req: NextRequest) {
           const totalIncome = manualIncome + receiptIncome;
           const totalExpense = dayExpenses.filter((e) => e.accountId === acc.accountId).reduce((s, e) => s + e.amount, 0);
 
-          // Opening balance priority: today's ledger entry > previous day's actual closing > previous day's expected closing > account seed
-          let openingBalance = 0;
-          if (ledgerEntry) {
-            openingBalance = ledgerEntry.openingBalance;
-          } else {
-            const prevEntry = prevLedgerEntries.find((l) => l.accountId === acc.accountId);
-            if (prevEntry) {
-              openingBalance = prevEntry.actualClosing ?? prevEntry.expectedClosing;
-            } else {
-              const account = allAccounts.find((a) => a.id === acc.accountId);
-              openingBalance = account?.openingBalance ?? 0;
-            }
-          }
+          const prevEntry = priorLedgerEntries.find((l) => l.accountId === acc.accountId);
+          const account = allAccounts.find((a) => a.id === acc.accountId);
+          const openingBalance = resolveOpeningBalance(ledgerEntry, prevEntry, account?.openingBalance ?? 0);
 
           const expectedClosing = openingBalance + totalIncome - totalExpense;
 
@@ -647,11 +635,8 @@ export async function POST(req: NextRequest) {
         );
         const allAccounts = await db.select().from(accounts).where(eq(accounts.isActive, 1));
 
-        // Get previous day's ledger for rolling opening balances (timezone-safe)
-        const [yr, mo, dy] = date.split("-").map(Number);
-        const prevDateObj = new Date(yr, mo - 1, dy - 1);
-        const prevDateStr = `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, "0")}-${String(prevDateObj.getDate()).padStart(2, "0")}`;
-        const prevLedgerEntries = await db.select().from(dailyLedger).where(eq(dailyLedger.date, prevDateStr));
+        const priorLedgerEntries = await db.select().from(dailyLedger)
+          .where(lt(dailyLedger.date, date)).orderBy(desc(dailyLedger.date));
         const existingLedger = await db.select().from(dailyLedger).where(eq(dailyLedger.date, date));
 
         for (const entry of entries as { accountId: number | null; actualClosing: number | null }[]) {
@@ -659,20 +644,10 @@ export async function POST(req: NextRequest) {
             + automaticReceipts.filter((r) => r.accountId === entry.accountId).reduce((s, r) => s + r.amount, 0);
           const totalExpense = dayExpenses.filter((e) => e.accountId === entry.accountId).reduce((s, e) => s + e.amount, 0);
 
-          // Determine opening balance same way as getReconciliation
           const todayEntry = existingLedger.find((l) => l.accountId === entry.accountId);
-          let openingBalance = 0;
-          if (todayEntry) {
-            openingBalance = todayEntry.openingBalance;
-          } else {
-            const prevEntry = prevLedgerEntries.find((l) => l.accountId === entry.accountId);
-            if (prevEntry) {
-              openingBalance = prevEntry.actualClosing ?? prevEntry.expectedClosing;
-            } else {
-              const account = allAccounts.find((a) => a.id === entry.accountId);
-              openingBalance = account?.openingBalance ?? 0;
-            }
-          }
+          const prevEntry = priorLedgerEntries.find((l) => l.accountId === entry.accountId);
+          const account = allAccounts.find((a) => a.id === entry.accountId);
+          const openingBalance = resolveOpeningBalance(todayEntry, prevEntry, account?.openingBalance ?? 0);
           const expectedClosing = openingBalance + totalIncome - totalExpense;
 
           const existing = await db.select().from(dailyLedger).where(
@@ -681,6 +656,7 @@ export async function POST(req: NextRequest) {
 
           if (existing.length > 0) {
             await db.update(dailyLedger).set({
+              openingBalance,
               totalIncome,
               totalExpense,
               expectedClosing,
@@ -735,12 +711,13 @@ export async function POST(req: NextRequest) {
         ).limit(1);
 
         if (existing.length > 0) {
-          await db.update(dailyLedger).set({ openingBalance }).where(eq(dailyLedger.id, existing[0].id));
+          await db.update(dailyLedger).set({ openingBalance, openingAdjusted: 1 }).where(eq(dailyLedger.id, existing[0].id));
         } else {
           await db.insert(dailyLedger).values({
             date,
             accountId: accountId ?? null,
             openingBalance,
+            openingAdjusted: 1,
             totalIncome: 0,
             totalExpense: 0,
             expectedClosing: openingBalance,
