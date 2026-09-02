@@ -26,7 +26,6 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIos, setIsIos] = useState(false);
   const [showIosModal, setShowIosModal] = useState(false);
-  const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [pushError, setPushError] = useState("");
@@ -55,8 +54,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
       navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then(async (reg) => {
         reg.update().catch(() => {});
         setSwRegistration(reg);
-        if ("PushManager" in window) {
-          setPushSupported(true);
+        if (reg.pushManager) {
           let sub = await reg.pushManager.getSubscription();
           if (!sub && Notification.permission === "granted" && VAPID_PUBLIC_KEY) {
             sub = await reg.pushManager.subscribe({
@@ -105,20 +103,27 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   }, []);
 
   const handleSubscribePush = useCallback(async () => {
-    if (!swRegistration || !VAPID_PUBLIC_KEY || subscribing) return;
+    if (!VAPID_PUBLIC_KEY || subscribing) return;
     setSubscribing(true);
     setPushError("");
     try {
+      if (!("serviceWorker" in navigator) || typeof Notification === "undefined") {
+        throw new Error("Push notifications are not supported by this browser");
+      }
+
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setPushError("Notifications are blocked in browser settings");
         return;
       }
 
-      const subscription = await swRegistration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
+      const registration = swRegistration || await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
+      setSwRegistration(registration);
+      const subscription = await registration.pushManager.getSubscription()
+        || await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
 
       const res = await fetch("/api/push", {
         method: "POST",
@@ -137,8 +142,8 @@ export function PwaInstallBanner({ password, username }: { password: string; use
       } else {
         setPushError((await res.json()).error || "Could not enable notifications");
       }
-    } catch {
-      setPushError("Could not enable notifications");
+    } catch (error) {
+      setPushError(error instanceof Error ? error.message : "Could not enable notifications");
     } finally {
       setSubscribing(false);
     }
@@ -172,7 +177,7 @@ export function PwaInstallBanner({ password, username }: { password: string; use
   const showInstallButton = installPrompt && !isStandalone && !installed;
   const showIosInstall = isIos && !isStandalone && !installed;
   const showPushButton = !pushSubscribed;
-  const pushUnavailable = !pushSupported || !swRegistration || !VAPID_PUBLIC_KEY;
+  const pushUnavailable = !VAPID_PUBLIC_KEY;
 
   return (
     <>
@@ -214,14 +219,14 @@ export function PwaInstallBanner({ password, username }: { password: string; use
             onClick={handleSubscribePush}
             disabled={subscribing || pushUnavailable}
             className="gap-1 text-xs"
-            title={pushUnavailable ? "Notifications are unavailable in this browser" : "Enable booking, food order, and check-in notifications"}
+            title={pushError || (pushUnavailable ? "Notifications are not configured" : "Enable booking, food order, and check-in notifications")}
           >
             {subscribing ? (
               <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <BellIcon className="h-3.5 w-3.5" />
             )}
-            <span>{pushUnavailable ? "Notifications unavailable" : "Enable notifications"}</span>
+            <span>{pushUnavailable ? "Notifications not configured" : "Enable notifications"}</span>
           </Button>
         )}
 
