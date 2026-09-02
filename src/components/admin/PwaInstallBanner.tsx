@@ -82,7 +82,9 @@ export function PwaInstallBanner({ password, username }: { password: string; use
             }).catch(() => setPushError("Notification subscription needs attention"));
           }
         }
-      }).catch(() => {});
+      }).catch(() => setPushError("Notifications are unavailable in this browser"));
+    } else {
+      setPushError("Notifications are unavailable in this browser");
     }
 
     return () => {
@@ -169,11 +171,8 @@ export function PwaInstallBanner({ password, username }: { password: string; use
 
   const showInstallButton = installPrompt && !isStandalone && !installed;
   const showIosInstall = isIos && !isStandalone && !installed;
-  const showPushButton = pushSupported && !pushSubscribed && VAPID_PUBLIC_KEY;
-
-  if (!showInstallButton && !showIosInstall && !showPushButton && !pushSubscribed) {
-    return null;
-  }
+  const showPushButton = !pushSubscribed;
+  const pushUnavailable = !pushSupported || !swRegistration || !VAPID_PUBLIC_KEY;
 
   return (
     <>
@@ -213,15 +212,16 @@ export function PwaInstallBanner({ password, username }: { password: string; use
             variant="ghost"
             size="sm"
             onClick={handleSubscribePush}
-            disabled={subscribing}
+            disabled={subscribing || pushUnavailable}
             className="gap-1 text-xs"
+            title={pushUnavailable ? "Notifications are unavailable in this browser" : "Enable booking, food order, and check-in notifications"}
           >
             {subscribing ? (
               <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <BellIcon className="h-3.5 w-3.5" />
             )}
-            <span>Enable notifications</span>
+            <span>{pushUnavailable ? "Notifications unavailable" : "Enable notifications"}</span>
           </Button>
         )}
 
