@@ -22,6 +22,7 @@ describe("push notification payloads", () => {
       tag: "booking-booking-42",
       eventId: "booking-42",
       renotify: true,
+      badge: "/icons/notification-badge.png",
     });
   });
 

@@ -159,7 +159,7 @@ self.addEventListener("push", (event) => {
     let icon = "/icons/icon-192.png";
     let url = "/admin";
     let tag = "goko-notification";
-    let badge = "/icons/icon-192.png";
+    let badge = "/icons/notification-badge.png";
     let renotify = true;
     let timestamp = Date.now();
 

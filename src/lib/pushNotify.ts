@@ -52,7 +52,7 @@ export function buildPushPayload(payload: PushPayload) {
     title: clean(payload.title || "Goko", 80) || "Goko",
     body: clean(payload.body || "You have a new update", 1000) || "You have a new update",
     icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
+    badge: "/icons/notification-badge.png",
     url: payload.url?.startsWith("/admin") ? payload.url : "/admin",
     tag: clean(payload.tag || `${category}-${eventId}`, 120),
     category,
