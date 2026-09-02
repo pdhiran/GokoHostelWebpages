@@ -523,9 +523,9 @@ export function BookingDetailPanel({
               {whatsAppTemplates.length === 0 ? (
                 <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No message templates are saved. An admin or manager can add them from the Bookings toolbar.</p>
               ) : whatsAppTemplates.map((template) => (
-                <button key={template.id} type="button" onClick={() => openWhatsApp(template)} className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-muted/50">
-                  <SendIcon className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  <span className="min-w-0"><span className="block text-sm font-medium text-foreground">{template.name}</span><span className="mt-1 line-clamp-2 block whitespace-pre-wrap text-xs text-muted-foreground">{template.message}</span></span>
+                <button key={template.id} type="button" onClick={() => openWhatsApp(template)} className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-muted/50">
+                  <SendIcon className="size-4 shrink-0 text-emerald-600" />
+                  <span className="min-w-0 text-sm font-medium text-foreground">{template.name}</span>
                 </button>
               ))}
             </div>
