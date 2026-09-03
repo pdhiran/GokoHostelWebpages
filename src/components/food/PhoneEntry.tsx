@@ -21,7 +21,7 @@ interface LookupGuest {
 
 interface PhoneEntryProps {
   onIdentified: (guest: GuestInfo) => void;
-  onWalkin: (phone: string) => void;
+  onWalkin: (phone: string, displayName?: string) => void;
   savedPhone?: string;
 }
 
@@ -65,7 +65,7 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
       } else {
         const digits = stripNonDigits(phoneDigits);
         localStorage.setItem("gokoFoodPhone", digits);
-        onWalkin(digits);
+        onWalkin(digits, typeof data.displayName === "string" ? data.displayName : undefined);
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -133,7 +133,10 @@ export function PhoneEntry({ onIdentified, onWalkin, savedPhone }: PhoneEntryPro
 
       <div className="rounded-2xl bg-white/95 dark:bg-card/95 p-6 shadow-xl dark:shadow-none backdrop-blur-sm">
         <h2 className="mb-1 text-lg font-semibold text-gray-800 dark:text-foreground">Enter your phone number</h2>
-        <p className="mb-5 text-sm text-gray-500 dark:text-muted-foreground">We&apos;ll find your booking details</p>
+        <p className="mb-1 text-sm text-gray-500 dark:text-muted-foreground">We&apos;ll find your booking details</p>
+        <p className="mb-5 text-xs text-gray-400 dark:text-muted-foreground">
+          Use the same mobile number you gave at check-in
+        </p>
 
         <form onSubmit={handleSubmit}>
           <div className="relative">

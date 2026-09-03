@@ -7,6 +7,7 @@ const q = vi.hoisted(() => ({
   getActiveCheckins: vi.fn(),
   getAllBeds: vi.fn(),
   getRecentlyCheckedOutGuests: vi.fn(),
+  getLatestCheckinByNormalizedPhone: vi.fn(),
   getSetting: vi.fn(),
   addCheckin: vi.fn(),
   incrementStat: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("@/db/queries", () => ({
   getActiveCheckins: q.getActiveCheckins,
   getAllBeds: q.getAllBeds,
   getRecentlyCheckedOutGuests: q.getRecentlyCheckedOutGuests,
+  getLatestCheckinByNormalizedPhone: q.getLatestCheckinByNormalizedPhone,
   getSetting: q.getSetting,
   addCheckin: q.addCheckin,
   incrementStat: q.incrementStat,
@@ -80,6 +82,7 @@ describe("GET /api/food/lookup", () => {
   beforeEach(() => {
     for (const fn of Object.values(q)) fn.mockReset();
     q.getMonthKey.mockReturnValue("2026-08");
+    q.getLatestCheckinByNormalizedPhone.mockResolvedValue(null);
   });
 
   it("returns found false for empty or invalid phone without querying", async () => {
@@ -92,6 +95,7 @@ describe("GET /api/food/lookup", () => {
     expect(q.getActiveCheckins).not.toHaveBeenCalled();
     expect(q.getAllBeds).not.toHaveBeenCalled();
     expect(q.getRecentlyCheckedOutGuests).not.toHaveBeenCalled();
+    expect(q.getLatestCheckinByNormalizedPhone).not.toHaveBeenCalled();
   });
 
   it("matches an active checkin via real buildFoodLookupGuests", async () => {
@@ -110,6 +114,7 @@ describe("GET /api/food/lookup", () => {
       ],
     });
     expect(q.getRecentlyCheckedOutGuests).toHaveBeenCalledWith(10);
+    expect(q.getLatestCheckinByNormalizedPhone).not.toHaveBeenCalled();
   });
 
   it("skips getRecentlyCheckedOutGuests when grace days is 0", async () => {
@@ -136,6 +141,23 @@ describe("GET /api/food/lookup", () => {
       await lookupGET(lookupReq("9876543210"));
       expect(q.getRecentlyCheckedOutGuests).toHaveBeenLastCalledWith(10);
     }
+  });
+
+  it("returns displayName from a past check-in when no active or grace-period guest matches", async () => {
+    q.getSetting.mockResolvedValue("10");
+    q.getActiveCheckins.mockResolvedValue([]);
+    q.getAllBeds.mockResolvedValue([]);
+    q.getRecentlyCheckedOutGuests.mockResolvedValue([]);
+    q.getLatestCheckinByNormalizedPhone.mockResolvedValue({ id: 42, name: "Pawan", contact: "9876543210" });
+
+    const res = await lookupGET(lookupReq("9876543210"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      found: false,
+      guests: [],
+      displayName: "Pawan",
+    });
+    expect(q.getLatestCheckinByNormalizedPhone).toHaveBeenCalledWith("9876543210");
   });
 
   it("returns found false when a query throws", async () => {

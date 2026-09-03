@@ -57,6 +57,24 @@ export async function getLatestCheckinByContact(contact: string) {
   return rows[0] || null;
 }
 
+/** Latest check-in row for a normalized 10-digit phone (handles +91 / legacy formats). */
+export async function getLatestCheckinByNormalizedPhone(normalized: string) {
+  if (!normalized) return null;
+  const db = getDb();
+  for (const candidate of [normalized, `+91${normalized}`, `91${normalized}`]) {
+    const rows = await db.select().from(checkins)
+      .where(eq(checkins.contact, candidate))
+      .orderBy(desc(checkins.id))
+      .limit(1);
+    if (rows[0]) return rows[0];
+  }
+  const suffixRows = await db.select().from(checkins)
+    .where(sql`(${checkins.contact} = ${normalized} OR ${checkins.contact} LIKE ${"%" + normalized})`)
+    .orderBy(desc(checkins.id))
+    .limit(1);
+  return suffixRows[0] || null;
+}
+
 export async function getCheckinMonths(): Promise<string[]> {
   return dbRead(async () => {
     const db = getDb();

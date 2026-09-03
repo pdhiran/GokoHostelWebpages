@@ -228,9 +228,9 @@ export default function FoodOrderPage() {
     }
   }, [fetchMyOrders]);
 
-  const handleWalkin = useCallback((phone: string) => {
+  const handleWalkin = useCallback((phone: string, displayName?: string) => {
     const info: GuestInfoData = {
-      name: "",
+      name: displayName?.trim() || "",
       phone,
       checkinId: null,
       guestType: "walkin",
@@ -263,7 +263,7 @@ export default function FoodOrderPage() {
           } else if (data.found && data.guests?.length > 1) {
             handleIdentified(data.guests[0]);
           } else {
-            handleWalkin(savedPhone);
+            handleWalkin(savedPhone, typeof data.displayName === "string" ? data.displayName : undefined);
           }
         })
         .catch(() => {});
@@ -484,26 +484,15 @@ export default function FoodOrderPage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <h1 className="text-lg font-bold text-brand-green">
-                      {guestInfo?.guestType === "hostel"
-                        ? `Hi, ${guestInfo.name?.split(" ")[0]}! 👋`
+                      {guestInfo?.name?.trim()
+                        ? `Hi, ${guestInfo.name.trim().split(" ")[0]}! 👋`
                         : "Welcome! 👋"}
                     </h1>
                     {guestInfo?.roomInfo && (
                       <p className="text-sm text-brand-green-dark/70">{guestInfo.roomInfo}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex items-center gap-1.5 rounded-xl bg-gray-100 dark:bg-muted px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 transition hover:bg-gray-200 dark:hover:bg-accent"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      Logout
-                    </button>
-                    {/* <DarkModeToggle className="text-white/80 hover:bg-white/20" /> */}
+                  <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
                     <Link
                       href={`/my-bills?phone=${encodeURIComponent(guestInfo?.phone || savedPhone || "")}`}
                       className="flex items-center gap-1.5 rounded-xl bg-brand-green/10 px-3 py-2 text-sm font-medium text-brand-green transition hover:bg-brand-green/15"
@@ -521,6 +510,16 @@ export default function FoodOrderPage() {
                         My Orders
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex items-center gap-1.5 rounded-xl bg-gray-100 dark:bg-muted px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 transition hover:bg-gray-200 dark:hover:bg-accent"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Logout
+                    </button>
                   </div>
                 </div>
               </div>
