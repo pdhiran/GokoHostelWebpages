@@ -7,6 +7,7 @@ import { authenticateUser } from "@/lib/auth";
 import { syncInsert, syncUpdate } from "@/db/syncMeta";
 import { calculateEmployeePayroll } from "@/lib/employeeAttendance";
 import { todayIST } from "@/lib/utils";
+import { parseExpenseCategories, parseIncomeCategories } from "@/lib/accountCategories";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,6 +27,24 @@ export async function POST(req: NextRequest) {
     const db = getDb();
 
     switch (action) {
+      case "listCategories": {
+        const [expenseValue, incomeValue] = await Promise.all([getSetting("expense_categories"), getSetting("income_categories")]);
+        return NextResponse.json({ expenseCategories: parseExpenseCategories(expenseValue), incomeCategories: parseIncomeCategories(incomeValue) });
+      }
+      case "saveCategories": {
+        const expenseCategories = rest.expenseCategories;
+        const incomeCategories = rest.incomeCategories;
+        const validNames = (items: unknown) => Array.isArray(items) && items.length > 0 && items.length <= 50 && items.every((item) => typeof item === "string" && item.trim().length > 0 && item.trim().length <= 60);
+        const validIncome = Array.isArray(incomeCategories) && incomeCategories.length > 0 && incomeCategories.length <= 50 && incomeCategories.every((item) => item && typeof item.id === "string" && item.id.length <= 80 && typeof item.name === "string" && item.name.trim().length > 0 && item.name.trim().length <= 60);
+        if (!validNames(expenseCategories) || !validIncome) return NextResponse.json({ error: "Categories must have unique names between 1 and 60 characters" }, { status: 400 });
+        const cleanExpenses = expenseCategories.map((item: string) => item.trim());
+        const cleanIncome = incomeCategories.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name.trim() }));
+        if (new Set(cleanExpenses.map((item: string) => item.toLowerCase())).size !== cleanExpenses.length || new Set(cleanIncome.map((item: { name: string }) => item.name.toLowerCase())).size !== cleanIncome.length || new Set(cleanIncome.map((item: { id: string }) => item.id)).size !== cleanIncome.length) {
+          return NextResponse.json({ error: "Category names must be unique" }, { status: 400 });
+        }
+        await Promise.all([setSetting("expense_categories", JSON.stringify(cleanExpenses)), setSetting("income_categories", JSON.stringify(cleanIncome))]);
+        return NextResponse.json({ success: true, expenseCategories: cleanExpenses, incomeCategories: cleanIncome });
+      }
       // --- Accounts ---
       case "listAccounts": {
         const items = await db.select().from(accounts).orderBy(desc(accounts.createdAt));

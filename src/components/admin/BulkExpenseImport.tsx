@@ -423,7 +423,7 @@ export function BulkExpenseImport({
         <ul className="mt-1 list-inside list-disc space-y-0.5">
           <li>Download the template, fill your expense data under the column headings</li>
           <li>Required fields: date, amount, category</li>
-          <li>Categories: Salary, Rent, Utilities, Groceries, Capital, Maintenance, Supplies, Transport, Miscellaneous, Others</li>
+          <li>Categories must match the expense categories configured in Management → Account Settings.</li>
           <li>Type: stay_expense (default) or food_expense</li>
           <li>Payment method: cash (default) or online</li>
           <li>Vendor names must match existing vendors in Account Settings</li>

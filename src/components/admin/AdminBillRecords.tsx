@@ -10,8 +10,7 @@ import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
 import { hasPermission } from "./types";
-
-const CATEGORIES = ["Salary", "Rent", "Utilities", "Groceries", "Capital", "Maintenance", "Supplies", "Transport", "Miscellaneous", "Others"];
+import { DEFAULT_EXPENSE_CATEGORIES } from "@/lib/accountCategories";
 
 export function AdminBillRecords({
   password,
@@ -37,6 +36,7 @@ export function AdminBillRecords({
   }, [password, username]);
 
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [categories, setCategories] = useState(DEFAULT_EXPENSE_CATEGORIES);
   const [months, setMonths] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState("");
   const [loading, setLoading] = useState(true);
@@ -59,6 +59,7 @@ export function AdminBillRecords({
         setExpenses(data.expenses || []);
         if (data.months) setMonths(data.months);
         if (data.currentMonth) setCurrentMonth(data.currentMonth);
+        setCategories(data.expenseCategories || DEFAULT_EXPENSE_CATEGORIES);
       }
     } catch {
       // ignore
@@ -403,10 +404,10 @@ export function AdminBillRecords({
                   className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">Select...</option>
-                  {CATEGORIES.map((c) => (
+                  {categories.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
-                  {!CATEGORIES.includes(editCategory) && editCategory && (
+                  {!categories.includes(editCategory) && editCategory && (
                     <option value={editCategory}>{editCategory}</option>
                   )}
                 </select>

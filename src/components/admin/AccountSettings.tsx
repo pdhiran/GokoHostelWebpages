@@ -14,6 +14,7 @@ import {
   StoreIcon,
   IndianRupeeIcon,
   UploadIcon,
+  TagsIcon,
 } from "lucide-react";
 import { BulkExpenseImport } from "./BulkExpenseImport";
 import { BulkIncomeImport } from "./BulkIncomeImport";
@@ -21,6 +22,7 @@ import { useAdminToast } from "@/components/admin/AdminToast";
 import { cn } from "@/lib/utils";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
+import type { IncomeCategory } from "@/lib/accountCategories";
 
 type Account = {
   id: number; name: string; nickname: string; bankName: string;
@@ -40,17 +42,13 @@ type Employee = {
   isActive: number; createdAt: string;
 };
 
-const VENDOR_CATEGORIES = [
-  "Groceries", "Utilities", "Maintenance", "Supplies", "Transport", "Capital", "Rent", "Miscellaneous", "Others",
-];
-
 const ACCOUNT_TYPES = [
   { id: "savings", label: "Savings" },
   { id: "current", label: "Current" },
   { id: "cash", label: "Cash" },
 ];
 
-type SettingsSection = "accounts" | "employees" | "vendors" | "bulkExpenses" | "bulkIncome";
+type SettingsSection = "accounts" | "employees" | "vendors" | "categories" | "bulkExpenses" | "bulkIncome";
 
 export function AccountSettings({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { showError, showSuccess } = useAdminToast();
@@ -63,6 +61,9 @@ export function AccountSettings({ password, username, role }: { password: string
   const [savingReceiptDefaults, setSavingReceiptDefaults] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<string[]>([]);
+  const [incomeCategories, setIncomeCategories] = useState<IncomeCategory[]>([]);
+  const [categoryDraft, setCategoryDraft] = useState<{ kind: "expense" | "income"; index: number | null; name: string } | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -111,14 +112,16 @@ export function AccountSettings({ password, username, role }: { password: string
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [accRes, venRes, empRes] = await Promise.all([
+      const [accRes, venRes, empRes, catRes] = await Promise.all([
         apiCall({ action: "listAccounts" }),
         apiCall({ action: "listVendors" }),
         apiCall({ action: "listEmployees" }),
+        apiCall({ action: "listCategories" }),
       ]);
       if (accRes.ok) { const d = await accRes.json(); setAccounts(d.accounts || []); setFoodOnlineReceiptAccountId(d.foodOnlineReceiptAccountId || ""); setRoomOnlineReceiptAccountId(d.roomOnlineReceiptAccountId || ""); }
       if (venRes.ok) { const d = await venRes.json(); setVendors(d.vendors || []); }
       if (empRes.ok) { const d = await empRes.json(); setEmployees(d.employees || []); }
+      if (catRes.ok) { const d = await catRes.json(); setExpenseCategories(d.expenseCategories || []); setIncomeCategories(d.incomeCategories || []); }
     } finally {
       setLoading(false);
     }
@@ -211,6 +214,38 @@ export function AccountSettings({ password, username, role }: { password: string
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
+  const saveCategory = async () => {
+    if (!categoryDraft?.name.trim()) return;
+    const nextExpenses = [...expenseCategories];
+    const nextIncome = [...incomeCategories];
+    if (categoryDraft.kind === "expense") {
+      if (categoryDraft.index == null) nextExpenses.push(categoryDraft.name.trim());
+      else nextExpenses[categoryDraft.index] = categoryDraft.name.trim();
+    } else if (categoryDraft.index == null) {
+      nextIncome.push({ id: categoryDraft.name.trim(), name: categoryDraft.name.trim() });
+    } else {
+      const current = nextIncome[categoryDraft.index];
+      nextIncome[categoryDraft.index] = { id: ["stay", "food", "refund", "other"].includes(current.id) ? current.id : categoryDraft.name.trim(), name: categoryDraft.name.trim() };
+    }
+    setSaving(true);
+    try {
+      const res = await apiCall({ action: "saveCategories", expenseCategories: nextExpenses, incomeCategories: nextIncome });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return showError(data.error || "Could not save category");
+      setExpenseCategories(data.expenseCategories); setIncomeCategories(data.incomeCategories); setCategoryDraft(null); showSuccess("Category saved");
+    } finally { setSaving(false); }
+  };
+
+  const deleteCategory = async (kind: "expense" | "income", index: number) => {
+    if (!confirm("Remove this category from future entries? Existing records will keep it.")) return;
+    const nextExpenses = kind === "expense" ? expenseCategories.filter((_, itemIndex) => itemIndex !== index) : expenseCategories;
+    const nextIncome = kind === "income" ? incomeCategories.filter((_, itemIndex) => itemIndex !== index) : incomeCategories;
+    const res = await apiCall({ action: "saveCategories", expenseCategories: nextExpenses, incomeCategories: nextIncome });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return showError(data.error || "Could not delete category");
+    setExpenseCategories(data.expenseCategories); setIncomeCategories(data.incomeCategories); showSuccess("Category removed");
+  };
+
   const startPaySalary = (emp: Employee) => {
     setPayingEmployee(emp);
     setSalaryAmount((emp.salary / 100).toFixed(0));
@@ -262,6 +297,7 @@ export function AccountSettings({ password, username, role }: { password: string
           { id: "accounts" as SettingsSection, label: "Accounts", icon: <BanknoteIcon className="h-3.5 w-3.5" /> },
           { id: "employees" as SettingsSection, label: "Employees", icon: <UsersIcon className="h-3.5 w-3.5" /> },
           { id: "vendors" as SettingsSection, label: "Vendors", icon: <StoreIcon className="h-3.5 w-3.5" /> },
+          { id: "categories" as SettingsSection, label: "Categories", icon: <TagsIcon className="h-3.5 w-3.5" /> },
           { id: "bulkExpenses" as SettingsSection, label: "Bulk Expenses", icon: <UploadIcon className="h-3.5 w-3.5" /> },
           { id: "bulkIncome" as SettingsSection, label: "Bulk Income", icon: <UploadIcon className="h-3.5 w-3.5" /> },
         ]).map((s) => (
@@ -285,6 +321,19 @@ export function AccountSettings({ password, username, role }: { password: string
       )}
       {section === "bulkIncome" && (
         <BulkIncomeImport password={password} username={username} role={role} />
+      )}
+
+      {section === "categories" && (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {(["expense", "income"] as const).map((kind) => {
+            const items = kind === "expense" ? expenseCategories.map((name) => ({ name })) : incomeCategories;
+            return <div key={kind} className="rounded-xl border border-brand-mist bg-white p-4 dark:bg-card">
+              <div className="flex items-center justify-between"><div><h3 className="text-sm font-semibold capitalize text-brand-green-dark">{kind} categories ({items.length})</h3><p className="mt-0.5 text-[10px] text-muted-foreground">Used for new {kind} entries. Existing records are unchanged.</p></div><Button type="button" className="h-7 gap-1 text-xs" onClick={() => setCategoryDraft({ kind, index: null, name: "" })}><PlusIcon className="h-3 w-3" /> Add</Button></div>
+              {categoryDraft?.kind === kind && <div className="mt-3 flex gap-2"><Input autoFocus value={categoryDraft.name} maxLength={60} onChange={(e) => setCategoryDraft({ ...categoryDraft, name: e.target.value })} placeholder={`New ${kind} category`} className="h-8 text-xs" /><Button type="button" className="h-8 text-xs" disabled={saving || !categoryDraft.name.trim()} onClick={saveCategory}>{categoryDraft.index == null ? "Create" : "Update"}</Button><Button type="button" variant="ghost" className="h-8 text-xs" onClick={() => setCategoryDraft(null)}>Cancel</Button></div>}
+              <div className="mt-3 space-y-2">{items.map((item, index) => <div key={`${kind}-${index}-${item.name}`} className="flex items-center justify-between rounded-lg border border-brand-mist px-3 py-2"><span className="text-sm text-brand-green-dark">{item.name}</span><div className="flex gap-1"><button type="button" title="Edit category" onClick={() => setCategoryDraft({ kind, index, name: item.name })} className="rounded-md p-1.5 text-brand-green-dark/40 hover:bg-brand-sand hover:text-brand-green"><PencilIcon className="h-3.5 w-3.5" /></button><button type="button" title="Delete category" onClick={() => void deleteCategory(kind, index)} className="rounded-md p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"><Trash2Icon className="h-3.5 w-3.5" /></button></div></div>)}</div>
+            </div>;
+          })}
+        </div>
       )}
 
       {/* List + Add button */}
@@ -369,7 +418,8 @@ export function AccountSettings({ password, username, role }: { password: string
                 <Label className="text-xs">Category</Label>
                 <select value={formData.category || ""} onChange={(e) => updateField("category", e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs">
                   <option value="">Select category</option>
-                  {VENDOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {expenseCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {formData.category && !expenseCategories.includes(formData.category) && <option value={formData.category}>{formData.category}</option>}
                 </select>
               </div>
               <div>

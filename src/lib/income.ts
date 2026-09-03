@@ -15,19 +15,20 @@ export type ValidManualIncome = {
   accountId: number | null;
   type: "cash" | "online";
   amount: number;
-  source: typeof INCOME_SOURCES[number];
+  source: string;
   sourceDetail: string;
   description: string;
 };
 
-export function validateManualIncome(input: ManualIncomeInput): { value: ValidManualIncome; error?: never } | { value?: never; error: string } {
+export function validateManualIncome(input: ManualIncomeInput, allowedSources: readonly string[] = INCOME_SOURCES): { value: ValidManualIncome; error?: never } | { value?: never; error: string } {
   const date = String(input.date || "");
   const parsedDate = new Date(date + "T00:00:00Z");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) return { error: "A valid date is required" };
 
   if (!Number.isInteger(input.amount) || Number(input.amount) <= 0) return { error: "Amount must be a positive integer in paise" };
-  const source = String(input.source || "stay").trim().toLowerCase();
-  if (!INCOME_SOURCES.includes(source as typeof INCOME_SOURCES[number])) return { error: "Invalid income source" };
+  const sourceInput = String(input.source || "stay").trim();
+  const source = allowedSources.find((item) => item.toLowerCase() === sourceInput.toLowerCase());
+  if (!source) return { error: "Invalid income source" };
   const sourceDetail = String(input.sourceDetail || "").trim();
   const description = String(input.description || "").trim();
   if (source === "other" && !sourceDetail) return { error: "Specify the other income source" };
@@ -44,7 +45,7 @@ export function validateManualIncome(input: ManualIncomeInput): { value: ValidMa
     accountId,
     type: input.type,
     amount: Number(input.amount),
-    source: source as ValidManualIncome["source"],
+    source,
     sourceDetail: source === "other" ? sourceDetail : "",
     description,
   } };

@@ -13,6 +13,7 @@ import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
 import { hasPermission } from "./types";
 import { IncomeForm, incomeSourceLabel, type IncomeAccount } from "./IncomeForm";
+import type { IncomeCategory } from "@/lib/accountCategories";
 
 type IncomeEntry = {
   id: number;
@@ -47,6 +48,7 @@ type DaySummary = {
   incomeEntries: IncomeEntry[];
   expenseEntries: ExpenseEntry[];
   accounts: Account[];
+  incomeCategories: IncomeCategory[];
   foodRevenue: number;
   accountSummaries: {
     accountId: number | null;
@@ -226,7 +228,7 @@ export function DailyLedger({ password, username, role, permissions = {} }: { pa
                       <div>
                         <p className="text-xs font-medium text-brand-green-dark">
                           ₹{(e.amount / 100).toFixed(0)}
-                          <span className="ml-2 text-[10px] text-brand-green-dark/50">{incomeSourceLabel(e.source, e.sourceDetail)} · {e.type}</span>
+                          <span className="ml-2 text-[10px] text-brand-green-dark/50">{incomeSourceLabel(e.source, e.sourceDetail, data.incomeCategories)} · {e.type}</span>
                         </p>
                         {e.description && <p className="text-[10px] text-brand-green-dark/40">{e.description}</p>}
                       </div>

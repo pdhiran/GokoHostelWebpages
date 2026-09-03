@@ -3,7 +3,8 @@ import * as XLSX from "xlsx";
 import { getDb } from "@/db";
 import { expenses, dailyIncome, vendors, accounts } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
-import { addSystemLog } from "@/db/queries";
+import { addSystemLog, getSetting } from "@/db/queries";
+import { parseExpenseCategories, parseIncomeCategories } from "@/lib/accountCategories";
 
 const MAX_ROWS = 500;
 
@@ -28,14 +29,8 @@ const INCOME_COLUMNS = [
   { header: "description", description: "Description / notes (optional)" },
 ];
 
-const VALID_CATEGORIES = [
-  "Salary", "Rent", "Utilities", "Groceries", "Capital",
-  "Maintenance", "Supplies", "Transport", "Miscellaneous", "Others",
-];
-
 const VALID_MAIN_CATEGORIES = ["stay_expense", "food_expense"];
 const VALID_PAYMENT_METHODS = ["cash", "online"];
-const VALID_INCOME_SOURCES = ["stay", "food", "refund", "other"];
 
 function cellToString(val: unknown): string {
   if (val === null || val === undefined) return "";
@@ -113,6 +108,7 @@ async function importExpenses(
 ): Promise<{ total: number; inserted: number; skipped: number; failed: { row: number; reason: string }[] }> {
   const db = getDb();
   const results = { total: rows.length, inserted: 0, skipped: 0, failed: [] as { row: number; reason: string }[] };
+  const validCategories = parseExpenseCategories(await getSetting("expense_categories"));
 
   const allVendors = await db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq(vendors.isActive, 1));
   const vendorMap = new Map(allVendors.map((v) => [v.name.toLowerCase(), v.id]));
@@ -160,9 +156,9 @@ async function importExpenses(
           continue;
         }
 
-        const categoryMatch = VALID_CATEGORIES.find((c) => c.toLowerCase() === category.toLowerCase());
+        const categoryMatch = validCategories.find((c) => c.toLowerCase() === category.toLowerCase());
         if (!categoryMatch) {
-          results.failed.push({ row: rowIndex, reason: `Invalid category: "${category}". Use: ${VALID_CATEGORIES.join(", ")}` });
+          results.failed.push({ row: rowIndex, reason: `Invalid category: "${category}". Use: ${validCategories.join(", ")}` });
           continue;
         }
 
@@ -259,6 +255,7 @@ async function importIncome(
 ): Promise<{ total: number; inserted: number; skipped: number; failed: { row: number; reason: string }[] }> {
   const db = getDb();
   const results = { total: rows.length, inserted: 0, skipped: 0, failed: [] as { row: number; reason: string }[] };
+  const incomeCategories = parseIncomeCategories(await getSetting("income_categories"));
 
   const allAccounts = await db.select({ id: accounts.id, name: accounts.name, nickname: accounts.nickname }).from(accounts).where(eq(accounts.isActive, 1));
   const accountMap = new Map<string, number>();
@@ -297,9 +294,10 @@ async function importIncome(
           continue;
         }
 
-        const source = cellToString(row.source).toLowerCase() || "stay";
-        if (!VALID_INCOME_SOURCES.includes(source)) {
-          results.failed.push({ row: rowIndex, reason: `Invalid source: "${source}". Use: stay, food, refund, or other` });
+        const sourceInput = cellToString(row.source) || "stay";
+        const source = incomeCategories.find((item) => item.id.toLowerCase() === sourceInput.toLowerCase() || item.name.toLowerCase() === sourceInput.toLowerCase())?.id;
+        if (!source) {
+          results.failed.push({ row: rowIndex, reason: `Invalid source: "${sourceInput}". Use: ${incomeCategories.map((item) => item.name).join(", ")}` });
           continue;
         }
         const sourceDetail = cellToString(row.source_detail);
@@ -408,7 +406,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.action === "expenseTemplate") {
-      const buf = generateTemplate(EXPENSE_COLUMNS, "Expense Records");
+      const categories = parseExpenseCategories(await getSetting("expense_categories"));
+      const columns = EXPENSE_COLUMNS.map((column) => column.header === "category" ? { ...column, description: `${categories.join(" / ")} (required)` } : column);
+      const buf = generateTemplate(columns, "Expense Records");
       return new NextResponse(buf, {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -418,7 +418,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.action === "incomeTemplate") {
-      const buf = generateTemplate(INCOME_COLUMNS, "Income Records");
+      const categories = parseIncomeCategories(await getSetting("income_categories"));
+      const columns = INCOME_COLUMNS.map((column) => column.header === "source" ? { ...column, description: `${categories.map((item) => item.name).join(" / ")} (default: ${categories[0]?.name || "none"})` } : column);
+      const buf = generateTemplate(columns, "Income Records");
       return new NextResponse(buf, {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

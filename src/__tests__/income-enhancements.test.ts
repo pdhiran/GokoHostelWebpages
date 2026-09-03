@@ -10,7 +10,7 @@ const bulk = readFileSync("src/app/api/admin/bulk-import-accounts/route.ts", "ut
 
 describe("manual income enhancements", () => {
   it("supports refund and required Other source detail in UI and API", () => {
-    expect(form).toContain('{ id: "refund", label: "Refund Received" }');
+    expect(form).toContain("DEFAULT_INCOME_CATEGORIES");
     expect(form).toContain('source === "other" && !sourceDetail.trim()');
     expect(validateManualIncome({ date: "2026-09-01", amount: 12550, type: "cash", source: "refund" }).value).toMatchObject({ source: "refund", amount: 12550 });
     expect(validateManualIncome({ date: "2026-09-01", amount: 500, type: "cash", source: "other" }).error).toBe("Specify the other income source");
@@ -49,7 +49,7 @@ describe("manual income enhancements", () => {
   });
 
   it("keeps bulk import rules consistent with manual entry", () => {
-    expect(bulk).toContain('const VALID_INCOME_SOURCES = ["stay", "food", "refund", "other"]');
+    expect(bulk).toContain('parseIncomeCategories(await getSetting("income_categories"))');
     expect(bulk).toContain('source_detail is required when source is other');
     expect(bulk).toContain('Online income requires an account_name');
     expect(bulk).toContain('dailyIncome.sourceDetail');

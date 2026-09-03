@@ -6,18 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { DEFAULT_INCOME_CATEGORIES, type IncomeCategory } from "@/lib/accountCategories";
 
 export type IncomeAccount = { id: number; name: string; nickname: string; isDefault?: number };
 
-const SOURCES = [
-  { id: "stay", label: "Stay Revenue" },
-  { id: "food", label: "Food Revenue" },
-  { id: "refund", label: "Refund Received" },
-  { id: "other", label: "Other" },
-];
-
-export function incomeSourceLabel(source: string, sourceDetail?: string | null) {
-  const label = SOURCES.find((item) => item.id === source)?.label || source;
+export function incomeSourceLabel(source: string, sourceDetail?: string | null, categories: IncomeCategory[] = DEFAULT_INCOME_CATEGORIES) {
+  const label = categories.find((item) => item.id === source)?.name || DEFAULT_INCOME_CATEGORIES.find((item) => item.id === source)?.name || source;
   return source === "other" && sourceDetail ? `${label} · ${sourceDetail}` : label;
 }
 
@@ -43,6 +37,7 @@ export function IncomeForm({
   const [type, setType] = useState<"cash" | "online">("cash");
   const [amount, setAmount] = useState("");
   const [source, setSource] = useState("stay");
+  const [sources, setSources] = useState<IncomeCategory[]>(DEFAULT_INCOME_CATEGORIES);
   const [sourceDetail, setSourceDetail] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -50,6 +45,15 @@ export function IncomeForm({
   const [success, setSuccess] = useState("");
 
   useEffect(() => { setEntryDate(date); }, [date]);
+  useEffect(() => {
+    apiCall({ action: "getIncomeCategories" }).then(async (response) => {
+      if (response.ok) setSources((await response.json()).categories || DEFAULT_INCOME_CATEGORIES);
+    });
+  }, [apiCall]);
+
+  useEffect(() => {
+    if (!sources.some((item) => item.id === source)) setSource(sources[0]?.id || "");
+  }, [source, sources]);
 
   const selectAccount = (value: string) => {
     setAccountId(value);
@@ -128,7 +132,7 @@ export function IncomeForm({
         <div>
           <Label className="text-xs">Source *</Label>
           <select value={source} onChange={(event) => { setSource(event.target.value); if (event.target.value !== "other") setSourceDetail(""); }} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            {SOURCES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+            {sources.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </div>
         <div><Label className="text-xs">Amount (₹) *</Label><Input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" className="mt-1" /></div>

@@ -24,6 +24,7 @@ const SYNCABLE_SETTINGS = [
   "food_kitchen_busy", "food_confirm_with_guest", "food_kannada_labels",
   "food_cafe_tables", "primary_server",
   "food_online_receipt_account_id", "room_online_receipt_account_id",
+  "expense_categories", "income_categories",
 ] as const;
 
 // --- Table Name to Drizzle Schema Mapping ---

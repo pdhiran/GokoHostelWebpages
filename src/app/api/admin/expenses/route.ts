@@ -9,6 +9,7 @@ import {
   getMonthKey,
   addAuditEntry,
   addSystemLog,
+  getSetting,
 } from "@/db/queries";
 import { getDb } from "@/db";
 import { foodOrders, checkins, expenses, accounts, dailyIncome, dailyLedger, vendors, bookings, guestReceipts } from "@/db/schema";
@@ -21,6 +22,7 @@ import { hostelExpenseIsLinked } from "@/db/splitQueries";
 import { stayDueAtHotel, cashCollected, onlineCollected, cashRefunded, onlineRefunded, occupiedForRoomRevenue, isPrepaidStatus } from "@/lib/stayPayment";
 import { validateManualIncome } from "@/lib/income";
 import { resolveOpeningBalance } from "@/lib/reconciliation";
+import { parseExpenseCategories, parseIncomeCategories } from "@/lib/accountCategories";
 
 function extractDriveFileId(link: string): string | null {
   const match = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -60,6 +62,7 @@ export async function POST(req: NextRequest) {
       getRoomRevenue: "canViewFoodBills",
       getDailyLedger: "canViewAccounts", listIncomeRecords: "canViewAccounts", getReconciliation: "canViewAccounts",
       getIncomeAccounts: "canAddIncome", addDailyIncome: "canAddIncome", deleteDailyIncome: "canDeleteExpense",
+      getExpenseCategories: "canAddExpense", getIncomeCategories: "canAddIncome",
       saveReconciliation: "canManageAccounts", undoReconciliation: "canManageAccounts",
       adjustOpeningBalance: "canManageAccounts",
     };
@@ -74,6 +77,10 @@ export async function POST(req: NextRequest) {
     }
 
     switch (action) {
+      case "getExpenseCategories":
+        return NextResponse.json({ categories: parseExpenseCategories(await getSetting("expense_categories")) });
+      case "getIncomeCategories":
+        return NextResponse.json({ categories: parseIncomeCategories(await getSetting("income_categories")) });
       case "addExpense": {
         const { amount, category, customCategory, purpose, billImage, billMimeType, billImages, vendorId, accountId, paymentMethod, mainCategory, subCategory } = rest;
         if (!amount || !category) {
@@ -154,7 +161,7 @@ export async function POST(req: NextRequest) {
         const targetMonth = month || getMonthKey();
         const expenses = await getExpensesByMonth(targetMonth);
         const months = await getExpenseMonths();
-        return NextResponse.json({ role, expenses, months, currentMonth: targetMonth });
+        return NextResponse.json({ role, expenses, months, currentMonth: targetMonth, expenseCategories: parseExpenseCategories(await getSetting("expense_categories")) });
       }
 
       case "getMyExpenses": {
@@ -491,13 +498,15 @@ export async function POST(req: NextRequest) {
           incomeEntries,
           expenseEntries,
           accounts: allAccounts,
+          incomeCategories: parseIncomeCategories(await getSetting("income_categories")),
           foodRevenue,
           accountSummaries: accountSummaries.filter((s) => s.income > 0 || s.expense > 0),
         });
       }
 
       case "addDailyIncome": {
-        const validation = validateManualIncome(rest);
+        const incomeCategories = parseIncomeCategories(await getSetting("income_categories"));
+        const validation = validateManualIncome(rest, incomeCategories.map((item) => item.id));
         if ("error" in validation) return NextResponse.json({ error: validation.error }, { status: 400 });
         const income = validation.value;
         const db = getDb();
@@ -546,6 +555,7 @@ export async function POST(req: NextRequest) {
           months: Array.from(new Set([month, ...monthRows.map((row) => row.month).filter(Boolean)])).sort().reverse(),
           currentMonth: month,
           accounts: allAccounts,
+          incomeCategories: parseIncomeCategories(await getSetting("income_categories")),
         });
       }
 

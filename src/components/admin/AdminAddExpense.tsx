@@ -7,15 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Loader2Icon, ExternalLinkIcon, ImageIcon, XIcon } from "lucide-react";
 import { AdminLoading } from "./AdminLoading";
 import type { Role } from "./types";
+import { DEFAULT_EXPENSE_CATEGORIES } from "@/lib/accountCategories";
 
 const MAIN_CATEGORIES = [
   { id: "stay_expense", label: "Stay Expense" },
   { id: "food_expense", label: "Food Expense" },
-];
-
-const SUB_CATEGORIES = [
-  "Salary", "Rent", "Utilities", "Groceries", "Capital",
-  "Maintenance", "Supplies", "Transport", "Miscellaneous", "Others",
 ];
 
 type Account = { id: number; name: string; nickname: string };
@@ -48,6 +44,7 @@ export function AdminAddExpense({
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState(DEFAULT_EXPENSE_CATEGORIES);
   const [recentExpenses, setRecentExpenses] = useState<any[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
 
@@ -74,10 +71,11 @@ export function AdminAddExpense({
   const loadData = useCallback(async () => {
     setLoadingRecent(true);
     try {
-      const [recentRes, vendorRes, accRes] = await Promise.all([
+      const [recentRes, vendorRes, accRes, categoryRes] = await Promise.all([
         expenseApi({ action: "getMyExpenses" }),
         settingsApi({ action: "listVendors" }),
         settingsApi({ action: "listAccounts" }),
+        expenseApi({ action: "getExpenseCategories" }),
       ]);
       if (recentRes.ok) { const d = await recentRes.json(); setRecentExpenses(d.expenses || []); }
       if (vendorRes.ok) { const d = await vendorRes.json(); setVendors(d.vendors || []); }
@@ -87,6 +85,7 @@ export function AdminAddExpense({
         const defaultAcc = (d.accounts || []).find((a: any) => a.isDefault);
         if (defaultAcc) setAccountId(String(defaultAcc.id));
       }
+      if (categoryRes.ok) setCategories((await categoryRes.json()).categories || DEFAULT_EXPENSE_CATEGORIES);
     } finally {
       setLoadingRecent(false);
     }
@@ -220,7 +219,7 @@ export function AdminAddExpense({
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">Select category...</option>
-              {SUB_CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
