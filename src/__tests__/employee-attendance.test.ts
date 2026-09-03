@@ -58,6 +58,8 @@ describe("employee attendance calendar rules", () => {
     expect(ui).toContain('!employee.isActive ? " (Inactive)"');
     expect(ui).toContain('setMonth(`${calendarYear}-${e.target.value}`)');
     expect(ui).toContain('setMonth(`${e.target.value}-${calendarMonth}`)');
+    expect(ui).toContain('min-w-0 sm:min-w-[700px]');
+    expect(ui).toContain('min-h-16 min-w-0');
     const management = readFileSync("src/components/admin/AdminManagement.tsx", "utf8");
     expect(management).toContain("<ManagementAttendance password={password} username={username} role={role} />");
   });

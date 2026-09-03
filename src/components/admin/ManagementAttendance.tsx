@@ -156,7 +156,7 @@ export function ManagementAttendance({ password, username, role }: { password: s
           {calendarEmployee && <p className="mt-1 text-xs text-muted-foreground">{calendarEmployee.name} · {calendarEmployee.role || "Staff"}</p>}
           {role !== "admin" && <p className="mt-1 text-[11px] text-muted-foreground">Calendar editing is available to admins only.</p>}
         </div>
-        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[9rem_7rem_16rem]">
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-[9rem_7rem_16rem]">
           <label className="text-xs">Month
             <select value={calendarMonth} onChange={(e) => setMonth(`${calendarYear}-${e.target.value}`)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2">
               {MONTHS.map((label, index) => <option key={label} value={String(index + 1).padStart(2, "0")}>{label}</option>)}
@@ -167,7 +167,7 @@ export function ManagementAttendance({ password, username, role }: { password: s
               {calendarYears.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
           </label>
-          <label className="text-xs">Employee
+          <label className="col-span-2 text-xs sm:col-auto">Employee
             <select value={calendarEmployeeId} onChange={(e) => setCalendarEmployeeId(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2">
               {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{!employee.isActive ? " (Inactive)" : ""}</option>)}
             </select>
@@ -175,18 +175,19 @@ export function ManagementAttendance({ password, username, role }: { password: s
         </div>
       </div>
 
-      {calendarEmployee ? <div className="mt-4 overflow-x-auto">
-        <div className="min-w-[700px]">
-          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      {calendarEmployee ? <div className="mt-4 overflow-hidden sm:overflow-x-auto">
+        <div className="min-w-0 sm:min-w-[700px]">
+          <div className="mb-1.5 grid grid-cols-7 gap-0.5 text-center text-[9px] font-semibold uppercase tracking-wide text-muted-foreground sm:mb-2 sm:gap-1 sm:text-[10px]">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day}>{day}</div>)}
           </div>
           <div className="grid grid-cols-7 gap-1">
             {calendarDates.map((date, index) => {
-              if (!date) return <div key={`empty-${index}`} className="min-h-24 rounded-lg bg-brand-sand/20" />;
+              if (!date) return <div key={`empty-${index}`} className="min-h-16 rounded-md bg-brand-sand/20 sm:min-h-24 sm:rounded-lg" />;
               const row = calendarRows.get(date);
               const outsideEmployment = date < calendarEmployee.attendanceStartDate || (!!calendarEmployee.employmentEndDate && date > calendarEmployee.employmentEndDate);
               const upcoming = date > todayIST();
               const label = outsideEmployment ? "Not employed" : row ? statusLabel(row.status) : upcoming ? "Upcoming" : "Present";
+              const mobileLabel = outsideEmployment ? "N/A" : row?.status === "full_day_leave" ? "Full" : row?.status === "half_day_leave" ? "Half" : upcoming ? "Upcoming" : "Present";
               const color = outsideEmployment
                 ? "border-brand-mist bg-brand-sand/30 text-muted-foreground"
                 : row?.status === "full_day_leave"
@@ -197,18 +198,19 @@ export function ManagementAttendance({ password, username, role }: { password: s
                       ? "border-brand-mist bg-brand-sand/30 text-muted-foreground"
                       : "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300";
               const editable = role === "admin" && !outsideEmployment;
-              return <button key={date} type="button" disabled={!editable} onClick={() => openForm(calendarEmployee.id, date)} className={`min-h-24 rounded-lg border p-2 text-left ${color} ${editable ? "transition-colors hover:ring-2 hover:ring-brand-green/30" : "cursor-default"}`}>
-                <span className="block text-xs font-semibold">{Number(date.slice(-2))}</span>
-                <span className="mt-2 block text-[11px] font-medium">{label}</span>
-                {row?.comment && !outsideEmployment ? <span className="mt-1 block truncate text-[10px] opacity-75" title={row.comment}>{row.comment}</span> : null}
+              return <button key={date} type="button" disabled={!editable} onClick={() => openForm(calendarEmployee.id, date)} className={`min-h-16 min-w-0 rounded-md border p-1 text-left sm:min-h-24 sm:rounded-lg sm:p-2 ${color} ${editable ? "transition-colors hover:ring-2 hover:ring-brand-green/30" : "cursor-default"}`}>
+                <span className="block text-[10px] font-semibold sm:text-xs">{Number(date.slice(-2))}</span>
+                <span className="mt-1 block truncate text-[8px] font-medium sm:hidden">{mobileLabel}</span>
+                <span className="mt-2 hidden text-[11px] font-medium sm:block">{label}</span>
+                {row?.comment && !outsideEmployment ? <span className="mt-1 hidden truncate text-[10px] opacity-75 sm:block" title={row.comment}>{row.comment}</span> : null}
               </button>;
             })}
           </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground sm:text-[11px]">
             <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-green-200" />Present</span>
-            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-amber-200" />Half Day</span>
-            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-200" />Full Day</span>
-            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-brand-mist" />Upcoming / Not employed</span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-amber-200" />Half<span className="hidden sm:inline"> Day</span></span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-200" />Full<span className="hidden sm:inline"> Day</span></span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-brand-mist" /><span className="sm:hidden">Upcoming</span><span className="hidden sm:inline">Upcoming / Not employed</span></span>
           </div>
         </div>
       </div> : <p className="mt-4 text-sm text-muted-foreground">No employees found for this month.</p>}
