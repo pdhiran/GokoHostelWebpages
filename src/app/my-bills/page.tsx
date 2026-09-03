@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
 import { Suspense } from "react";
 
 interface BillItem {
@@ -65,6 +64,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 function MyBillsContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const phoneParam = searchParams.get("phone") || "";
 
   const [phone, setPhone] = useState(() => {
@@ -144,6 +144,14 @@ function MyBillsContent() {
     localStorage.removeItem("gokoFoodPhone");
   };
 
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/food-order");
+    }
+  };
+
   const unpaidTotal = unpaidOrders.reduce((sum, o) => sum + o.total, 0);
   const paidTotal = paidOrders.reduce((sum, o) => sum + o.total, 0);
   const totalDiscount = [...unpaidOrders, ...paidOrders].reduce((sum, o) => sum + (o.discount || 0), 0);
@@ -152,6 +160,18 @@ function MyBillsContent() {
   return (
     <div className="min-h-screen goko-mesh goko-noise bg-brand-sand dark:bg-background">
       <div className="mx-auto max-w-lg px-4 pb-10 pt-8">
+        {/* Back */}
+        <button
+          type="button"
+          onClick={handleBack}
+          className="mb-4 flex items-center gap-1.5 text-sm font-medium text-brand-green-dark/70 transition hover:text-brand-green"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+
         {/* Header */}
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green/10">
@@ -212,12 +232,13 @@ function MyBillsContent() {
             </form>
 
             <div className="mt-4 text-center">
-              <Link
-                href="/food-order"
+              <button
+                type="button"
+                onClick={handleBack}
                 className="text-sm text-brand-green hover:text-brand-green-dark"
               >
                 ← Back to menu
-              </Link>
+              </button>
             </div>
           </motion.div>
         ) : (
@@ -329,12 +350,13 @@ function MyBillsContent() {
 
             {/* Back to menu */}
             <div className="mt-6 text-center">
-              <Link
-                href="/food-order"
+              <button
+                type="button"
+                onClick={handleBack}
                 className="text-sm font-medium text-brand-green-dark/70 hover:text-brand-green"
               >
                 ← Back to menu
-              </Link>
+              </button>
             </div>
           </motion.div>
         )}

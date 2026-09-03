@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { foodImageSrc } from "@/lib/foodImage";
+import { usePanelHistory } from "@/hooks/usePanelHistory";
 
 interface Category {
   id: number;
@@ -69,6 +70,15 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
   const [dietFilter, setDietFilter] = useState<DietFilter>("all");
   const [curatedFilter, setCuratedFilter] = useState<CuratedFilter>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const closeCategory = () => {
+    setSelectedCategory(null);
+    setSearchQuery("");
+    setDietFilter("all");
+    setCuratedFilter(null);
+  };
+
+  usePanelHistory(selectedCategory !== null, closeCategory);
 
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.displayOrder - b.displayOrder),
@@ -181,12 +191,8 @@ export function MenuBrowser({ categories, items, cart, onAddToCart, onRemoveFrom
     >
       <div className="mb-4 flex items-center gap-3">
         <button
-          onClick={() => {
-            setSelectedCategory(null);
-            setSearchQuery("");
-            setDietFilter("all");
-            setCuratedFilter(null);
-          }}
+          type="button"
+          onClick={closeCategory}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 dark:bg-muted text-gray-600 dark:text-foreground transition hover:bg-gray-200 dark:hover:bg-accent"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

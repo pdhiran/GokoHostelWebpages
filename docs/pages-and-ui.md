@@ -32,9 +32,9 @@ Book now: `BookingGateProvider` (`src/content/bookingGate.ts`) → Stayflexi URL
 | Path | Role | Auth |
 |------|------|------|
 | `/self-checkin` | ID check-in | none |
-| `/food-order` | Menu + cart | phone in localStorage |
+| `/food-order` | Menu + cart | phone in localStorage; session in `sessionStorage.gokoFoodSession`; Logout clears both |
 | `/food-order/status` | Poll ~10s | phone |
-| `/my-bills` | Food bills | phone |
+| `/my-bills` | Food bills | phone; back → previous page |
 | `/kitchen` | Queue, thermal print | `sessionStorage.kitchen_pw` |
 | `/review/[token]` | Rating funnel | token |
 | `/admin` | PMS SPA | password every API call |

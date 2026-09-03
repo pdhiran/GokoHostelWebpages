@@ -9,6 +9,8 @@ import type { CartItem } from "@/components/food/MenuBrowser";
 import type { CartItemData, GuestInfoData } from "@/components/food/FoodCart";
 import { isKitchenOpen, parseKitchenHours, formatSlotsForDisplay } from "@/lib/kitchenHours";
 import { foodTaxPercent } from "@/lib/foodLookup";
+import { saveFoodGuestSession, loadFoodGuestSession, clearFoodGuestSession } from "@/lib/foodGuestSession";
+import { usePanelHistory } from "@/hooks/usePanelHistory";
 // import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 const MenuBrowser = dynamic(
@@ -105,11 +107,14 @@ export default function FoodOrderPage() {
   const viewRef = useRef<View>("loading");
   const isPopStateNav = useRef(false);
 
+  usePanelHistory(showMyOrders, () => setShowMyOrders(false));
+
   // Sync view changes to browser history for back navigation
   useEffect(() => {
     if (view === "loading") return;
     if (viewRef.current === "loading") {
       viewRef.current = view;
+      history.replaceState({ foodView: view }, "");
       return;
     }
     if (isPopStateNav.current) {
@@ -117,21 +122,27 @@ export default function FoodOrderPage() {
       return;
     }
     if (view !== viewRef.current) {
+      const prev = viewRef.current;
       viewRef.current = view;
-      history.pushState({ foodView: view }, "");
+      if (prev === "phone" && view === "menu") {
+        history.replaceState({ foodView: view }, "");
+      } else if (view === "phone") {
+        history.replaceState({ foodView: view }, "");
+      } else {
+        history.pushState({ foodView: view }, "");
+      }
     }
   }, [view]);
 
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
       const state = e.state as { foodView?: View } | null;
-      if (state?.foodView) {
+      if (state?.foodView && state.foodView !== "phone") {
         isPopStateNav.current = true;
         viewRef.current = state.foodView;
         setView(state.foodView);
       }
     };
-    history.replaceState({ foodView: "phone" }, "");
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
@@ -169,7 +180,15 @@ export default function FoodOrderPage() {
         setKitchenStatus(status);
       }
       setFetchError("");
-      setView("phone");
+
+      const session = loadFoodGuestSession();
+      if (session?.phone) {
+        setGuestInfo(session);
+        setView("menu");
+        fetchMyOrders(session.phone);
+      } else {
+        setView("phone");
+      }
     } catch {
       setFetchError("Unable to load menu. Please try again.");
       setView("phone");
@@ -194,13 +213,15 @@ export default function FoodOrderPage() {
   }, []);
 
   const handleIdentified = useCallback((guest: GuestInfo) => {
-    setGuestInfo({
+    const info: GuestInfoData = {
       name: guest.name,
       phone: guest.phone,
       checkinId: guest.checkinId,
       guestType: guest.guestType,
       roomInfo: guest.roomInfo,
-    });
+    };
+    setGuestInfo(info);
+    saveFoodGuestSession(info);
     setView("menu");
     if (guest.guestType === "hostel" && guest.phone) {
       fetchMyOrders(guest.phone);
@@ -208,14 +229,26 @@ export default function FoodOrderPage() {
   }, [fetchMyOrders]);
 
   const handleWalkin = useCallback((phone: string) => {
-    setGuestInfo({
+    const info: GuestInfoData = {
       name: "",
       phone,
       checkinId: null,
       guestType: "walkin",
       roomInfo: "",
-    });
+    };
+    setGuestInfo(info);
+    saveFoodGuestSession(info);
     setView("menu");
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    clearFoodGuestSession();
+    localStorage.removeItem("gokoFoodPhone");
+    setGuestInfo(null);
+    setSavedPhone(null);
+    setPastOrders([]);
+    setShowMyOrders(false);
+    setView("phone");
   }, []);
 
   useEffect(() => {
@@ -460,6 +493,16 @@ export default function FoodOrderPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex items-center gap-1.5 rounded-xl bg-gray-100 dark:bg-muted px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 transition hover:bg-gray-200 dark:hover:bg-accent"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Logout
+                    </button>
                     {/* <DarkModeToggle className="text-white/80 hover:bg-white/20" /> */}
                     <Link
                       href={`/my-bills?phone=${encodeURIComponent(guestInfo?.phone || savedPhone || "")}`}
@@ -511,7 +554,7 @@ export default function FoodOrderPage() {
                   onUpdateQuantity={handleUpdateQuantity}
                   onRemoveItem={handleRemoveItem}
                   onOrderPlaced={handleOrderPlaced}
-                  onBack={() => setView("menu")}
+                  onBack={() => history.back()}
                 />
               </div>
             </motion.div>

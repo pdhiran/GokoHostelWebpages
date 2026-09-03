@@ -8,7 +8,7 @@ Menu/settings admin: `/api/admin/food` is **admin role only**.
 
 ## Guest
 
-`/food-order`: `GET /api/food/menu` → phone `GET /api/food/lookup` → cart in `localStorage` (`gokoFoodCart`, `gokoFoodPhone`) → `POST /api/food/order`. The View Cart FAB and reorder toast are `inset-x-4 mx-auto` — do not center them with `left-1/2 -translate-x-1/2` on the same node as Framer `y`/`scale`.
+`/food-order`: `GET /api/food/menu` → phone `GET /api/food/lookup` → cart in `localStorage` (`gokoFoodCart`, `gokoFoodPhone`) → `POST /api/food/order`. Active guest session in `sessionStorage` (`gokoFoodSession`) restores the menu after `/my-bills` or browser back; **Logout** clears session + `gokoFoodPhone` and returns to phone entry. Browser back: category drill-down and cart use `usePanelHistory` / `history` (one step at a time); back from the menu grid does **not** return to phone (only Logout does). The View Cart FAB and reorder toast are `inset-x-4 mx-auto` — do not center them with `left-1/2 -translate-x-1/2` on the same node as Framer `y`/`scale`.
 
 Server order of checks (`src/app/api/food/order/route.ts`):
 
@@ -29,7 +29,7 @@ Checkout warning: `getPendingFoodTab` in `src/lib/foodTabDb.ts` sums unpaid host
 
 `/food-order/status`: poll ~10s until `served` or `cancelled` (`shouldPollOrderStatus` in `orderStatus.ts`).
 
-`/my-bills`: `GET /api/food/bills?phone=`.
+`/my-bills`: `GET /api/food/bills?phone=`. Back uses `router.back()` (returns to `/food-order` menu when opened from there).
 
 ---
 
