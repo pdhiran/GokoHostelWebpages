@@ -839,6 +839,10 @@ export async function POST(req: NextRequest) {
           await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${upperNum}`, position: "Upper", type: "Bunk2L1U" });
           await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${lowerNum}a`, position: "Lower", type: "Bunk2L1U" });
           await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${lowerNum}b`, position: "Lower", type: "Bunk2L1U" });
+        } else if (bedType === "Double") {
+          const firstBedNum = (i - 1) * 2 + 1;
+          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${firstBedNum}`, position: "Lower", type: "Double" });
+          await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${firstBedNum + 1}`, position: "Lower", type: "Double" });
         } else if (bedType === "Single") {
           await addBed({ dormId: dorm.id, dormName: dorm.name, bedId: `${prefix}-${i}`, position: "Single", type: "Single" });
         } else {

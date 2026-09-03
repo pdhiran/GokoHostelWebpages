@@ -18,7 +18,7 @@ export function AdminSetup({ password, username }: { password: string; username?
   const [loading, setLoading] = useState(true);
   const [newDorm, setNewDorm] = useState("");
   const [newBedCount, setNewBedCount] = useState("6");
-  const [newBedType, setNewBedType] = useState<"Bunk" | "Bunk2L1U" | "Single">("Bunk");
+  const [newBedType, setNewBedType] = useState<BedRow["type"]>("Bunk");
   const [minAge, setMinAge] = useState("18");
   const [maxAge, setMaxAge] = useState("40");
   const [ageSaving, setAgeSaving] = useState(false);
@@ -138,6 +138,7 @@ export function AdminSetup({ password, username }: { password: string; username?
             <select value={newBedType} onChange={(e) => setNewBedType(e.target.value as BedRow["type"])} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
               <option value="Bunk">Bunk (1 upper + 1 lower)</option>
               <option value="Bunk2L1U">Bunk (2 lower + 1 upper)</option>
+              <option value="Double">Double bed (2 lower)</option>
               <option value="Single">Single beds</option>
             </select>
           </div>
@@ -201,6 +202,7 @@ export function AdminSetup({ password, username }: { password: string; username?
             else group.lowers.push(item);
           }
           const bunkGroups = [...groupMap.values()];
+          const isDouble = dormBeds.every(({ bed }) => bed.type === "Double");
 
           const statusFill = (s: string) => s === "available" ? "#22c55e" : s === "occupied" ? "#ef4444" : "#f97316";
           const statusBg = (s: string) => s === "available" ? "bg-green-50 dark:bg-green-950 border-green-300" : s === "occupied" ? "bg-red-50 dark:bg-red-950 border-red-300" : "bg-orange-50 dark:bg-orange-950 border-orange-300";
@@ -210,7 +212,7 @@ export function AdminSetup({ password, username }: { password: string; username?
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-display text-base font-bold text-brand-green-dark">{dormName}</h3>
-                  <p className="text-xs text-brand-green-dark/50">{dormBeds.length} beds · {bunkGroups.length} bunks{singleBeds.length > 0 ? ` · ${singleBeds.length} singles` : ""}</p>
+                  <p className="text-xs text-brand-green-dark/50">{dormBeds.length} beds · {bunkGroups.length} {isDouble ? "doubles" : "bunks"}{singleBeds.length > 0 ? ` · ${singleBeds.length} singles` : ""}</p>
                 </div>
                 <button type="button" onClick={() => removeDorm(dormName)}
                   className="flex items-center gap-1 rounded-md bg-red-50 dark:bg-red-950 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50">
@@ -221,7 +223,7 @@ export function AdminSetup({ password, username }: { password: string; username?
                 {bunkGroups.map((group, gi) => (
                   <div key={gi} className="overflow-hidden rounded-xl border border-brand-mist bg-brand-sand/20">
                     <div className="bg-brand-green-dark/[0.03] px-2.5 py-1">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-brand-green-dark/30">Bunk {gi + 1}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-brand-green-dark/30">{isDouble ? "Double" : "Bunk"} {gi + 1}</span>
                     </div>
                     {group.upper && (
                       <div className={cn("mx-1.5 mt-1.5 flex items-center justify-between rounded-lg border px-2.5 py-2", statusBg(group.upper.bed.status))}>

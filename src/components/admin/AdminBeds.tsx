@@ -304,8 +304,10 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
     const uppers = dormBeds.filter((b) => b.position === "Upper").length;
     const lowers = dormBeds.filter((b) => b.position === "Lower").length;
     const singleCount = dormBeds.filter((b) => b.position === "Single").length;
-    let layoutType: "1u1l" | "1u2l" | "single" | "mixed" = "mixed";
+    const doubleCount = dormBeds.filter((b) => b.type === "Double").length;
+    let layoutType: "1u1l" | "1u2l" | "double" | "single" | "mixed" = "mixed";
     if (singleCount === dormBeds.length) layoutType = "single";
+    else if (doubleCount === dormBeds.length) layoutType = "double";
     else if (uppers > 0 && lowers > 0 && lowers / uppers >= 1.8) layoutType = "1u2l";
     else if (uppers > 0 && lowers > 0) layoutType = "1u1l";
     return {
@@ -315,7 +317,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
       occupied: dormBeds.filter((b) => b.status === "occupied").length,
       cleanup: dormBeds.filter((b) => b.status === "cleanup").length,
       layoutType,
-      bunks: uppers,
+      units: layoutType === "double" ? doubleCount / 2 : uppers,
     };
   });
 
@@ -466,7 +468,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
                       <line x1="5" y1="37" x2="5" y2="43" stroke="#2d5c3f" strokeWidth="2" opacity="0.25" />
                       <line x1="43" y1="37" x2="43" y2="43" stroke="#2d5c3f" strokeWidth="2" opacity="0.25" />
                       <line x1="5" y1="43" x2="43" y2="43" stroke="#2d5c3f" strokeWidth="1" opacity="0.15" />
-                      <text x="24" y="53" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#2d5c3f" opacity="0.35">{dorm.bunks}x</text>
+                      <text x="24" y="53" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#2d5c3f" opacity="0.35">{dorm.units}x</text>
                     </svg>
                   </div>
                 ) : dorm.layoutType === "1u1l" ? (
@@ -479,14 +481,14 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
                       <line x1="5" y1="37" x2="5" y2="43" stroke="#2d5c3f" strokeWidth="2" opacity="0.25" />
                       <line x1="43" y1="37" x2="43" y2="43" stroke="#2d5c3f" strokeWidth="2" opacity="0.25" />
                       <line x1="5" y1="43" x2="43" y2="43" stroke="#2d5c3f" strokeWidth="1" opacity="0.15" />
-                      <text x="24" y="53" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#2d5c3f" opacity="0.35">{dorm.bunks}x</text>
+                      <text x="24" y="53" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#2d5c3f" opacity="0.35">{dorm.units}x</text>
                     </svg>
                   </div>
                 ) : (
                   <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-xl bg-brand-green/[0.06]">
                     <svg viewBox="0 0 48 48" className="h-12 w-12" aria-hidden>
                       <rect x="3" y="12" width="42" height="16" rx="3" fill="#2d5c3f" opacity="0.18" stroke="#2d5c3f" strokeWidth="1.2" />
-                      <text x="24" y="23" textAnchor="middle" fontSize="9" fontWeight="600" fill="#2d5c3f" opacity="0.5">Single</text>
+                      <text x="24" y="23" textAnchor="middle" fontSize="9" fontWeight="600" fill="#2d5c3f" opacity="0.5">{dorm.layoutType === "double" ? "Double" : "Single"}</text>
                       <line x1="5" y1="30" x2="5" y2="36" stroke="#2d5c3f" strokeWidth="2" opacity="0.25" />
                       <line x1="43" y1="30" x2="43" y2="36" stroke="#2d5c3f" strokeWidth="2" opacity="0.25" />
                     </svg>
@@ -495,8 +497,8 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
                 <div>
                   <h3 className="font-display text-lg font-bold text-brand-green-dark">{dorm.name}</h3>
                   <p className="text-[10px] text-brand-green-dark/40">
-                    {dorm.layoutType === "1u2l" ? "2 Lower + 1 Upper bunk" : dorm.layoutType === "1u1l" ? "1 Lower + 1 Upper bunk" : "Single beds"}
-                    {dorm.bunks > 0 && ` · ${dorm.bunks} units`}
+                    {dorm.layoutType === "1u2l" ? "2 Lower + 1 Upper bunk" : dorm.layoutType === "1u1l" ? "1 Lower + 1 Upper bunk" : dorm.layoutType === "double" ? "Double beds (2 lower)" : "Single beds"}
+                    {dorm.units > 0 && ` · ${dorm.units} units`}
                   </p>
                 </div>
               </div>
@@ -541,12 +543,13 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
           {/* Bunk bed groups */}
           <motion.div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" variants={staggerContainer} initial="hidden" animate="visible">
             {bunkGroups.map((group, gi) => {
+              const isDouble = group.lowers[0]?.bed.type === "Double";
               const upperNum = parseInt(group.upper?.bed.bedId.match(/\d+/)?.[0] || "0");
               const groupLabel = upperNum > 0 ? String(Math.ceil(upperNum / 2)) : `${gi + 1}`;
               return (
                 <motion.div key={gi} variants={staggerItem} className="relative overflow-hidden rounded-2xl border border-brand-mist bg-white dark:bg-card shadow-card dark:shadow-none transition-all duration-200 hover:shadow-soft dark:hover:shadow-none">
                   <div className="border-b border-brand-mist bg-brand-sand/30 px-3 py-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green-dark/40">Bunk {groupLabel}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green-dark/40">{isDouble ? "Double" : "Bunk"} {groupLabel}</span>
                   </div>
                   {/* Upper bed */}
                   {group.upper && (
@@ -561,7 +564,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
                     </div>
                   )}
                   {/* Ladder divider */}
-                  <div className="flex items-center gap-2 px-3">
+                  {group.upper && <div className="flex items-center gap-2 px-3">
                     <div className="h-px flex-1 bg-brand-mist" />
                     <svg viewBox="0 0 16 20" className="h-4 w-3 text-brand-green-dark/20" aria-hidden>
                       <line x1="3" y1="0" x2="3" y2="20" stroke="currentColor" strokeWidth="1.5" />
@@ -571,7 +574,7 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
                       <line x1="3" y1="15" x2="13" y2="15" stroke="currentColor" strokeWidth="1" />
                     </svg>
                     <div className="h-px flex-1 bg-brand-mist" />
-                  </div>
+                  </div>}
                   {/* Lower bed(s) */}
                   {group.lowers.map((lower, li) => (
                     <div key={li} className="p-1.5 pt-0">
