@@ -53,7 +53,8 @@ describe("employee attendance calendar rules", () => {
     expect(ui).toContain("openForm(calendarEmployee.id, date)");
     expect(ui).toContain("calendarEmployee.attendanceStartDate");
     expect(ui).toContain("calendarEmployee.employmentEndDate");
-    expect(ui).toContain('role === "admin" && !outsideEmployment && !upcoming');
+    expect(ui).toContain('row ? statusLabel(row.status) : upcoming ? "Upcoming" : "Present"');
+    expect(ui).toContain('role === "admin" && !outsideEmployment');
     expect(ui).toContain('!employee.isActive ? " (Inactive)"');
     expect(ui).toContain('setMonth(`${calendarYear}-${e.target.value}`)');
     expect(ui).toContain('setMonth(`${e.target.value}-${calendarMonth}`)');

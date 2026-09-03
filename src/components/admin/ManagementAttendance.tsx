@@ -186,19 +186,21 @@ export function ManagementAttendance({ password, username, role }: { password: s
               const row = calendarRows.get(date);
               const outsideEmployment = date < calendarEmployee.attendanceStartDate || (!!calendarEmployee.employmentEndDate && date > calendarEmployee.employmentEndDate);
               const upcoming = date > todayIST();
-              const label = outsideEmployment ? "Not employed" : upcoming ? "Upcoming" : statusLabel(row?.status || "present");
-              const color = outsideEmployment || upcoming
+              const label = outsideEmployment ? "Not employed" : row ? statusLabel(row.status) : upcoming ? "Upcoming" : "Present";
+              const color = outsideEmployment
                 ? "border-brand-mist bg-brand-sand/30 text-muted-foreground"
                 : row?.status === "full_day_leave"
                   ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
                   : row?.status === "half_day_leave"
                     ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
-                    : "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300";
-              const editable = role === "admin" && !outsideEmployment && !upcoming;
+                    : upcoming
+                      ? "border-brand-mist bg-brand-sand/30 text-muted-foreground"
+                      : "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300";
+              const editable = role === "admin" && !outsideEmployment;
               return <button key={date} type="button" disabled={!editable} onClick={() => openForm(calendarEmployee.id, date)} className={`min-h-24 rounded-lg border p-2 text-left ${color} ${editable ? "transition-colors hover:ring-2 hover:ring-brand-green/30" : "cursor-default"}`}>
                 <span className="block text-xs font-semibold">{Number(date.slice(-2))}</span>
                 <span className="mt-2 block text-[11px] font-medium">{label}</span>
-                {row?.comment && !outsideEmployment && !upcoming ? <span className="mt-1 block truncate text-[10px] opacity-75" title={row.comment}>{row.comment}</span> : null}
+                {row?.comment && !outsideEmployment ? <span className="mt-1 block truncate text-[10px] opacity-75" title={row.comment}>{row.comment}</span> : null}
               </button>;
             })}
           </div>
