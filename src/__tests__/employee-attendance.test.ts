@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
-import { attendanceUnits, daysInMonth, monthEnd, addMonth, calendarMonthDates, grossForEmploymentPeriod } from "@/lib/employeeAttendance";
+import { attendanceUnits, daysInMonth, monthEnd, addMonth, calendarMonthDates, grossForEmploymentPeriod } from "@/lib/employeeAttendanceUtils";
 
 describe("employee attendance calendar rules", () => {
   it("treats every calendar day as a working day and uses half-day units", () => {

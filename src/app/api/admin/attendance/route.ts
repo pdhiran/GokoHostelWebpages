@@ -5,7 +5,8 @@ import { employeeAttendance, employeeAttendanceHistory, employeeLeavePolicy, emp
 import { syncInsert, syncUpdate } from "@/db/syncMeta";
 import { authenticateUser } from "@/lib/auth";
 import { addCalendarDays } from "@/lib/inventoryAvailability";
-import { calculateEmployeePayroll, monthEnd, type AttendanceStatus } from "@/lib/employeeAttendance";
+import { calculateEmployeePayroll } from "@/lib/employeeAttendance";
+import { monthEnd, type AttendanceStatus } from "@/lib/employeeAttendanceUtils";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH_RE = /^\d{4}-\d{2}$/;

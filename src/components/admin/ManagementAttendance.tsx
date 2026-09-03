@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { AdminLoading } from "./AdminLoading";
 import { useAdminToast } from "./AdminToast";
 import type { Role } from "./types";
-import { calendarMonthDates } from "@/lib/employeeAttendance";
+import { calendarMonthDates } from "@/lib/employeeAttendanceUtils";
 import { todayIST } from "@/lib/utils";
 
 type Employee = { id: number; name: string; role: string; isActive: number; attendanceStartDate: string; employmentEndDate: string };
