@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AdminLoading } from "./AdminLoading";
 import { useAdminToast } from "./AdminToast";
+import type { Role } from "./types";
+import { calendarMonthDates } from "@/lib/employeeAttendance";
 import { todayIST } from "@/lib/utils";
 
-type Employee = { id: number; name: string; role: string; isActive: number };
+type Employee = { id: number; name: string; role: string; isActive: number; attendanceStartDate: string; employmentEndDate: string };
 type Attendance = { id: number; employeeId: number; date: string; status: string; comment: string; updatedBy: string };
 type Summary = {
   employeeId: number; openingLeaveUnits: number; creditedLeaveUnits: number; paidLeaveUnits: number; unpaidLeaveUnits: number;
@@ -22,7 +24,7 @@ const statusLabel = (value: string) => value === "full_day_leave" ? "Full Day" :
 const days = (units: number) => (units / 2).toFixed(units % 2 ? 1 : 0);
 const money = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
-export function ManagementAttendance({ password, username }: { password: string; username?: string }) {
+export function ManagementAttendance({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { showError, showSuccess } = useAdminToast();
   const [month, setMonth] = useState(todayIST().slice(0, 7));
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -32,6 +34,7 @@ export function ManagementAttendance({ password, username }: { password: string;
   const [policy, setPolicy] = useState({ monthlyCreditUnits: 4, carryCapUnits: 24, effectiveMonth: todayIST().slice(0, 7) });
   const [policies, setPolicies] = useState<Array<{ employeeId: number | null; effectiveMonth: string; monthlyCreditUnits: number; carryCapUnits: number }>>([]);
   const [policyEmployeeId, setPolicyEmployeeId] = useState("");
+  const [calendarEmployeeId, setCalendarEmployeeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<{ employeeId: number; startDate: string; endDate: string; status: string; comment: string } | null>(null);
@@ -55,7 +58,17 @@ export function ManagementAttendance({ password, username }: { password: string;
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (!employees.some((employee) => String(employee.id) === calendarEmployeeId)) {
+      setCalendarEmployeeId(String(employees.find((employee) => employee.isActive)?.id || employees[0]?.id || ""));
+    }
+  }, [calendarEmployeeId, employees]);
+
   const todayRows = useMemo(() => new Map(attendance.filter((row) => row.date === todayIST()).map((row) => [row.employeeId, row])), [attendance]);
+  const calendarEmployee = employees.find((employee) => String(employee.id) === calendarEmployeeId);
+  const calendarRows = useMemo(() => new Map(attendance.filter((row) => String(row.employeeId) === calendarEmployeeId).map((row) => [row.date, row])), [attendance, calendarEmployeeId]);
+  const calendarDates = useMemo(() => calendarMonthDates(month), [month]);
+  const calendarMonthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
 
   const openForm = (employeeId: number, date = todayIST()) => {
     const existing = attendance.find((row) => row.employeeId === employeeId && row.date === date);
@@ -124,6 +137,57 @@ export function ManagementAttendance({ password, username }: { password: string;
           </button>;
         })}
       </div>
+    </div>
+
+    <div className="rounded-xl border border-brand-mist bg-white p-4 dark:bg-card">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2"><CalendarDaysIcon className="h-4 w-4 text-brand-green" /><h4 className="text-sm font-semibold">Monthly attendance · {calendarMonthLabel}</h4></div>
+          {calendarEmployee && <p className="mt-1 text-xs text-muted-foreground">{calendarEmployee.name} · {calendarEmployee.role || "Staff"}</p>}
+          {role !== "admin" && <p className="mt-1 text-[11px] text-muted-foreground">Calendar editing is available to admins only.</p>}
+        </div>
+        <label className="w-full text-xs sm:w-64">Employee
+          <select value={calendarEmployeeId} onChange={(e) => setCalendarEmployeeId(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2">
+            {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{!employee.isActive ? " (Inactive)" : ""}</option>)}
+          </select>
+        </label>
+      </div>
+
+      {calendarEmployee ? <div className="mt-4 overflow-x-auto">
+        <div className="min-w-[700px]">
+          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day}>{day}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDates.map((date, index) => {
+              if (!date) return <div key={`empty-${index}`} className="min-h-24 rounded-lg bg-brand-sand/20" />;
+              const row = calendarRows.get(date);
+              const outsideEmployment = date < calendarEmployee.attendanceStartDate || (!!calendarEmployee.employmentEndDate && date > calendarEmployee.employmentEndDate);
+              const upcoming = date > todayIST();
+              const label = outsideEmployment ? "Not employed" : upcoming ? "Upcoming" : statusLabel(row?.status || "present");
+              const color = outsideEmployment || upcoming
+                ? "border-brand-mist bg-brand-sand/30 text-muted-foreground"
+                : row?.status === "full_day_leave"
+                  ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                  : row?.status === "half_day_leave"
+                    ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+                    : "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300";
+              const editable = role === "admin" && !outsideEmployment && !upcoming;
+              return <button key={date} type="button" disabled={!editable} onClick={() => openForm(calendarEmployee.id, date)} className={`min-h-24 rounded-lg border p-2 text-left ${color} ${editable ? "transition-colors hover:ring-2 hover:ring-brand-green/30" : "cursor-default"}`}>
+                <span className="block text-xs font-semibold">{Number(date.slice(-2))}</span>
+                <span className="mt-2 block text-[11px] font-medium">{label}</span>
+                {row?.comment && !outsideEmployment && !upcoming ? <span className="mt-1 block truncate text-[10px] opacity-75" title={row.comment}>{row.comment}</span> : null}
+              </button>;
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-green-200" />Present</span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-amber-200" />Half Day</span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-200" />Full Day</span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-brand-mist" />Upcoming / Not employed</span>
+          </div>
+        </div>
+      </div> : <p className="mt-4 text-sm text-muted-foreground">No employees found for this month.</p>}
     </div>
 
     <div className="overflow-x-auto rounded-xl border border-brand-mist bg-white dark:bg-card">

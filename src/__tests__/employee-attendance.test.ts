@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
-import { attendanceUnits, daysInMonth, monthEnd, addMonth, grossForEmploymentPeriod } from "@/lib/employeeAttendance";
+import { attendanceUnits, daysInMonth, monthEnd, addMonth, calendarMonthDates, grossForEmploymentPeriod } from "@/lib/employeeAttendance";
 
 describe("employee attendance calendar rules", () => {
   it("treats every calendar day as a working day and uses half-day units", () => {
@@ -18,6 +18,18 @@ describe("employee attendance calendar rules", () => {
     expect(addMonth("2027-01", -1)).toBe("2026-12");
   });
 
+  it("builds complete Sunday-first month grids", () => {
+    const september = calendarMonthDates("2026-09");
+    expect(september).toHaveLength(35);
+    expect(september.slice(0, 2)).toEqual([null, null]);
+    expect(september[2]).toBe("2026-09-01");
+    expect(september[31]).toBe("2026-09-30");
+
+    const leapFebruary = calendarMonthDates("2024-02");
+    expect(leapFebruary).toHaveLength(35);
+    expect(leapFebruary).toContain("2024-02-29");
+  });
+
   it("prorates salary for employees who join or leave during a month", () => {
     expect(grossForEmploymentPeriod(30_000, "monthly", 30, 15)).toBe(15_000);
     expect(grossForEmploymentPeriod(1_000, "daily", 30, 15)).toBe(15_000);
@@ -31,6 +43,20 @@ describe("employee attendance calendar rules", () => {
     expect(route).toContain("if (oldStatus === status && oldComment === comment) continue");
     expect(route).toContain('status === "present" ? "Restored Present"');
     expect(route).toContain("Attendance ranges are limited to 62 days");
+  });
+
+  it("wires the employee calendar to existing monthly data and edit flow", () => {
+    const ui = readFileSync("src/components/admin/ManagementAttendance.tsx", "utf8");
+    expect(ui).toContain("calendarMonthDates(month)");
+    expect(ui).toContain('statusLabel(row?.status || "present")');
+    expect(ui).toContain("date > todayIST()");
+    expect(ui).toContain("openForm(calendarEmployee.id, date)");
+    expect(ui).toContain("calendarEmployee.attendanceStartDate");
+    expect(ui).toContain("calendarEmployee.employmentEndDate");
+    expect(ui).toContain('role === "admin" && !outsideEmployment && !upcoming');
+    expect(ui).toContain('!employee.isActive ? " (Inactive)"');
+    const management = readFileSync("src/components/admin/AdminManagement.tsx", "utf8");
+    expect(management).toContain("<ManagementAttendance password={password} username={username} role={role} />");
   });
 
   it("enforces manager-only API access and dashboard visibility", () => {

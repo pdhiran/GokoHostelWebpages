@@ -18,6 +18,14 @@ export function monthEnd(month: string): string {
   return `${month}-${String(daysInMonth(month)).padStart(2, "0")}`;
 }
 
+export function calendarMonthDates(month: string): Array<string | null> {
+  const [year, value] = month.split("-").map(Number);
+  const dates: Array<string | null> = Array(new Date(Date.UTC(year, value - 1, 1)).getUTCDay()).fill(null);
+  for (let day = 1; day <= daysInMonth(month); day++) dates.push(`${month}-${String(day).padStart(2, "0")}`);
+  while (dates.length % 7) dates.push(null);
+  return dates;
+}
+
 export function addMonth(month: string, amount = 1): string {
   const [year, value] = month.split("-").map(Number);
   const result = new Date(Date.UTC(year, value - 1 + amount, 1));

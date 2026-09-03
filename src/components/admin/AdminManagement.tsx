@@ -161,7 +161,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         {tab === "bulkUpload" && <AdminBulkImport password={password} username={username} role={role} />}
         {tab === "qrGenerator" && <QRGenerator password={password} username={username} role={role} />}
         {tab === "accountSettings" && <AccountSettings password={password} username={username} role={role} />}
-        {tab === "attendance" && <ManagementAttendance password={password} username={username} />}
+        {tab === "attendance" && <ManagementAttendance password={password} username={username} role={role} />}
         {tab === "serverSync" && <ServerSync password={password} username={username} role={role} />}
         {tab === "channelManager" && <ChannelManager password={password} username={username} role={role} />}
       </div>
