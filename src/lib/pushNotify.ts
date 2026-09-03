@@ -1,7 +1,7 @@
 import { buildPushHTTPRequest } from "@pushforge/builder";
 import { getDb } from "@/db";
-import { pushSubscriptions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { pushSubscriptions, users } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { isOfflineMode } from "@/lib/runtime";
 
 type PushPayload = {
@@ -62,7 +62,7 @@ export function buildPushPayload(payload: PushPayload) {
   };
 }
 
-export async function sendPushToAll(payload: PushPayload): Promise<PushDeliverySummary> {
+async function sendPush(payload: PushPayload, allowedRoles?: Array<"admin" | "manager" | "staff">): Promise<PushDeliverySummary> {
   const summary: PushDeliverySummary = { attempted: 0, delivered: 0, expired: 0, failed: 0 };
   if (isOfflineMode()) return summary;
 
@@ -78,7 +78,16 @@ export async function sendPushToAll(payload: PushPayload): Promise<PushDeliveryS
   }
 
   const db = getDb();
-  const subs = await db.select().from(pushSubscriptions);
+  let subs = await db.select().from(pushSubscriptions);
+  if (allowedRoles) {
+    const roleRows = await db.select({ username: users.username, role: users.role })
+      .from(users)
+      .where(inArray(users.role, allowedRoles));
+    const allowedUsernames = new Set(roleRows.map((user) => user.username));
+    if (allowedRoles.includes("admin")) allowedUsernames.add("admin");
+    if (allowedRoles.includes("manager")) allowedUsernames.add("manager");
+    subs = subs.filter((sub) => allowedUsernames.has(sub.userLabel || ""));
+  }
   summary.attempted = subs.length;
   if (subs.length === 0) return summary;
 
@@ -124,6 +133,17 @@ export async function sendPushToAll(payload: PushPayload): Promise<PushDeliveryS
   );
 
   return summary;
+}
+
+export function sendPushToAll(payload: PushPayload): Promise<PushDeliverySummary> {
+  return sendPush(payload);
+}
+
+export function sendPushToRoles(
+  payload: PushPayload,
+  roles: Array<"admin" | "manager" | "staff">,
+): Promise<PushDeliverySummary> {
+  return sendPush(payload, roles);
 }
 
 /** Keep Cloudflare requests fast without letting the Worker terminate delivery. */

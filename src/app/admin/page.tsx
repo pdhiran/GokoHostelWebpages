@@ -121,7 +121,7 @@ function AdminPageInner() {
               } else {
                 setRole(data.role);
                 setPermissions(data.permissions || {});
-                setSection(nextSection);
+                if (nextSection !== section) setSection(nextSection);
               }
             } else {
               localStorage.removeItem("gokoAdminSession");
@@ -163,7 +163,7 @@ function AdminPageInner() {
       }
       setRole(data.role);
       setPermissions(data.permissions || {});
-      setSection(nextSection);
+      if (nextSection !== section) setSection(nextSection);
       if (rememberMe) {
         localStorage.setItem("gokoAdminSession", JSON.stringify({ password, username: username || "" }));
       }

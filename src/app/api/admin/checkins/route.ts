@@ -10,6 +10,7 @@ import { todayIST } from "@/lib/utils";
 import { addCalendarDays } from "@/lib/inventoryAvailability";
 import { stayDueAtHotel } from "@/lib/stayPayment";
 import { checkinIdsMatchingContact } from "@/lib/foodTab";
+import { getReconciliationStatus } from "@/lib/reconciliation";
 import { activeCheckinIdsForContact, getPendingFoodTab } from "@/lib/foodTabDb";
 import { dispatchPush, notificationFirstName } from "@/lib/pushNotify";
 import {
@@ -619,6 +620,9 @@ export async function POST(req: NextRequest) {
           return { ...b, due };
         })
         .filter((b) => b.due > 0);
+      const reconciliationWarning = role === "admin" || role === "manager"
+        ? await getReconciliationStatus(addCalendarDays(today, -1))
+        : null;
 
       return NextResponse.json({
         todayCheckins: todayCheckinsWithBed,
@@ -631,6 +635,7 @@ export async function POST(req: NextRequest) {
         validationEnabled,
         guestMinAge,
         guestMaxAge,
+        reconciliationWarning: reconciliationWarning?.isReconciled ? null : reconciliationWarning,
         role,
       });
     }

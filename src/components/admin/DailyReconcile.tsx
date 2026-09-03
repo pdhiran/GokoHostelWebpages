@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,7 +47,11 @@ function formatDate(d: string) {
 }
 
 export function DailyReconcile({ password, username, role, permissions }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean> }) {
-  const [date, setDate] = useState(getToday);
+  const searchParams = useSearchParams();
+  const requestedDate = searchParams.get("date");
+  const [date, setDate] = useState(() =>
+    requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : getToday(),
+  );
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [balances, setBalances] = useState<AccountBalance[]>([]);

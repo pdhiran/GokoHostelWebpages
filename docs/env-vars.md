@@ -69,6 +69,7 @@ Worker itself uses binding `DB`, not these.
 |------|---------|
 | `GITHUB_TOKEN` / `GITHUB_REPO` | Rate-scrape workflow dispatch |
 | `VAPID_PRIVATE_KEY` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Web push; no-op if unset |
+| `CRON_SECRET` | Protects the internal scheduled reconciliation-reminder endpoint |
 | `ANALYZE` | `npm run analyze` bundle |
 
 Aiosell **production** hotel/password/webhook sit in D1 `channel_config`, not env. Sandbox UI defaults are in `src/lib/aiosell.ts` (already in git).

@@ -5,7 +5,7 @@
 	"build": {
 		"command": "npm run cf:build"
 	},
-	"main": ".open-next/worker.js",
+	"main": "worker.ts",
 	"compatibility_date": "2025-11-01",
 	"compatibility_flags": [
 		"nodejs_compat"
@@ -16,6 +16,10 @@
 	},
 	"observability": {
 		"enabled": true
+	},
+	"triggers": {
+		// 10:00, 12:00, 14:00, 16:00, 18:00, 20:00 and 22:00 IST (UTC cron).
+		"crons": ["30 4,6,8,10,12,14,16 * * *"]
 	},
 	"d1_databases": [
 		{

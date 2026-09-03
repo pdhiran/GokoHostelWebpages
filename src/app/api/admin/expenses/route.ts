@@ -21,7 +21,7 @@ import { actionAllowed } from "@/lib/actionPermissions";
 import { hostelExpenseIsLinked } from "@/db/splitQueries";
 import { stayDueAtHotel, cashCollected, onlineCollected, cashRefunded, onlineRefunded, occupiedForRoomRevenue, isPrepaidStatus } from "@/lib/stayPayment";
 import { validateManualIncome } from "@/lib/income";
-import { resolveOpeningBalance } from "@/lib/reconciliation";
+import { getReconciliationStatus, resolveOpeningBalance } from "@/lib/reconciliation";
 import { parseExpenseCategories, parseIncomeCategories } from "@/lib/accountCategories";
 
 function extractDriveFileId(link: string): string | null {
@@ -625,7 +625,7 @@ export async function POST(req: NextRequest) {
           };
         });
 
-        const isReconciled = ledgerEntries.every((l) => l.isReconciled) && ledgerEntries.length > 0;
+        const { isReconciled } = await getReconciliationStatus(date);
         const notes = ledgerEntries[0]?.notes || "";
         const reconciledBy = ledgerEntries[0]?.reconciledBy || "";
         const reconciledAt = ledgerEntries[0]?.reconciledAt || "";

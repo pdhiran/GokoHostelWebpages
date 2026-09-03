@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdminApi } from "./useAdminApi";
 import { AdminLoading } from "./AdminLoading";
@@ -27,6 +28,7 @@ export function AdminDashboard({
   permissions?: Record<string, boolean>;
 }) {
   const { apiCall } = useAdminApi(password, username);
+  const router = useRouter();
   const { showError } = useAdminToast();
   const [todayCheckins, setTodayCheckins] = useState<{ row: string[]; assignedBed: string | null; dob: string; dobFromId: string; vibeMatched: number }[]>([]);
   const [todayCheckouts, setTodayCheckouts] = useState<{
@@ -51,6 +53,10 @@ export function AdminDashboard({
   const [stayPay, setStayPay] = useState<{ id: number; name: string; due: number } | null>(null);
   const [stayPayBusy, setStayPayBusy] = useState(false);
   const [vibeMatchingId, setVibeMatchingId] = useState<number | null>(null);
+  const [reconciliationWarning, setReconciliationWarning] = useState<{
+    date: string;
+    missingAccountNames: string[];
+  } | null>(null);
 
   useEffect(() => { loadDashboard(); }, []);
 
@@ -66,6 +72,7 @@ export function AdminDashboard({
         setTodayBookingCount(Number(data.todayBookingCount) || 0);
         setTodayCancellationCount(Number(data.todayCancellationCount) || 0);
         setUnpaidStays(data.unpaidStays || []);
+        setReconciliationWarning(data.reconciliationWarning || null);
         setStats(data.stats || { total: 0, occupied: 0, available: 0, cleanup: 0 });
         setValidationOn(data.validationEnabled !== false);
         if (data.guestMinAge || data.guestMaxAge) {
@@ -98,6 +105,7 @@ export function AdminDashboard({
   const canCollectStay = hasPermission(role, permissions || {}, "canCheckIn") || hasPermission(role, permissions || {}, "canAddBooking");
   const canViewBookings = hasPermission(role, permissions || {}, "canViewBookings");
   const canManageAttendance = role === "admin" || (role === "manager" && !!permissions?.canManageAttendance);
+  const canViewReconciliation = role === "admin" || (!!permissions?.canReconcile && !!permissions?.canViewAccounts);
 
   const foodApiCall = useCallback(async (body: Record<string, any>) => {
     const payload: Record<string, any> = { password, ...body };
@@ -203,6 +211,29 @@ export function AdminDashboard({
     <div>
       <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Dashboard</h2>
       <p className="mt-1 text-sm text-brand-green-dark/60 dark:text-zinc-500">{today}</p>
+
+      {reconciliationWarning && (role === "admin" || role === "manager") && (
+        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="font-semibold text-amber-900 dark:text-amber-100">Previous day reconciliation is pending</p>
+              <p className="mt-0.5 text-sm text-amber-800/80 dark:text-amber-200/80">
+                {reconciliationWarning.date} · {reconciliationWarning.missingAccountNames.length} account{reconciliationWarning.missingAccountNames.length === 1 ? "" : "s"} remaining
+              </p>
+            </div>
+          </div>
+          {canViewReconciliation && (
+            <button
+              type="button"
+              onClick={() => router.push(`/admin?section=expenditure&tab=reconcile&date=${reconciliationWarning.date}`)}
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
+            >
+              Open Reconciliation
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Quick access */}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
