@@ -23,6 +23,7 @@ type History = { id: number; employeeName: string; date: string; oldStatus: stri
 const statusLabel = (value: string) => value === "full_day_leave" ? "Full Day" : value === "half_day_leave" ? "Half Day" : "Present";
 const days = (units: number) => (units / 2).toFixed(units % 2 ? 1 : 0);
 const money = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export function ManagementAttendance({ password, username, role }: { password: string; username?: string; role: Role }) {
   const { showError, showSuccess } = useAdminToast();
@@ -69,6 +70,15 @@ export function ManagementAttendance({ password, username, role }: { password: s
   const calendarRows = useMemo(() => new Map(attendance.filter((row) => String(row.employeeId) === calendarEmployeeId).map((row) => [row.date, row])), [attendance, calendarEmployeeId]);
   const calendarDates = useMemo(() => calendarMonthDates(month), [month]);
   const calendarMonthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
+  const [calendarYear, calendarMonth] = month.split("-");
+  const calendarYears = useMemo(() => {
+    const currentYear = Number(todayIST().slice(0, 4));
+    const selectedYear = Number(calendarYear);
+    const employmentYears = employees.map((employee) => Number(employee.attendanceStartDate.slice(0, 4))).filter(Number.isFinite);
+    const firstYear = Math.min(currentYear, selectedYear, ...employmentYears);
+    const lastYear = Math.max(currentYear, selectedYear);
+    return Array.from({ length: lastYear - firstYear + 1 }, (_, index) => String(lastYear - index));
+  }, [calendarYear, employees]);
 
   const openForm = (employeeId: number, date = todayIST()) => {
     const existing = attendance.find((row) => row.employeeId === employeeId && row.date === date);
@@ -146,11 +156,23 @@ export function ManagementAttendance({ password, username, role }: { password: s
           {calendarEmployee && <p className="mt-1 text-xs text-muted-foreground">{calendarEmployee.name} · {calendarEmployee.role || "Staff"}</p>}
           {role !== "admin" && <p className="mt-1 text-[11px] text-muted-foreground">Calendar editing is available to admins only.</p>}
         </div>
-        <label className="w-full text-xs sm:w-64">Employee
-          <select value={calendarEmployeeId} onChange={(e) => setCalendarEmployeeId(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2">
-            {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{!employee.isActive ? " (Inactive)" : ""}</option>)}
-          </select>
-        </label>
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[9rem_7rem_16rem]">
+          <label className="text-xs">Month
+            <select value={calendarMonth} onChange={(e) => setMonth(`${calendarYear}-${e.target.value}`)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2">
+              {MONTHS.map((label, index) => <option key={label} value={String(index + 1).padStart(2, "0")}>{label}</option>)}
+            </select>
+          </label>
+          <label className="text-xs">Year
+            <select value={calendarYear} onChange={(e) => setMonth(`${e.target.value}-${calendarMonth}`)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2">
+              {calendarYears.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
+          </label>
+          <label className="text-xs">Employee
+            <select value={calendarEmployeeId} onChange={(e) => setCalendarEmployeeId(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2">
+              {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}{!employee.isActive ? " (Inactive)" : ""}</option>)}
+            </select>
+          </label>
+        </div>
       </div>
 
       {calendarEmployee ? <div className="mt-4 overflow-x-auto">
