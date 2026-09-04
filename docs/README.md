@@ -45,6 +45,7 @@ Handoff in short: trust `src/` over docs; trust local `MAINTAINER.local.md` for 
 | Env **names** (no values) | [env-vars.md](env-vars.md) |
 | Passwords / tokens | **[secrets-and-access.md](secrets-and-access.md)** (local only) |
 | Vendors | [integrations.md](integrations.md) |
+| Aiosell vendor API contract | [aiosell-api-reference.md](aiosell-api-reference.md) |
 | Repo layout | [directory.md](directory.md) |
 | Coding rules | [conventions.md](conventions.md) |
 | Tests + CI + Workers Builds | [testing-and-ci.md](testing-and-ci.md) |

@@ -35,4 +35,6 @@ flowchart LR
 
 Drive folder id and service-account email: [secrets-and-access.md](secrets-and-access.md).
 
+Full vendor contract and compatibility notes: [aiosell-api-reference.md](aiosell-api-reference.md).
+
 **Golden rule Aiosell:** `book`/`modify` webhooks must not echo inventory. `cancel` unassigns beds then **does** push (local pool freed). Goko-originated bed/booking/inventory UI changes push when auto-push is on.
