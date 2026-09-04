@@ -530,6 +530,63 @@ export async function getOnlineAssignmentCountForDorm(dormId: number, date: stri
   return rows[0]?.count ?? 0;
 }
 
+/** One bounded read-set for multi-day channel inventory calculations. */
+export async function getAvailabilitySnapshot(startDate: string, endDate: string) {
+  const db = getDb();
+  return Promise.all([
+    db.select({ id: beds.id, dormId: beds.dormId }).from(beds),
+    db.select({
+      dormId: bookingBedAssignments.dormId,
+      checkinDate: bookingBedAssignments.checkinDate,
+      checkoutDate: bookingBedAssignments.checkoutDate,
+      inventoryPool: bookingBedAssignments.inventoryPool,
+    }).from(bookingBedAssignments).where(and(
+      eq(bookingBedAssignments.status, "assigned"),
+      lte(bookingBedAssignments.checkinDate, endDate),
+      sql`${bookingBedAssignments.checkoutDate} > ${startDate}`,
+    )),
+    db.select({
+      dormId: bedBlocks.dormId,
+      bedId: bedBlocks.bedId,
+      startDate: bedBlocks.startDate,
+      endDate: bedBlocks.endDate,
+    }).from(bedBlocks).where(and(
+      eq(bedBlocks.isActive, 1),
+      lte(bedBlocks.startDate, endDate),
+      sql`${bedBlocks.endDate} > ${startDate}`,
+    )),
+    db.select().from(inventoryOverrides).where(and(
+      gte(inventoryOverrides.date, startDate),
+      lte(inventoryOverrides.date, endDate),
+    )),
+    db.select({
+      checkinDate: bookings.checkinDate,
+      checkoutDate: bookings.checkoutDate,
+      roomType: bookings.roomType,
+      rawData: bookings.rawData,
+    }).from(bookings).where(and(
+      eq(bookings.source, "channel_manager"),
+      sql`${bookings.status} NOT IN ('cancelled', 'checked_out', 'no_show')`,
+      lte(bookings.checkinDate, endDate),
+      sql`(
+        CASE
+          WHEN ${bookings.checkoutDate} IS NULL
+            OR ${bookings.checkoutDate} = ''
+            OR ${bookings.checkoutDate} <= ${bookings.checkinDate}
+          THEN date(${bookings.checkinDate}, '+1 day')
+          ELSE ${bookings.checkoutDate}
+        END > ${startDate}
+      )`,
+      sql`NOT EXISTS (
+        SELECT 1 FROM ${bookingBedAssignments}
+        WHERE ${bookingBedAssignments.bookingId} = ${bookings.id}
+          AND ${bookingBedAssignments.status} = 'assigned'
+          AND coalesce(${bookingBedAssignments.inventoryPool}, 'online') = 'online'
+      )`,
+    )),
+  ]);
+}
+
 // --- Rate Scrapes ---
 
 export async function createRateScrape(data: { city: string; startDate: string; endDate: string; propertyType: string }) {

@@ -51,6 +51,7 @@ const pushNoShow = vi.hoisted(() => vi.fn());
 const fetchFromAiosell = vi.hoisted(() => vi.fn());
 const getAiosellPropertyDetails = vi.hoisted(() => vi.fn());
 const getDateAwareAvailability = vi.hoisted(() => vi.fn());
+const getDateAwareAvailabilityRange = vi.hoisted(() => vi.fn());
 const triggerInventoryPush = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/queries", () => q);
@@ -62,6 +63,7 @@ vi.mock("@/lib/aiosellSync", () => ({
   triggerRatePush: vi.fn(),
   triggerRestrictionPush: vi.fn(),
   getDateAwareAvailability,
+  getDateAwareAvailabilityRange,
   pushIfOtaChanged: vi.fn(),
   otaFingerprint: vi.fn(),
 }));
@@ -984,6 +986,9 @@ describe("Push inventory route modes", () => {
     q.getRoomTypeMappings.mockResolvedValue(mappings);
     q.getDirtyInventory.mockResolvedValue([]);
     getDateAwareAvailability.mockResolvedValue(4);
+    getDateAwareAvailabilityRange.mockImplementation(async (rows, dates) => new Map(
+      rows.flatMap((row: { dormId: number }) => dates.map((date: string) => [`${row.dormId}:${date}`, 4])),
+    ));
     pushInventory.mockReset();
     pushInventory.mockResolvedValue({ success: true, message: "ok" });
     getAiosellPropertyDetails.mockReset();

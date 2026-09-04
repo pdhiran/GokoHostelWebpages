@@ -6,13 +6,13 @@
  * Aiosell-originated events (OTA/Website bookings via webhook) must NOT push back.
  */
 
-import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getOnlineAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty, getDirtyInventory, clearDirtyInventory, getUnassignedOtaRoomCountForDorm } from "@/db/queries";
+import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime, getActiveAssignmentCountForDorm, getOnlineAssignmentCountForDorm, getBlockedBedIdsForDate, getInventoryOverrideForDormDate, markInventoryDirty, getDirtyInventory, clearDirtyInventory, getUnassignedOtaRoomCountForDorm, getAvailabilitySnapshot } from "@/db/queries";
 import { logPmsCall } from "@/lib/pmsLog";
 import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { otaCeiling, remainingSplit } from "@/lib/inventoryAvailability";
+import { addCalendarDays, countUnassignedOtaRooms, otaCeiling, pickInventoryOverride, remainingSplit } from "@/lib/inventoryAvailability";
 import { getAiosellPropertyDetails, pushInventory, pushRates, pushRateRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields, type RestrictionPatch } from "@/lib/aiosell";
 import { invalidRatePlans, invalidRoomCodes } from "@/lib/aiosellValidation";
 
@@ -45,6 +45,39 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
   const available = Math.max(0, totalUnits - blocked - assigned);
   const unassignedOta = await getUnassignedOtaRoomCountForDorm(dormId, date);
   return remainingSplit(available, ceiling, assignedOnline + unassignedOta).online;
+}
+
+export async function getDateAwareAvailabilityRange(
+  mappings: Array<{ dormId: number; channelRoomCode: string; totalInventory: number }>,
+  dates: string[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (dates.length === 0 || mappings.length === 0) return result;
+  const [bedRows, assignments, blocks, overrides, unassignedBookings] = await getAvailabilitySnapshot(dates[0], dates[dates.length - 1]);
+
+  for (const mapping of mappings) {
+    const totalBeds = bedRows.filter((b) => b.dormId === mapping.dormId).length;
+    const totalUnits = mapping.totalInventory > 0 ? Math.min(totalBeds, mapping.totalInventory) : totalBeds;
+    const bedsPerUnit = totalUnits > 0 ? Math.max(1, Math.ceil(totalBeds / totalUnits)) : 1;
+    for (const date of dates) {
+      const blockedBeds = new Set(blocks.filter((b) => b.dormId === mapping.dormId && b.startDate <= date && b.endDate > date).map((b) => b.bedId)).size;
+      const active = assignments.filter((a) => a.dormId === mapping.dormId && a.checkinDate <= date && a.checkoutDate > date);
+      const blocked = Math.ceil(blockedBeds / bedsPerUnit);
+      const assigned = Math.ceil(active.length / bedsPerUnit);
+      const assignedOnline = Math.ceil(active.filter((a) => (a.inventoryPool || "online") === "online").length / bedsPerUnit);
+      const override = pickInventoryOverride(overrides, mapping.dormId, date);
+      const ceiling = otaCeiling(totalUnits, blocked, override?.onlineAvailable);
+      const available = Math.max(0, totalUnits - blocked - assigned);
+      const unassignedOta = countUnassignedOtaRooms([mapping.channelRoomCode], unassignedBookings.filter((b) => {
+        const checkout = !b.checkoutDate || b.checkoutDate <= b.checkinDate
+          ? addCalendarDays(b.checkinDate, 1)
+          : b.checkoutDate;
+        return b.checkinDate <= date && checkout > date;
+      }));
+      result.set(`${mapping.dormId}:${date}`, remainingSplit(available, ceiling, assignedOnline + unassignedOta).online);
+    }
+  }
+  return result;
 }
 
 export async function otaFingerprint(dormIds: number[], dates: string[]): Promise<string> {

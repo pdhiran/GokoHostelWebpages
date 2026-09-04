@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime, getDirtyInventory, clearDirtyInventory, clearAllDirtyInventory } from "@/db/queries";
-import { getDateAwareAvailability } from "@/lib/aiosellSync";
+import { getDateAwareAvailability, getDateAwareAvailabilityRange } from "@/lib/aiosellSync";
 import { getAiosellPropertyDetails, pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
 import { invalidRoomCodes, thirtyDayRange, validDateRange, warningRoomCodes } from "@/lib/aiosellValidation";
 import { todayIST } from "@/lib/utils";
@@ -73,12 +73,13 @@ export async function POST(req: NextRequest) {
       if (!validDateRange(start, end)) return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
 
       const dates = inclusiveNights(start, end);
+      const availability = await getDateAwareAvailabilityRange(activeMappings, dates);
 
       updates = [];
       for (const date of dates) {
         const rooms: Array<{ roomCode: string; available: number }> = [];
         for (const mapping of activeMappings) {
-          const available = await getDateAwareAvailability(mapping.dormId, date);
+          const available = availability.get(`${mapping.dormId}:${date}`) ?? 0;
           rooms.push({ roomCode: mapping.channelRoomCode, available });
         }
         updates.push({ startDate: date, endDate: date, rooms });

@@ -14,6 +14,7 @@ const queryMocks = vi.hoisted(() => ({
   getDirtyInventory: vi.fn(),
   clearDirtyInventory: vi.fn(),
   getUnassignedOtaRoomCountForDorm: vi.fn(),
+  getAvailabilitySnapshot: vi.fn(),
 }));
 
 const pushInventory = vi.hoisted(() => vi.fn());
@@ -44,7 +45,7 @@ vi.mock("@/lib/pmsLog", () => ({
   logPmsCall: vi.fn(),
 }));
 
-import { getDateAwareAvailability, otaFingerprint, pushIfOtaChanged, triggerInventoryPush } from "@/lib/aiosellSync";
+import { getDateAwareAvailability, getDateAwareAvailabilityRange, otaFingerprint, pushIfOtaChanged, triggerInventoryPush } from "@/lib/aiosellSync";
 import { logPmsCall } from "@/lib/pmsLog";
 
 const CONFIG = {
@@ -120,6 +121,24 @@ describe("getDateAwareAvailability", () => {
     queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(2);
     // Eight local sleeping positions represent four double rooms; two assigned positions consume one room.
     expect(await getDateAwareAvailability(8, "2026-09-05")).toBe(3);
+  });
+
+  it("calculates a date range from one availability snapshot", async () => {
+    queryMocks.getAvailabilitySnapshot.mockResolvedValue([
+      Array.from({ length: 8 }, (_, i) => ({ id: i + 1, dormId: 8 })),
+      [
+        { dormId: 8, checkinDate: "2026-09-05", checkoutDate: "2026-09-06", inventoryPool: "online" },
+        { dormId: 8, checkinDate: "2026-09-05", checkoutDate: "2026-09-06", inventoryPool: "online" },
+      ],
+      [], [], [],
+    ]);
+    const values = await getDateAwareAvailabilityRange(
+      [{ dormId: 8, channelRoomCode: "double", totalInventory: 4 }],
+      ["2026-09-05", "2026-09-06"],
+    );
+    expect(queryMocks.getAvailabilitySnapshot).toHaveBeenCalledOnce();
+    expect(values.get("8:2026-09-05")).toBe(3);
+    expect(values.get("8:2026-09-06")).toBe(4);
   });
 });
 
