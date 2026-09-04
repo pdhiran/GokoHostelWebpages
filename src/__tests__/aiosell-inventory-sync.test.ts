@@ -65,6 +65,7 @@ const mappings = [
 describe("getDateAwareAvailability", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    queryMocks.getRoomTypeMappings.mockResolvedValue([]);
     queryMocks.getBlockedBedIdsForDate.mockResolvedValue([]);
     queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(0);
     queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(0);
@@ -109,6 +110,16 @@ describe("getDateAwareAvailability", () => {
     queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(10);
     queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(9);
     expect(await getDateAwareAvailability(8, "2026-09-05")).toBe(0);
+  });
+
+  it("reports double-bed room inventory as rooms rather than sleeping positions", async () => {
+    queryMocks.getRoomTypeMappings.mockResolvedValue([
+      { dormId: 8, totalInventory: 4, isActive: 1 },
+    ]);
+    queryMocks.getActiveAssignmentCountForDorm.mockResolvedValue(2);
+    queryMocks.getOnlineAssignmentCountForDorm.mockResolvedValue(2);
+    // Eight local sleeping positions represent four double rooms; two assigned positions consume one room.
+    expect(await getDateAwareAvailability(8, "2026-09-05")).toBe(3);
   });
 });
 

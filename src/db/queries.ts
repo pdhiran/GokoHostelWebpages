@@ -103,6 +103,11 @@ export async function addDorm(name: string) {
 
 export async function deleteDormAndBeds(dormId: number) {
   const db = getDb();
+  await db.delete(bookingBedAssignments).where(eq(bookingBedAssignments.dormId, dormId));
+  await db.delete(bedBlocks).where(eq(bedBlocks.dormId, dormId));
+  await db.delete(bedTypeConfig).where(eq(bedTypeConfig.dormId, dormId));
+  await db.delete(inventoryOverrides).where(eq(inventoryOverrides.dormId, dormId));
+  await db.delete(inventoryDirty).where(eq(inventoryDirty.dormId, dormId));
   const mappings = await db.select({ id: roomTypeMapping.id }).from(roomTypeMapping).where(eq(roomTypeMapping.dormId, dormId));
   for (const m of mappings) {
     await deleteRoomTypeMapping(m.id);
@@ -1390,6 +1395,7 @@ export async function deleteRoomTypeMapping(id: number) {
   const plans = await db.select().from(ratePlanMapping).where(eq(ratePlanMapping.roomMappingId, id));
   for (const plan of plans) {
     await db.delete(dailyRates).where(eq(dailyRates.ratePlanId, plan.id));
+    await db.delete(channelRates).where(eq(channelRates.ratePlanId, plan.id));
   }
   await db.delete(ratePlanMapping).where(eq(ratePlanMapping.roomMappingId, id));
   return db.delete(roomTypeMapping).where(eq(roomTypeMapping.id, id));

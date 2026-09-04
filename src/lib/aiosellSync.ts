@@ -28,17 +28,23 @@ export async function getDateAwareAvailability(dormId: number, date: string): Pr
     .from(beds)
     .where(eq(beds.dormId, dormId));
   const totalBeds = totalRows[0]?.count ?? 0;
+  const mapping = (await getRoomTypeMappings()).find((m) => m.dormId === dormId && m.isActive);
+  const mappedInventory = Number(mapping?.totalInventory);
+  const totalUnits = mappedInventory > 0 ? Math.min(totalBeds, mappedInventory) : totalBeds;
+  const bedsPerUnit = totalUnits > 0 ? Math.max(1, Math.ceil(totalBeds / totalUnits)) : 1;
 
   const blockedBedIds = await getBlockedBedIdsForDate(dormId, date);
   const assignedCount = await getActiveAssignmentCountForDorm(dormId, date);
   const onlineAssigned = await getOnlineAssignmentCountForDorm(dormId, date);
 
   const override = await getInventoryOverrideForDormDate(dormId, date);
-  const blocked = blockedBedIds.length;
-  const ceiling = otaCeiling(totalBeds, blocked, override?.onlineAvailable);
-  const available = Math.max(0, totalBeds - blocked - assignedCount);
+  const blocked = Math.ceil(blockedBedIds.length / bedsPerUnit);
+  const assigned = Math.ceil(assignedCount / bedsPerUnit);
+  const assignedOnline = Math.ceil(onlineAssigned / bedsPerUnit);
+  const ceiling = otaCeiling(totalUnits, blocked, override?.onlineAvailable);
+  const available = Math.max(0, totalUnits - blocked - assigned);
   const unassignedOta = await getUnassignedOtaRoomCountForDorm(dormId, date);
-  return remainingSplit(available, ceiling, onlineAssigned + unassignedOta).online;
+  return remainingSplit(available, ceiling, assignedOnline + unassignedOta).online;
 }
 
 export async function otaFingerprint(dormIds: number[], dates: string[]): Promise<string> {

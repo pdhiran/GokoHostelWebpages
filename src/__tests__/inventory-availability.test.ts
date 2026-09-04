@@ -479,8 +479,8 @@ describe("Wiring", () => {
     expect(route).toContain("occupiedNights");
     expect(sync).toContain("getOnlineAssignmentCountForDorm");
     expect(sync).toContain("getUnassignedOtaRoomCountForDorm");
-    expect(sync).toContain("otaCeiling(totalBeds, blocked, override?.onlineAvailable)");
-    expect(sync).toContain("remainingSplit(available, ceiling, onlineAssigned + unassignedOta)");
+    expect(sync).toContain("otaCeiling(totalUnits, blocked, override?.onlineAvailable)");
+    expect(sync).toContain("remainingSplit(available, ceiling, assignedOnline + unassignedOta)");
     expect(sync).toContain("if (before !== after) return await triggerInventoryPush(dates, dormIds)");
     expect(sync).toContain("mappings.some((m) => m.dormId === dormId)");
     expect(queries).toContain("if (nights.length === 0) return []");

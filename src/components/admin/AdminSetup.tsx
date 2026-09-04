@@ -64,7 +64,7 @@ export function AdminSetup({ password, username }: { password: string; username?
     const dormBeds = beds.filter((b) => b.dormName === dormName);
     const hasOccupied = dormBeds.some((b) => b.status !== "available");
     if (hasOccupied) { showError("Cannot delete dorm with occupied or cleanup beds. Checkout all guests first."); return; }
-    if (!confirm(`Delete entire dorm "${dormName}" and all ${dormBeds.length} beds?`)) return;
+    if (!confirm(`Delete entire dorm "${dormName}", all ${dormBeds.length} beds, and its calendar and channel data?`)) return;
     setLoading(true);
     try {
       const res = await apiCall({ action: "removeDorm", dormName });

@@ -53,11 +53,22 @@ describe("Channel Manager navigation", () => {
 });
 
 describe("dorm delete cleans channel mappings", () => {
-  it("deleteDormAndBeds removes room_type_mapping rows for that dorm first", () => {
+  it("deleteDormAndBeds removes every dorm-owned child before its beds", () => {
     const fn = queries.match(/export async function deleteDormAndBeds[\s\S]*?^export async function /m);
     expect(fn).not.toBeNull();
+    for (const child of ["bookingBedAssignments", "bedBlocks", "bedTypeConfig", "inventoryOverrides", "inventoryDirty"]) {
+      expect(fn![0]).toContain(`db.delete(${child})`);
+    }
     expect(fn![0]).toMatch(/deleteRoomTypeMapping/);
     expect(fn![0]).toMatch(/roomTypeMapping\.dormId/);
+    expect(fn![0].indexOf("db.delete(beds)")).toBeGreaterThan(fn![0].indexOf("deleteRoomTypeMapping"));
+  });
+
+  it("deleteRoomTypeMapping removes both daily and channel rates", () => {
+    const fn = queries.match(/export async function deleteRoomTypeMapping[\s\S]*?^export async function /m);
+    expect(fn).not.toBeNull();
+    expect(fn![0]).toContain("db.delete(dailyRates)");
+    expect(fn![0]).toContain("db.delete(channelRates)");
   });
 });
 
