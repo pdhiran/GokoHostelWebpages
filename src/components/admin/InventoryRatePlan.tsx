@@ -782,12 +782,22 @@ function BulkUpdateModal({ data, password, username, onClose, onSaved }: {
     <div className="flex gap-1 flex-wrap">
       {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((name, i) => (
         <button key={i} type="button" onClick={() => toggleDay(i, days, setDays)}
+          aria-pressed={days.includes(i)}
           className={cn("px-2 py-1 rounded text-[10px] font-medium border", days.includes(i) ? "bg-brand-green text-white border-brand-green" : "border-input text-brand-green-dark/60")}
         >{name}</button>
       ))}
-      <button type="button" onClick={() => setDays([1, 2, 3, 4, 5])} className="px-2 py-1 rounded text-[10px] border border-input text-brand-green-dark/60 hover:bg-brand-sand">Weekdays</button>
-      <button type="button" onClick={() => setDays([0, 6])} className="px-2 py-1 rounded text-[10px] border border-input text-brand-green-dark/60 hover:bg-brand-sand">Weekends</button>
-      <button type="button" onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])} className="px-2 py-1 rounded text-[10px] border border-input text-brand-green-dark/60 hover:bg-brand-sand">All</button>
+      {[
+        { label: "Weekdays", preset: [0, 1, 2, 3, 4] },
+        { label: "Weekends", preset: [5, 6] },
+        { label: "All", preset: [0, 1, 2, 3, 4, 5, 6] },
+      ].map(({ label, preset }) => {
+        const selected = days.length === preset.length && preset.every((day) => days.includes(day));
+        return (
+          <button key={label} type="button" onClick={() => setDays(preset)} aria-pressed={selected}
+            className={cn("px-2 py-1 rounded text-[10px] font-medium border transition-colors", selected ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700" : "border-input text-brand-green-dark/60 hover:bg-brand-sand")}
+          >{label}</button>
+        );
+      })}
     </div>
   );
 
