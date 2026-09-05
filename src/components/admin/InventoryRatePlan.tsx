@@ -13,7 +13,7 @@ import type { Role } from "./types";
 type Props = { password: string; username?: string; role: Role; permissions: Record<string, boolean> };
 
 type DormData = { id: number; name: string };
-type BedData = { id: number; dormId: number; bedId: string };
+type BedData = { id: number; dormId: number; bedId: string; type: string };
 type BlockData = { id: number; bedId: number; dormId: number; startDate: string; endDate: string; reason: string };
 type AssignmentData = { bedId: number; dormId: number; checkinDate: string; checkoutDate: string; status: string; inventoryPool?: string | null };
 type RatePlanData = { id: number; roomMappingId: number; ratePlanCode: string; ratePlanName: string };
@@ -110,7 +110,7 @@ export function InventoryRatePlan({ password, username, role, permissions }: Pro
       const s = computeAvailability(dorm.id, date);
       totalBeds += s.total;
       totalBlocked += s.blocked;
-      totalAssigned += s.assigned;
+      totalAssigned += s.assigned + s.unassignedOta;
     }
     const sellable = totalBeds - totalBlocked;
     const occupancy = sellable > 0 ? Math.round((totalAssigned / sellable) * 100) : 0;

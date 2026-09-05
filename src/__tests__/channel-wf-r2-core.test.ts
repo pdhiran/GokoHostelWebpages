@@ -44,7 +44,7 @@ describe("channelBedNeeds occupancySpecified vs missing occupancy", () => {
         { roomCode: "executive", occupancy: { adults: 1, children: 0 } },
       ],
       persons: 5,
-    })).toEqual([{ roomCode: "executive", count: 2 }]);
+    })).toEqual([{ roomCode: "executive", count: 2, units: 2 }]);
   });
 
   it("two rooms[] with the same roomCode and no occupancy use persons (1 each, extra on first)", () => {
@@ -71,8 +71,8 @@ describe("channelBedNeeds occupancySpecified vs missing occupancy", () => {
         { roomCode: "dorm-6", occupancy: { adults: "0", children: "2" } as never },
       ],
     })).toEqual([
-      { roomCode: "executive", count: 2 },
-      { roomCode: "dorm-6", count: 2 },
+      { roomCode: "executive", count: 2, units: 1 },
+      { roomCode: "dorm-6", count: 2, units: 1 },
     ]);
   });
 
@@ -80,7 +80,7 @@ describe("channelBedNeeds occupancySpecified vs missing occupancy", () => {
     expect(channelBedNeeds({
       rooms: [{ roomCode: "dorm-6", occupancy: { adults: 0, children: 2 } }],
       persons: 9,
-    })).toEqual([{ roomCode: "dorm-6", count: 2 }]);
+    })).toEqual([{ roomCode: "dorm-6", count: 2, units: 1 }]);
   });
 
   it("occupancy {adults:0,children:0} is empty so persons is used", () => {
@@ -96,10 +96,10 @@ describe("channelBedNeeds occupancySpecified vs missing occupancy", () => {
         roomCode: "suite",
         occupancy: { adults: 3, children: 0 },
       })),
-    })).toEqual([{ roomCode: "suite", count: 6 }]);
+    })).toEqual([{ roomCode: "suite", count: 6, units: 6 }]);
     expect(channelBedNeeds({
       rooms: [{ roomCode: "executive", occupancy: { adults: 2, children: 0 } }],
-    })).toEqual([{ roomCode: "executive", count: 2 }]);
+    })).toEqual([{ roomCode: "executive", count: 2, units: 1 }]);
   });
 
   it("missing occupancy on a single room uses all persons", () => {
@@ -124,7 +124,7 @@ describe("channelBedNeeds occupancySpecified vs missing occupancy", () => {
       ],
       persons: 4,
     })).toEqual([
-      { roomCode: "executive", count: 2 },
+      { roomCode: "executive", count: 2, units: 1 },
       { roomCode: "dorm-6", count: 2 },
     ]);
   });
@@ -137,7 +137,7 @@ describe("channelBedNeeds occupancySpecified vs missing occupancy", () => {
       ],
       persons: 2,
     })).toEqual([
-      { roomCode: "executive", count: 2 },
+      { roomCode: "executive", count: 2, units: 1 },
     ]);
   });
 });
@@ -178,6 +178,42 @@ describe("pickOnlineBedsForChannelRooms", () => {
       tagged,
     );
     expect(picked).toMatchObject({ ok: true, picks: [{ bedId: 5, dormId: 8 }] });
+  });
+
+  it("reserves both internal slots for one sold double room", () => {
+    const tagged = Array.from({ length: 8 }, (_, i) => ({
+      id: i + 1,
+      dormId: 8,
+      pool: "online" as const,
+      bedId: `D-${i + 1}`,
+      dormName: "Double Room",
+      type: "Double",
+    }));
+    const picked = pickOnlineBedsForChannelRooms(
+      [{ roomCode: "executive", count: 1, units: 1 }],
+      mappings,
+      tagged,
+    );
+    expect(picked).toMatchObject({ ok: true });
+    if (picked.ok) expect(picked.picks.map((p) => p.bedId)).toEqual([1, 2]);
+  });
+
+  it("two guests in one sold double room still consume only one unit", () => {
+    const tagged = Array.from({ length: 8 }, (_, i) => ({
+      id: i + 1,
+      dormId: 8,
+      pool: "online" as const,
+      bedId: `D-${i + 1}`,
+      dormName: "Double Room",
+      type: "Double",
+    }));
+    const picked = pickOnlineBedsForChannelRooms(
+      [{ roomCode: "executive", count: 2, units: 1 }],
+      mappings,
+      tagged,
+    );
+    expect(picked).toMatchObject({ ok: true });
+    if (picked.ok) expect(picked.picks.map((p) => p.bedId)).toEqual([1, 2]);
   });
 });
 

@@ -47,14 +47,14 @@ describe("channelBedNeeds", () => {
   it("1 person in executive is 1 executive bed", () => {
     expect(channelBedNeeds({
       rooms: [{ roomCode: "executive", occupancy: { adults: 1, children: 0 } }],
-    })).toEqual([{ roomCode: "executive", count: 1 }]);
+    })).toEqual([{ roomCode: "executive", count: 1, units: 1 }]);
   });
 
   it("2 persons for any stay length is 2 beds of that room type", () => {
     expect(channelBedNeeds({
       rooms: [{ roomCode: "dorm-6", occupancy: { adults: 2, children: 0 } }],
       persons: 2,
-    })).toEqual([{ roomCode: "dorm-6", count: 2 }]);
+    })).toEqual([{ roomCode: "dorm-6", count: 2, units: 1 }]);
   });
 
   it("splits mixed room types by each room's occupancy", () => {
@@ -64,8 +64,8 @@ describe("channelBedNeeds", () => {
         { roomCode: "dorm-6", occupancy: { adults: 1, children: 0 } },
       ],
     })).toEqual([
-      { roomCode: "executive", count: 2 },
-      { roomCode: "dorm-6", count: 1 },
+      { roomCode: "executive", count: 2, units: 1 },
+      { roomCode: "dorm-6", count: 1, units: 1 },
     ]);
   });
 
@@ -78,16 +78,16 @@ describe("channelBedNeeds", () => {
   it("counts children as persons for that room type", () => {
     expect(channelBedNeeds({
       rooms: [{ roomCode: "executive", occupancy: { adults: 1, children: 1 } }],
-    })).toEqual([{ roomCode: "executive", count: 2 }]);
+    })).toEqual([{ roomCode: "executive", count: 2, units: 1 }]);
     expect(channelBedNeeds({
       rooms: [{ roomCode: "dorm-6", occupancy: { adults: 0, children: 2 } }],
-    })).toEqual([{ roomCode: "dorm-6", count: 2 }]);
+    })).toEqual([{ roomCode: "dorm-6", count: 2, units: 1 }]);
   });
 
   it("coerces occupancy strings so 2 persons still need 2 beds", () => {
     expect(channelBedNeeds({
       rooms: [{ roomCode: "executive", occupancy: { adults: "2", children: "0" } as never }],
-    })).toEqual([{ roomCode: "executive", count: 2 }]);
+    })).toEqual([{ roomCode: "executive", count: 2, units: 1 }]);
   });
 
   it("gives each rooms[] row its own bed when the same roomCode repeats", () => {
@@ -96,7 +96,7 @@ describe("channelBedNeeds", () => {
         { roomCode: "executive", occupancy: { adults: 1, children: 0 } },
         { roomCode: "executive", occupancy: { adults: 1, children: 0 } },
       ],
-    })).toEqual([{ roomCode: "executive", count: 2 }]);
+    })).toEqual([{ roomCode: "executive", count: 2, units: 2 }]);
   });
 
   it("treats occupancy on repeated same-code rooms as capacity, not extra beds", () => {
@@ -106,7 +106,7 @@ describe("channelBedNeeds", () => {
     };
     expect(channelBedNeeds({
       rooms: Array.from({ length: 6 }, () => ({ ...suiteRow })),
-    })).toEqual([{ roomCode: "suite", count: 6 }]);
+    })).toEqual([{ roomCode: "suite", count: 6, units: 6 }]);
   });
 
   it("JSON occupancy adults 0 children 0 uses persons when set", () => {
@@ -256,7 +256,7 @@ describe("pickOnlineBedsForChannelRooms", () => {
         occupancy: { adults: 3, children: 0 },
       })),
     });
-    expect(needs).toEqual([{ roomCode: "suite", count: 6 }]);
+    expect(needs).toEqual([{ roomCode: "suite", count: 6, units: 6 }]);
     const picked = pickOnlineBedsForChannelRooms(needs, suiteMap, tagged);
     expect(picked.ok).toBe(true);
     if (picked.ok) expect(picked.picks).toHaveLength(6);
@@ -444,7 +444,7 @@ describe("enrichUnassignedBooking", () => {
     expect(row.requestedDormNames).toEqual(["Executive"]);
     expect(row.requestedBedCount).toBe(2);
     expect(row.requestedNeedLabels).toBe("2 Executive");
-    expect(row.requestedNeeds).toEqual([{ dormId: 8, count: 2, name: "Executive" }]);
+    expect(row.requestedNeeds).toEqual([{ dormId: 8, count: 2, units: 2, name: "Executive" }]);
   });
 
   it("splits comma-separated roomType into dorms and person bed count", () => {
@@ -458,8 +458,8 @@ describe("enrichUnassignedBooking", () => {
     expect(row.requestedBedCount).toBe(3);
     expect(row.requestedNeedLabels).toBe("2 Executive, 1 Dorm 1");
     expect(row.requestedNeeds).toEqual([
-      { dormId: 8, count: 2, name: "Executive" },
-      { dormId: 9, count: 1, name: "Dorm 1" },
+      { dormId: 8, count: 2, units: 2, name: "Executive" },
+      { dormId: 9, count: 1, units: 1, name: "Dorm 1" },
     ]);
   });
 
@@ -477,6 +477,6 @@ describe("enrichUnassignedBooking", () => {
     expect(row.requestedBedCount).toBe(6);
     expect(row.persons).toBe(6);
     expect(row.requestedNeedLabels).toBe("6 Suite");
-    expect(row.requestedNeeds).toEqual([{ dormId: 11, count: 6, name: "Suite" }]);
+    expect(row.requestedNeeds).toEqual([{ dormId: 11, count: 6, units: 6, name: "Suite" }]);
   });
 });

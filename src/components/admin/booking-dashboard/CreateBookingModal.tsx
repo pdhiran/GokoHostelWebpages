@@ -20,7 +20,7 @@ import {
 } from "@/lib/bookingPricing";
 import type { CalendarDorm, DateRange } from "./types";
 
-type AvailableBed = { id: number; bedId: string; dormId: number; dormName: string; pool?: "online" | "offline" | "block" };
+type AvailableUnit = { key: string; label: string; dormId: number; dormName: string; type: "Double" | "Bed"; capacity: number; bedIds: number[]; pool?: "online" | "offline" | "block" };
 
 const DISCOUNT_REASONS = ["Complimentary", "Staff Stay", "Loyalty Guest", "Service Issue", "Manager Discount", "Other"];
 const QUICK_PERCENTS = [5, 10, 15, 20, 25, 50, 100];
@@ -58,8 +58,9 @@ export function CreateBookingModal({
   const [platform, setPlatform] = useState<"walkin" | "booking_engine">("walkin");
   const [nightlyRate, setNightlyRate] = useState(500);
   const [specialRequests, setSpecialRequests] = useState("");
-  const [selectedBeds, setSelectedBeds] = useState<number[]>([]);
-  const [availableBedsList, setAvailableBedsList] = useState<AvailableBed[]>([]);
+  const [persons, setPersons] = useState(1);
+  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
+  const [availableUnits, setAvailableUnits] = useState<AvailableUnit[]>([]);
   const [loadingBeds, setLoadingBeds] = useState(false);
   const [dormRates, setDormRates] = useState<Record<number, number>>({});
   const [taxPercent, setTaxPercent] = useState(DEFAULT_BOOKING_TAX_PERCENT);
@@ -71,24 +72,24 @@ export function CreateBookingModal({
 
   const nights = useMemo(() => getNights(checkinDate, checkoutDate), [checkinDate, checkoutDate]);
   const pricing = useMemo(() => {
-    const gross = nightlyRate * nights * Math.max(1, selectedBeds.length);
+    const gross = nightlyRate * nights;
     const discount = platform === "walkin"
       ? bookingDiscountRupees(gross, discountMode === "percent"
         ? { percent: discountPercent }
         : { amount: discountAmount })
       : 0;
     return bookingTotals(gross, { discount, taxPercent });
-  }, [nightlyRate, nights, selectedBeds.length, platform, discountMode, discountPercent, discountAmount, taxPercent]);
+  }, [nightlyRate, nights, platform, discountMode, discountPercent, discountAmount, taxPercent]);
 
   useEffect(() => {
     if (!checkinDate || !checkoutDate || checkinDate >= checkoutDate) {
-      setAvailableBedsList([]);
+      setAvailableUnits([]);
       setLoadingBeds(false);
       return;
     }
     setLoadingBeds(true);
-    setSelectedBeds([]);
-    setAvailableBedsList([]);
+    setSelectedUnits([]);
+    setAvailableUnits([]);
     let cancelled = false;
     (async () => {
       try {
@@ -102,14 +103,14 @@ export function CreateBookingModal({
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
-          setAvailableBedsList(data.beds || []);
+          setAvailableUnits(data.units || []);
           setDormRates(data.dormRates || {});
           if (data.taxRate != null) setTaxPercent(bookingTaxPercent(data.taxRate));
         } else {
-          setAvailableBedsList([]);
+          setAvailableUnits([]);
         }
       } catch {
-        if (!cancelled) setAvailableBedsList([]);
+        if (!cancelled) setAvailableUnits([]);
       } finally {
         if (!cancelled) setLoadingBeds(false);
       }
@@ -118,27 +119,29 @@ export function CreateBookingModal({
   }, [checkinDate, checkoutDate, password, username]);
 
   const availableBeds = useMemo(() => {
-    const dormMap = new Map<number, { id: number; name: string; beds: AvailableBed[] }>();
-    for (const bed of availableBedsList) {
-      if (!dormMap.has(bed.dormId)) {
-        dormMap.set(bed.dormId, { id: bed.dormId, name: bed.dormName, beds: [] });
+    const dormMap = new Map<number, { id: number; name: string; beds: AvailableUnit[] }>();
+    for (const unit of availableUnits) {
+      if (!dormMap.has(unit.dormId)) {
+        dormMap.set(unit.dormId, { id: unit.dormId, name: unit.dormName, beds: [] });
       }
-      dormMap.get(bed.dormId)!.beds.push(bed);
+      dormMap.get(unit.dormId)!.beds.push(unit);
     }
     return Array.from(dormMap.values());
-  }, [availableBedsList]);
+  }, [availableUnits]);
 
-  const toggleBed = useCallback((bedId: number, dormId: number) => {
-    setSelectedBeds((prev) => {
-      const next = prev.includes(bedId) ? prev.filter((id) => id !== bedId) : [...prev, bedId];
-      if (!prev.includes(bedId) && dormRates[dormId] && nightlyRate === 500) {
-        setNightlyRate(dormRates[dormId]);
-      }
+  const toggleBed = useCallback((key: string) => {
+    setSelectedUnits((prev) => {
+      const next = prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key];
+      const total = availableUnits.filter((u) => next.includes(u.key)).reduce((sum, u) => sum + (dormRates[u.dormId] || 0), 0);
+      if (total > 0) setNightlyRate(total);
       return next;
     });
-  }, [dormRates, nightlyRate]);
+  }, [availableUnits, dormRates]);
 
-  const canSubmit = guestName.trim() && phone.trim() && selectedBeds.length > 0 && nights > 0;
+  const selectedUnitRows = availableUnits.filter((u) => selectedUnits.includes(u.key));
+  const selectedCapacity = selectedUnitRows.reduce((sum, u) => sum + u.capacity, 0);
+  const selectionIsMinimal = !selectedUnitRows.some((unit) => selectedCapacity - unit.capacity >= persons);
+  const canSubmit = guestName.trim() && phone.trim() && selectedUnits.length > 0 && persons > 0 && persons <= selectedCapacity && selectionIsMinimal && nights > 0;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -155,7 +158,9 @@ export function CreateBookingModal({
         platform,
         nightlyRate,
         specialRequests: specialRequests.trim(),
-        bedIds: selectedBeds,
+        persons,
+        bedIds: availableUnits.filter((u) => selectedUnits.includes(u.key)).flatMap((u) => u.bedIds),
+        unitRates: Object.fromEntries(availableUnits.filter((u) => selectedUnits.includes(u.key)).map((u) => [u.key, dormRates[u.dormId] || 0])),
       };
       if (username) payload.username = username;
       if (platform === "walkin" && pricing.discount > 0) {
@@ -279,6 +284,13 @@ export function CreateBookingModal({
             <div className="text-xs text-muted-foreground">
               {nights} night{nights !== 1 ? "s" : ""}
             </div>
+            <div>
+              <Label className="text-xs">Guests</Label>
+              <Input type="number" min={1} value={persons} onChange={(e) => setPersons(Math.max(1, Number(e.target.value) || 1))} className="mt-1 w-24" />
+              {selectedUnits.length > 0 && persons > selectedCapacity && (
+                <p className="mt-1 text-[10px] text-red-600">Selected units hold at most {selectedCapacity} guest(s)</p>
+              )}
+            </div>
 
             {/* Platform */}
             <div>
@@ -313,7 +325,7 @@ export function CreateBookingModal({
 
             {/* Rate */}
             <div>
-              <Label className="text-xs">Nightly Rate per Bed</Label>
+              <Label className="text-xs">Nightly total for selected units</Label>
               <Input
                 type="number"
                 value={nightlyRate}
@@ -325,7 +337,7 @@ export function CreateBookingModal({
 
             {/* Bed picker */}
             <div>
-              <Label className="text-xs">Select Beds ({selectedBeds.length} selected)</Label>
+              <Label className="text-xs">Select rooms / beds ({selectedUnits.length} selected)</Label>
               <p className="mt-0.5 text-[10px] text-muted-foreground">
                 <span className="font-medium text-sky-700 dark:text-sky-400">Blue</span> = OTA (pushed to PMS)
                 {" · "}
@@ -359,13 +371,13 @@ export function CreateBookingModal({
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {dorm.beds.map((bed) => {
-                          const isSelected = selectedBeds.includes(bed.id);
+                          const isSelected = selectedUnits.includes(bed.key);
                           const pool = bed.pool ?? "online";
                           return (
                             <button
-                              key={bed.id}
+                              key={bed.key}
                               type="button"
-                              onClick={() => toggleBed(bed.id, dorm.id)}
+                              onClick={() => toggleBed(bed.key)}
                               className={cn(
                                 "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
                                 isSelected && pool === "online" && "border-sky-600 bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
@@ -377,7 +389,7 @@ export function CreateBookingModal({
                               )}
                             >
                               {isSelected && <CheckIcon className="size-3" />}
-                              {bed.bedId}
+                              {bed.label}{bed.capacity > 1 ? " · up to 2 guests" : ""}
                             </button>
                           );
                         })}
@@ -496,12 +508,12 @@ export function CreateBookingModal({
             )}
 
             {/* Pricing summary */}
-            {selectedBeds.length > 0 && (
+            {selectedUnits.length > 0 && (
               <div className="rounded-lg border border-border bg-muted/30 p-3">
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
-                      {formatCurrency(nightlyRate)} x {nights} night{nights !== 1 ? "s" : ""} x {selectedBeds.length} bed{selectedBeds.length !== 1 ? "s" : ""}
+                      {formatCurrency(nightlyRate)} x {nights} night{nights !== 1 ? "s" : ""} · {selectedUnits.length} unit{selectedUnits.length !== 1 ? "s" : ""} · {persons} guest{persons !== 1 ? "s" : ""}
                     </span>
                     <span className="text-foreground">{formatCurrency(pricing.gross)}</span>
                   </div>

@@ -148,8 +148,9 @@ describe("Bookings calendar and rates workflows", () => {
         requestedDormIds: [8],
         requestedDormNames: ["Executive"],
         requestedBedCount: 2,
+        requestedUnitCount: 2,
         requestedNeedLabels: "2 Executive",
-        requestedNeeds: [{ dormId: 8, count: 2, name: "Executive" }],
+        requestedNeeds: [{ dormId: 8, count: 2, units: 2, name: "Executive" }],
       },
     ]);
   });
@@ -655,7 +656,7 @@ describe("Bookings calendar and rates workflows", () => {
     const res = await POST(req({ password: "x", action: "assignBeds", bookingId: 42, bedIds: [7] }));
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/2 bed/);
+    expect(body.error).toMatch(/2 guest/);
     expect(q.assignBedToBooking).not.toHaveBeenCalled();
   });
 

@@ -36,16 +36,16 @@ describe("Round 2 Unassigned UI: reject copy, labels, assign leftover, calendar 
     );
     expect(unassigned).toContain('booking.roomType || "Unknown room type"');
     expect(unassigned).toContain(
-      "Pick {need} bed{need !== 1 ? \"s\" : \"\"}{booking.requestedNeedLabels ? ` (${booking.requestedNeedLabels})` : \"\"}",
+      "Pick {need} room/bed unit{need !== 1 ? \"s\" : \"\"}{booking.requestedNeedLabels ? ` (${booking.requestedNeedLabels})` : \"\"}",
     );
   });
 
-  it("assigns one bed per person", () => {
-    expect(unassigned).toContain("booking.requestedBedCount || booking.persons || 1");
-    expect(unassigned).toContain("one per person");
-    expect(unassigned).toContain("Select ${need} bed${need !== 1 ? \"s\" : \"\"} (one per person)");
-    expect(unassigned).toContain("one per person for the whole stay");
-    expect(unassigned).toContain("Assign offline beds (one per person)");
+  it("assigns one sellable unit while retaining guest count", () => {
+    expect(unassigned).toContain("booking.requestedUnitCount || booking.requestedBedCount || booking.persons || 1");
+    expect(unassigned).toContain("A double unit can hold up to two guests");
+    expect(unassigned).toContain("Select ${need} room/bed unit");
+    expect(unassigned).toContain("for the whole stay");
+    expect(unassigned).toContain("Assign available offline units");
     expect(unassigned).toContain('canReject ? " or reject." : "."');
     expect(unassigned).toContain("selectedBeds.length !== need");
     expect(unassigned).toContain("disabled={selectedBeds.length !== need || busy || loadingBeds}");
@@ -80,7 +80,7 @@ describe("Round 2 Unassigned UI: reject copy, labels, assign leftover, calendar 
 
   it("offline leftover chips are green and labelled off", () => {
     expect(unassigned).toContain('pool === "offline" && <span className="text-[9px] opacity-70">off</span>');
-    expect(unassigned).toContain("Green chips are offline (walk-in) beds");
+    expect(unassigned).toContain("Green chips are offline (walk-in) inventory");
     expect(unassigned).toContain('isSelected && pool === "offline" && "border-emerald-600 bg-emerald-100 text-emerald-800"');
     expect(unassigned).toContain('!isSelected && allowed && pool === "offline" && "border-emerald-200 bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100"');
   });
@@ -110,7 +110,7 @@ describe("Round 2 Unassigned UI: mixed-type staff clicks (API 400s)", () => {
   it("shows per-type requestedNeedLabels so mixed stays are not labelled as a single room", () => {
     expect(unassigned).toContain("requestedNeedLabels");
     expect(unassigned).toContain("booking.requestedNeedLabels || roomLabel");
-    expect(types).toContain("requestedNeeds?: Array<{ dormId: number; count: number; name: string }>");
+    expect(types).toContain("requestedNeeds?: Array<{ dormId: number; count: number; units?: number; name: string }>");
   });
 
   it("caps requested-dorm chips at that dorm's quota and labels overflow rooms", () => {
@@ -119,6 +119,6 @@ describe("Round 2 Unassigned UI: mixed-type staff clicks (API 400s)", () => {
     expect(unassigned).toContain("picked}/{quota}");
     expect(unassigned).toContain("Other rooms (overflow)");
     expect(unassigned).toContain("Overflow does not have to match the room-type split");
-    expect(unassigned).toContain("Assign ${booking.requestedNeedLabels} (one per person in those room types)");
+    expect(unassigned).toContain("Assign the reserved room/bed units: ${booking.requestedNeedLabels}");
   });
 });

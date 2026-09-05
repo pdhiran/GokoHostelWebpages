@@ -10,6 +10,7 @@ import {
 import { BOOKING_TAX_SETTING, bookingTaxPercent } from "@/lib/bookingPricing";
 import { logListQuery, logSafePage } from "@/lib/logRetention";
 import { getAiosellPropertyDetails, type AiosellConfig } from "@/lib/aiosell";
+import { sellableUnits } from "@/lib/inventoryAvailability";
 
 function clientConfig(config: NonNullable<Awaited<ReturnType<typeof getChannelConfig>>>): AiosellConfig {
   return { hotelCode: config.hotelCode, pmsId: config.pmsId, apiBaseUrl: config.apiBaseUrl, apiUsername: config.apiUsername, apiPassword: config.apiPassword };
@@ -49,12 +50,16 @@ export async function POST(req: NextRequest) {
         const allDorms = await getAllDorms();
         const allBeds = await getAllBeds();
         const nameById = new Map(allDorms.map((d) => [d.id, d.name]));
+        const unitCounts = new Map<number, number>();
+        for (const unit of sellableUnits(allBeds)) {
+          unitCounts.set(unit.dormId, (unitCounts.get(unit.dormId) || 0) + 1);
+        }
         const dormsWithCounts = [...allDorms]
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((d) => ({
             id: d.id,
             name: d.name,
-            bedCount: allBeds.filter((b) => b.dormId === d.id).length,
+            bedCount: unitCounts.get(d.id) || 0,
           }));
         const config = await getChannelConfig();
         const property = config ? await getAiosellPropertyDetails(clientConfig(config)) : null;
@@ -75,6 +80,10 @@ export async function POST(req: NextRequest) {
         }
         const mappingId = Number(mapping?.id);
         const isActive = mapping?.isActive !== 0 && mapping?.isActive !== false;
+        const dormUnits = sellableUnits((await getAllBeds()).filter((bed) => bed.dormId === dormId)).length;
+        if (dormUnits < 1) {
+          return NextResponse.json({ error: "This dorm has no sellable room/bed units" }, { status: 400 });
+        }
         if (isActive) {
           const config = await getChannelConfig();
           if (!config) return NextResponse.json({ error: "Channel manager is not configured" }, { status: 400 });
@@ -87,7 +96,7 @@ export async function POST(req: NextRequest) {
           id: Number.isInteger(mappingId) && mappingId > 0 ? mappingId : undefined,
           dormId,
           channelRoomCode: code,
-          totalInventory: mapping?.totalInventory,
+          totalInventory: dormUnits,
           isActive: isActive ? 1 : 0,
         });
         return NextResponse.json({ success: true });

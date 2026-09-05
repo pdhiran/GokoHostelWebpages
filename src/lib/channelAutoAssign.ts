@@ -1,4 +1,4 @@
-import type { InventoryPool } from "@/lib/inventoryAvailability";
+import { sellableUnits, type InventoryPool } from "@/lib/inventoryAvailability";
 
 export type ChannelRoomMapping = {
   dormId: number;
@@ -13,6 +13,7 @@ export type TaggedChannelBed = {
   pool: InventoryPool | string;
   bedId?: string;
   dormName?: string;
+  type?: string;
 };
 
 export function normalizeChannelRoomCode(code: string): string {
@@ -51,6 +52,7 @@ function distributePersonBeds(
 }
 
 type ChannelRoomRow = { roomCode?: string | null; occupancy?: ChannelRoomOccupancy | null };
+export type ChannelBedNeed = { roomCode: string; count: number; units?: number };
 
 function groupRoomsByCode(rooms: ChannelRoomRow[]): Array<{ roomCode: string; rows: ChannelRoomRow[] }> {
   const groups: Array<{ roomCode: string; rows: ChannelRoomRow[] }> = [];
@@ -102,20 +104,21 @@ export function channelBedNeeds(args: {
   roomType?: string | null;
   rawData?: string | null;
   persons?: number | null;
-}): Array<{ roomCode: string; count: number }> {
+}): ChannelBedNeed[] {
   const rooms = (args.rooms && args.rooms.length > 0 ? args.rooms : roomsFromRawData(args.rawData))
     .filter((r) => (r.roomCode || "").trim());
   if (rooms.length > 0) {
-    const specified: Array<{ roomCode: string; count: number }> = [];
+    const specified: ChannelBedNeed[] = [];
     for (const g of groupRoomsByCode(rooms)) {
       if (g.rows.length > 1 && g.rows.every((r) => occupancySpecified(r.occupancy))) {
-        specified.push({ roomCode: g.roomCode, count: g.rows.length });
+        specified.push({ roomCode: g.roomCode, count: g.rows.length, units: g.rows.length });
         continue;
       }
       for (const r of g.rows) {
         specified.push({
           roomCode: g.roomCode,
           count: occupancySpecified(r.occupancy) ? occupancyBedCount(r.occupancy) : 0,
+          units: 1,
         });
       }
     }
@@ -181,13 +184,15 @@ export function enrichUnassignedBooking<T extends {
 }>(
   booking: T,
   mappings: ChannelRoomMapping[],
+  doubleDormIds: ReadonlySet<number> = new Set(),
 ): T & {
   requestedRoomCodes: string[];
   requestedDormIds: number[];
   requestedDormNames: string[];
   requestedBedCount: number;
+  requestedUnitCount: number;
   requestedNeedLabels: string;
-  requestedNeeds: Array<{ dormId: number; count: number; name: string }>;
+  requestedNeeds: Array<{ dormId: number; count: number; units?: number; name: string }>;
 } {
   const needs = channelBedNeeds({
     roomType: booking.roomType,
@@ -197,6 +202,11 @@ export function enrichUnassignedBooking<T extends {
   const requestedBedCount = needs.reduce((sum, n) => sum + n.count, 0);
   const requestedRoomCodes = needs.map((n) => n.roomCode);
   const { dormIds, dormNames } = requestedDormsForCodes(requestedRoomCodes, mappings);
+  const requestedNeeds = requestedNeedsByDorm(needs, mappings).map((need) => ({
+    ...need,
+    units: doubleDormIds.has(need.dormId) ? need.units : need.count,
+  }));
+  const requestedUnitCount = requestedNeeds.reduce((sum, n) => sum + n.units, 0);
   return {
     ...booking,
     persons: requestedBedCount || booking.persons,
@@ -204,26 +214,29 @@ export function enrichUnassignedBooking<T extends {
     requestedDormIds: dormIds,
     requestedDormNames: dormNames,
     requestedBedCount,
+    requestedUnitCount,
     requestedNeedLabels: formatChannelNeedLabels(needs, mappings),
-    requestedNeeds: requestedNeedsByDorm(needs, mappings),
+    requestedNeeds,
   };
 }
 
 export function requestedNeedsByDorm(
-  needs: Array<{ roomCode: string; count: number }>,
+  needs: ChannelBedNeed[],
   mappings: ChannelRoomMapping[],
-): Array<{ dormId: number; count: number; name: string }> {
+): Array<{ dormId: number; count: number; units: number; name: string }> {
   const byCode = activeMappingsByCode(mappings);
-  const byDorm = new Map<number, { dormId: number; count: number; name: string }>();
+  const byDorm = new Map<number, { dormId: number; count: number; units: number; name: string }>();
   for (const n of needs) {
     const mapped = byCode.get(normalizeChannelRoomCode(n.roomCode));
     if (!mapped) continue;
     const cur = byDorm.get(mapped.dormId) ?? {
       dormId: mapped.dormId,
       count: 0,
+      units: 0,
       name: mapped.dormName || n.roomCode,
     };
     cur.count += Math.max(1, n.count);
+    cur.units += Math.max(1, n.units || n.count);
     byDorm.set(mapped.dormId, cur);
   }
   return [...byDorm.values()];
@@ -261,7 +274,7 @@ export type ChannelBedPick =
  * Offline / blocked chips are ignored — staff assign those from Unassigned.
  */
 export function pickOnlineBedsForChannelRooms(
-  needs: Array<{ roomCode: string; count: number }>,
+  needs: ChannelBedNeed[],
   mappings: ChannelRoomMapping[],
   tagged: TaggedChannelBed[],
 ): ChannelBedPick {
@@ -288,20 +301,20 @@ export function pickOnlineBedsForChannelRooms(
     if (!mapped) {
       return { ok: false, reason: `unmapped room type: ${need.roomCode}` };
     }
-    const count = Math.max(1, need.count);
     const candidates = onlineByDorm.get(mapped.dormId) ?? [];
+    const units = sellableUnits(candidates);
+    const isDouble = units.some((u) => u.type === "Double");
+    const count = isDouble ? Math.max(1, need.units || 1) : Math.max(1, need.count);
     for (let i = 0; i < count; i++) {
-      const bed = candidates.find((b) => !used.has(b.id));
-      if (!bed) {
+      const unit = units.find((u) => u.beds.every((b) => !used.has(b.id)));
+      if (!unit) {
         const where = mapped.dormName ? `${mapped.dormName} (${need.roomCode})` : need.roomCode;
         return { ok: false, reason: `no online beds left in ${where}` };
       }
-      used.add(bed.id);
-      picks.push({
-        bedId: bed.id,
-        dormId: mapped.dormId,
-        label: `${bed.dormName || mapped.dormName || mapped.dormId}/${bed.bedId || bed.id}`,
-      });
+      for (const bed of unit.beds) {
+        used.add(bed.id);
+        picks.push({ bedId: bed.id, dormId: mapped.dormId, label: `${bed.dormName || mapped.dormName || mapped.dormId}/${unit.label}` });
+      }
     }
   }
   return { ok: true, picks };
@@ -361,7 +374,7 @@ export function channelAssignmentNeedsReseat(args: {
 
 export async function autoAssignOnlineChannelBeds(args: {
   bookingId: number;
-  needs: Array<{ roomCode: string; count: number }>;
+  needs: ChannelBedNeed[];
   mappings: ChannelRoomMapping[];
   tagged: TaggedChannelBed[];
   assignBed: (pick: { bedId: number; dormId: number }) => Promise<boolean>;

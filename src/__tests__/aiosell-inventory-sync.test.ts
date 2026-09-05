@@ -125,10 +125,10 @@ describe("getDateAwareAvailability", () => {
 
   it("calculates a date range from one availability snapshot", async () => {
     queryMocks.getAvailabilitySnapshot.mockResolvedValue([
-      Array.from({ length: 8 }, (_, i) => ({ id: i + 1, dormId: 8 })),
+      Array.from({ length: 8 }, (_, i) => ({ id: i + 1, dormId: 8, bedId: `DOR-${i + 1}`, type: "Double" })),
       [
-        { dormId: 8, checkinDate: "2026-09-05", checkoutDate: "2026-09-06", inventoryPool: "online" },
-        { dormId: 8, checkinDate: "2026-09-05", checkoutDate: "2026-09-06", inventoryPool: "online" },
+        { bedId: 1, dormId: 8, checkinDate: "2026-09-05", checkoutDate: "2026-09-06", inventoryPool: "online" },
+        { bedId: 2, dormId: 8, checkinDate: "2026-09-05", checkoutDate: "2026-09-06", inventoryPool: "online" },
       ],
       [], [], [],
     ]);

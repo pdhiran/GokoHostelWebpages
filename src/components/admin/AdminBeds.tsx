@@ -232,6 +232,8 @@ export function AdminBeds({ password, username, role, permissions = {}, pendingA
         guestContact: guest[5],
         checkinDate: guest[1],
         stayingDays: guest[6],
+        checkinId: guest[15],
+        guestBookingId: guest[16],
       });
       if (res.ok) { setAssigningGuest(null); await loadBeds(); }
     } finally { setLoadingBedIdx(null); }

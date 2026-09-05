@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { otaFingerprint, pushIfOtaChanged, type InventorySyncResult } from "@/lib/aiosellSync";
-import { occupiedNights, exclusiveEndDate, type InventoryPool } from "@/lib/inventoryAvailability";
+import { occupiedNights, exclusiveEndDate, sellableUnits, type InventoryPool } from "@/lib/inventoryAvailability";
 import {
-  assignedBedsMatchNeeds,
   channelBedNeeds,
   channelNeedsAreMapped,
   enrichUnassignedBooking,
@@ -338,13 +337,15 @@ export async function POST(req: NextRequest) {
       const allBeds = await getAllBeds();
       const activeBlocks = await getActiveBedBlocks(undefined, startDate, endDate);
       const blockedBedIds = new Set(activeBlocks.map((b) => b.bedId));
+      const units = sellableUnits(allBeds);
+      const unitByBed = new Map(units.flatMap((u) => u.beds.map((b) => [b.id, u] as const)));
 
       const dormsWithBeds = allDorms.map((d) => ({
         id: d.id,
         name: d.name,
-        beds: allBeds
-          .filter((b) => b.dormId === d.id)
-          .map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId, dormName: b.dormName, isBlocked: blockedBedIds.has(b.id) })),
+        beds: units
+          .filter((u) => u.dormId === d.id)
+          .map((u) => ({ id: u.beds[0].id, bedId: u.label, dormId: u.dormId, dormName: u.beds[0].dormName, isBlocked: u.beds.some((b) => blockedBedIds.has(b.id)), type: u.type, capacity: u.capacity, physicalBedIds: u.beds.map((b) => b.id) })),
       }));
 
       const enrichedBookings = calendarData.bookings.map((b) => {
@@ -356,13 +357,19 @@ export async function POST(req: NextRequest) {
       });
 
       const bedById = new Map(allBeds.map((b) => [b.id, b]));
-      const enrichedAssignments = calendarData.assignments.map((a) => {
+      const seenCalendarUnits = new Set<string>();
+      const enrichedAssignments = calendarData.assignments.flatMap((a) => {
         const bed = bedById.get(a.bedId);
-        return {
+        const unit = unitByBed.get(a.bedId);
+        const key = `${a.bookingId}:${unit?.key || a.bedId}`;
+        if (seenCalendarUnits.has(key)) return [];
+        seenCalendarUnits.add(key);
+        return [{
           ...a,
+          bedId: unit?.beds[0].id || a.bedId,
           dormName: bed?.dormName || "",
-          bedLabel: bed?.bedId || "",
-        };
+          bedLabel: unit?.label || bed?.bedId || "",
+        }];
       });
 
       return NextResponse.json({
@@ -423,8 +430,10 @@ export async function POST(req: NextRequest) {
     if (action === "getUnassigned") {
       const results = await getUnassignedBookings();
       const mappings = await getRoomTypeMappings();
+      const units = sellableUnits((await getAllBeds()) || []);
+      const doubleDormIds = new Set(units.filter((unit) => unit.type === "Double").map((unit) => unit.dormId));
       return NextResponse.json({
-        bookings: results.map((b) => enrichUnassignedBooking(b, mappings)),
+        bookings: results.map((b) => enrichUnassignedBooking(b, mappings, doubleDormIds)),
       });
     }
 
@@ -450,7 +459,12 @@ export async function POST(req: NextRequest) {
       const { checkinDate, checkoutDate, bookingId } = body;
       if (!checkinDate || !checkoutDate) return NextResponse.json({ error: "checkinDate and checkoutDate required" }, { status: 400 });
       const available = await getAvailableBedsForRange(checkinDate, checkoutDate, undefined, bookingId);
-      const beds = available.map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId, dormName: b.dormName, pool: b.pool }));
+      const beds = available.map((b) => ({ id: b.id, bedId: b.bedId, dormId: b.dormId, dormName: b.dormName, type: b.type, pool: b.pool }));
+      const availableIds = new Set(available.map((b) => b.id));
+      const allInventoryBeds = (await getAllBeds()) || [];
+      const units = sellableUnits(allInventoryBeds.length > 0 ? allInventoryBeds : available)
+        .filter((u) => u.beds.every((b) => availableIds.has(b.id)))
+        .map((u) => ({ key: u.key, label: u.label, dormId: u.dormId, dormName: u.beds[0]?.dormName || "", type: u.type, capacity: u.capacity, bedIds: u.beds.map((b) => b.id), pool: available.find((b) => b.id === u.beds[0]?.id)?.pool || "online" }));
       const dormRates: Record<number, number> = {};
       const mappings = await getRoomTypeMappings();
       const ratePlans = await getRatePlanMappings();
@@ -468,7 +482,7 @@ export async function POST(req: NextRequest) {
         }
       }
       const taxRate = await loadBookingTaxPercent();
-      return NextResponse.json({ beds, dormRates, taxRate });
+      return NextResponse.json({ beds, units, dormRates, taxRate });
     }
 
     if (action === "getBookingHistory") {
@@ -481,7 +495,7 @@ export async function POST(req: NextRequest) {
     // --- Create ---
 
     if (action === "createBooking") {
-      const { guestName, contact, email, checkinDate, checkoutDate, platform, nightlyRate, specialRequests, bedIds, discountPercent, discountAmount, discountReason } = body;
+      const { guestName, contact, email, checkinDate, checkoutDate, platform, nightlyRate, specialRequests, bedIds, persons, unitRates, discountPercent, discountAmount, discountReason } = body;
       if (!guestName || !checkinDate || !checkoutDate) {
         return NextResponse.json({ error: "guestName, checkinDate, checkoutDate required" }, { status: 400 });
       }
@@ -490,14 +504,36 @@ export async function POST(req: NextRequest) {
       }
 
       const nights = diffDays(checkinDate, checkoutDate);
-      const bedsCount = (bedIds as number[])?.length || 1;
+      const selectedIds = Array.isArray(bedIds) ? [...new Set((bedIds as unknown[]).map(Number).filter(Number.isInteger))] : [];
+      let allPhysicalBeds = (await getAllBeds()) || [];
+      if (allPhysicalBeds.length === 0) {
+        allPhysicalBeds = (await Promise.all(selectedIds.map((id) => getBedById(id)))).filter(Boolean) as typeof allPhysicalBeds;
+      }
+      const selectedIdSet = new Set(selectedIds);
+      const selectedUnits = sellableUnits(allPhysicalBeds).filter((u) => u.beds.some((b) => selectedIdSet.has(b.id)));
+      if (selectedUnits.some((u) => !u.beds.every((b) => selectedIdSet.has(b.id)))) {
+        return NextResponse.json({ error: "A double bed must be reserved as one complete room" }, { status: 400 });
+      }
+      if (selectedUnits.flatMap((u) => u.beds).length !== selectedIds.length) {
+        return NextResponse.json({ error: "Invalid bed selection" }, { status: 400 });
+      }
+      const unitsCount = selectedUnits.length || 1;
+      const explicitUnitPricing = persons != null || (unitRates && typeof unitRates === "object");
+      const guestCount = Math.max(1, Number(persons) || selectedIds.length || unitsCount);
+      const capacity = selectedUnits.reduce((sum, u) => sum + u.capacity, 0);
+      if (selectedUnits.length > 0 && guestCount > capacity) {
+        return NextResponse.json({ error: `Selected rooms hold at most ${capacity} guest(s)` }, { status: 400 });
+      }
+      if (selectedUnits.some((unit) => capacity - unit.capacity >= guestCount)) {
+        return NextResponse.json({ error: `Select only the units needed for ${guestCount} guest(s)` }, { status: 400 });
+      }
       if (bedIds && Array.isArray(bedIds) && bedIds.length > 0) {
-        const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate);
+        const selectionError = await validateBedsForRange(selectedIds, checkinDate, checkoutDate);
         if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
       }
       const src = platform || "walkin";
       const taxPercent = await loadBookingTaxPercent();
-      const gross = (nightlyRate || 0) * nights * bedsCount;
+      const gross = (nightlyRate || 0) * nights * (explicitUnitPricing ? 1 : unitsCount);
       const discount = src === "walkin"
         ? bookingDiscountRupees(gross, { percent: discountPercent, amount: discountAmount })
         : 0;
@@ -514,7 +550,7 @@ export async function POST(req: NextRequest) {
         platform: src,
         checkinDate,
         checkoutDate,
-        persons: bedsCount,
+        persons: guestCount,
         nightlyRate: nightlyRate || 0,
         amountBeforeTax: totalBeforeTax,
         amountTax: tax,
@@ -530,6 +566,8 @@ export async function POST(req: NextRequest) {
               discountAmount: discount > 0 && !(Number(discountPercent) > 0) && Number(discountAmount) > 0 ? Number(discountAmount) : undefined,
               discountReason: discount > 0 ? reason : undefined,
               taxPercent,
+              unitPricing: explicitUnitPricing || selectedUnits.some((u) => u.type === "Double"),
+              units: selectedUnits.map((u) => ({ key: u.key, dormId: u.dormId, rate: Math.max(0, Number(unitRates?.[u.key]) || 0) })),
             })
           : undefined,
       });
@@ -541,13 +579,13 @@ export async function POST(req: NextRequest) {
       if (bedIds && Array.isArray(bedIds) && bedIds.length > 0) {
         const dates = bookingDateRange(checkinDate, checkoutDate);
         const dormIds: number[] = [];
-        for (const bedId of bedIds) {
+        for (const bedId of selectedIds) {
           const bed = await getBedById(bedId);
           if (bed) dormIds.push(bed.dormId);
         }
         const before = await otaFingerprint(dormIds, dates);
-        const { labels } = await assignTaggedBeds(newBookingId, bedIds, checkinDate, checkoutDate, actingUser);
-        const failed = assignFailed(bedIds, labels);
+        const { labels } = await assignTaggedBeds(newBookingId, selectedIds, checkinDate, checkoutDate, actingUser);
+        const failed = assignFailed(selectedIds, labels);
         if (failed) {
           await unassignBookingBeds(newBookingId);
           await updateBookingFull(newBookingId, {
@@ -564,12 +602,12 @@ export async function POST(req: NextRequest) {
         await addBookingHistoryEntry({
           bookingId: newBookingId,
           action: "Created",
-          details: `Manual booking by ${actingUser}. ${bedsCount} bed(s), ${nights} night(s).${discount > 0 ? ` Discount ₹${discount}${reason ? ` (${reason})` : ""}.` : ""}`,
+          details: `Manual booking by ${actingUser}. ${unitsCount} unit(s), ${guestCount} guest(s), ${nights} night(s).${discount > 0 ? ` Discount ₹${discount}${reason ? ` (${reason})` : ""}.` : ""}`,
           performedBy: actingUser,
         });
         await dispatchPush({
           title: "New Booking",
-          body: `${notificationFirstName(guestName)} · ${notificationStayDates(checkinDate, checkoutDate)} · ${bedsCount} ${bedsCount === 1 ? "guest" : "guests"}`,
+          body: `${notificationFirstName(guestName)} · ${notificationStayDates(checkinDate, checkoutDate)} · ${guestCount} ${guestCount === 1 ? "guest" : "guests"}`,
           url: "/admin?section=bookings",
           eventId: `booking-created-${newBookingId}`,
           category: "booking",
@@ -602,23 +640,26 @@ export async function POST(req: NextRequest) {
       const mappings = (await getRoomTypeMappings()) || [];
       const enriched = enrichUnassignedBooking(detail.booking, mappings);
       const currentAssigned = (detail.assignments || []).filter((a) => a.status === "assigned").length;
-      if (enriched.requestedBedCount > 0 && currentAssigned + bedIds.length > enriched.requestedBedCount) {
-        return NextResponse.json(
-          { error: `This stay already has ${currentAssigned} of ${enriched.requestedBedCount} bed(s) (one per person)` },
-          { status: 400 },
-        );
-      }
       if (currentAssigned === 0 && enriched.requestedBedCount > 0) {
-        if (bedIds.length !== enriched.requestedBedCount) {
-          return NextResponse.json(
-            { error: `Select ${enriched.requestedBedCount} bed(s) (one per person)` },
-            { status: 400 },
-          );
-        }
         const selected = [];
         for (const bedId of bedIds) {
           const bed = await getBedById(bedId);
           if (bed) selected.push(bed);
+        }
+        const selectedIds = new Set(selected.map((b) => b.id));
+        const allAssignmentBeds = (await getAllBeds()) || [];
+        const allUnits = sellableUnits(allAssignmentBeds.length > 0 ? allAssignmentBeds : selected);
+        const selectedUnits = allUnits.filter((u) => u.beds.some((b) => selectedIds.has(b.id)));
+        const doubleDormIds = new Set(selectedUnits.filter((unit) => unit.type === "Double").map((unit) => unit.dormId));
+        if (selectedUnits.some((u) => !u.beds.every((b) => selectedIds.has(b.id)))) {
+          return NextResponse.json({ error: "Select the complete double room, not one internal slot" }, { status: 400 });
+        }
+        if (selectedUnits.reduce((sum, u) => sum + u.capacity, 0) < detail.booking.persons) {
+          return NextResponse.json({ error: `Selected units do not hold ${detail.booking.persons} guest(s)` }, { status: 400 });
+        }
+        const selectedCapacity = selectedUnits.reduce((sum, u) => sum + u.capacity, 0);
+        if (selectedUnits.some((unit) => selectedCapacity - unit.capacity >= detail.booking.persons)) {
+          return NextResponse.json({ error: `Select only the units needed for ${detail.booking.persons} guest(s)` }, { status: 400 });
         }
         const needs = channelBedNeeds({
           roomType: detail.booking.roomType,
@@ -627,16 +668,18 @@ export async function POST(req: NextRequest) {
         });
         const overflow = enriched.requestedDormIds.length > 0
           && selected.some((bed) => !enriched.requestedDormIds.includes(bed.dormId));
-        if (
-          !overflow
-          && channelNeedsAreMapped(needs, mappings)
-          && !assignedBedsMatchNeeds(selected, needs, mappings)
-        ) {
+        const unitMismatch = (enriched.requestedNeeds || []).some((need) =>
+          selectedUnits.filter((u) => u.dormId === need.dormId).length
+            !== (doubleDormIds.has(need.dormId) ? (need.units ?? need.count) : need.count),
+        );
+        if (!overflow && channelNeedsAreMapped(needs, mappings) && unitMismatch) {
           return NextResponse.json(
-            { error: `Assign ${enriched.requestedNeedLabels} (one per person in those room types)` },
+            { error: `Assign the reserved room type: ${enriched.requestedNeedLabels}` },
             { status: 400 },
           );
         }
+      } else if (currentAssigned > 0 && currentAssigned + bedIds.length > enriched.requestedBedCount) {
+        return NextResponse.json({ error: `Booking already has ${currentAssigned} of ${enriched.requestedBedCount} beds; assign one per person` }, { status: 400 });
       }
       const selectionError = await validateBedsForRange(bedIds, checkinDate, checkoutDate, bookingId);
       if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
@@ -1131,6 +1174,11 @@ export async function POST(req: NextRequest) {
       if (!oldCheckout) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
       const currentAssignments = detail.assignments.filter((a) => a.status === "assigned");
 
+      if (confirmed && Array.isArray(selectedBedIds) && selectedBedIds.length > 0) {
+        const selectionError = await validateBedsForRange(selectedBedIds, newCheckinDate, oldCheckout, bookingId);
+        if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
+      }
+
       if (newCheckinDate === oldCheckin) return NextResponse.json({ error: "New date same as current" }, { status: 400 });
 
       const isEarlier = newCheckinDate < oldCheckin;
@@ -1201,7 +1249,7 @@ export async function POST(req: NextRequest) {
       // Update booking dates and recalculate amounts
       const nights = diffDays(newCheckinDate, oldCheckout);
       const nightlyRate = detail.booking.nightlyRate ?? 0;
-      const bedsCount = Math.max(1, selectedBedIds?.length || currentAssignments.length);
+      const bedsCount = parseGokoWalkin(detail.booking.rawData)?.unitPricing ? 1 : Math.max(1, selectedBedIds?.length || currentAssignments.length);
       const taxPercent = await loadBookingTaxPercent();
       const { totalBeforeTax, tax, discount } = stayAmounts(
         nightlyRate * nights * bedsCount,
@@ -1258,6 +1306,11 @@ export async function POST(req: NextRequest) {
       const oldCheckout = stayCheckout(oldCheckin, detail.booking.checkoutDate);
       if (!oldCheckout) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
       const currentAssignments = detail.assignments.filter((a) => a.status === "assigned");
+
+      if (confirmed && Array.isArray(selectedBedIds) && selectedBedIds.length > 0) {
+        const selectionError = await validateBedsForRange(selectedBedIds, oldCheckin, newCheckoutDate, bookingId);
+        if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
+      }
 
       if (newCheckoutDate === oldCheckout) return NextResponse.json({ error: "New date same as current" }, { status: 400 });
       if (newCheckoutDate <= oldCheckin) return NextResponse.json({ error: "Check-out must be after check-in" }, { status: 400 });
@@ -1323,7 +1376,7 @@ export async function POST(req: NextRequest) {
       // Update booking dates and recalculate
       const nights = diffDays(oldCheckin, newCheckoutDate);
       const nightlyRate = detail.booking.nightlyRate ?? 0;
-      const bedsCount = Math.max(1, selectedBedIds?.length || currentAssignments.length);
+      const bedsCount = parseGokoWalkin(detail.booking.rawData)?.unitPricing ? 1 : Math.max(1, selectedBedIds?.length || currentAssignments.length);
       const taxPercent = await loadBookingTaxPercent();
       const { totalBeforeTax, tax, discount } = stayAmounts(
         nightlyRate * nights * bedsCount,
@@ -1422,6 +1475,10 @@ export async function POST(req: NextRequest) {
       const checkinDate = detail.booking.checkinDate;
       const checkoutDate = stayCheckout(checkinDate, detail.booking.checkoutDate);
       if (!checkoutDate) return NextResponse.json({ error: "Invalid booking dates" }, { status: 400 });
+      if (Array.isArray(addBedIds) && addBedIds.length > 0) {
+        const selectionError = await validateBedsForRange(addBedIds, checkinDate, checkoutDate, bookingId);
+        if (selectionError) return NextResponse.json({ error: selectionError }, { status: 400 });
+      }
       const dates = bookingDateRange(checkinDate, checkoutDate);
       const dormIds = [...activeAssignmentDormIds(detail.assignments)];
       if (addBedIds && Array.isArray(addBedIds)) {
@@ -1444,12 +1501,18 @@ export async function POST(req: NextRequest) {
 
       if (removeBedIds && Array.isArray(removeBedIds) && removeBedIds.length > 0) {
         const assigned = detail.assignments.filter((a) => a.status === "assigned");
-        const assignmentIds = [...new Set(removeBedIds.flatMap((id: number) => {
-          if (assigned.some((a) => a.id === id)) return [id];
-          return assigned.filter((a) => a.bedId === id).map((a) => a.id);
-        }))];
+        const requested = new Set(removeBedIds.map(Number));
+        const targetBedIds = new Set(assigned
+          .filter((a) => requested.has(a.id) || requested.has(a.bedId))
+          .map((a) => a.bedId));
+        for (const unit of sellableUnits((await getAllBeds()) || [])) {
+          if (unit.beds.some((bed) => bed.id != null && targetBedIds.has(bed.id))) {
+            for (const bed of unit.beds) if (bed.id != null) targetBedIds.add(bed.id);
+          }
+        }
+        const assignmentIds = assigned.filter((a) => targetBedIds.has(a.bedId)).map((a) => a.id);
         if (assignmentIds.length > 0) await cancelBedAssignments(assignmentIds, bookingId);
-        changes.push(`Removed ${removeBedIds.length} bed(s)`);
+        changes.push(`Removed ${assignmentIds.length} physical bed assignment(s)`);
       }
 
       if (Object.keys(updates).length > 0) {

@@ -7,6 +7,8 @@ export type GokoWalkinPricing = {
   discountAmount?: number;
   discountReason?: string;
   taxPercent: number;
+  unitPricing?: boolean;
+  units?: Array<{ key: string; dormId: number; rate: number }>;
 };
 
 export function bookingTaxPercent(raw: unknown): number {
@@ -64,6 +66,8 @@ export function parseGokoWalkin(raw?: string | null): GokoWalkinPricing | null {
       discountAmount: Number.isFinite(discountAmount) ? discountAmount : undefined,
       discountReason: typeof w.discountReason === "string" ? w.discountReason : "",
       taxPercent: bookingTaxPercent(w.taxPercent),
+      unitPricing: w.unitPricing === true,
+      units: Array.isArray(w.units) ? w.units : undefined,
     };
   } catch {
     return null;
@@ -116,7 +120,8 @@ export function nextGokoWalkinRaw(
       : undefined,
     discountReason: walkin?.discountReason || undefined,
     taxPercent,
+    unitPricing: walkin?.unitPricing,
+    units: walkin?.units,
   };
   return patchGokoWalkin(raw, next) ?? undefined;
 }
-

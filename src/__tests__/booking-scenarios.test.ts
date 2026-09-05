@@ -177,6 +177,60 @@ describe("createBooking permutations", () => {
     expect(pushIfOtaChanged).toHaveBeenCalled();
   });
 
+  it.each([1, 2])("a %i-guest double-room booking reserves both slots at one room price", async (persons) => {
+    const doubles = [
+      { id: 7, bedId: "D-1", dormId: 9, dormName: "Double Room", type: "Double" },
+      { id: 8, bedId: "D-2", dormId: 9, dormName: "Double Room", type: "Double" },
+    ];
+    q.getAllBeds.mockResolvedValue(doubles);
+    q.getBedById.mockImplementation(async (id: number) => doubles.find((bed) => bed.id === id) || null);
+    q.getAvailableBedsForRange.mockResolvedValue(doubles.map((bed) => ({ ...bed, pool: "online" })));
+    q.validateBedsForRange.mockResolvedValue(null);
+    q.assignBedToBooking.mockResolvedValue(true);
+
+    const res = await POST(req({
+      password: "x",
+      action: "createBooking",
+      guestName: "Double Guest",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-06",
+      nightlyRate: 1000,
+      persons,
+      bedIds: [7, 8],
+      unitRates: { "9:double:1": 1000 },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(q.addBooking).toHaveBeenCalledWith(expect.objectContaining({
+      persons,
+      amountBeforeTax: 1000,
+      amountTax: 50,
+      amountTotal: 1050,
+    }));
+    expect(q.assignBedToBooking).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects three guests in one double room", async () => {
+    const doubles = [
+      { id: 7, bedId: "D-1", dormId: 9, dormName: "Double Room", type: "Double" },
+      { id: 8, bedId: "D-2", dormId: 9, dormName: "Double Room", type: "Double" },
+    ];
+    q.getAllBeds.mockResolvedValue(doubles);
+    const res = await POST(req({
+      password: "x",
+      action: "createBooking",
+      guestName: "Too Many",
+      checkinDate: "2026-09-05",
+      checkoutDate: "2026-09-06",
+      nightlyRate: 1000,
+      persons: 3,
+      bedIds: [7, 8],
+    }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: expect.stringMatching(/at most 2/) });
+    expect(q.addBooking).not.toHaveBeenCalled();
+  });
+
   it("rejects checkout on the check-in morning (zero-night)", async () => {
     const res = await POST(req({
       password: "x",
@@ -359,10 +413,10 @@ describe("createBooking permutations", () => {
       nightlyRate: 500,
       bedIds: [7, 8, 9],
     }));
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
     expect(q.assignBedToBooking).not.toHaveBeenCalled();
-    expect(q.unassignBookingBeds).toHaveBeenCalledWith(10);
-    expect(q.updateBookingFull).toHaveBeenCalledWith(10, expect.objectContaining({ status: "cancelled" }));
+    expect(q.unassignBookingBeds).not.toHaveBeenCalled();
+    expect(q.updateBookingFull).not.toHaveBeenCalled();
     expect(pushIfOtaChanged).not.toHaveBeenCalled();
   });
 });

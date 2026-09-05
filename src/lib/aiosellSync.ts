@@ -12,7 +12,7 @@ import { todayIST } from "@/lib/utils";
 import { getDb } from "@/db";
 import { beds } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { addCalendarDays, countUnassignedOtaRooms, otaCeiling, pickInventoryOverride, remainingSplit } from "@/lib/inventoryAvailability";
+import { addCalendarDays, computeNightAvailability, countUnassignedOtaRooms, otaCeiling, remainingSplit } from "@/lib/inventoryAvailability";
 import { getAiosellPropertyDetails, pushInventory, pushRates, pushRateRestrictions, type AiosellConfig, type InventoryUpdate, type RateUpdate, type RateRestrictionUpdate, type RestrictionFields, type RestrictionPatch } from "@/lib/aiosell";
 import { invalidRatePlans, invalidRoomCodes } from "@/lib/aiosellValidation";
 
@@ -24,26 +24,21 @@ export type InventorySyncResult = {
 
 export async function getDateAwareAvailability(dormId: number, date: string): Promise<number> {
   const db = getDb();
-  const totalRows = await db.select({ count: sql<number>`COUNT(*)` })
-    .from(beds)
-    .where(eq(beds.dormId, dormId));
+  const totalRows = await db.select({ count: sql<number>`COUNT(*)` }).from(beds).where(eq(beds.dormId, dormId));
   const totalBeds = totalRows[0]?.count ?? 0;
   const mapping = (await getRoomTypeMappings()).find((m) => m.dormId === dormId && m.isActive);
-  const mappedInventory = Number(mapping?.totalInventory);
-  const totalUnits = mappedInventory > 0 ? Math.min(totalBeds, mappedInventory) : totalBeds;
+  const totalUnits = Number(mapping?.totalInventory) > 0 ? Math.min(totalBeds, Number(mapping?.totalInventory)) : totalBeds;
   const bedsPerUnit = totalUnits > 0 ? Math.max(1, Math.ceil(totalBeds / totalUnits)) : 1;
-
   const blockedBedIds = await getBlockedBedIdsForDate(dormId, date);
   const assignedCount = await getActiveAssignmentCountForDorm(dormId, date);
   const onlineAssigned = await getOnlineAssignmentCountForDorm(dormId, date);
-
   const override = await getInventoryOverrideForDormDate(dormId, date);
   const blocked = Math.ceil(blockedBedIds.length / bedsPerUnit);
   const assigned = Math.ceil(assignedCount / bedsPerUnit);
   const assignedOnline = Math.ceil(onlineAssigned / bedsPerUnit);
   const ceiling = otaCeiling(totalUnits, blocked, override?.onlineAvailable);
-  const available = Math.max(0, totalUnits - blocked - assigned);
   const unassignedOta = await getUnassignedOtaRoomCountForDorm(dormId, date);
+  const available = Math.max(0, totalUnits - blocked - assigned - unassignedOta);
   return remainingSplit(available, ceiling, assignedOnline + unassignedOta).online;
 }
 
@@ -56,25 +51,15 @@ export async function getDateAwareAvailabilityRange(
   const [bedRows, assignments, blocks, overrides, unassignedBookings] = await getAvailabilitySnapshot(dates[0], dates[dates.length - 1]);
 
   for (const mapping of mappings) {
-    const totalBeds = bedRows.filter((b) => b.dormId === mapping.dormId).length;
-    const totalUnits = mapping.totalInventory > 0 ? Math.min(totalBeds, mapping.totalInventory) : totalBeds;
-    const bedsPerUnit = totalUnits > 0 ? Math.max(1, Math.ceil(totalBeds / totalUnits)) : 1;
     for (const date of dates) {
-      const blockedBeds = new Set(blocks.filter((b) => b.dormId === mapping.dormId && b.startDate <= date && b.endDate > date).map((b) => b.bedId)).size;
-      const active = assignments.filter((a) => a.dormId === mapping.dormId && a.checkinDate <= date && a.checkoutDate > date);
-      const blocked = Math.ceil(blockedBeds / bedsPerUnit);
-      const assigned = Math.ceil(active.length / bedsPerUnit);
-      const assignedOnline = Math.ceil(active.filter((a) => (a.inventoryPool || "online") === "online").length / bedsPerUnit);
-      const override = pickInventoryOverride(overrides, mapping.dormId, date);
-      const ceiling = otaCeiling(totalUnits, blocked, override?.onlineAvailable);
-      const available = Math.max(0, totalUnits - blocked - assigned);
       const unassignedOta = countUnassignedOtaRooms([mapping.channelRoomCode], unassignedBookings.filter((b) => {
         const checkout = !b.checkoutDate || b.checkoutDate <= b.checkinDate
           ? addCalendarDays(b.checkinDate, 1)
           : b.checkoutDate;
         return b.checkinDate <= date && checkout > date;
       }));
-      result.set(`${mapping.dormId}:${date}`, remainingSplit(available, ceiling, assignedOnline + unassignedOta).online);
+      const snapshot = computeNightAvailability(mapping.dormId, date, bedRows, blocks, assignments, overrides, unassignedOta);
+      result.set(`${mapping.dormId}:${date}`, Math.min(snapshot.online, Number(mapping.totalInventory) || snapshot.total));
     }
   }
   return result;

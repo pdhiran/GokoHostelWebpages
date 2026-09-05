@@ -304,13 +304,13 @@ describe("Source-read: Unassigned quota chips and overflow label", () => {
     expect(unassigned).toContain("isOverflowSelection(booking, selectedBeds)");
     expect(unassigned).toContain("requested.size > 0 && !requested.has(bed.dormId)");
     expect(unassigned).toContain("if (overflow) return true;");
-    expect(unassigned).toContain("(booking.requestedNeeds || []).find((n) => n.dormId === bed.dormId)?.count");
+    expect(unassigned).toContain("const quota = need?.units ?? need?.count");
     expect(unassigned).toContain("return inDorm < quota;");
     expect(unassigned).toContain("disabled={!isSelected && !allowed}");
   });
 
   it("renderDorm shows picked/quota and Other rooms are labelled overflow", () => {
-    expect(types).toContain("requestedNeeds?: Array<{ dormId: number; count: number; name: string }>");
+    expect(types).toContain("requestedNeeds?: Array<{ dormId: number; count: number; units?: number; name: string }>");
     expect(unassigned).toContain("{picked}/{quota}");
     expect(unassigned).toContain("Other rooms (overflow)");
     expect(unassigned).toContain("Overflow does not have to match the room-type split");
@@ -324,7 +324,7 @@ describe("Source-read: Unassigned quota chips and overflow label", () => {
     expect(assign).toContain("enriched.requestedDormIds.length > 0");
     expect(assign).toContain("!enriched.requestedDormIds.includes(bed.dormId)");
     expect(assign).toContain("!overflow");
-    expect(assign).toContain("assignedBedsMatchNeeds(selected, needs, mappings)");
+    expect(assign).toContain("channelNeedsAreMapped(needs, mappings) && unitMismatch");
     expect(assign).toContain("currentAssigned + bedIds.length > enriched.requestedBedCount");
   });
 });

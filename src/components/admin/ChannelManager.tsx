@@ -387,8 +387,8 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
           <dd>Exact code from Aiosell Property Details; local dorm names are never guessed.</dd>
         </div>
         <div>
-          <dt className="font-medium text-foreground">Total beds</dt>
-          <dd>Sellable inventory for that room type. Defaults to the dorm’s current bed count.</dd>
+          <dt className="font-medium text-foreground">Sellable units</dt>
+          <dd>Inventory sent for that room type. A double bed counts as one unit even though it has two internal guest slots.</dd>
         </div>
       </dl>
       {propertyError && <p className="text-xs text-red-600">Could not load Aiosell room codes: {propertyError}</p>}
@@ -422,6 +422,8 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
                   className="sm:w-20"
                   type="number"
                   min={0}
+                  disabled
+                  title="Derived from the dorm's sellable units"
                   value={draft.beds}
                   onChange={(e) => setDraft(d.id, { beds: parseInt(e.target.value) || 0 }, suggested, d.bedCount)}
                 />
@@ -454,6 +456,8 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
                     className="sm:w-20"
                     type="number"
                     min={0}
+                    disabled
+                    title="Derived from the dorm's sellable units"
                     value={draft.beds}
                     onChange={(e) => setDraft(d.id, { beds: parseInt(e.target.value) || 0 }, mapping.channelRoomCode, mapping.totalInventory)}
                   />
@@ -466,7 +470,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
                 <>
                   <code className="text-xs bg-background px-2 py-0.5 rounded">{mapping.channelRoomCode}</code>
                   {!remoteRooms.some((r) => r.room_id === mapping.channelRoomCode && r.active !== false) && <span className="text-[10px] text-red-600">Invalid / inactive</span>}
-                  <span className="text-xs text-muted-foreground">{mapping.totalInventory} beds</span>
+                  <span className="text-xs text-muted-foreground">{mapping.totalInventory} units</span>
                   <Button variant="ghost" size="sm" onClick={() => setEditingId(mapping.id!)} className="h-7 w-7 p-0" title="Edit">
                     <PencilIcon className="h-3.5 w-3.5" />
                   </Button>

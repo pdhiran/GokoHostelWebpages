@@ -50,8 +50,9 @@ export type DashboardBooking = {
   requestedDormIds?: number[];
   requestedDormNames?: string[];
   requestedBedCount?: number;
+  requestedUnitCount?: number;
   requestedNeedLabels?: string;
-  requestedNeeds?: Array<{ dormId: number; count: number; name: string }>;
+  requestedNeeds?: Array<{ dormId: number; count: number; units?: number; name: string }>;
   rawData?: string;
 };
 
@@ -91,6 +92,9 @@ export type CalendarBed = {
   dormId: number;
   dormName: string;
   isBlocked: boolean;
+  type?: "Double" | "Bed";
+  capacity?: number;
+  physicalBedIds?: number[];
 };
 
 export type DateRange = {

@@ -178,7 +178,7 @@ export function BookingDetailPanel({
 
   const nights = getNights(booking.checkinDate, booking.checkoutDate);
   const walkin = parseGokoWalkin(booking.rawData);
-  const gross = booking.nightlyRate * nights * Math.max(1, booking.persons);
+  const gross = booking.nightlyRate * nights * (walkin?.unitPricing ? 1 : Math.max(1, booking.persons));
   const discount = walkin
     ? walkinDiscountOnGross(gross, walkin)
     : (booking.source === "manual" ? Math.max(0, gross - booking.amountBeforeTax) : 0);

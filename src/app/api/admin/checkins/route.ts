@@ -7,7 +7,7 @@ import { actionAllowed, type ActionPerm } from "@/lib/actionPermissions";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { logListQuery, logSafePage } from "@/lib/logRetention";
 import { todayIST } from "@/lib/utils";
-import { addCalendarDays } from "@/lib/inventoryAvailability";
+import { addCalendarDays, sellableUnits } from "@/lib/inventoryAvailability";
 import { stayDueAtHotel } from "@/lib/stayPayment";
 import { checkinIdsMatchingContact } from "@/lib/foodTab";
 import { getReconciliationStatus } from "@/lib/reconciliation";
@@ -26,7 +26,7 @@ import {
   addSystemLog, getSystemLogs,
   createReviewRequest, getReviewRequestByCheckinId,
 } from "@/db/queries";
-import { beds, checkins, foodOrders, bookings, bookingHistory } from "@/db/schema";
+import { beds, checkins, foodOrders, bookings, bookingHistory, bookingBedAssignments } from "@/db/schema";
 import { eq, and, sql, inArray, or, desc } from "drizzle-orm";
 
 async function triggerGithubScrape(scrapeId: number, city: string, startDate: string, endDate: string, propertyType: string, proxyUrl: string = "") {
@@ -659,14 +659,14 @@ export async function POST(req: NextRequest) {
         r.submittedAt, r.arrivalDate, r.arrivalTime, r.name, r.persons,
         r.contact, r.stayingDays, r.comingFrom, r.nationality, r.emergencyName,
         r.emergencyPhone, r.idType, r.idCardLink, r.visaLink, r.verified,
-        String(r.id),
+        String(r.id), r.bookingId || "",
       ]);
 
       return NextResponse.json({ beds: bedsArr, unassigned: unassignedArr, role });
     }
 
     if (action === "assignBed") {
-      const { bedId, guestName, guestContact, checkinDate, stayingDays } = rest;
+      const { bedId, guestName, guestContact, checkinDate, stayingDays, checkinId, guestBookingId } = rest;
       if (!isValidId(bedId) || !guestName) return NextResponse.json({ error: "Missing data" }, { status: 400 });
 
       const bed = await getBedById(bedId);
@@ -678,6 +678,30 @@ export async function POST(req: NextRequest) {
       const coDate = new Date(checkin + "T12:00:00Z");
       coDate.setUTCDate(coDate.getUTCDate() + days);
       const checkoutDate = coDate.toISOString().split("T")[0];
+
+      if (bed.type === "Double") {
+        const unit = sellableUnits(await getAllBeds()).find((u) => u.beds.some((b) => b.id === bed.id));
+        const guestRows = isValidId(checkinId) ? await getDb().select().from(checkins).where(eq(checkins.id, Number(checkinId))).limit(1) : [];
+        const ref = String(guestRows[0]?.bookingId || guestBookingId || "").trim();
+        const contact = String(guestRows[0]?.contact || guestContact || "").trim();
+        const identity = [
+          ...(ref ? [eq(bookings.bookingRef, ref), eq(bookings.gokoBookingId, ref), eq(bookings.cmBookingId, ref)] : []),
+          ...(contact ? [eq(bookings.contact, contact)] : []),
+        ];
+        const reservations = unit && identity.length > 0 ? await getDb().select({ id: bookings.id })
+          .from(bookings)
+          .innerJoin(bookingBedAssignments, eq(bookingBedAssignments.bookingId, bookings.id))
+          .where(and(
+            inArray(bookingBedAssignments.bedId, unit.beds.map((b) => b.id)),
+            eq(bookingBedAssignments.status, "assigned"),
+            sql`${bookingBedAssignments.checkinDate} < ${checkoutDate}`,
+            sql`${bookingBedAssignments.checkoutDate} > ${checkin}`,
+            or(...identity),
+          )).limit(1) : [];
+        if (reservations.length === 0) {
+          return NextResponse.json({ error: "This double room is reserved for a different booking" }, { status: 409 });
+        }
+      }
 
       await updateBedStatus(bedId, { status: "occupied", guestName, guestContact: guestContact || "", checkinDate: checkin, expectedCheckout: checkoutDate, stayingDays: String(days) });
       await logBedHistoryEntry({ bedIdLabel: bed.bedId, dormName: bed.dormName, action: "assign", guestName, guestContact: guestContact || "" });
@@ -886,8 +910,13 @@ export async function POST(req: NextRequest) {
       if (!bed) return NextResponse.json({ error: "Bed not found" }, { status: 404 });
       if (bed.status !== "available") return NextResponse.json({ error: "Can only remove available beds" }, { status: 400 });
 
-      await deleteBed(bedId);
-      await addAuditEntry({ username: actingUser, action: "bed_removed", target: bed.bedId });
+      const unit = bed.type === "Double" ? sellableUnits(await getAllBeds()).find((u) => u.beds.some((b) => b.id === bed.id)) : undefined;
+      const removal = unit?.beds || [bed];
+      if (removal.some((slot) => slot.status !== "available")) {
+        return NextResponse.json({ error: "Can only remove a double room when both guest slots are available" }, { status: 400 });
+      }
+      for (const slot of removal) if (slot.id != null) await deleteBed(slot.id);
+      await addAuditEntry({ username: actingUser, action: "bed_removed", target: unit?.label || bed.bedId });
       return NextResponse.json({ success: true });
     }
 

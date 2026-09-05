@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { triggerInventoryPush, triggerRatePush, triggerRestrictionPush } from "@/lib/aiosellSync";
 import { restrictionPatch } from "@/lib/aiosell";
-import { stayNights, inclusiveNights, civilWeekday } from "@/lib/inventoryAvailability";
+import { stayNights, inclusiveNights, civilWeekday, sellableUnits } from "@/lib/inventoryAvailability";
 import {
   getInventoryGridData, getChannels, upsertChannel, deleteChannel,
   getBedTypeConfigs, upsertBedTypeConfig,
@@ -10,6 +10,7 @@ import {
   upsertInventoryOverride, getBedsFreeToBlock,
   getChannelRatesForRange, upsertChannelRate,
   getDailyRates, upsertDailyRate,
+  getAllBeds,
 } from "@/db/queries";
 
 const ACTION_PERMISSIONS: Record<string, string> = {
@@ -106,7 +107,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "blockBeds") {
-      const { bedIds, dormId, startDate, endDate, reason } = params;
+      const { bedIds: requestedBedIds, dormId, startDate, endDate, reason } = params;
+      const requested = new Set<number>(requestedBedIds || []);
+      const bedIds = sellableUnits(await getAllBeds())
+        .filter((u) => u.beds.some((b) => requested.has(b.id)))
+        .flatMap((u) => u.beds.map((b) => b.id));
       if (!bedIds?.length || !dormId || !startDate || !endDate) return NextResponse.json({ error: "bedIds, dormId, startDate, endDate required" }, { status: 400 });
       if (startDate >= endDate) return NextResponse.json({ error: "startDate must be before endDate" }, { status: 400 });
       const free = await getBedsFreeToBlock(startDate, endDate, dormId);
@@ -143,7 +148,11 @@ export async function POST(req: NextRequest) {
           await deactivateBedBlock(blockId, actingUser);
         }
       } else if (bedIds?.length && startDate && endDate) {
-        await deactivateBedBlocksByBedIds(bedIds, startDate, endDate, actingUser);
+        const requested = new Set<number>(bedIds);
+        const completeUnitIds = sellableUnits(await getAllBeds())
+          .filter((u) => u.beds.some((b) => requested.has(b.id)))
+          .flatMap((u) => u.beds.map((b) => b.id));
+        await deactivateBedBlocksByBedIds(completeUnitIds, startDate, endDate, actingUser);
         pushDates = stayNights(startDate, endDate);
       } else {
         return NextResponse.json({ error: "blockIds or (bedIds + dates) required" }, { status: 400 });

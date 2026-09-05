@@ -300,9 +300,9 @@ describe("Source-read: Unassigned cannot POST extra beds", () => {
     const assign = bookingsRoute.match(/action === "assignBeds"[\s\S]*?action === "checkIn"/)?.[0] ?? "";
     expect(assign).toContain("currentAssigned + bedIds.length > enriched.requestedBedCount");
     expect(assign).toContain("currentAssigned === 0 && enriched.requestedBedCount > 0");
-    expect(assign).toContain("bedIds.length !== enriched.requestedBedCount");
+    expect(assign).toContain("selectedCapacity - unit.capacity >= detail.booking.persons");
     expect(assign).toContain("!overflow");
-    expect(assign).toContain("assignedBedsMatchNeeds(selected, needs, mappings)");
+    expect(assign).toContain("channelNeedsAreMapped(needs, mappings) && unitMismatch");
     expect(assign).toContain("rawBedIds.map((id: unknown) => Number(id))");
   });
 });
@@ -430,7 +430,7 @@ describe("Hunt: duplicate ids, string ids, overflow+cap, editReservation uncappe
     }));
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/already has 0 of 3|Select 3 bed/);
+    expect(body.error).toMatch(/units needed for 3 guest/);
     expect(q.assignBedToBooking).not.toHaveBeenCalled();
   });
 

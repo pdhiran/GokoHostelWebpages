@@ -1,7 +1,7 @@
 import { eq, desc, and, sql, inArray, gte, lte, lt, or } from "drizzle-orm";
 import { getDb } from "./index";
 import { todayIST } from "@/lib/utils";
-import { addCalendarDays, bedsFitInventoryCap, countUnassignedOtaRooms, explodeUnassignedOtaHolds, pickInventoryOverride, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
+import { addCalendarDays, bedsFitInventoryCap, countUnassignedOtaRooms, explodeUnassignedOtaHolds, pickInventoryOverride, sellableUnits, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { sqliteLikePrefix } from "@/lib/pmsLog";
 import { clampLogOffset, clampLogPageSize, clampLogSince, LOG_DOWNLOAD_MAX, logRetentionSince } from "@/lib/logRetention";
@@ -534,8 +534,9 @@ export async function getOnlineAssignmentCountForDorm(dormId: number, date: stri
 export async function getAvailabilitySnapshot(startDate: string, endDate: string) {
   const db = getDb();
   return Promise.all([
-    db.select({ id: beds.id, dormId: beds.dormId }).from(beds),
+    db.select({ id: beds.id, dormId: beds.dormId, bedId: beds.bedId, type: beds.type }).from(beds),
     db.select({
+      bedId: bookingBedAssignments.bedId,
       dormId: bookingBedAssignments.dormId,
       checkinDate: bookingBedAssignments.checkinDate,
       checkoutDate: bookingBedAssignments.checkoutDate,
@@ -1876,6 +1877,12 @@ async function loadBedsAvailabilityForRange(checkinDate: string, checkoutDate: s
 
   const occupiedBedIds = new Set(assignments.map((r) => r.bedId));
   const blockedBedIds = new Set(blocks.map((r) => r.bedId));
+  // A double is one sellable unit: either physical slot being held removes the pair.
+  for (const unit of sellableUnits(allBeds)) {
+    if (unit.type !== "Double") continue;
+    if (unit.beds.some((b) => occupiedBedIds.has(b.id))) unit.beds.forEach((b) => occupiedBedIds.add(b.id));
+    if (unit.beds.some((b) => blockedBedIds.has(b.id))) unit.beds.forEach((b) => blockedBedIds.add(b.id));
+  }
   const physical = allBeds.filter((b) => !occupiedBedIds.has(b.id) && !blockedBedIds.has(b.id));
   const blockedOnly = allBeds.filter((b) => !occupiedBedIds.has(b.id) && blockedBedIds.has(b.id));
   return { allBeds, assignments, blocks, overrides, nights, physical, blockedOnly };
@@ -1909,6 +1916,11 @@ export async function validateBedsForRange(
   excludeBookingId?: number,
 ): Promise<string | null> {
   if (bedIds.length === 0) return null;
+  const requestedIds = new Set(bedIds);
+  const selectedUnits = sellableUnits(await getAllBeds()).filter((u) => u.beds.some((b) => requestedIds.has(b.id)));
+  if (selectedUnits.some((u) => u.type === "Double" && !u.beds.every((b) => requestedIds.has(b.id)))) {
+    return "A double bed must be selected as one complete room";
+  }
   const tagged = await getAvailableBedsForRange(checkinDate, checkoutDate, undefined, excludeBookingId);
   const byId = new Map(tagged.map((b) => [b.id, b]));
   const requested = [];

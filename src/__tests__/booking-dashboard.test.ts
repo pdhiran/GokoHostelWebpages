@@ -449,7 +449,7 @@ describe("Booking calendar UI permissions match the API keys", () => {
     expect(unassigned).toContain("stayOverlapsVisible");
     expect(unassigned).toContain("dateRange,");
     expect(unassigned).toContain("Requested:");
-    expect(unassigned).toContain("one per person");
+    expect(unassigned).toContain("A double unit can hold up to two guests");
     expect(unassigned).toContain("Reject");
     expect(unassigned).toContain("Reject removes this stay from Goko only");
     expect(unassigned).toContain("requestedNeedLabels");
@@ -551,7 +551,7 @@ describe("Unassigned bookings: same availability as New Booking", () => {
     expect(create).toContain("addCalendarDays(start, 1)");
     expect(create).toContain("addCalendarDays(checkinDate, 1)");
     expect(create).toContain("cancelled = true");
-    expect(create).toContain("setAvailableBedsList([])");
+    expect(create).toContain("setAvailableUnits([])");
   });
 
   it("assignBeds / date mutations coerce missing checkout via stayCheckout", () => {

@@ -34,15 +34,54 @@ export function overrideCeilingToSave(snap: NightAvailability, typedRemaining: n
   return ceilingFromRemaining(Math.min(snap.available, Math.max(0, typedRemaining)), heldOnline(snap));
 }
 
-type BedRef = { dormId: number };
+export type InventoryBedRef = { id?: number; dormId: number; bedId?: string; type?: string | null };
+type BedRef = InventoryBedRef;
 type BlockRef = { bedId: number; dormId: number; startDate: string; endDate: string };
 type AssignmentRef = {
+  bedId?: number;
   dormId: number;
   checkinDate: string;
   checkoutDate: string;
   status?: string;
   inventoryPool?: string | null;
 };
+
+export type SellableUnit<T extends InventoryBedRef = InventoryBedRef> = {
+  key: string;
+  dormId: number;
+  label: string;
+  type: "Double" | "Bed";
+  capacity: number;
+  beds: T[];
+};
+
+/** Physical guest slots grouped into the units customers can actually buy. */
+export function sellableUnits<T extends InventoryBedRef>(beds: T[]): SellableUnit<T>[] {
+  const out: SellableUnit<T>[] = [];
+  const byDorm = new Map<number, T[]>();
+  for (const bed of beds) {
+    const list = byDorm.get(bed.dormId) ?? [];
+    list.push(bed);
+    byDorm.set(bed.dormId, list);
+  }
+  for (const [dormId, dormBeds] of byDorm) {
+    const doubles = dormBeds
+      .filter((b) => b.type === "Double")
+      .sort((a, b) => (a.bedId || "").localeCompare(b.bedId || "", undefined, { numeric: true }) || (a.id || 0) - (b.id || 0));
+    for (let i = 0; i < doubles.length; i += 2) {
+      const pair = doubles.slice(i, i + 2);
+      out.push({ key: `${dormId}:double:${i / 2 + 1}`, dormId, label: `DOUBLE ${i / 2 + 1}`, type: "Double", capacity: 2, beds: pair });
+    }
+    for (const bed of dormBeds.filter((b) => b.type !== "Double")) {
+      out.push({ key: `${dormId}:bed:${bed.id ?? bed.bedId}`, dormId, label: bed.bedId || `Bed ${bed.id}`, type: "Bed", capacity: 1, beds: [bed] });
+    }
+  }
+  return out;
+}
+
+export function unitForBed<T extends InventoryBedRef>(beds: T[], bedId: number): SellableUnit<T> | undefined {
+  return sellableUnits(beds).find((u) => u.beds.some((b) => b.id === bedId));
+}
 type OverrideRef = { dormId: number; date: string; onlineAvailable: number | null; channelId?: number | null };
 
 /** Occupied nights for a stay: [checkin, checkout). IST calendar dates. */
@@ -260,16 +299,18 @@ export function computeNightAvailability(
   overrides: OverrideRef[],
   unassignedOta = 0,
 ): NightAvailability {
-  const total = beds.filter((b) => b.dormId === dormId).length;
-  const blocked = new Set(
-    blocks.filter((bl) => bl.dormId === dormId && bl.startDate <= date && bl.endDate > date).map((bl) => bl.bedId),
-  ).size;
+  const units = sellableUnits(beds.filter((b) => b.dormId === dormId));
+  const total = units.length;
+  const blockedIds = new Set(blocks.filter((bl) => bl.dormId === dormId && bl.startDate <= date && bl.endDate > date).map((bl) => bl.bedId));
+  const blocked = units.filter((u) => u.beds.some((b) => b.id != null && blockedIds.has(b.id))).length;
   const nightAssigns = assignments.filter(
     (a) => a.dormId === dormId && (a.status ?? "assigned") === "assigned" && a.checkinDate <= date && a.checkoutDate > date,
   );
-  const assigned = nightAssigns.length;
-  const onlineAssigned = nightAssigns.filter((a) => assignmentPool(a.inventoryPool) === "online").length;
-  const available = Math.max(0, total - blocked - assigned);
+  const assignedUnits = new Set(nightAssigns.map((a) => a.bedId == null ? `row:${nightAssigns.indexOf(a)}` : unitForBed(beds, a.bedId)?.key || `bed:${a.bedId}`));
+  const onlineUnits = new Set(nightAssigns.filter((a) => assignmentPool(a.inventoryPool) === "online").map((a) => a.bedId == null ? `row:${nightAssigns.indexOf(a)}` : unitForBed(beds, a.bedId)?.key || `bed:${a.bedId}`));
+  const assigned = assignedUnits.size;
+  const onlineAssigned = onlineUnits.size;
+  const available = Math.max(0, total - blocked - assigned - Math.max(0, unassignedOta));
   const override = pickInventoryOverride(overrides, dormId, date);
   const ceiling = otaCeiling(total, blocked, override?.onlineAvailable);
   const { online, offline } = remainingSplit(available, ceiling, onlineAssigned + unassignedOta);
@@ -351,16 +392,17 @@ export function tagBedsForPicker<T extends { id: number; dormId: number; bedId: 
   const out: Array<T & { pool: InventoryPool }> = [];
   for (const dormId of dormIds) {
     const slots = minPoolForStay(dormId, nights, allBeds, blocks, assignments, overrides, unassignedHolds);
-    const free = (freeByDorm.get(dormId) ?? []).slice().sort((a, b) => a.bedId.localeCompare(b.bedId, undefined, { numeric: true }));
-    const blocked = (blockedByDorm.get(dormId) ?? []).slice().sort((a, b) => a.bedId.localeCompare(b.bedId, undefined, { numeric: true }));
-    // Tightest night: only min(online)+min(offline) chips; extra physical leftover would squeeze OTA.
-    free.forEach((bed, i) => {
-      if (i < slots.online) out.push({ ...bed, pool: "online" });
-      else if (i < slots.online + slots.offline) out.push({ ...bed, pool: "offline" });
+    const freeIds = new Set((freeByDorm.get(dormId) ?? []).map((b) => b.id));
+    const blockedIds = new Set((blockedByDorm.get(dormId) ?? []).map((b) => b.id));
+    const units = sellableUnits((allBeds as T[]).filter((b) => b.dormId === dormId));
+    const freeUnits = units.filter((u) => u.beds.every((b) => freeIds.has(b.id)));
+    const blockedUnits = units.filter((u) => u.beds.some((b) => blockedIds.has(b.id)));
+    // Pools are counted in sellable rooms. Every internal slot inherits its unit's pool.
+    freeUnits.forEach((unit, i) => {
+      const pool = i < slots.online ? "online" : i < slots.online + slots.offline ? "offline" : null;
+      if (pool) unit.beds.forEach((bed) => out.push({ ...bed, pool }));
     });
-    for (const bed of blocked) {
-      out.push({ ...bed, pool: "block" });
-    }
+    blockedUnits.forEach((unit) => unit.beds.forEach((bed) => out.push({ ...bed, pool: "block" })));
   }
   return out;
 }

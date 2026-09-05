@@ -11,7 +11,7 @@ import { exclusiveEndDate } from "@/lib/inventoryAvailability";
 import { platformLogo, stayOverlapsVisible, formatDateCompact } from "./utils";
 import type { DashboardBooking, CalendarDorm, DateRange } from "./types";
 
-type AvailableBed = { id: number; bedId: string; dormId: number; dormName: string; pool?: "online" | "offline" | "block" };
+type AvailableBed = { key: string; label: string; dormId: number; dormName: string; capacity: number; bedIds: number[]; pool?: "online" | "offline" | "block" };
 type DormBeds = { id: number; name: string; beds: AvailableBed[] };
 
 export function UnassignedBookings({
@@ -37,7 +37,7 @@ export function UnassignedBookings({
   canReject?: boolean;
 }) {
   const [assigningId, setAssigningId] = useState<number | null>(null);
-  const [selectedBeds, setSelectedBeds] = useState<number[]>([]);
+  const [selectedBeds, setSelectedBeds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [rangeBeds, setRangeBeds] = useState<AvailableBed[]>([]);
   const [loadingBeds, setLoadingBeds] = useState(false);
@@ -100,7 +100,7 @@ export function UnassignedBookings({
           }
           return;
         }
-        if (!cancelled) setRangeBeds(data.beds || []);
+        if (!cancelled) setRangeBeds(data.units || []);
       } catch {
         if (!cancelled) {
           setRangeBeds([]);
@@ -124,18 +124,18 @@ export function UnassignedBookings({
     return Array.from(dormMap.values());
   }, [rangeBeds]);
 
-  const toggleBed = useCallback((bedId: number) => {
+  const toggleBed = useCallback((bedId: string) => {
     setSelectedBeds((prev) =>
       prev.includes(bedId) ? prev.filter((id) => id !== bedId) : [...prev, bedId],
     );
   }, []);
 
   const bedsNeeded = (booking: DashboardBooking) =>
-    booking.requestedBedCount || booking.persons || 1;
+    booking.requestedUnitCount || booking.requestedBedCount || booking.persons || 1;
 
-  const bedById = useCallback((id: number) => rangeBeds.find((b) => b.id === id), [rangeBeds]);
+  const bedById = useCallback((id: string) => rangeBeds.find((b) => b.key === id), [rangeBeds]);
 
-  const isOverflowSelection = (booking: DashboardBooking, selected: number[]) => {
+  const isOverflowSelection = (booking: DashboardBooking, selected: string[]) => {
     const requested = new Set(booking.requestedDormIds || []);
     if (requested.size === 0) return false;
     return selected.some((id) => {
@@ -145,12 +145,13 @@ export function UnassignedBookings({
   };
 
   const canSelectBed = (bed: AvailableBed, booking: DashboardBooking) => {
-    if (selectedBeds.includes(bed.id)) return true;
+    if (selectedBeds.includes(bed.key)) return true;
     if (selectedBeds.length >= bedsNeeded(booking)) return false;
     const requested = new Set(booking.requestedDormIds || []);
     const overflow = isOverflowSelection(booking, selectedBeds) || (requested.size > 0 && !requested.has(bed.dormId));
     if (overflow) return true;
-    const quota = (booking.requestedNeeds || []).find((n) => n.dormId === bed.dormId)?.count;
+    const need = (booking.requestedNeeds || []).find((n) => n.dormId === bed.dormId);
+    const quota = need?.units ?? need?.count;
     if (quota == null) return true;
     const inDorm = selectedBeds.filter((id) => bedById(id)?.dormId === bed.dormId).length;
     return inDorm < quota;
@@ -159,22 +160,22 @@ export function UnassignedBookings({
   const handleAssign = async (booking: DashboardBooking) => {
     const need = bedsNeeded(booking);
     if (selectedBeds.length !== need) {
-      showError(`Select ${need} bed${need !== 1 ? "s" : ""} (one per person)`);
+      showError(`Select ${need} room/bed unit${need !== 1 ? "s" : ""}`);
       return;
     }
     const quotas = booking.requestedNeeds || [];
     if (quotas.length > 0 && !isOverflowSelection(booking, selectedBeds)) {
       const mismatch = quotas.some((n) =>
-        selectedBeds.filter((id) => bedById(id)?.dormId === n.dormId).length !== n.count,
+        selectedBeds.filter((id) => bedById(id)?.dormId === n.dormId).length !== (n.units ?? n.count),
       );
       if (mismatch) {
-        showError(`Assign ${booking.requestedNeedLabels} (one per person in those room types)`);
+        showError(`Assign the reserved room/bed units: ${booking.requestedNeedLabels}`);
         return;
       }
     }
     setBusy(true);
     try {
-      const ok = await onAssign(booking.id, selectedBeds);
+      const ok = await onAssign(booking.id, rangeBeds.filter((u) => selectedBeds.includes(u.key)).flatMap((u) => u.bedIds));
       if (!ok) return;
       setAssigningId(null);
       setSelectedBeds([]);
@@ -203,7 +204,8 @@ export function UnassignedBookings({
   };
 
   const renderDorm = (dorm: DormBeds, booking: DashboardBooking) => {
-    const quota = (booking.requestedNeeds || []).find((n) => n.dormId === dorm.id)?.count;
+    const need = (booking.requestedNeeds || []).find((n) => n.dormId === dorm.id);
+    const quota = need?.units ?? need?.count;
     const picked = selectedBeds.filter((id) => bedById(id)?.dormId === dorm.id).length;
     return (
     <div key={dorm.id} className="rounded-lg border border-border bg-white p-2 dark:bg-card">
@@ -215,15 +217,15 @@ export function UnassignedBookings({
       </div>
       <div className="flex flex-wrap gap-1.5">
         {dorm.beds.map((bed) => {
-          const isSelected = selectedBeds.includes(bed.id);
+          const isSelected = selectedBeds.includes(bed.key);
           const pool = bed.pool ?? "online";
           const allowed = canSelectBed(bed, booking);
           return (
             <button
-              key={bed.id}
+              key={bed.key}
               type="button"
               disabled={!isSelected && !allowed}
-              onClick={() => allowed && toggleBed(bed.id)}
+              onClick={() => allowed && toggleBed(bed.key)}
               className={cn(
                 "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
                 !isSelected && !allowed && "cursor-not-allowed opacity-40",
@@ -236,7 +238,7 @@ export function UnassignedBookings({
               )}
             >
               {isSelected && <CheckIcon className="size-3" />}
-              {bed.bedId}
+              {bed.label}{bed.capacity > 1 ? " · 2 guests" : ""}
               {pool === "offline" && <span className="text-[9px] opacity-70">off</span>}
             </button>
           );
@@ -267,7 +269,7 @@ export function UnassignedBookings({
             )}
           </div>
           <p className="mt-0.5 text-[11px] text-orange-800/80 dark:text-orange-300/80">
-            Online beds in the requested room type were full. Assign offline beds (one per person){canReject ? " or reject." : "."}
+            Online units in the requested room type were full. Assign available offline units{canReject ? " or reject." : "."}
           </p>
         </div>
         <Button variant="ghost" size="icon-sm" onClick={onClose}>
@@ -319,7 +321,7 @@ export function UnassignedBookings({
                     )}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    {formatDateCompact(booking.checkinDate)} – {booking.checkoutDate ? formatDateCompact(booking.checkoutDate) : "—"} | {need} bed{need !== 1 ? "s" : ""} ({booking.persons} person{booking.persons !== 1 ? "s" : ""})
+                     {formatDateCompact(booking.checkinDate)} – {booking.checkoutDate ? formatDateCompact(booking.checkoutDate) : "—"} | {need} unit{need !== 1 ? "s" : ""} ({booking.persons} guest{booking.persons !== 1 ? "s" : ""})
                     {booking.bookingRef ? ` | ${booking.bookingRef}` : ""}
                   </div>
                   <div className="mt-0.5 text-xs font-medium text-orange-900 dark:text-orange-200">
@@ -363,7 +365,7 @@ export function UnassignedBookings({
               {isAssigning && (
                 <div className="mt-3 space-y-2">
                   <p className="text-[11px] text-muted-foreground">
-                    Pick {need} bed{need !== 1 ? "s" : ""}{booking.requestedNeedLabels ? ` (${booking.requestedNeedLabels})` : ""} — one per person for the whole stay. Green chips are offline (walk-in) beds.{canReject ? " Reject is Goko-only; cancel the OTA separately." : ""}
+                     Pick {need} room/bed unit{need !== 1 ? "s" : ""}{booking.requestedNeedLabels ? ` (${booking.requestedNeedLabels})` : ""} for the whole stay. A double unit can hold up to two guests. Green chips are offline (walk-in) inventory.{canReject ? " Reject is Goko-only; cancel the OTA separately." : ""}
                   </p>
                   {loadingBeds ? (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -401,7 +403,7 @@ export function UnassignedBookings({
                       disabled={selectedBeds.length !== need || busy || loadingBeds}
                     >
                       {busy && <Loader2Icon className="size-3 animate-spin" />}
-                      Assign {selectedBeds.length}/{need} bed{need !== 1 ? "s" : ""}
+                       Assign {selectedBeds.length}/{need} unit{need !== 1 ? "s" : ""}
                     </Button>
                   </div>
                 </div>
