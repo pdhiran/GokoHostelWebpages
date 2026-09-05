@@ -447,3 +447,35 @@ export function applyBookingToNight(
   const offline = Math.max(0, available - online);
   return { ...snap, assigned, onlineAssigned, available, online, offline };
 }
+
+export type CalendarNightStatus = InventoryPool | "occupied" | "held";
+export type CalendarAvailability = {
+  beds: Record<number, Record<string, CalendarNightStatus>>;
+  dorms: Record<number, Record<string, NightAvailability>>;
+};
+
+/** Nightly view of the same sellable units and pools used by the booking picker. */
+export function calendarAvailability(
+  beds: (BedRef & { id: number; bedId: string })[],
+  nights: string[], blocks: BlockRef[], assignments: AssignmentRef[],
+  overrides: OverrideRef[], holds: UnassignedOtaHold[],
+): CalendarAvailability {
+  const result: CalendarAvailability = { beds: {}, dorms: {} };
+  const units = sellableUnits(beds);
+  for (const unit of units) result.beds[unit.beds[0].id] = {};
+  for (const night of nights) {
+    const occupiedIds = new Set(assignments.filter((a) => (a.status ?? "assigned") === "assigned" && a.checkinDate <= night && a.checkoutDate > night).map((a) => a.bedId));
+    const blockedIds = new Set(blocks.filter((b) => b.startDate <= night && b.endDate > night).map((b) => b.bedId));
+    const free = units.filter((u) => !u.beds.some((b) => occupiedIds.has(b.id) || blockedIds.has(b.id))).flatMap((u) => u.beds);
+    const blocked = units.filter((u) => !u.beds.some((b) => occupiedIds.has(b.id)) && u.beds.some((b) => blockedIds.has(b.id))).flatMap((u) => u.beds);
+    const tagged = new Map(tagBedsForPicker(free, blocked, beds, [night], blocks, assignments, overrides, holds).map((b) => [b.id, b.pool]));
+    for (const unit of units) {
+      result.beds[unit.beds[0].id][night] = unit.beds.some((b) => occupiedIds.has(b.id)) ? "occupied" : tagged.get(unit.beds[0].id) ?? "held";
+    }
+    for (const dormId of new Set(beds.map((b) => b.dormId))) {
+      result.dorms[dormId] ??= {};
+      result.dorms[dormId][night] = computeNightAvailability(dormId, night, beds, blocks, assignments, overrides, unassignedOtaOnNight(holds, dormId, night));
+    }
+  }
+  return result;
+}

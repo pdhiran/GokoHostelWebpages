@@ -1,7 +1,7 @@
 import { eq, desc, and, sql, inArray, gte, lte, lt, or } from "drizzle-orm";
 import { getDb } from "./index";
 import { todayIST } from "@/lib/utils";
-import { addCalendarDays, bedsFitInventoryCap, countUnassignedOtaRooms, explodeUnassignedOtaHolds, pickInventoryOverride, sellableUnits, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
+import { calendarAvailability, addCalendarDays, bedsFitInventoryCap, countUnassignedOtaRooms, explodeUnassignedOtaHolds, pickInventoryOverride, sellableUnits, stayNights, tagBedsForPicker } from "@/lib/inventoryAvailability";
 import { sqliteWriteCount } from "@/lib/sqliteWriteCount";
 import { sqliteLikePrefix } from "@/lib/pmsLog";
 import { clampLogOffset, clampLogPageSize, clampLogSince, LOG_DOWNLOAD_MAX, logRetentionSince } from "@/lib/logRetention";
@@ -1886,6 +1886,15 @@ async function loadBedsAvailabilityForRange(checkinDate: string, checkoutDate: s
   const physical = allBeds.filter((b) => !occupiedBedIds.has(b.id) && !blockedBedIds.has(b.id));
   const blockedOnly = allBeds.filter((b) => !occupiedBedIds.has(b.id) && blockedBedIds.has(b.id));
   return { allBeds, assignments, blocks, overrides, nights, physical, blockedOnly };
+}
+
+export async function getCalendarAvailability(startDate: string, endDate: string) {
+  return dbRead(async () => {
+    const checkout = addCalendarDays(endDate, 1);
+    const { allBeds, nights, blocks, assignments, overrides } = await loadBedsAvailabilityForRange(startDate, checkout);
+    const holds = await getUnassignedOtaHoldsForRange(startDate, checkout);
+    return calendarAvailability(allBeds, nights, blocks, assignments, overrides, holds);
+  });
 }
 
 export async function getAvailableBedsForRange(

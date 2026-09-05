@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const q = vi.hoisted(() => ({
   authenticateUser: vi.fn(),
+  getCalendarAvailability: vi.fn(),
   getBookingCalendarData: vi.fn(),
   getBookingDetail: vi.fn(),
   searchBookings: vi.fn(),
@@ -51,6 +52,7 @@ vi.mock("@/lib/guestReceipts", () => ({
   latestReceiptAccount: q.latestReceiptAccount,
 }));
 vi.mock("@/db/queries", () => ({
+  getCalendarAvailability: q.getCalendarAvailability,
   getBookingCalendarData: q.getBookingCalendarData,
   getBookingDetail: q.getBookingDetail,
   searchBookings: q.searchBookings,
@@ -212,7 +214,7 @@ describe("Bookings calendar and rates workflows", () => {
     q.getAllBeds.mockResolvedValue([
       { id: 7, bedId: "A1", dormId: 3, dormName: "Mixed" },
     ]);
-    q.getActiveBedBlocks.mockResolvedValue([{ bedId: 7 }]);
+    q.getCalendarAvailability.mockResolvedValue({ beds: { 7: { "2026-09-01": "block", "2026-09-02": "online" } }, dorms: { 3: { "2026-09-01": { online: 0, offline: 0, blocked: 1 } } } });
 
     const res = await POST(req({
       password: "x",
@@ -224,7 +226,8 @@ describe("Bookings calendar and rates workflows", () => {
     expect(res.status).toBe(200);
     expect(json.assignments[0]).toMatchObject({ dormName: "Mixed", bedLabel: "A1" });
     expect(json.assignments[1]).toMatchObject({ dormName: "", bedLabel: "" });
-    expect(json.dorms[0].beds[0].isBlocked).toBe(true);
+    expect(json.dorms[0].beds[0].availability).toEqual({ "2026-09-01": "block", "2026-09-02": "online" });
+    expect(json.dorms[0].availability["2026-09-01"]).toEqual({ online: 0, offline: 0, blocked: 1 });
     expect(json.bookings[0]).toMatchObject({ nights: 2, balance: 800 });
     expect(json.role).toBe("admin");
     expect(json.permissions).toEqual({});

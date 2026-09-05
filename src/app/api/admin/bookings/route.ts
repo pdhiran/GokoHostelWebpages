@@ -12,12 +12,12 @@ import {
 } from "@/lib/channelAutoAssign";
 import { pushNoShow } from "@/lib/aiosell";
 import {
-  getBookingCalendarData, getBookingDetail, searchBookings, getUnassignedBookings,
+  getCalendarAvailability, getBookingCalendarData, getBookingDetail, searchBookings, getUnassignedBookings,
   checkBedAvailability, getAvailableBedsForRange, validateBedsForRange, assignBedToBooking, unassignBookingBeds,
   unassignBookingBedsByBedIds,
   cancelBedAssignments, addBookingHistoryEntry, getBookingHistoryEntries,
   addBooking, updateBookingFull, transitionBookingStatus, getAllDorms, getAllBeds, getBedById,
-  getChannelConfig, getActiveBedBlocks, getSetting, setSetting,
+  getChannelConfig, getSetting, setSetting,
   getRoomTypeMappings, getRatePlanMappings, getAllDailyRates,
   deactivateBedBlocksByBedIds, shortenAssignedCheckout,
 } from "@/db/queries";
@@ -335,17 +335,17 @@ export async function POST(req: NextRequest) {
       const calendarData = await getBookingCalendarData(startDate, endDate);
       const allDorms = await getAllDorms();
       const allBeds = await getAllBeds();
-      const activeBlocks = await getActiveBedBlocks(undefined, startDate, endDate);
-      const blockedBedIds = new Set(activeBlocks.map((b) => b.bedId));
+      const availability = await getCalendarAvailability(startDate, endDate);
       const units = sellableUnits(allBeds);
       const unitByBed = new Map(units.flatMap((u) => u.beds.map((b) => [b.id, u] as const)));
 
       const dormsWithBeds = allDorms.map((d) => ({
         id: d.id,
         name: d.name,
+        availability: availability.dorms[d.id] ?? {},
         beds: units
           .filter((u) => u.dormId === d.id)
-          .map((u) => ({ id: u.beds[0].id, bedId: u.label, dormId: u.dormId, dormName: u.beds[0].dormName, isBlocked: u.beds.some((b) => blockedBedIds.has(b.id)), type: u.type, capacity: u.capacity, physicalBedIds: u.beds.map((b) => b.id) })),
+          .map((u) => ({ id: u.beds[0].id, bedId: u.label, dormId: u.dormId, dormName: u.beds[0].dormName, availability: availability.beds[u.beds[0].id] ?? {}, type: u.type, capacity: u.capacity, physicalBedIds: u.beds.map((b) => b.id) })),
       }));
 
       const enrichedBookings = calendarData.bookings.map((b) => {

@@ -113,6 +113,10 @@ export function BookingDashboard({
 
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
+    setDorms((current) => current.map((dorm) => ({
+      ...dorm, availability: undefined,
+      beds: dorm.beds.map((bed) => ({ ...bed, availability: undefined })),
+    })));
     try {
       const [calSettled, unSettled] = await Promise.allSettled([
         apiCall({
@@ -208,7 +212,7 @@ export function BookingDashboard({
     [apiCall, externalDetail, loadData, showError, showInfo, showSuccess],
   );
 
-  if (loading && bookings.length === 0) {
+  if (loading) {
     return (
       <div className="flex h-full min-h-0 flex-1 items-center justify-center">
         <AdminLoading message="Loading booking calendar..." />

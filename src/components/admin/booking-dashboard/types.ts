@@ -1,3 +1,4 @@
+import type { CalendarNightStatus, NightAvailability } from "@/lib/inventoryAvailability";
 export type BookingStatus = "received" | "checked_in" | "checked_out" | "hold" | "no_show" | "cancelled" | "modified";
 
 export type BookingPlatform = "booking_com" | "makemytrip" | "goibibo" | "hostelworld" | "booking_engine" | "walkin" | "direct" | "channel_manager";
@@ -83,6 +84,7 @@ export type CalendarDorm = {
   id: number;
   name: string;
   collapsed: boolean;
+  availability?: Record<string, NightAvailability>;
   beds: CalendarBed[];
 };
 
@@ -91,7 +93,7 @@ export type CalendarBed = {
   bedId: string;
   dormId: number;
   dormName: string;
-  isBlocked: boolean;
+  availability?: Record<string, CalendarNightStatus>;
   type?: "Double" | "Bed";
   capacity?: number;
   physicalBedIds?: number[];

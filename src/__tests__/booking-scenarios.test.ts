@@ -6,6 +6,7 @@ import { stringifyGokoWalkin } from "@/lib/bookingPricing";
 
 const q = vi.hoisted(() => ({
   authenticateUser: vi.fn(),
+  getCalendarAvailability: vi.fn(),
   getBookingCalendarData: vi.fn(),
   getBookingDetail: vi.fn(),
   searchBookings: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("@/lib/aiosellSync", () => ({
 }));
 vi.mock("@/lib/aiosell", () => ({ pushNoShow: q.pushNoShow }));
 vi.mock("@/db/queries", () => ({
+  getCalendarAvailability: q.getCalendarAvailability,
   getBookingCalendarData: q.getBookingCalendarData,
   getBookingDetail: q.getBookingDetail,
   searchBookings: q.searchBookings,
@@ -725,7 +727,7 @@ describe("calendar nights enrichment", () => {
     q.authenticateUser.mockResolvedValue(admin);
     q.getAllDorms.mockResolvedValue([]);
     q.getAllBeds.mockResolvedValue([]);
-    q.getActiveBedBlocks.mockResolvedValue([]);
+    q.getCalendarAvailability.mockResolvedValue({ beds: {}, dorms: {} });
   });
 
   it("annotates 1-night, multi-night, and year-wrap stays", async () => {

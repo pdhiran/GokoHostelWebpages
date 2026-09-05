@@ -332,7 +332,7 @@ describe("Booking Calendar: sticky dates and row colour", () => {
   const utils = readFile("src/components/admin/booking-dashboard/utils.ts");
 
   it("scrolls inside overflow-auto so sticky top is not cancelled by overflow-x-auto alone", () => {
-    const open = grid.indexOf("return (");
+    const open = grid.indexOf('<div className="isolate');
     const slice = grid.slice(open, open + 400);
     expect(slice).toMatch(/overflow-auto/);
     expect(slice).not.toMatch(/className="overflow-x-auto/);
@@ -362,7 +362,9 @@ describe("Booking Calendar: sticky dates and row colour", () => {
     expect(grid).toContain("bg-sky-50");
     expect(grid).toContain("bg-brand-sand");
     expect(grid).toContain("bg-amber-50/90");
-    expect(grid).toContain("bg-gray-100");
+    expect(grid).toContain("bg-orange-50");
+    expect(grid).toContain("bed.availability?.[date]");
+    expect(grid).not.toContain("bed.isBlocked");
     expect(isWeekend("2026-08-29")).toBe(true);
     expect(isWeekend("2026-08-30")).toBe(true);
     expect(isWeekend("2026-08-31")).toBe(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDownIcon, ChevronRightIcon, BanIcon } from "lucide-react";
 import { BookingTile } from "./BookingTile";
@@ -19,7 +19,6 @@ export function BookingCalendarGrid({
   assignments,
   dorms,
   dateRange,
-  today,
   onSelectBooking,
   selectedBookingId,
   onToggleDorm,
@@ -54,26 +53,33 @@ export function BookingCalendarGrid({
     return multi;
   }, [assignments]);
 
-  const dormOccupancy = useMemo(() => {
-    const occ = new Map<number, { total: number; occupied: number }>();
-    for (const dorm of dorms) {
-      const total = dorm.beds.filter((b) => !b.isBlocked).length;
-      let occupied = 0;
-      for (const bed of dorm.beds) {
-        if (bed.isBlocked) continue;
-        const hasAssignment = assignments.some(
-          (a) => a.bedId === bed.id && a.status === "assigned" && a.checkinDate <= today && a.checkoutDate > today
-        );
-        if (hasAssignment) occupied++;
-      }
-      occ.set(dorm.id, { total, occupied });
-    }
-    return occ;
-  }, [dorms, assignments, today]);
+  const [detail, setDetail] = useState<string | null>(null);
+  const statusLabel = { online: "Online / OTA available", offline: "Walk-in available", block: "Blocked", occupied: "Occupied", held: "Capacity reserved for unassigned OTA bookings" };
+  const statusColour = {
+    online: "bg-sky-50/80 dark:bg-sky-950/30",
+    offline: "bg-emerald-50/80 dark:bg-emerald-950/30",
+    block: "bg-orange-50 dark:bg-orange-950/30",
+    occupied: "bg-white dark:bg-card",
+    held: "bg-zinc-100 dark:bg-zinc-800/50",
+  };
 
   const gridWidth = dates.length * colWidth;
 
   return (
+    <>
+    <div className="shrink-0 space-y-1 pb-2 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>Nightly totals: online / walk-in / blocked</span>
+        <span className="text-sky-700 dark:text-sky-300">Blue = online / OTA</span>
+        <span className="text-emerald-700 dark:text-emerald-300">Green = walk-in</span>
+        <span className="text-orange-700 dark:text-orange-300">Orange = blocked</span>
+        <span>Grey = held for unassigned OTA</span>
+      </div>
+      {detail && <div role="status" className="flex items-center gap-2 rounded border border-border bg-brand-sand px-2 py-1 dark:bg-zinc-800">
+        <span>{detail}</span>
+        <button type="button" className="ml-auto underline" onClick={() => setDetail(null)}>Dismiss</button>
+      </div>}
+    </div>
     <div className="isolate min-h-0 flex-1 overflow-auto overscroll-contain rounded-xl border border-border bg-white dark:bg-card">
       <div className="inline-flex min-w-full">
           {/* Sticky left column: dorm/bed labels */}
@@ -82,7 +88,6 @@ export function BookingCalendarGrid({
               <span className="text-[10px] font-medium text-muted-foreground">Dorms / Beds</span>
             </div>
             {dorms.map((dorm, dormIdx) => {
-              const occ = dormOccupancy.get(dorm.id);
               const dormBg = dormIdx % 2 === 0
                 ? "bg-emerald-50 dark:bg-emerald-950/30"
                 : "bg-sky-50 dark:bg-sky-950/25";
@@ -98,16 +103,9 @@ export function BookingCalendarGrid({
                   >
                     {dorm.collapsed ? <ChevronRightIcon className="size-3.5 shrink-0" /> : <ChevronDownIcon className="size-3.5 shrink-0" />}
                     <span className="min-w-0 flex-1 truncate">{dorm.name}</span>
-                    {occ && (
-                      <span className="shrink-0 text-[10px] font-normal text-muted-foreground">
-                        {occ.total - occ.occupied}/{occ.total}
-                      </span>
-                    )}
                   </button>
                   {!dorm.collapsed && dorm.beds.map((bed, bedIdx) => {
-                    const bedBg = bed.isBlocked
-                      ? "bg-gray-100 text-gray-400 dark:bg-gray-800/50"
-                      : bedIdx % 2 === 0
+                    const bedBg = bedIdx % 2 === 0
                         ? "bg-white text-foreground dark:bg-card"
                         : "bg-brand-sand text-foreground dark:bg-zinc-800";
                     return (
@@ -167,17 +165,25 @@ export function BookingCalendarGrid({
               <div key={dorm.id}>
                 {/* Dorm summary row */}
                 <div className={cn("flex h-8 border-b border-border", dormBg)}>
-                  {dates.map((date) => (
-                    <div
-                      key={date}
-                      className={cn(
-                        "shrink-0 border-r border-border",
-                        isToday(date) && "bg-brand-green/[0.09] dark:bg-brand-green/20",
-                        isWeekend(date) && !isToday(date) && "bg-amber-50/90 dark:bg-amber-950/25",
-                      )}
-                      style={{ width: colWidth }}
-                    />
-                  ))}
+                  {dates.map((date) => {
+                    const snap = dorm.availability?.[date];
+                    const message = snap
+                      ? `${dorm.name} · ${date}: ${snap.online} online / OTA · ${snap.offline} walk-in · ${snap.blocked} blocked · ${snap.assigned} occupied · ${snap.unassignedOta} unassigned OTA${snap.total > 0 && snap.blocked === snap.total ? " — Fully blocked" : snap.online === 0 && snap.offline > 0 ? " — No online availability — walk-in available" : snap.available === 0 ? " — No availability" : ""}`
+                      : `${dorm.name} · ${date}: Availability unavailable`;
+                    return <button key={date} type="button" title={message} aria-label={message} onClick={() => setDetail(message)}
+                      className="shrink-0 border-r border-border text-[10px] tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
+                      style={{ width: colWidth }}>
+                      {snap ? <>
+                        <span className="text-sky-700 dark:text-sky-300">{snap.online}</span>
+                        <span className="text-muted-foreground/50"> / </span>
+                        <span className="text-emerald-700 dark:text-emerald-300">{snap.offline}</span>
+                        <span className={cn(isCompact && "block leading-3")}>
+                          <span className="text-muted-foreground/50"> / </span>
+                          <span className="text-orange-700 dark:text-orange-300">{snap.blocked}</span>
+                        </span>
+                      </> : "—"}
+                    </button>;
+                  })}
                 </div>
 
                 {/* Bed rows */}
@@ -189,9 +195,7 @@ export function BookingCalendarGrid({
                     if (!booking) return [];
                     return [{ booking, startCol: p.startCol, spanCols: p.spanCols, isMultiBed: p.isMultiBed }];
                   });
-                  const bedRowBg = bed.isBlocked
-                    ? ""
-                    : bedIdx % 2 === 0
+                  const bedRowBg = bedIdx % 2 === 0
                       ? "bg-white dark:bg-card"
                       : "bg-brand-sand dark:bg-zinc-800";
 
@@ -199,26 +203,16 @@ export function BookingCalendarGrid({
                     <div key={bed.id} className={cn("relative h-8 border-b border-border", bedRowBg)}>
                       {/* Grid lines (background) */}
                       <div className="absolute inset-0 flex">
-                        {dates.map((date) => (
-                          <div
-                            key={date}
-                            className={cn(
-                              "shrink-0 border-r border-border",
-                              isToday(date) && "bg-brand-green/[0.09] dark:bg-brand-green/20",
-                              isWeekend(date) && !isToday(date) && "bg-amber-50/90 dark:bg-amber-950/25",
-                              bed.isBlocked && "bg-gray-100 dark:bg-gray-800/50",
-                            )}
-                            style={{ width: colWidth }}
-                          />
-                        ))}
+                        {dates.map((date) => {
+                          const status = bed.availability?.[date];
+                          const message = `${dorm.name} · ${bed.bedId} · ${date}: ${status ? statusLabel[status] : "Availability unavailable"}`;
+                          return <button key={date} type="button" title={message} aria-label={message} onClick={() => setDetail(message)}
+                            className={cn("flex shrink-0 items-center justify-center border-r border-border focus-visible:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600", status ? statusColour[status] : "bg-zinc-50 dark:bg-zinc-900")}
+                            style={{ width: colWidth }}>
+                            {status === "block" && <BanIcon aria-hidden="true" className="size-3 text-orange-300 dark:text-orange-700" />}
+                          </button>;
+                        })}
                       </div>
-
-                      {/* Blocked indicator */}
-                      {bed.isBlocked && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <BanIcon className="size-3 text-gray-400" />
-                        </div>
-                      )}
 
                       {/* Booking tiles (positioned absolutely over the grid) */}
                       {placements.map((p) => (
@@ -247,5 +241,6 @@ export function BookingCalendarGrid({
           </div>
       </div>
     </div>
+    </>
   );
 }
