@@ -783,11 +783,11 @@ export async function backfillSyncIds(
     const rows = await db
       .select()
       .from(table)
-      .where(sql`${table.syncId} IS NULL OR ${table.syncId} = ''`);
+      .where(sql`${table.syncId} IS NULL OR ${table.syncId} = '' OR ${table.syncUpdatedAt} IS NULL OR ${table.syncUpdatedAt} = ''`);
 
     let count = 0;
     for (const row of rows) {
-      const syncId = generateSyncId();
+      const syncId = row.syncId || generateSyncId();
       await db.update(table).set({
         syncId,
         syncUpdatedAt: now,

@@ -489,27 +489,7 @@ export async function POST(request: NextRequest) {
         if (!isPiRuntime()) {
           return NextResponse.json({ error: "resetAndReseed can only run on Pi" }, { status: 400 });
         }
-        const SYNCED_TABLES = [
-          "order_modifications", "food_order_items", "food_orders",
-          "salary_payments", "daily_income", "daily_ledger",
-          "employee_attendance_history", "employee_attendance", "employee_leave_policy", "employee_compensation_history",
-          "expenses", "bed_history", "beds", "bookings",
-          "menu_items", "menu_categories",
-          "accounts", "vendors", "employees",
-          "qr_history", "users", "checkins", "dorms",
-        ];
-        // Clear sync infrastructure
-        await db.delete(schema.syncConflicts);
-        await db.delete(schema.syncLog);
-        await db.delete(schema.syncIdMap);
-        // Clear all synced tables (children first due to FKs)
-        for (const t of SYNCED_TABLES) {
-          await db.run(sql.raw(`DELETE FROM "${t}"`));
-        }
-        // Clear syncable settings
-        await db.run(sql.raw(`DELETE FROM settings WHERE key NOT IN ('auto_sync_enabled','primary_server','pi_local_url','last_sync_at')`));
-
-        // Now pull everything from Cloudflare
+        // Fetch first so a remote outage cannot leave the Pi with cleared tables.
         const cfUrl = process.env.CLOUDFLARE_SITE_URL || "https://www.gokohostel.com";
         const pullRes = await fetch(`${cfUrl}/api/sync`, {
           method: "POST",
@@ -531,6 +511,34 @@ export async function POST(request: NextRequest) {
 
         const pullData = await pullRes.json();
         const payloads = pullData.payloads || [];
+
+        const SYNCED_TABLES = [
+          "order_modifications", "food_order_items", "food_orders",
+          "salary_payments", "daily_income", "daily_ledger",
+          "employee_attendance_history", "employee_attendance", "employee_leave_policy", "employee_compensation_history",
+          "expenses", "bed_history", "beds", "bookings",
+          "menu_items", "menu_categories",
+          "accounts", "vendors", "employees",
+          "qr_history", "users", "checkins", "dorms",
+        ];
+        // Clear sync infrastructure
+        await db.delete(schema.syncConflicts);
+        await db.delete(schema.syncLog);
+        await db.delete(schema.syncIdMap);
+        // These Pi-local tables reference synced dorms/beds/bookings and cannot
+        // survive a reseed. They contain derived or locally configured state.
+        for (const t of [
+          "bed_blocks", "booking_bed_assignments", "booking_history",
+          "bed_type_config", "inventory_overrides", "room_type_mapping",
+        ]) {
+          await db.run(sql.raw(`DELETE FROM "${t}"`));
+        }
+        // Clear all synced tables (children first due to FKs)
+        for (const t of SYNCED_TABLES) {
+          await db.run(sql.raw(`DELETE FROM "${t}"`));
+        }
+        // Clear syncable settings
+        await db.run(sql.raw(`DELETE FROM settings WHERE key NOT IN ('auto_sync_enabled','primary_server','pi_local_url','last_sync_at')`));
 
         let totalInserted = 0;
         for (const payload of payloads) {

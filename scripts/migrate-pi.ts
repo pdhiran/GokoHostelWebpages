@@ -1,6 +1,9 @@
 import Database from "better-sqlite3";
 import fs from "fs";
+import { loadEnvConfig } from "@next/env";
 import path from "path";
+
+loadEnvConfig(process.cwd());
 
 const DB_PATH = process.env.SQLITE_PATH || "./goko.db";
 const MIGRATIONS_DIR = path.resolve(__dirname, "../migrations");
