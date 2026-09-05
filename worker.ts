@@ -7,18 +7,21 @@ type WorkerContext = { waitUntil(promise: Promise<unknown>): void };
 
 export default {
   fetch: openNextWorker.fetch,
-  async scheduled(_controller: { cron: string }, env: WorkerEnv, ctx: WorkerContext) {
+  async scheduled(controller: { cron: string }, env: WorkerEnv, ctx: WorkerContext) {
+    const path = controller.cron === "30 3 * * *" ? "aiosell-mappings"
+      : controller.cron === "30 4,6,8,10,12,14,16 * * *" ? "reconciliation-reminder" : null;
+    if (!path) return;
     if (!env.CRON_SECRET) {
-      console.error("Reconciliation reminder skipped: CRON_SECRET is not configured");
+      console.error("Scheduled job skipped: CRON_SECRET is not configured");
       return;
     }
-    const request = new Request("https://goko.internal/api/cron/reconciliation-reminder", {
+    const request = new Request(`https://goko.internal/api/cron/${path}`, {
       method: "POST",
       headers: { authorization: `Bearer ${env.CRON_SECRET}` },
     });
     const response = await openNextWorker.fetch(request, env, ctx);
     if (!response.ok) {
-      console.error(`Reconciliation reminder failed: ${response.status} ${await response.text()}`);
+      console.error(`Scheduled job ${path} failed: ${response.status} ${await response.text()}`);
     }
   },
 };

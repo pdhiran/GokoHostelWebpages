@@ -1,3 +1,4 @@
+import { getMappingHealth } from "@/lib/aiosellMappingCheck";
 import { NextRequest, NextResponse } from "next/server";
 import { driveDeleteFile } from "@/lib/googleApiFetch";
 import { getDb } from "@/db";
@@ -636,6 +637,7 @@ export async function POST(req: NextRequest) {
         guestMinAge,
         guestMaxAge,
         reconciliationWarning: reconciliationWarning?.isReconciled ? null : reconciliationWarning,
+        mappingHealth: role === "admin" || role === "manager" ? await getMappingHealth().catch(() => ({ status: "failed", report: null })) : null,
         role,
       });
     }

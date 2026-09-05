@@ -1,3 +1,4 @@
+import { checkMappings, getMappingHealth } from "@/lib/aiosellMappingCheck";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import {
@@ -27,6 +28,8 @@ export async function POST(req: NextRequest) {
     }
 
     switch (action) {
+      case "getMappingHealth": return NextResponse.json({ health: await getMappingHealth() });
+      case "checkMappings": return NextResponse.json(await checkMappings("manual"));
       case "getConfig": {
         const cfg = await getChannelConfig();
         const bookingTaxRate = bookingTaxPercent(await getSetting(BOOKING_TAX_SETTING));

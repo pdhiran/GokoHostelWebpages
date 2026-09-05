@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const { captured, q } = vi.hoisted(() => {
@@ -1392,3 +1392,5 @@ describe("No-show and inventory-restriction routes", () => {
     });
   });
 });
+
+afterEach(() => { expect(getAiosellPropertyDetails).not.toHaveBeenCalled(); });

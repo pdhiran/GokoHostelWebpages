@@ -196,12 +196,12 @@ describe("triggerInventoryPush", () => {
     expect(pushInventory.mock.calls[0][3]).toBe("auto");
   });
 
-  it("blocks an auto push when Property Details rejects the mapped code", async () => {
+  it("pushes saved mappings without fetching Property Details", async () => {
     getAiosellPropertyDetails.mockResolvedValue({ success: true, details: { hotel_id: "GOKO-001", rooms: [{ room_id: "suite", active: true }] } });
     const result = await triggerInventoryPush(["2026-09-05"], 8);
-    expect(result).toMatchObject({ attempted: true, accepted: false, message: "Invalid Aiosell room mappings: executive" });
-    expect(pushInventory).not.toHaveBeenCalled();
-    expect(queryMocks.clearDirtyInventory).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ attempted: true, accepted: true });
+    expect(pushInventory).toHaveBeenCalledTimes(1);
+    expect(getAiosellPropertyDetails).not.toHaveBeenCalled();
   });
 
   it("does not push an unmapped dorm", async () => {

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig, getRoomTypeMappings, getRatePlanMappings, getAllDailyRates, updateChannelSyncTime } from "@/db/queries";
-import { getAiosellPropertyDetails, pushInventoryRestrictions, type AiosellConfig, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
-import { invalidRoomCodes, thirtyDayRange, validDateRange } from "@/lib/aiosellValidation";
+import { pushInventoryRestrictions, type AiosellConfig, type InventoryRestrictionUpdate, type RestrictionFields } from "@/lib/aiosell";
+import { thirtyDayRange, validDateRange } from "@/lib/aiosellValidation";
 import { todayIST } from "@/lib/utils";
 import { inclusiveNights } from "@/lib/inventoryAvailability";
 
@@ -88,10 +88,6 @@ export async function POST(req: NextRequest) {
       endDate: date,
       rooms,
     }));
-    const property = await getAiosellPropertyDetails(aiosellConfig);
-    if (!property.success) return NextResponse.json({ error: property.message }, { status: 502 });
-    const invalid = invalidRoomCodes(property.details, updates.flatMap((u) => u.rooms.map((r) => r.roomCode)));
-    if (invalid.length) return NextResponse.json({ success: false, error: `Invalid Aiosell room mappings: ${invalid.join(", ")}`, invalidRoomCodes: invalid }, { status: 409 });
 
     const totalRestrictions = updates.reduce((sum, u) => sum + u.rooms.length, 0);
     const result = await pushInventoryRestrictions(aiosellConfig, updates);

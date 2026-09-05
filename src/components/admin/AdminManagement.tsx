@@ -48,7 +48,7 @@ const TABS: { id: ManagementTab; label: string; icon: React.ReactNode; adminOnly
   { id: "channelManager", label: "Channel Manager", icon: <WifiIcon className="h-3.5 w-3.5" />, adminOnly: true },
 ];
 
-export function AdminManagement({ password, username, role, permissions = {}, initialTab, onTabUsed }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean>; initialTab?: ManagementTab; onTabUsed?: () => void }) {
+export function AdminManagement({ password, username, role, permissions = {}, initialTab, initialChannelTab, onTabUsed }: { password: string; username?: string; role: Role; permissions?: Record<string, boolean>; initialTab?: ManagementTab; initialChannelTab?: "sync"; onTabUsed?: () => void }) {
   const visibleTabs = TABS.filter((t) => {
     if (t.id === "website" && process.env.NEXT_PUBLIC_GOKO_RUNTIME === "pi") return false;
     if (t.adminOnly && role !== "admin") return false;
@@ -163,7 +163,7 @@ export function AdminManagement({ password, username, role, permissions = {}, in
         {tab === "accountSettings" && <AccountSettings password={password} username={username} role={role} />}
         {tab === "attendance" && <ManagementAttendance password={password} username={username} role={role} />}
         {tab === "serverSync" && <ServerSync password={password} username={username} role={role} />}
-        {tab === "channelManager" && <ChannelManager password={password} username={username} role={role} />}
+        {tab === "channelManager" && <ChannelManager password={password} username={username} role={role} initialTab={initialChannelTab} />}
       </div>
     </div>
   );

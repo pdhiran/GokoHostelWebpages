@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMocks = vi.hoisted(() => ({
   getChannelConfig: vi.fn(),
@@ -284,3 +284,5 @@ describe("coalesceAiosellUpdates", () => {
     ])).toHaveLength(2);
   });
 });
+
+afterEach(() => { expect(getAiosellPropertyDetails).not.toHaveBeenCalled(); });

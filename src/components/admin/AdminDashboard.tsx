@@ -1,5 +1,6 @@
 "use client";
 
+import { MAPPING_HEALTH_LABELS, type MappingHealth } from "@/lib/aiosellMappingHealth";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,7 +25,7 @@ export function AdminDashboard({
   password: string;
   username?: string;
   role: Role;
-  onNavigate: (section: AdminSection, opts?: { assignGuestContact?: string; bookingId?: number; managementTab?: ManagementTab }) => void;
+  onNavigate: (section: AdminSection, opts?: { assignGuestContact?: string; bookingId?: number; managementTab?: ManagementTab; channelManagerTab?: "sync" }) => void;
   permissions?: Record<string, boolean>;
 }) {
   const { apiCall } = useAdminApi(password, username);
@@ -42,6 +43,7 @@ export function AdminDashboard({
   const [todayBookingCount, setTodayBookingCount] = useState(0);
   const [todayCancellationCount, setTodayCancellationCount] = useState(0);
   const [stats, setStats] = useState({ total: 0, occupied: 0, available: 0, cleanup: 0 });
+  const [mappingHealth, setMappingHealth] = useState<MappingHealth | null>(null);
   const [validationOn, setValidationOn] = useState(true);
   const [togglingValidation, setTogglingValidation] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -73,6 +75,7 @@ export function AdminDashboard({
         setTodayCancellationCount(Number(data.todayCancellationCount) || 0);
         setUnpaidStays(data.unpaidStays || []);
         setReconciliationWarning(data.reconciliationWarning || null);
+        setMappingHealth(data.mappingHealth || null);
         setStats(data.stats || { total: 0, occupied: 0, available: 0, cleanup: 0 });
         setValidationOn(data.validationEnabled !== false);
         if (data.guestMinAge || data.guestMaxAge) {
@@ -212,6 +215,15 @@ export function AdminDashboard({
       <h2 className="font-display text-xl font-bold text-brand-green md:text-2xl">Dashboard</h2>
       <p className="mt-1 text-sm text-brand-green-dark/60 dark:text-zinc-500">{today}</p>
 
+      {mappingHealth && !["match", "disabled"].includes(mappingHealth.status) && (role === "admin" || role === "manager") && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+          {role === "admin" ? <button type="button" className="w-full text-left" onClick={() => onNavigate("management", { managementTab: "channelManager", channelManagerTab: "sync" })}>
+            <span className="font-semibold">{MAPPING_HEALTH_LABELS[mappingHealth.status]}{mappingHealth.report?.issues.length ? ` · ${mappingHealth.report.issues.length} issue(s)` : ""}</span>
+            <span className="mt-1 block text-sm">Review differences and resolution steps in Channel Manager → Sync & Logs.</span>
+          </button> : <><p className="font-semibold">{MAPPING_HEALTH_LABELS[mappingHealth.status]}</p><p className="mt-1 text-sm">Ask an administrator to review Channel Manager → Sync & Logs.</p></>}
+          <p className="mt-1 text-xs">Pushes continue using saved mappings.</p>
+        </div>
+      )}
       {reconciliationWarning && (role === "admin" || role === "manager") && (
         <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">

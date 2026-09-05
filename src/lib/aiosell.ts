@@ -279,21 +279,26 @@ async function aiosellFetch(
   }
 }
 
-export async function getAiosellPropertyDetails(config: AiosellConfig): Promise<
+export async function getAiosellPropertyDetails(config: AiosellConfig, source?: "daily" | "manual"): Promise<
   { success: true; details: AiosellPropertyDetails } | { success: false; message: string }
 > {
   const url = `${config.apiBaseUrl}/api/v2/cm/property_details/${encodeURIComponent(config.hotelCode)}?partnerId=${encodeURIComponent(config.pmsId)}`;
   const started = Date.now();
   try {
-    const response = await fetch(url, { headers: { Authorization: buildAuthHeader(config) } });
+    const response = await fetch(url, { headers: { Authorization: buildAuthHeader(config) }, signal: AbortSignal.timeout(15000) });
     const data = await response.json().catch(() => null) as AiosellPropertyDetails | null;
-    const valid = response.ok && data && Array.isArray(data.rooms);
-    const message = valid ? "" : `Property Details failed (HTTP ${response.status})`;
-    await logPmsCall({ direction: "pull", type: "fetch (mapping)", status: valid ? "success" : "failed", request: {}, response: data, errorMessage: message, recordsAffected: data?.rooms?.length, httpMethod: "GET", url, httpStatus: response.status, durationMs: Date.now() - started }).catch(() => {});
+    const valid = response.ok && data && Array.isArray(data.rooms)
+      && (!source || (data.hotel_id === config.hotelCode && data.rooms.every((room) =>
+        typeof room.room_id === "string" && room.room_id.length > 0
+        && (room.rateplans == null || (Array.isArray(room.rateplans) && room.rateplans.every((plan) => typeof plan.rateplan_id === "string" && plan.rateplan_id.length > 0))))));
+    const message = valid ? "" : !response.ok ? `Property Details failed (HTTP ${response.status})`
+      : source && data?.hotel_id !== config.hotelCode ? "Property Details returned a different hotel; review Configuration"
+      : "Property Details returned an invalid room/rate-plan list";
+    await logPmsCall({ direction: "pull", type: source ? `fetch (mapping ${source})` : "fetch (mapping)", status: valid ? "success" : "failed", request: {}, response: data, errorMessage: message, recordsAffected: data?.rooms?.length, httpMethod: "GET", url, httpStatus: response.status, durationMs: Date.now() - started }).catch(() => {});
     return valid ? { success: true, details: data } : { success: false, message };
   } catch (error: any) {
     const message = error?.message || "Network error";
-    await logPmsCall({ direction: "pull", type: "fetch (mapping)", status: "failed", request: {}, errorMessage: message, httpMethod: "GET", url, httpStatus: 0, durationMs: Date.now() - started }).catch(() => {});
+    await logPmsCall({ direction: "pull", type: source ? `fetch (mapping ${source})` : "fetch (mapping)", status: "failed", request: {}, errorMessage: message, httpMethod: "GET", url, httpStatus: 0, durationMs: Date.now() - started }).catch(() => {});
     return { success: false, message };
   }
 }

@@ -53,6 +53,7 @@ function AdminPageInner() {
     clearParams: ["tab"],
     validValues: ["dashboard", "bookings", "beds", "timeline", "inventory", "records", "foodOrders", "expenditure", "splits", "reviews", "management"],
   });
+  const [channelManagerTab, setChannelManagerTab] = useState<"sync" | undefined>();
   const [managementTab, setManagementTab] = useState<ManagementTab | undefined>();
   const [pendingAssignGuest, setPendingAssignGuest] = useState<string | null>(null);
   const [pendingBookingId, setPendingBookingId] = useState<number | null>(null);
@@ -413,7 +414,7 @@ function AdminPageInner() {
         fillViewport && "flex min-h-0 flex-1 flex-col",
       )}>
         <div className={cn(fillViewport && "flex h-full min-h-0 flex-1 flex-col")}>
-            {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); if (opts?.bookingId) setPendingBookingId(opts.bookingId); if (opts?.managementTab) setManagementTab(opts.managementTab); setSection(s); }} permissions={permissions} />}
+            {section === "dashboard" && <AdminDashboard password={password} username={username} role={role} onNavigate={(s, opts) => { if (opts?.assignGuestContact) setPendingAssignGuest(opts.assignGuestContact); if (opts?.bookingId) setPendingBookingId(opts.bookingId); if (opts?.managementTab) setManagementTab(opts.managementTab); setChannelManagerTab(opts?.channelManagerTab); setSection(s); }} permissions={permissions} />}
             {section === "bookings" && <BookingDashboard password={password} username={username} role={role} permissions={permissions} initialBookingId={pendingBookingId} onInitialBookingConsumed={() => setPendingBookingId(null)} />}
             {section === "beds" && <AdminBeds password={password} username={username} role={role} permissions={permissions} pendingAssignGuest={pendingAssignGuest} onPendingAssignConsumed={() => setPendingAssignGuest(null)} />}
             {section === "timeline" && <AdminTimeline password={password} username={username} role={role} permissions={permissions} />}
@@ -423,7 +424,7 @@ function AdminPageInner() {
             {section === "expenditure" && <AdminExpenditure password={password} username={username} role={role} permissions={permissions} />}
             {section === "splits" && isSplitsSectionEnabled() && <AdminSplits password={password} username={username} role={role} permissions={permissions} />}
             {section === "reviews" && <AdminReviews password={password} username={username} role={role} permissions={permissions} />}
-            {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} initialTab={managementTab} onTabUsed={() => setManagementTab(undefined)} />}
+            {section === "management" && <AdminManagement password={password} username={username} role={role} permissions={permissions} initialTab={managementTab} initialChannelTab={channelManagerTab} onTabUsed={() => setManagementTab(undefined)} />}
         </div>
       </div>
 

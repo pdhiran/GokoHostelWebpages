@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { getChannelConfig, getRoomTypeMappings, updateChannelSyncTime, getDirtyInventory, clearDirtyInventory, clearAllDirtyInventory } from "@/db/queries";
 import { getDateAwareAvailability, getDateAwareAvailabilityRange } from "@/lib/aiosellSync";
-import { getAiosellPropertyDetails, pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
-import { invalidRoomCodes, thirtyDayRange, validDateRange, warningRoomCodes } from "@/lib/aiosellValidation";
+import { pushInventory, type AiosellConfig, type InventoryUpdate } from "@/lib/aiosell";
+import { thirtyDayRange, validDateRange, warningRoomCodes } from "@/lib/aiosellValidation";
 import { todayIST } from "@/lib/utils";
 import { inclusiveNights } from "@/lib/inventoryAvailability";
 
@@ -90,10 +90,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: "Nothing to push", inventoryPushed: 0, mode });
     }
 
-    const property = await getAiosellPropertyDetails(aiosellConfig);
-    if (!property.success) return NextResponse.json({ error: property.message }, { status: 502 });
-    const invalid = invalidRoomCodes(property.details, updates.flatMap((u) => u.rooms.map((r) => r.roomCode)));
-    if (invalid.length) return NextResponse.json({ success: false, error: `Invalid Aiosell room mappings: ${invalid.join(", ")}`, invalidRoomCodes: invalid }, { status: 409 });
 
     const result = await pushInventory(aiosellConfig, updates);
 

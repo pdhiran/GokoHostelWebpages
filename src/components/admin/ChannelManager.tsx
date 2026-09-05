@@ -1,5 +1,7 @@
 "use client";
 
+import { MappingHealthPanel } from "./MappingHealthPanel";
+import type { MappingIssue } from "@/lib/aiosellMappingHealth";
 import { useState, useEffect } from "react";
 import { useAdminToast } from "@/components/admin/AdminToast";
 import { AdminLoading } from "./AdminLoading";
@@ -112,8 +114,11 @@ const DEFAULT_CONFIG: ChannelConfig = {
   lastSyncAt: "",
 };
 
-export function ChannelManager({ password, username, role }: { password: string; username?: string; role: Role }) {
-  const [tab, setTab] = useState<Tab>("config");
+export function ChannelManager({ password, username, role, initialTab }: { password: string; username?: string; role: Role; initialTab?: "sync" }) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? "config");
+  const [issue, setIssue] = useState<MappingIssue | undefined>();
+  const { call } = useChannelApi(password, username);
+  useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
 
   return (
     <div className="space-y-4">
@@ -132,12 +137,16 @@ export function ChannelManager({ password, username, role }: { password: string;
         ))}
       </div>
 
+      {issue && (tab === "rooms" || tab === "rates") && <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-xs dark:border-amber-900 dark:bg-amber-950/20">
+        Reviewing room <strong>{issue.roomCode}</strong>{issue.planCode ? ` / plan ${issue.planCode}` : ""}. Confirm the correct code in Aiosell before saving.
+        <button type="button" className="ml-2 underline" onClick={() => setTab("sync")}>Return to Mapping health and verify</button>
+      </div>}
       {tab === "config" && <ConfigTab password={password} username={username} />}
-      {tab === "rooms" && <RoomMappingTab password={password} username={username} />}
-      {tab === "rates" && <RatePlansTab password={password} username={username} />}
+      {tab === "rooms" && <RoomMappingTab password={password} username={username} targetDormId={issue?.dormId} />}
+      {tab === "rates" && <RatePlansTab password={password} username={username} targetIssue={issue} />}
       {tab === "sales" && <ManagementSalesChannels password={password} username={username} />}
       {tab === "beds" && <ManagementBedConfig password={password} username={username} />}
-      {tab === "sync" && <SyncTab password={password} username={username} />}
+      {tab === "sync" && <><MappingHealthPanel call={call} onResolve={(next, selected) => { setIssue(selected); setTab(next); }} /><SyncTab password={password} username={username} /></>}
     </div>
   );
 }
@@ -285,7 +294,7 @@ function ConfigTab({ password, username }: { password: string; username?: string
   );
 }
 
-function RoomMappingTab({ password, username }: { password: string; username?: string }) {
+function RoomMappingTab({ password, username, targetDormId }: { password: string; username?: string; targetDormId?: number }) {
   const { call: apiCall } = useChannelApi(password, username);
   const { showError } = useAdminToast();
   const [mappings, setMappings] = useState<RoomMapping[]>([]);
@@ -320,6 +329,10 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
       return { ...prev, [dormId]: { ...cur, ...patch } };
     });
   };
+
+  useEffect(() => {
+    if (!loading && targetDormId) document.querySelector(`[data-mapping-dorm="${targetDormId}"]`)?.scrollIntoView({ block: "center" });
+  }, [loading, targetDormId]);
 
   const saveDorm = async (dormId: number, mappingId: number | undefined, fallbackCode: string, fallbackBeds: number) => {
     const d = draftFor(dormId, fallbackCode, fallbackBeds);
@@ -406,7 +419,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
           if (!mapping) {
             const draft = draftFor(d.id, suggested, d.bedCount);
             return (
-              <div key={d.id} className="flex flex-col gap-2 rounded-lg border border-dashed border-brand-mist p-2 sm:flex-row sm:items-center">
+              <div key={d.id} data-mapping-dorm={d.id} style={targetDormId === d.id ? { outline: "2px solid #d6b66a", outlineOffset: 2 } : undefined} className="flex flex-col gap-2 rounded-lg border border-dashed border-brand-mist p-2 sm:flex-row sm:items-center">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{d.name}</p>
                   <p className="text-[10px] text-amber-700 dark:text-amber-400">Not mapped — not sent to Aiosell yet</p>
@@ -442,7 +455,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
           const editing = editingId === mapping.id;
           const draft = draftFor(d.id, mapping.channelRoomCode, mapping.totalInventory);
           return (
-            <div key={d.id} className="flex flex-col gap-2 rounded-lg bg-muted/50 p-2 sm:flex-row sm:items-center">
+            <div key={d.id} data-mapping-dorm={d.id} style={targetDormId === d.id ? { outline: "2px solid #d6b66a", outlineOffset: 2 } : undefined} className="flex flex-col gap-2 rounded-lg bg-muted/50 p-2 sm:flex-row sm:items-center">
               <span className="flex-1 text-sm font-medium">{d.name}</span>
               {editing ? (
                 <>
@@ -474,6 +487,10 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
                   <Button variant="ghost" size="sm" onClick={() => setEditingId(mapping.id!)} className="h-7 w-7 p-0" title="Edit">
                     <PencilIcon className="h-3.5 w-3.5" />
                   </Button>
+                  <Button variant="ghost" size="sm" onClick={async () => {
+                    try { await apiCall("/api/admin/channel-manager", { action: "saveRoomMapping", mapping: { ...mapping, isActive: mapping.isActive ? 0 : 1 } }); await load(); }
+                    catch (e: any) { showError(e.message); }
+                  }}>{mapping.isActive ? "Disable" : "Enable"}</Button>
                   <Button variant="ghost" size="sm" onClick={() => remove(mapping.id!)} className="h-7 w-7 p-0 text-red-500" title="Delete">
                     <Trash2Icon className="h-3.5 w-3.5" />
                   </Button>
@@ -497,7 +514,7 @@ function RoomMappingTab({ password, username }: { password: string; username?: s
   );
 }
 
-function RatePlansTab({ password, username }: { password: string; username?: string }) {
+function RatePlansTab({ password, username, targetIssue }: { password: string; username?: string; targetIssue?: MappingIssue }) {
   const { call: apiCall } = useChannelApi(password, username);
   const { showError } = useAdminToast();
   const [plans, setPlans] = useState<RatePlan[]>([]);
@@ -520,6 +537,12 @@ function RatePlansTab({ password, username }: { password: string; username?: str
     setLoading(false);
   };
 
+  useEffect(() => {
+    if (loading || !targetIssue) return;
+    if (targetIssue.planId) document.querySelector(`[data-mapping-plan="${targetIssue.planId}"]`)?.scrollIntoView({ block: "center" });
+    else if (targetIssue.roomMappingId) setNewPlan((prev) => ({ ...prev, roomMappingId: targetIssue.roomMappingId }));
+  }, [loading, targetIssue]);
+
   const save = async (plan: Partial<RatePlan>) => {
     try {
       await apiCall("/api/admin/channel-manager", { action: "saveRatePlan", plan });
@@ -541,6 +564,7 @@ function RatePlansTab({ password, username }: { password: string; username?: str
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold">Rate Plans</h3>
+      <p className="text-xs text-muted-foreground">After correcting a mapping, open Sync & Logs and click Check again to verify.</p>
       <p className="text-xs text-muted-foreground">Each mapped room type can have multiple rate plans (e.g., EP = room only, CP = with breakfast).</p>
       {mappings.length === 0 && (
         <p className="text-xs text-amber-700 dark:text-amber-400">Map a dorm under Room Mapping first — unmapped dorms cannot have rate plans.</p>
@@ -551,10 +575,12 @@ function RatePlansTab({ password, username }: { password: string; username?: str
           {plans.map((p) => {
             const room = mappings.find((m) => m.id === p.roomMappingId);
             return (
-              <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 text-sm">
+              <div key={p.id} data-mapping-plan={p.id} style={targetIssue?.planId === p.id ? { outline: "2px solid #d6b66a" } : undefined} className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-muted/50 text-sm">
                 <span className="text-xs text-muted-foreground">{room?.dormName || "?"}</span>
                 <span className="font-medium flex-1">{p.ratePlanName}</span>
                 <code className="text-xs bg-background px-2 py-0.5 rounded">{p.ratePlanCode}</code>
+                <Button variant="ghost" size="sm" onClick={() => setNewPlan({ ...p })}>Edit</Button>
+                <Button variant="ghost" size="sm" onClick={() => save({ ...p, isActive: p.isActive ? 0 : 1 })}>{p.isActive ? "Disable" : "Enable"}</Button>
                 <Button variant="ghost" size="sm" onClick={() => remove(p.id!)} className="h-7 w-7 p-0 text-red-500">
                   <Trash2Icon className="h-3.5 w-3.5" />
                 </Button>
@@ -565,7 +591,7 @@ function RatePlansTab({ password, username }: { password: string; username?: str
       )}
 
       <div className="border rounded-lg p-3 space-y-2">
-        <p className="text-xs font-medium">Add Rate Plan</p>
+        <p className="text-xs font-medium">{newPlan.id ? "Edit Rate Plan" : "Add Rate Plan"}</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <select
             className="rounded-md border px-3 py-2 text-sm bg-background"
@@ -579,8 +605,9 @@ function RatePlansTab({ password, username }: { password: string; username?: str
           <Input placeholder="Rate Plan Name" value={newPlan.ratePlanName || ""} onChange={(e) => setNewPlan({ ...newPlan, ratePlanName: e.target.value })} />
         </div>
         <Button size="sm" onClick={() => save(newPlan)} disabled={!newPlan.roomMappingId || !newPlan.ratePlanCode || !newPlan.ratePlanName}>
-          <PlusIcon className="h-3.5 w-3.5 mr-1" /> Add
+          <PlusIcon className="h-3.5 w-3.5 mr-1" /> {newPlan.id ? "Save changes" : "Add"}
         </Button>
+        {newPlan.id && <Button variant="ghost" size="sm" onClick={() => setNewPlan({ roomMappingId: 0, ratePlanCode: "", ratePlanName: "", isActive: 1 })}>Cancel edit</Button>}
       </div>
     </div>
   );
